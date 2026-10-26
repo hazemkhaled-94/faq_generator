@@ -556,7 +556,15 @@ From a fresh clone, following only this page:
    `APP_DB_PASSWORD` must be letters, digits, `-`, `_` and `.`: the connection
    string is built from it as written, so `@ / : # ? %` in it are refused by
    `make doctor` and by `make corpus-hosted`, naming the setting.
-3. `make up`. With `HOST_RUNNER=1` it starts the services no profile names:
+3. `make install`, then `make docling-weights HOST=1`. The first installs the
+   host's virtualenv and the spaCy pipelines, which every host command and
+   the model stages run in, and fetches Docling's weights into the `models`
+   volume the parse worker reads: that worker has the Hub off and no route
+   out, so a fresh volume fails every document. It needs the container
+   engine and builds the image the first time. The second fetches the same
+   weights into the host's own Hugging Face cache, which `make doctor`, the
+   hosted run's preflight and a host drain read with the Hub off.
+4. `make up`. With `HOST_RUNNER=1` it starts the services no profile names:
    postgres, the object store, the api, the parse and chunk workers, the web
    page and Phoenix. The parse and chunk workers drain their queues here, and
    `make corpus-hosted` waits for each to empty before the model stages. The
@@ -568,18 +576,23 @@ From a fresh clone, following only this page:
    `make auto` refuse, and so do the pipeline's routes, naming the host
    runner. A queue verb for a model stage still queues its rows, and its answer
    names the command that drains them.
-4. `make doctor`. It checks the split, asks every model one question, and
+5. `make schema`, which creates the tables: `make up` starts the services and
+   migrates nothing, and the first upload to an empty database fails.
+6. `make doctor`. It checks the split, asks every model one question, and
    reads the Hugging Face cache the run reads with the Hub switched off,
    naming any encoder, at its pinned commit, or Docling weight that is missing
    or holds no weights; on this profile that fails, as it does with
    `HF_HUB_OFFLINE=1`, and `make corpus-hosted` checks it again before it
-   detaches. Fill the host's cache once beforehand, where the Hub is
-   reachable: `make docling-weights HOST=1` for Docling and the
-   `poetry run hf download` line the doctor prints for a missing encoder, as
-   [configuration](configuration.md#pinning-the-encoders) says.
-5. Upload the documents on the Upload page, or with
+   detaches. Run the `poetry run hf download` line the doctor prints for a
+   missing encoder, where the Hub is reachable, as
+   [configuration](configuration.md#pinning-the-encoders) says, and
+   `make doctor` again.
+7. `make ingest DIR=<folder of PDFs>` loads a corpus from the host, one line
+   a file, under the limits the Upload page has stored. The Upload page is for
+   a few files: it refuses more than 20 files or 200 MB at once, and holds
+   what is selected in its memory before it checks. One file with curl:
    `curl -H "X-API-Token: $API_TOKEN" -F file=@x.pdf http://localhost:8000/documents`.
-6. `make corpus-hosted SPEND_CAP=50`. It returns at once, and the run goes on
+8. `make corpus-hosted SPEND_CAP=50`. It returns at once, and the run goes on
    detached: `logs/corpus-hosted.log` holds what it does and
    `state/corpus-hosted.pid` its process group, database and leader's start time;
    `make corpus-hosted-stop` stops it. It names the database it acts on,
@@ -595,8 +608,8 @@ From a fresh clone, following only this page:
    run is recorded. Every drain logs the split it resolved
    before its first row, and a role that resolves to an Ollama model stops
    the run before a model is asked.
-7. When it ends, the two workbooks: `make questions-export OUT=release.xlsx
-   FILTER="--released"` and `make questions-export OUT=all.xlsx`.
+9. `make questions-export OUT=release.xlsx FILTER="--released"` and
+   `make questions-export OUT=all.xlsx` when it ends: the two workbooks.
 
 ### What a queue verb says on this profile
 
