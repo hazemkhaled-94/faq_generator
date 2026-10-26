@@ -99,7 +99,10 @@ arrival.
 
 The same sequence of panels, on the six stage pages that list something
 (Upload draws its figures and the upload form, with `Configuration` under
-it, and after an upload a table of what became of each file. It refuses a
+it, and after an upload a table of what became of each file. A caption above
+the picker names the caps and `make ingest DIR=`, because Streamlit sends each
+file to the page's process as it is picked, form or not, so the cap is checked
+only after the selection is held in memory. It refuses a
 selection above 20 files or 200 MB in all, `UPLOAD_MAX_FILES` and
 `UPLOAD_MAX_BYTES` in [`lib/config.py`](lib/config.py), and names
 `make ingest DIR=<directory>`, which loads a host directory through the same

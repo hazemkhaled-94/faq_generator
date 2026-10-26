@@ -1018,3 +1018,29 @@ def test_the_questions_page_says_when_a_cited_fact_no_longer_holds(open_view) ->
     ).select(0)
 
     assert "no longer passes its checks" in page.text()
+
+
+def test_the_upload_page_names_its_caps_before_anything_is_chosen(open_view) -> None:
+    """Above the picker, because a picked file is uploaded to the page at once.
+
+    Streamlit sends each file to the page's own process as soon as it is
+    picked, inside a form too, so the cap checked on Upload all comes after
+    the whole selection is held in memory: only words read first keep a
+    corpus off the page.
+    """
+    from lib import config
+
+    page = open_view("upload")
+    order = [
+        node
+        for node in page.app.main
+        if getattr(node, "type", None) in ("caption", "file_uploader")
+    ]
+    first_caption = next(at for at, node in enumerate(order) if node.type == "caption")
+    picker = next(at for at, node in enumerate(order) if node.type == "file_uploader")
+    said = str(order[first_caption].value)
+
+    assert first_caption < picker, [node.type for node in order]
+    assert f"{config.UPLOAD_MAX_FILES} files" in said, said
+    assert f"{config.UPLOAD_MAX_BYTES // 1048576} MB" in said, said
+    assert "make ingest DIR=" in said, said

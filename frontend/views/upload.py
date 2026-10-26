@@ -35,6 +35,14 @@ def view() -> None:
     overview = st.container()
 
     with page.panel("Ingestion"):
+        # Before the picker: Streamlit sends each file to this process as it is
+        # picked, form or not, so the cap below comes after the files are held.
+        st.caption(
+            f"At most {config.UPLOAD_MAX_FILES} files and "
+            f"{config.UPLOAD_MAX_BYTES // 1048576} MB at once. Every file picked "
+            f"is held in this page's memory before it is checked, so load a "
+            f"corpus from the host with `make ingest DIR=<directory>`."
+        )
         with st.form("upload", border=False):
             files = st.file_uploader(
                 "PDFs",
