@@ -86,7 +86,7 @@ make documents
 make ingest DIR=<directory>
 make delete SHA=<sha256> CONFIRM=<database>
 make delete-derived SHA=<sha256> CONFIRM=<database>
-make wipe
+make wipe CONFIRM=<database>
 ```
 
 `make ingest` sends every PDF in a host directory through this service.
