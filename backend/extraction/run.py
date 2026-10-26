@@ -22,7 +22,7 @@ from llm.check import before_work
 from llm.config import Settings as ModelSettings
 from settings.runs import named_run, run_id
 from settings.store import snapshot
-from stages.cli import proved, queue_main
+from stages.cli import proved, queue_main, trace
 from stages.prompts import record
 
 log = logging.getLogger(__name__)
@@ -100,6 +100,9 @@ def main(argv: list[str] | None = None) -> int:
             return model, settings, version
 
         model, settings, version = proved(ready, "no bridge was deleted")
+        # After the proof, as a drain's is: a model that will not answer
+        # leaves no Phoenix project, and the pass's spans reach one.
+        trace("extraction")
         try:
             return bridge(
                 FactCatalog(version=version),
