@@ -322,8 +322,9 @@ def set_retention(client, days: int) -> None:
     """Sets the default trace retention policy to `days`.
 
     Phoenix deletes spans older than that when its policy runs, which it does
-    on its own schedule, so what a trace held is gone by a day after the limit
-    and not at it.
+    on its own schedule: weekly, at 00:00 UTC on Sundays as Phoenix 20.3.0
+    ships the default policy, so a trace can outlive the limit by up to seven
+    days.
 
     Raises:
         RuntimeError: If Phoenix answers with an error. GraphQL answers 200

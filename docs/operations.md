@@ -521,8 +521,8 @@ customer's document. Phoenix keeps them for ever unless told otherwise, so
 `PHOENIX_TRACE_RETENTION_DAYS` (30 where unset; it is in
 `configs/env/deployment.env`, with its reason). `make phoenix-retention` sets
 it again after a change, and it needs the stack up. Phoenix applies the
-policy on its own schedule, so spans a day past the limit may still be there
-for a while. A failure to set it is printed and the stack still starts: read
+policy on its own schedule, weekly, at 00:00 UTC on Sundays as Phoenix 20.3.0
+ships it, so a trace can stay up to seven days past the limit. A failure to set it is printed and the stack still starts: read
 it. A policy of zero is refused, because it is Phoenix's own "never delete".
 
 The cost log is the spend of record, not what Phoenix holds, so shortening the
