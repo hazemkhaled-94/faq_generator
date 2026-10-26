@@ -85,7 +85,9 @@ reaching the same facts through different rows could each wait on the other.
 The paths that delete (`store` of a passage's facts, a chunk store, a
 document's deletion) first call `lock_reached`, which locks the facts and
 questions the cascade will reach in id order, so every such deletion waits in
-one line.
+one line. The duplicate refusals naming a reached fact as their twin are
+locked with the facts: the delete sets their `twin_id` NULL, rows of another
+document it would otherwise update unlocked.
 
 `ingest_events.sha256` is a plain column, not a foreign key, so the record
 that an upload happened outlives the document and keeps its digest.

@@ -32,7 +32,10 @@ def lock_reached(session, fact_ids: Any, digests: list[str] | None = None) -> No
     updated by a trigger and a deleted root's are cascaded, and a thread
     crossing two passages is reached from both, so each question's whole
     thread (parents and follow-ups, through `follows_id`) is locked in the
-    same line.
+    same line. So is every duplicate refusal naming a reached fact as its
+    twin: the delete sets its `twin_id` NULL, an update of a row of another
+    document, so two deletions whose refusals name each other's facts would
+    otherwise each hold the other's.
 
     Args:
         session: The transaction that is about to delete.
@@ -43,7 +46,7 @@ def lock_reached(session, fact_ids: Any, digests: list[str] | None = None) -> No
     """
     session.execute(
         select(Fact.id)
-        .where(_among(Fact.id, fact_ids))
+        .where(or_(_among(Fact.id, fact_ids), _among(Fact.twin_id, fact_ids)))
         .order_by(Fact.id)
         .with_for_update()
     ).all()

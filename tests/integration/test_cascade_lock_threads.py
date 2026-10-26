@@ -106,3 +106,52 @@ def test_two_document_deletions_with_crossing_threads_do_not_deadlock(
             lambda b=b: DocumentRepository().delete(b),
         )
     assert not killed, killed
+
+
+#: Duplicate refusals per side naming the other side's facts as their twin.
+TWINS = 150
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_two_deletions_whose_refusals_name_each_others_facts_do_not_deadlock(
+    engine, database, language
+) -> None:
+    """Each deletion sets NULL the other document's refusals that named its facts.
+
+    Those refusals are rows the cascade updates, so they are locked in the same
+    id-ordered line as the facts it deletes.
+    """
+    from ingestion.repository import DocumentRepository
+
+    killed: list[str] = []
+    for round_ in range(3):
+        shas = [digest(f"twins-{side}-{round_}-{language}") for side in "ab"]
+        with Session(engine) as session:
+            session.add_all(document(sha, language=language) for sha in shas)
+            session.flush()
+            cuts = [passage(sha, text="Eins.", language=language) for sha in shas]
+            session.add_all(cuts)
+            session.flush()
+            kept = []
+            for side, cut in enumerate(cuts):
+                drawn = [fact(cut.id, statement=f"{side} {n}.") for n in range(TWINS)]
+                session.add_all(drawn)
+                session.flush()
+                kept.append(drawn)
+            for side, cut in enumerate(cuts):
+                session.add_all(
+                    fact(
+                        cut.id,
+                        statement=f"{side} {n}.",
+                        validated=False,
+                        rejection_code="duplicate",
+                        twin_id=twin.id,
+                    )
+                    for n, twin in enumerate(kept[1 - side])
+                )
+            session.commit()
+        killed += raced(
+            lambda a=shas[0]: DocumentRepository().delete(a),
+            lambda b=shas[1]: DocumentRepository().delete(b),
+        )
+    assert not killed, killed
