@@ -1,18 +1,17 @@
 # NLP
 
-Sentence splitting, claim analysis, vocabulary and language detection — the
-linguistic surface every other stage reads off text.
+Sentence splitting, claim analysis, vocabulary and language detection: the
+linguistic readings every other stage takes from text.
 
-One of the three packages that load something expensive; the others are
+One of three packages that load something heavy, with
 [`database/`](../database/README.md) and
-[`blob_store/`](../blob_store/README.md). A caller asks for a sentence split;
-it never loads a pipeline.
+[`blob_store/`](../blob_store/README.md). A caller asks for a sentence split
+and never loads a pipeline. No model is served from here: everything is local
+and deterministic, so the fact checks run without a served model and
+`make extract-revalidate` takes seconds.
 
-**No model is served from here.** Everything is local and deterministic, which
-is what lets the fact checks run without a served model and why
-`make extract-revalidate` costs seconds rather than hours.
-
-Three files load weights, and nothing outside a worker may import them:
+Three files load weights. Only workers may import them
+(`tests/static/test_api_stays_light.py`).
 
 | File | Loads | Asked |
 |---|---|---|
@@ -20,261 +19,213 @@ Three files load weights, and nothing outside a worker may import them:
 | [`entailment.py`](entailment.py) | `NLI_MODEL` | whether one premise entails one hypothesis |
 | [`qa.py`](qa.py) | `QA_MODEL` | where in a passage the answer is, or that there is none |
 
-Each is held to its own window by [`windows.py`](windows.py):
-`EMBEDDING_MAX_TOKENS` is the ceiling a deployment asks for the embedder and
-`ENCODER_MAX_TOKENS` the one it asks for the other two, and a checkpoint that
-cannot read that far is given what it can. Entailment reads at most its
-tokenizer's `model_max_length`, 512 for the shipped `bge-m3-zeroshot-v2.0`, so
-`ENCODER_MAX_TOKENS` does not apply to it unless set below that.
-`tests/static/test_api_stays_light.py` pins that the API loads none of them.
+[`windows.py`](windows.py) holds each to its own window:
+`EMBEDDING_MAX_TOKENS` for the embedder and `ENCODER_MAX_TOKENS` for the other
+two, limited to what the checkpoint can read.
 
 ## What it does
 
 ### Sentence numbering
 
-Chunking splits every passage into numbered sentences and stores them. A fact
-**cites one of those numbers** rather than quoting text, so its source span is
-exact by construction — a citation is either a sentence the passage has or one
-it does not.
+Chunking splits every passage into numbered sentences and stores them once.
+A fact cites a sentence number instead of quoting text, so a citation either
+names a sentence the passage has or it does not.
 
-It is computed once, by chunking, and stored. Nothing recomputes it.
+The splitter's cuts are corrected where a statement would not end:
 
-The parser's cuts are corrected where a statement would not end: inside a
-word joined by a slash or a dash, before a clause opened by a comma, after an
-abbreviation that never ends one (`incl. VAT`, `gem. Ziff. 3`) on its line,
-after one that may (`etc.`, `Art.`, `Mo.–Fr.`) followed by a lower-case word
-or, on its line, a figure (`max. 3 days`, `Sect. 4.`, but not `etc.` before a
-line opening `2.`), before a figure ending a sentence on its line (`EUR 5.`,
-`Ziffer 3.`), and between an item's number and the item: only a number opening
-its line numbers an item. A slash or a dash after a
-sentence's end and a space joins nothing: it opens the next sentence, as a
-free `- ` does or as the bullet of the next line. An abbreviation's full stop
-ends no sentence there either, so `inkl. / zzgl. Versand` stays whole.
+- Inside a word joined by a slash or a dash, and before a clause opened by a
+  comma.
+- After an abbreviation that never ends a sentence (`incl. VAT`,
+  `gem. Ziff. 3`) on its line.
+- After one that may (`etc.`, `Art.`, `Mo.–Fr.`) when a lower-case word
+  follows, or a figure on its line (`max. 3 days`, `Sect. 4.`; not `etc.`
+  before a line opening `2.`).
+- Before a figure that ends a sentence on its line (`EUR 5.`, `Ziffer 3.`).
+- Between an item's number and the item. Only a number opening its line
+  numbers an item.
+
+A slash or a dash after a sentence end and a space opens the next sentence, so
+`inkl. / zzgl. Versand` stays whole.
 
 ### Counting claims
 
-`not_atomic` — the check that a fact carries exactly one claim — is a
-**finite-verb count**, of the independent ones: a finite verb inside a
-relative or other subordinate clause is not counted. A statement with more
-than one carries several claims; one with none carries nothing.
-
-A parse rooted on a clause its subordinator opens has made the condition
-the main clause, and the span is read as the one rule it states.
-
-The same reading is what lets the passage gate skip a heading, a caption or a
-navigation line **before** the model is called.
+`not_atomic` checks that a fact carries exactly one claim by counting
+independent finite verbs. A finite verb in a subordinate clause is not
+counted. Several mean several claims, and none means nothing is claimed. The
+same reading lets the passage gate skip a heading, a caption or a navigation
+line before the model is called.
 
 ### Vocabulary
 
-The lemmas of the nouns, proper nouns and adjectives, without web addresses,
-lemmas with no letter or one-character lemmas, written onto every passage
-by chunking and read by the topic model as the document it is fitted over.
+Chunking writes onto every passage the lemmas of its nouns, proper nouns and
+adjectives, leaving out web addresses, lemmas with no letter and
+one-character lemmas. The topic model fits over them.
 
 `NLP_CAPITALISED_NOUNS` names the languages where capitalisation says nothing
-about whether a noun is proper — German, where every noun is capitalised. In
-those languages a lower-case noun is read as a foreign word and left out, in
-a text that writes some word after its first with a capital: a query typed
-all in lower case keeps its nouns.
+about whether a noun is proper, such as German. There a lower-case noun is
+read as a foreign word and left out, unless the text is all lower case.
 
 ### Language detection
 
-Detected on the **passage**, not inherited from its document; a passage too
-short to judge, and a table, keep the document's. The detector may only
-answer with a language `NLP_MODELS` names, because an answer with no
-pipeline behind it is a passage nothing can read. `NLP_DEFAULT_LANGUAGE` is
-the pipeline a text is read with when its language is unknown or not one
-`NLP_MODELS` names.
+The language is detected per passage. A passage too short to judge, and a
+table, keep the document's language. The detector may answer only with a
+language `NLP_MODELS` names. `NLP_DEFAULT_LANGUAGE` is the pipeline for a text
+whose language is unknown or not named there.
 
-The **document** is read once at parse by a second detector over every
-language lingua knows (`document_language`), so a document in a language
-`NLP_MODELS` does not name is refused at parse, naming its language, rather
-than read silently as one it does. Adding a language to `NLP_MODELS` is what
-lets such a document in. A body of figures, units and abbreviations that
-no language holds at 0.7 of the confidence is not refused as a third language.
+A second detector reads the document once at parse (`document_language`). A
+document in a language `NLP_MODELS` does not name is refused, naming its
+language. A body of figures, units and abbreviations that no language holds at
+0.7 confidence is not refused.
 
-### One call, one judgement
+### Entailment and embedding
 
-[`entailment.py`](entailment.py) answers one question about each premise and
-hypothesis pair: `judge_all` takes several pairs in one forward pass and
-returns one verdict for each.
+[`entailment.py`](entailment.py) judges premise and hypothesis pairs, several
+per forward pass (`judge_all`). It accepts a three-way NLI head or a two-way
+zero-shot head (the shipped `bge-m3-zeroshot-v2.0`), reads each score off the
+label the model put beside it, and refuses a checkpoint whose labels are not an
+NLI model's. Weights load in full precision, since half precision is many times
+slower on a CPU.
 
-Two kinds of head are accepted and each score is read off the **label the
-model put beside it**, never off a position: a three-way NLI model naming
-entailment/neutral/contradiction, and a two-way zero-shot head naming
-entailment/not_entailment. mDeBERTa-xnli and bart-mnli are ordered opposite
-ways round, so assuming an order inverts every verdict on half the models
-anybody would configure.
-
-`transformers`' own text-classification pipeline hands back the label names,
-so what is left here is the one thing it does not do: refuse a checkpoint
-whose labels are not an NLI model's. A sentiment head scores every pair
-fluently and means nothing by it.
-
-Two-way heads are read beside three-way ones, and the shipped
-`bge-m3-zeroshot-v2.0` is two-way. Its tokenizer declares 512 tokens, as
-`mDeBERTa-v3-base-xnli`'s does, and a premise here is a passage already sized
-to `EMBEDDING_MAX_TOKENS`.
-
-The weights always load in full precision. `bge-m3-zeroshot-v2.0` is saved in
-half precision, and loaded that way on a CPU it runs many times slower for the
-same scores.
-
-What the encoder returns is a **probability**, so a deployment can decide how
-sure it wants a gate to be. `NLI_ENTAILMENT_THRESHOLD` is that decision, and
-`QA_ANSWER_CONFIDENCE` is the same for the extractive reader.
-
-[`embedding.py`](embedding.py) is `sentence-transformers`, which reads the
-checkpoint's own `1_Pooling` config rather than assuming the mean.
+The encoder returns a probability. `NLI_ENTAILMENT_THRESHOLD` sets how sure a
+gate must be, and `QA_ANSWER_CONFIDENCE` does the same for the extractive
+reader. [`embedding.py`](embedding.py) reads the checkpoint's own `1_Pooling`
+config instead of assuming mean pooling.
 
 ### Mending a broken word
 
 [`text.py`](text.py) rejoins a word a converter broke across two lines at a
-hyphen. Parsing runs it over every string it reads, and the table and page
-joins over each string they make of two, since the halves of a word a cell
-wrapped or a page broke meet only there. A word broken at its own hyphen
-looks like any other broken word, so it keeps the hyphen only where the
-document prints it whole elsewhere: `third- party` is `third-party` in a
-document that prints `third-party`, and `thirdparty` in one that never
-does. Mending twice changes nothing.
+hyphen. The hyphen stays only where the document prints the word whole
+elsewhere: `third- party` becomes `third-party` in a document that prints
+`third-party`, and `thirdparty` in one that never does.
 
 ## Adding a language
 
 German and English are configured. Most readings are Universal Dependencies
-features every tagset marks; a handful are word lists. This is all of it.
+features; a handful are word lists.
 
 ### 1. Configure it
 
 | Where | What |
 |---|---|
-| `NLP_MODELS` | `xx:xx_core_news_md`. Names both the pipeline a language is read with and the languages the detector may answer with |
-| `NLP_CAPITALISED_NOUNS` | Add the code **only** if the language writes every noun with a capital |
+| `NLP_MODELS` | `xx:xx_core_news_md`. Names the pipeline for a language and the languages the detector may answer with |
+| `NLP_CAPITALISED_NOUNS` | Add the code only if the language writes every noun with a capital |
 | `TOPIC_LANGUAGE_NAMES` | `xx:Name`. What the topic-naming prompt calls the language |
-| `EMBEDDING_MODEL` | Check the new language is one the model covers |
+| `EMBEDDING_MODEL` | Check that the model covers the new language |
 
-**Medium, not small.** `de_core_news_sm` does not tag a German modal as a
-finite verb, which silently changes what `not_atomic` means.
+Use medium (`_md`) or large (`_lg`) pipelines. `de_core_news_sm` does not tag a
+German modal as a finite verb, which changes what `not_atomic` means. A
+pipeline named `_sm` or without word vectors loads with a warning.
 
-A pipeline whose name ends `_sm`, or that carries no word vectors, is loaded
-with a warning that names the language: sentences, tags and facts differ from
-the medium (`_md`) and large (`_lg`) pipelines, so pick one of those for each
-language, as the shipped German and English entries do.
+### 2. Add the language to the word lists
 
-### 2. Add the language to the word lists, and name it
-
-These are the readings no feature marks. A language missing from one means
-that gate **silently never fires** for it — no error, no log. The tables
-keyed by language code are held to `NLP_MODELS` by
-[`test_language_tables.py`](../../tests/static/test_language_tables.py), so a
-language added there without its rows fails that test, naming each table.
-The rest — `_DOCUMENTS`, `_ATTRIBUTIONS`, `_AGENTS`, `_HOW_MANY`,
-`_ANAPHORIC`, `_ASKING` and `_SOURCE` — hold every language's
-words in one set or pattern, so that test cannot see them: a language
-missing from one fails no test.
+A language missing from a list means that gate silently never fires for it.
+[`test_language_tables.py`](../../tests/static/test_language_tables.py) holds
+the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
+`_ATTRIBUTIONS`, `_AGENTS`, `_HOW_MANY`, `_ANAPHORIC`, `_ASKING` and
+`_SOURCE`, which hold every language's words in one set or pattern.
 
 | List | Where | What goes in it | Example |
 |---|---|---|---|
-| `_DIVISIONS` | [`question_generation/gates.py`](../question_generation/gates.py) | Words naming a division of a document's layout, by language: numbered, a citation | `Abschnitt`, `section` |
-| `_NORMATIVE` | same | Words naming a unit of what a document lays down, by language: numbered, the question's subject | `Artikel`, `clause` |
-| `_DOCUMENTS` | same | Words naming a document **type**, never a subject | `Richtlinie`, `guideline` |
+| `_DIVISIONS` | [`question_generation/gates.py`](../question_generation/gates.py) | Words naming a division of a document's layout | `Abschnitt`, `section` |
+| `_NORMATIVE` | same | Words naming a unit of what a document lays down | `Artikel`, `clause` |
+| `_DOCUMENTS` | same | Words naming a document type, never a subject | `Richtlinie`, `guideline` |
 | `_ATTRIBUTIONS` | same | Words that attribute what follows to a source | `laut`, `according` |
-| `_AGENTS` | same | The interrogatives that ask after a **party** rather than a thing | `wer`, `who` |
+| `_AGENTS` | same | Interrogatives that ask after a party, not a thing | `wer`, `who` |
 | `_HOW_MANY` | same | The opening of a question asking for a count | `wie viele`, `how many` |
 | `_COUNTS` | same | Counts written out, read off `CARDINALS` in [`analysis.py`](analysis.py) | `zwei`, `two` |
-| `_ASKED_FOR` | same | Question openings by language, and the kinds each asks for, the primary first | `warum`, `why` |
-| `_ASKS_HOW_MANY` | same | How a question asks for a count anywhere in it, by language | `wie vielen`, `how many` |
-| `_ASKING_ADVERBS` | same | Question words the language's tagger reads as something else, by language: a German `wo(r)` and a preposition | `worauf` |
-| `_RELATES` | same | Lemmas by which a question claims a relation between what it asks about, by language: a comparison, a total, a cause. A compound question that says one is refused | `unterscheiden`, `differ` |
-| `_POLARITY` | same | Words answering a yes-or-no question by their polarity, by language | `nein`, `not` |
-| `_PURPOSE` | same | How the material says why, by language: what a `reason` slot is dealt | `damit`, `so that` |
+| `_ASKED_FOR` | same | Question openings and the kinds each asks for, the primary first | `warum`, `why` |
+| `_ASKS_HOW_MANY` | same | How a question asks for a count anywhere in it | `wie vielen`, `how many` |
+| `_ASKING_ADVERBS` | same | Question words the tagger reads as something else | `worauf` |
+| `_RELATES` | same | Lemmas by which a question claims a relation. A compound question that says one is refused | `unterscheiden`, `differ` |
+| `_POLARITY` | same | Words answering a yes-or-no question by polarity | `nein`, `not` |
+| `_PURPOSE` | same | How the material says why: what a `reason` slot is dealt | `damit`, `so that` |
 | `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said | `besagt`, `aforementioned` |
 | `_ASKING` | same | Words a tagger reads as demonstrative that ask rather than point | `wessen`, `whose` |
-| `_SOURCE` | same | Nouns naming the source document: a demonstrative before one is not read as pointing. So is one before a noun the document's own title is about (the root of each title line's parse and its coordinated nouns, or the last part of one, `Bedingungen` of `Geschäftsbedingungen`; never a noun that only modifies the head, `card` of `Credit Card Agreement`, except the noun a number labels, `Regulations` of `Regulations Edition 2026`, and only where the head it labels is singular, so `Services` of `Payment Services Terms 2026` names nothing; a root with a noun set right after it, `Girokonto Preisverzeichnis`, names neither), which is read from the parse, not listed | `Lehrplan`, `syllabus` |
-| `_SPELLING` | same | How the language writes a cardinal: the words nought to nineteen, the tens, the words for a hundred and a thousand, how a unit and a ten join (`twenty-five`, `fünfundzwanzig`) and whether a scale word glues to its multiplier (`zweitausend`); `CARDINALS` is spelled out of it | `fünf`, `twenty` |
-| `CARDINALS` | same | Every cardinal `_SPELLING` spells, from nought to a hundred (a German one to ninety-nine thousand), each as the value it names: the one count table the fact dedup gate and the question gates both read; two words that make one number (`twenty thousand`) are joined by `numbers` | `zwei`, `one` |
-| `DECIMAL_MARK` | same | The mark the language writes a decimal with: one such mark before three digits is a fraction, not thousands, wherever the question gates read a figure the passages or the verifier's reply state | `,`, `.` |
-| `AMOUNT_WORDS` | same | The currency codes and names beside which a number grouped by a space is one figure (`5 000 Euro`, `EUR 100 000`); anywhere else the groups stay separate, as in a table row or a phone number. A currency sign needs no entry: any character of Unicode's category Sc (`€`, `¥`, `₹`), before or after the amount, marks one in every language, as an ISO 4217 code does. The group may be separated by a no-break space, and the currency word may carry a mark (`Euro/Kunde`, `Euro*`) or follow a price dash (`5 000,- EUR`); a hyphen-joined noun (`3 500-Euro-Scheine`) is not an amount. Known limits: one group only, so `1 000 000 EUR` stays three figures, and a two-cell table row whose second cell is an amount (`Kontoführung 5 120 Euro`) is read as 5120 | `EUR`, `Euro`, `pound` |
-| `REFERENCE_LABELS` | same | The words that label a reference by a number, before which a space-grouped run is never an amount (`Section 3 100 customers`) | `Abschnitt`, `Section` |
-| `_NUMBER_WORDS` | same | `CARDINALS` and the ordinals, each as the digits it names: what the fact dedup gate compares two statements' numbers by | `zwei`, `second` |
-| `_ORDINALS` | same | The ordinals `_NUMBER_WORDS` holds, by language, each as the digits it names; those past twelve are composed from `CARDINALS` (English `th`/`ieth`, German `t` under twenty and `st` from twenty, in every ending). Known limit: an English hyphenated ordinal (`twenty-first`) is read as its last word, `first` | `zweite`, `second` |
-| `ORDINAL_SUFFIX` | same | What a language writes after the digits of an ordinal figure, so `3rd` and a German `3.` are the ordinal that `third` and `dritte` are, never the count 3, where the question gates compare a key with what came back | `st`, `nd`, `rd`, `th`, `.` |
-| `_CORRELATES` | same | Pronouns standing in for an object or clause beside them rather than for a noun: a statement carrying one is not left dangling | `es` |
+| `_SOURCE` | same | Nouns naming the source document, so a demonstrative before one does not point. Title nouns are read from the parse, not listed | `Lehrplan`, `syllabus` |
+| `_SPELLING` | same | How the language writes a cardinal: nought to nineteen, the tens, hundred, thousand, and how they join. `CARDINALS` is built from it | `fünf`, `twenty` |
+| `CARDINALS` | same | Every cardinal `_SPELLING` spells, each as its value. The fact dedup gate and the question gates read it | `zwei`, `one` |
+| `DECIMAL_MARK` | same | The decimal mark. One such mark before three digits is a fraction, not thousands | `,`, `.` |
+| `AMOUNT_WORDS` | same | Currency codes and names beside which a space-grouped number is one figure (`5 000 Euro`). One group only: `1 000 000 EUR` stays three figures | `EUR`, `Euro`, `pound` |
+| `REFERENCE_LABELS` | same | Words that label a reference by a number: no amount follows (`Section 3 100 customers`) | `Abschnitt`, `Section` |
+| `_NUMBER_WORDS` | same | `CARDINALS` and the ordinals, each as its digits. The dedup gate compares numbers by it | `zwei`, `second` |
+| `_ORDINALS` | same | The ordinals `_NUMBER_WORDS` holds. An English hyphenated ordinal (`twenty-first`) is read as its last word | `zweite`, `second` |
+| `ORDINAL_SUFFIX` | same | What follows the digits of an ordinal figure: `3rd`, a German `3.` | `st`, `nd`, `rd`, `th`, `.` |
+| `_CORRELATES` | same | Pronouns standing for an object or clause, not a noun | `es` |
 | `_EXPLETIVE_RUNS` | same | Word runs whose pronoun is part of a fixed phrase and stands for nothing | `es sei denn` |
-| `_GENITIVE_DEMONSTRATIVES` | same | The demonstratives standing as the genitive of a noun, with the relation the parser gives them: one of them after a noun of its statement is read as a possessive is, not as pointing outside (`die Bank und deren Lieferanten`). A language with no row reads none as resolved | `dessen`, `deren` |
-| `_CLAUSE_DEMONSTRATIVES` | same | The demonstratives that carry a clause or participle of their own: one after a noun of its statement is that noun and its clause, not a pointer (`except those related to the price cap`) | `those` |
-| `_IDENTITY` | same | Words that say "the same" rather than point back: a statement opening on one refers to nothing before it | `derselbe` |
-| `_ANAPHORIC_MODIFIERS` | same | Modifiers making their noun one the passage named before: a statement opening on one before its noun is refused as a demonstrative is, one written apart (`oben genannt`) or with its hyphen (`above-mentioned`) read as one word. One after its noun (`Withdrawals above EUR 500`), a preposition or a word heading its object (`Above EUR 500,`, `Following the update,`) and the first part of a hyphen compound (`above-average`) point nowhere. The fact side's own, apart from `_ANAPHORIC`, and like it without a bare `genannt` | `solcher`, `such` |
-| `_CATAPHORIC_MODIFIERS` | same | Modifiers making a plural noun a list the passage gives after the statement, read as the opening modifiers are; on a singular noun or one a figure counts they mean the next one (`the following 12 months`), and a list the statement gives after a colon is the one meant | `folgend`, `following` |
-| `_ADJECTIVE_ENDINGS` | same | The endings an adjective takes to inflect: a modifier of the two tables above written with one is that modifier, where the lemmatizer leaves a capitalised opening as written (`Besagter Kunde`). A language with no row inflects none | `-er`, `-en` |
-| `_POLITE` | same | Forms of polite address, read as written with their capital: the tagger calls `Sie` third person plural, and a statement addressing the reader points at nothing before it. One opening a statement counts only where another polite form follows it, or one stands inside a sentence of the passage it was drawn from (the fact check passes that passage; the question gates do not) and no sentence there opens on it after a plural subject it could stand for | `Sie`, `Ihre` |
-| `_SINGULAR_THEY` | same | Pronouns standing for one person as well as several, so a singular noun can be what they refer to | `their` |
-| `_EXCEPTIVE` | same | Word runs opening an exception or a condition with no subordinator in the parse: one claim with the rule before it. A one-word run tagged as a finite verb with a subject of its own is that verb (`The bank provided the card`). The full closed class of the language's proviso conjunctions: `vorausgesetzt`, `sofern`, `soweit`, `solange`, `as long as`, `on condition that` | `es sei denn`, `provided` |
-| `_DISJUNCTIVE` | same | Coordinators that offer alternatives, with the first half of a correlative pair: a conjunct one joins is no claim of its own, nor is a member of a comma list one closes (`returned, exchanged or repaired`) | `oder`, `entweder`, `or`, `either` |
-| `_FINITE_TAGS` | same | Fine tags of a finite verb: a statement carrying one asserts something, whatever part of speech the tagger gave the word | `VVFIN`, `VBZ` |
-| `_ABBREVIATIONS` | same | Abbreviations ending in a full stop that end no sentence on their line, whatever follows | `inkl.`, `incl.` |
-| `_CLOSING_ABBREVIATIONS` | same | Abbreviations ending in a full stop that may end a sentence, closing a list or spelled as a word, and end none before a lower-case word or a figure | `usw.`, `Art.`, `Mon.` |
-| `JOINING` | [`text.py`](text.py) | Words that complete a hanging hyphen, so the hyphen before one is no line break: read in every configured language at once, because a document is parsed before its passages have a language | `und`, `and` |
-| `UNFINISHED` | [`text.py`](text.py) | Articles, prepositions and conjunctions that cannot end a table label: a label alone on a row that ends on one goes on in the row below, whatever follows | `und`, `at` |
-| `_CONJUNCTIONS` | [`preprocessing/chunking/furniture.py`](../preprocessing/chunking/furniture.py) | Conjunctions joining two alternatives or items: one printed alone is no heading, in the trail or as a heading the layout made of it | `oder`, `or` |
+| `_GENITIVE_DEMONSTRATIVES` | same | Demonstratives standing as the genitive of a noun (`die Bank und deren Lieferanten`). A language with no row reads none as resolved | `dessen`, `deren` |
+| `_CLAUSE_DEMONSTRATIVES` | same | Demonstratives that carry a clause or participle of their own (`except those related to the price cap`) | `those` |
+| `_IDENTITY` | same | Words that say "the same" rather than point back | `derselbe` |
+| `_ANAPHORIC_MODIFIERS` | same | Modifiers making their noun one the passage named before, written apart (`oben genannt`) or hyphenated (`above-mentioned`). A statement opening on one is refused. No bare `genannt` | `solcher`, `such` |
+| `_CATAPHORIC_MODIFIERS` | same | Modifiers making a plural noun a list given after the statement. On a singular noun or one a figure counts, they mean the next one (`the following 12 months`) | `folgend`, `following` |
+| `_ADJECTIVE_ENDINGS` | same | Endings an adjective takes, so a modifier above still matches (`Besagter Kunde`) | `-er`, `-en` |
+| `_POLITE` | same | Forms of polite address, read with their capital, since the tagger calls `Sie` third person plural | `Sie`, `Ihre` |
+| `_SINGULAR_THEY` | same | Pronouns standing for one person as well as several | `their` |
+| `_EXCEPTIVE` | same | Word runs opening an exception or condition with no subordinator in the parse. List the language's full closed class of proviso conjunctions | `es sei denn`, `provided` |
+| `_DISJUNCTIVE` | same | Coordinators that offer alternatives, with the first half of a correlative pair. A conjunct one joins is no claim | `oder`, `entweder`, `or`, `either` |
+| `_FINITE_TAGS` | same | Fine tags of a finite verb | `VVFIN`, `VBZ` |
+| `_ABBREVIATIONS` | same | Abbreviations ending in a full stop that end no sentence on their line | `inkl.`, `incl.` |
+| `_CLOSING_ABBREVIATIONS` | same | Abbreviations ending in a full stop that may end a sentence, but end none before a lower-case word or a figure | `usw.`, `Art.`, `Mon.` |
+| `JOINING` | [`text.py`](text.py) | Words that complete a hanging hyphen. Read in every configured language at once | `und`, `and` |
+| `UNFINISHED` | same | Articles, prepositions and conjunctions that cannot end a table label | `und`, `at` |
+| `_CONJUNCTIONS` | [`preprocessing/chunking/furniture.py`](../preprocessing/chunking/furniture.py) | Conjunctions that, printed alone, are no heading | `oder`, `or` |
 | `_NAMED` | [`models.py`](models.py) | What to call the language in a prompt | `de: German` |
-| `_SPEAKING` | [`generation.py`](../question_generation/generation.py) | First- and second-person pronouns and possessive determiners, read in lower case: a premise holding none is asked again for the asker's own situation. A language with no row is never asked again | `meine`, `my` |
-| `_ENQUIRING` | same | Verbs of wanting, trying, checking and understanding, as lemmas: a premise whose main verbs, read through the infinitive one takes, are only these is asked again for the asker's own situation. A language with no row is never asked again | `prüfen`, `understand` |
-| `_STEP_LABEL` | [`gates.py`](../question_generation/gates.py) | The word a procedure's steps are numbered with: `Step 1:` is no figure the key lacks | `Schritt`, `Step` |
-| `_INFLECTIONS` | [`extraction/validation.py`](../extraction/validation.py) | The endings a label word takes to inflect: a form of a learned label word directly before a number counts as the label ("Sections 7"), a word that merely begins with it does not | `Abschnitte`, `Sections` |
-| `_SHARE_WORDS` | [`extraction/validation.py`](../extraction/validation.py) | The words that name a share (`%` and its word): a share is one kind of figure however it is written, so `0,5 %` for a cited `11,9 Prozent` is a swapped figure. A language missing here compares a share by the word as written | `Prozent`, `percent` |
-| `_TIME_UNITS` | [`extraction/validation.py`](../extraction/validation.py) | The lemmas of the days, weeks and months a period is counted in: `30 days` for a cited `2 weeks` is a swapped figure. A language missing here compares a period by its unit as written | `Tag`, `week` |
+| `_SPEAKING` | [`generation.py`](../question_generation/generation.py) | First- and second-person pronouns and possessive determiners, in lower case. A premise with none is asked again for the asker's own situation | `meine`, `my` |
+| `_ENQUIRING` | same | Verbs of wanting, trying, checking and understanding, as lemmas. A premise with only these is asked again, as above | `prüfen`, `understand` |
+| `_STEP_LABEL` | [`gates.py`](../question_generation/gates.py) | The word a procedure's steps are numbered with | `Schritt`, `Step` |
+| `_INFLECTIONS` | [`extraction/validation.py`](../extraction/validation.py) | Endings a label word takes ("Sections 7") | `Abschnitte`, `Sections` |
+| `_SHARE_WORDS` | [`extraction/validation.py`](../extraction/validation.py) | Words that name a share. A language missing here compares a share by the word as written | `Prozent`, `percent` |
+| `_TIME_UNITS` | [`extraction/validation.py`](../extraction/validation.py) | Lemmas of the days, weeks and months a period is counted in. A language missing here compares by the unit as written | `Tag`, `week` |
 
-None is read as a substring: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC` and
-`_ASKING` are read by **lemma**, `_ATTRIBUTIONS`, `_SOURCE` and the two modifier tables by lemma or
-by the word as written (the modifiers also as written with an `_ADJECTIVE_ENDINGS` ending), `_CONJUNCTIONS` against a whole heading's letters, `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
-`_EXCEPTIVE`, `_POLITE`, `_GENITIVE_DEMONSTRATIVES`, `_CLAUSE_DEMONSTRATIVES` and the two abbreviation tables by the word as written, the openings off the start of the question, `_COUNTS`
-against an answer's first word. `Risikobericht` is a thing a corpus is
-about and `Bericht` is a thing a corpus IS.
+No list is matched as a substring: `Risikobericht` is a thing a corpus is
+about, and `Bericht` is a thing a corpus is. Each list is matched as follows.
+
+- By lemma: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC`, `_ASKING`.
+- By lemma or the word as written: `_ATTRIBUTIONS`, `_SOURCE` and the two
+  modifier tables (also with an `_ADJECTIVE_ENDINGS` ending).
+- By the word as written: `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
+  `_EXCEPTIVE`, `_POLITE`, `_GENITIVE_DEMONSTRATIVES`,
+  `_CLAUSE_DEMONSTRATIVES` and the two abbreviation tables.
+- Against a whole heading's letters: `_CONJUNCTIONS`.
+- Question openings at the start of the question, and `_COUNTS` against an
+  answer's first word.
 
 `_broken_word`, beside `JOINING` in [`text.py`](text.py), rejoins a word
-broken at a line's end only where the letter before the hyphen is one of
-A–Z, the German umlauts or ß and the letter after it is a lower-case one of
-those, so a language writing other letters needs them added there, or its
-words broken at a line's end stay broken: `cré- dit` is not rejoined.
+broken at a line's end only when the letter before the hyphen is one of A–Z,
+the German umlauts or ß and the letter after it is a lower-case one of those.
+A language that writes other letters needs them added there: `cré- dit` is not
+rejoined.
 
-Five sets in [`analysis.py`](analysis.py) name languages by a trait of their
-grammar rather than holding words — `_PLURAL_GENDERLESS`,
-`_SYNCRETIC_FEMININE`, `_NOUN_ANAPHORIC_DEMONSTRATIVES`,
-`_INFINITIVE_IS_PLURAL` and `_VERB_FINAL_SUBORDINATE` (a subordinate clause
-ends on its finite verb, so one of that order after a comma and a coordinator
-goes on with the subordinate clause before it, and is a second claim after a
-main clause) — and a language missing from one is read as
-lacking the trait.
+Five sets in [`analysis.py`](analysis.py) name languages by a grammatical
+trait: `_PLURAL_GENDERLESS`, `_SYNCRETIC_FEMININE`,
+`_NOUN_ANAPHORIC_DEMONSTRATIVES`, `_INFINITIVE_IS_PLURAL` and
+`_VERB_FINAL_SUBORDINATE` (subordinate clauses end on the finite verb). A
+language missing from one lacks the trait.
 
-`_NAMED` is the one that is not a word list, and a language missing from it
-falls back quietly to its own ISO code, which is still an instruction a model
-can follow. Every prompt that writes text names
-its language from it, except the topic-naming prompt, which reads
-`TOPIC_LANGUAGE_NAMES`, because *"write in the language of the excerpt"* is an
-inference — on a corpus lopsided towards one language a model infers that one
-for all of it. Nothing in extraction checks a language, so the drift reaches
-question generation as a question in the wrong language and is thrown out as
-`malformed`.
-
-`_AGENTS` could not be a feature — no tagset marks animacy on an
+`_NAMED` falls back to the ISO code for a missing language. Every prompt that
+writes text names its language from it, except the topic-naming prompt, which
+reads `TOPIC_LANGUAGE_NAMES`. A model told to write in the language of the
+excerpt infers one language for a lopsided corpus, and the drift reaches
+question generation as a question in the wrong language, rejected as
+`malformed`. `_AGENTS` cannot be a feature: no tagset marks animacy on an
 interrogative.
 
-### 3. Check three things the language has to support
+### 3. Check what the language supports
 
-Not edits. A language failing one of these needs code:
+A language that fails one of these needs code.
 
 | | Needed by | Without it |
 |---|---|---|
-| `noun_chunks` | `phrases()`, and so `subject`, `enumerates`, `compares` | **Raises.** Russian, Chinese and Ukrainian have no syntax iterator; Japanese needs SudachiPy |
+| `noun_chunks` | `phrases()`, and so `subject`, `enumerates`, `compares` | Raises. Russian, Chinese and Ukrainian have no syntax iterator, and Japanese needs SudachiPy |
 | An NER component with `PER` or `PERSON` | `names_parties`, the credits-page reading | Density is always 0, so the reading never fires and nothing says so |
-| `like_num` on spelled-out numerals | `claim().units` | Asymmetric: `de_core_news_md` tags `zwei` `like_num` FALSE where `en_core_web_md` gives `two` both |
+| `like_num` on spelled-out numerals | `claim().units` | Uneven: `de_core_news_md` tags `zwei` `like_num` false where `en_core_web_md` gives `two` both |
 
-### 4. One pattern that is Gregorian
+### 4. One Gregorian pattern
 
 `_DATED` in [`question_generation/gates.py`](../question_generation/gates.py)
 reads a period off a four-digit year in 1800–2099 or a `DD.MM`-style pair. It
 misses an era year, a Hijri year, Arabic-Indic digits and `FY24`. Only
-`temporal` questions read it, and `QUESTIONS_TYPE_MIX` decides whether any
-are written.
+`temporal` questions read it, and `QUESTIONS_TYPE_MIX` decides whether any are
+written.
 
 ### What needs no edit
 
@@ -283,37 +234,37 @@ are written.
 | Question words, for `compound` | `PronType=Int`, or a tag prefix as a fallback |
 | Content words and lemmas | `NOUN`, `PROPN`, `ADJ` |
 | A number, for the circularity exemption | `NUM` |
-| Pointing outward | `PronType=Dem`, and a noun with both a definite article (`Definite=Def`, or `PronType=Art` without `Definite=Ind`) and a quantifier (`NumType=Card`, or a determiner with `PronType=Ind`) |
-| A pronoun its own statement resolves, for `unresolved_reference` | `PronType=Prs`, and `Gender` and `Number` on it and on a noun before it outside its own clause, bounded by a `mark`/`cp` subordinator or an `advcl`/`relcl`/`acl`/`rc` attachment whose verb, or an auxiliary or copula under it, is finite; a subject or object label where neither carries them |
+| Pointing outward | `PronType=Dem`, and a noun with both a definite article and a quantifier |
+| A pronoun its own statement resolves, for `unresolved_reference` | `PronType=Prs`, with `Gender` and `Number` on it and on an earlier noun outside its own clause. A subject or object label where neither carries them |
 | Everything measured on an embedding | `EMBEDDING_MODEL`, which is multilingual |
 | Every length, share and citation reading | no language at all |
 
 ## Configuration
 
-Only the first three are read here. The rest are the caller's, and all are
-catalogued under `platform`. The first three are fixed: served read-only and
-never stored, so changing one needs a restart.
+The first three settings are read here, are fixed (served read-only, never
+stored) and need a restart to change. The rest belong to the callers. All are
+catalogued under `platform`.
 
 | Setting | What it does |
 | --- | --- |
-| `NLP_MODELS` | The spaCy pipeline per language, **and** the languages the detector may answer with |
-| `NLP_DEFAULT_LANGUAGE` | The pipeline a text is read with when its language is unknown or not in `NLP_MODELS` |
-| `NLP_CAPITALISED_NOUNS` | Languages where capitalisation is not evidence of a proper noun, and a lower-case noun is foreign |
-| `EMBEDDING_MODEL` | The one embedding model, and the tokenizer chunking sizes a passage by |
+| `NLP_MODELS` | The spaCy pipeline per language, and the languages the detector may answer with |
+| `NLP_DEFAULT_LANGUAGE` | The pipeline for a text whose language is unknown or not in `NLP_MODELS` |
+| `NLP_CAPITALISED_NOUNS` | Languages where capitalisation is not evidence of a proper noun |
+| `EMBEDDING_MODEL` | The embedding model, and the tokenizer chunking sizes a passage by |
 | `EMBEDDING_MAX_TOKENS` | The embedder's ceiling. Chunking cuts a passage to it less the tokens the embedder adds. At least 64: a settings change below that is refused |
 | `NLI_MODEL` | The entailment encoder. Absent asks the verifier instead |
 | `NLI_ENTAILMENT_THRESHOLD` | How sure it must be before it rescues an answer |
 | `QA_MODEL` | The extractive reader asked for a span before the verifier is |
 | `QA_ANSWER_CONFIDENCE` | How sure that reader must be before its span is taken |
-| `ENCODER_MAX_TOKENS` | The longest pair an encoder reads. A **ceiling**, held to each tokenizer's `model_max_length`, so it does not apply to entailment with the shipped model unless set below 512 |
+| `ENCODER_MAX_TOKENS` | The longest pair an encoder reads, held to each tokenizer's `model_max_length`. Does not apply to entailment with the shipped model unless set below 512 |
 
-Changing `NLP_MODELS` changes what a fact is, in the same way changing the
-prompt does. Both are recorded on every fact — `spacy_model`,
-`spacy_version`, `extraction_model`, `prompt_version`.
+Changing `NLP_MODELS` changes what a fact is, as changing the prompt does.
+Both are recorded on every fact: `spacy_model`, `spacy_version`,
+`extraction_model`, `prompt_version`.
 
-spaCy's pipelines and lingua are baked into the backend image: nothing
-fetches one at run time. The encoder weights are fetched on first use into
-the `models` volume. A model named here must be in the image.
+spaCy's pipelines and lingua are baked into the backend image, so a model
+named in `NLP_MODELS` must be in the image. Encoder weights are fetched on
+first use into the `models` volume.
 
 ## Tests
 
@@ -321,46 +272,27 @@ the `models` volume. A model named here must be in the image.
 poetry run pytest tests/unit/nlp -m nlp
 ```
 
-| File | Covers |
-|---|---|
-| [`test_sentences.py`](../../tests/unit/nlp/test_sentences.py) | Sentence numbering, which every citation resolves against |
-| [`test_claims.py`](../../tests/unit/nlp/test_claims.py) | How many claims a sentence reads as |
-| [`test_language.py`](../../tests/unit/nlp/test_language.py) | Reading the language a passage is written in |
-| [`test_pointing.py`](../../tests/unit/nlp/test_pointing.py) | What a claim points at, and what it does not |
-| [`test_numbers.py`](../../tests/unit/nlp/test_numbers.py) | The numbers a statement states, a number word read as its value |
-| [`test_text.py`](../../tests/unit/nlp/test_text.py) | A word broken at a line hyphen made whole, a shared suffix kept, a compound the document prints whole keeping its hyphen, and mending twice the same as once |
-| [`test_references.py`](../../tests/unit/nlp/test_references.py) | When a German `es` is read as a correlate rather than a pronoun |
-| [`test_entailment.py`](../../tests/unit/nlp/test_entailment.py) | A verdict read off the label, and the refusal of a head that is not an NLI model's |
-| [`test_qa.py`](../../tests/unit/nlp/test_qa.py) | The span decode, the no-answer head, and the window that slides |
-| [`test_embedding.py`](../../tests/unit/nlp/test_embedding.py) | The vector, when `EMBEDDING_MODEL` is already cached |
-| [`test_parses_are_remembered.py`](../../tests/unit/nlp/test_parses_are_remembered.py) | One text read several ways is parsed once |
-
-`test_sentences`, `test_claims`, `test_pointing`, `test_numbers`, `test_entailment`,
-`test_parses_are_remembered` and the model tests in `test_embedding` carry
-the `nlp` marker, and `make test-fast` excludes them. Only `test_embedding`
-loads encoder weights, and only when they are already cached.
+The tests are in `tests/unit/nlp`. Those marked `nlp` (`test_sentences`,
+`test_claims`, `test_pointing`, `test_numbers`, `test_entailment`,
+`test_parses_are_remembered` and the model tests in `test_embedding`) are
+excluded by `make test-fast`. Only `test_embedding` loads encoder weights, and
+only when they are cached.
 
 ## Limits
 
-- **The small spaCy models change what a fact is.** Use the medium pipelines.
-- **The detector cannot answer with a language `NLP_MODELS` does not name.**
-  A French passage in a German corpus is read as German or English.
-- **Sentence numbering is stored, not recomputed.** Changing `NLP_MODELS`
-  after a corpus is chunked leaves every stored citation resolving against
-  the old split. `make chunk-revocabulary` re-reads language and lemmas; the
-  sentence offsets need `chunk-rerun`.
-- **One capital switches the case rule back on.** A query typed all in lower
-  case keeps its nouns, but one capitalised word in it - a brand, as in
-  `girokonto kündigungsfrist Sparkasse` - makes the text read as written with
-  capitals, and in a language named in `NLP_CAPITALISED_NOUNS` its lower-case
-  nouns are dropped as foreign again.
-- **A German `dies` after a clause stands for that clause, even where it
-  names a thing.** After a `wenn` clause or a free relative (`Wer ein Konto
-  eröffnet, erhält dies per Post.`) the reference is read as resolved, though
-  what is received is something the passage named before. Telling an event
+- The small spaCy models change what a fact is. Use the medium pipelines.
+- The detector cannot answer with a language `NLP_MODELS` does not name. A
+  French passage in a German corpus is read as German or English.
+- Sentence numbering is stored, not recomputed. After `NLP_MODELS` changes on
+  a chunked corpus, `make chunk-revocabulary` re-reads language and lemmas,
+  and the sentence offsets need `chunk-rerun`.
+- One capital switches the case rule back on: in
+  `girokonto kündigungsfrist Musterbank`, the lower-case nouns are dropped
+  again in a language named in `NLP_CAPITALISED_NOUNS`.
+- A German `dies` after a clause stands for that clause, even where it names a
+  thing (`Wer ein Konto eröffnet, erhält dies per Post.`). Telling an event
   from a thing needs the verb's meaning, which the parse does not give.
-- **A list said to follow is taken as given wherever a figure or a colon
-  stands.** `_CATAPHORIC_MODIFIERS` spares "the following fees" when a figure
-  counts the noun or a colon follows, even where the items are elsewhere:
-  "The following fees apply: see the price list."
-- **Nothing here calls a served model.**
+- `_CATAPHORIC_MODIFIERS` spares "the following fees" when a figure counts the
+  noun or a colon follows, even where the items are elsewhere: "The following
+  fees apply: see the price list."
+- Nothing here calls a served model.

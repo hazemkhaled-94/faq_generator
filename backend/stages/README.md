@@ -1,56 +1,25 @@
-# Stages — the queue, the worker and the command line
+# Stages
 
-Six stages run off a queue, and all six run off *this* queue. A stage owns a
-status column, an error column and the timestamp of its claim; claiming,
-failing, sweeping an abandoned claim, requeueing, draining and the command
-line that drives any of it are written here once.
+Six stages run off one queue. A stage owns a status column, an error column
+and the timestamp of its claim, and supplies only those columns and its work.
+Claiming, failing, sweeping, requeueing, draining and the command line are
+written here once.
 
-A stage supplies the columns and the work. It supplies no queue mechanics, no
-argument parser and no loop.
-
-This is also the CLI: `make parse`, `make extract-start SHA=…` and the rest
-are thin wrappers over the parser built here. See
-[docs/make.md](../../docs/make.md).
+The `make` targets (`make parse`, `make extract-start SHA=…`) wrap the
+parser built here. See [docs/make.md](../../docs/make.md).
 
 ## The model
 
-**Nothing starts by itself.** A row arrives `new`, which no worker looks at.
-`start` moves it to `pending`, which is the only status a worker claims, and
-`stop` moves it back. A stage never sets another stage going.
+Nothing starts by itself. A row arrives `new`, which no worker looks at.
+`start` moves it to `pending`, the only status a worker claims, and `stop`
+moves it back. A stage never starts another stage.
 
-Something still has to decide that a stage should run, and there are four
-things that do: a `make` target, the Start button, `POST /{stage}/start`, and
-the orchestrator. Only the last can run the stages **in order**, because only
-it can wait for one to drain before starting the next — see
+A `make` target, the Start button, `POST /{stage}/start` or the orchestrator
+starts a stage. Only the orchestrator runs the stages in order. See
 [`orchestration/`](../../orchestration/README.md) and `POST /pipeline/run`.
 
-A stage **claims on its own status column and on nothing else**, which is
-what lets two stages own different columns of the same `documents` row.
-
-### The one thing read beside it
-
-Queueing is not claiming, and one stage needs the difference. A passage
-exists because chunking made it and a topic because a fit did, so for the
-other stages "this row exists" already means "the stage before me produced
-it". Chunking queues over `documents`, and a document exists from the moment
-somebody uploaded one.
-
-So `start` over a corpus half way through parsing used to queue the unparsed
-half, and every row of it failed on the missing parsed object — a `Start all`
-on the Passages page, pressed while parsing ran, turned into a column of
-failures that then needed `retry`.
-
-`RowQueue.ready` is the answer, and chunking is the only stage that declares
-one:
-
-```python
-ready = Document.parse_status == Status.PARSED
-```
-
-It is carried by `start` and `reset` and by nothing else. **It says which
-rows may enter the queue, not which a worker may take** — a row already
-`pending` is a row somebody queued, and it is claimed, worked, failed and
-swept exactly as before whatever `ready` says.
+A stage claims on its own status column and on nothing else, so two stages
+can own different columns of the same `documents` row.
 
 ```
 new  ──start──▶  pending  ──claimed──▶  in_progress  ──▶  done
@@ -61,53 +30,44 @@ new  ──start──▶  pending  ──claimed──▶  in_progress  ──�
                      └────────reclaim────┘
 ```
 
-A running row is held by the **beat**, not by a time limit. The worker
-refreshes `claimed_at` every `HEARTBEAT_SECONDS` for as long as it holds the
-row, so the work may take as long as it takes and the lease still answers
-the only question a sweep needs answered: is anyone still on it?
+### Queueing and claiming
 
-### Claiming
+A row may enter the queue only when `RowQueue.ready` says so. Chunking is the
+only stage that declares one, so that `start` skips documents still waiting
+to be parsed:
 
-`SELECT … FOR UPDATE SKIP LOCKED`, one row at a time, so two workers never
-take the same row. Extraction runs at most two drains side by side, which is
-what the store's duplicate lock was measured with
-([Scaling](../../docs/operations.md#scaling)):
+```python
+ready = Document.parse_status == Status.PARSED
+```
+
+`start` and `reset` use `ready`. It gates queueing, never claiming: a row
+already `pending` is worked whatever `ready` says.
+
+Claiming uses `SELECT … FOR UPDATE SKIP LOCKED`, one row at a time, so two
+workers never take the same row. Extraction runs at most two drains side by
+side ([Scaling](../../docs/operations.md#scaling)):
 
 ```bash
 podman compose up -d --scale extract-worker=2
 ```
 
-A queue claims nothing while the database is not at the code's migration
-head, and says so once.
+A queue claims nothing while the database is behind the code's migration
+head.
 
 ### Leases and the heartbeat
 
-Every claim is timestamped, and a worker refreshes that timestamp every
-`HEARTBEAT_SECONDS` for as long as it holds the row. The lease is how many
-beats may be missed before another run sweeps the claim — five minutes, or
-ten of them. A row a worker died holding is failed by the next drain of that
-stage with `the worker did not finish; the run was interrupted` recorded
-against it, and `retry` returns it to the queue. A worker whose row was
-swept and claimed again cannot finish, fail or refresh it: each checks the
-claim time it wrote.
+A worker refreshes `claimed_at` every `HEARTBEAT_SECONDS` while it holds a
+row. The lease is the number of beats that may be missed before another run
+sweeps the claim: five minutes, for every stage.
 
-**One lease for every stage, because it no longer measures the work.**
-`claimed_at` used to record only when work started, so a sweep could ask
-nothing better than "could this still be running?" — and the honest answer is
-the worst case the stage might cost, which for question generation is days.
-That bound the wrong thing: it was also how long a killed worker's topic
-stayed unreachable, since `stop` moves `pending`, `retry` moves `failed` and
-`rerun` skips what is held.
-
-Beating asks "is anyone still on it?" instead, which one small constant
-answers for a stage whose unit is a passage and a stage whose unit is a whole
-topic alike.
+The next drain fails a row whose worker died, recording `the worker did not
+finish; the run was interrupted`. `retry` returns it to the queue. A worker
+whose row was swept and claimed again cannot finish, fail or refresh it.
 
 ### Narrowing
 
-Every queue operation takes an optional `within`. A stage declares which
-narrowings it accepts as `scopes`; the route and the command line both build
-theirs through `StageQueue.narrow`, so neither learns a column name.
+Every queue operation takes an optional `within`. A stage declares the
+narrowings it accepts as `scopes`.
 
 | Stage | Accepts |
 |---|---|
@@ -118,9 +78,8 @@ theirs through `StageQueue.narrow`, so neither learns a column name.
 | Assessment | `kind` |
 | Topic modelling | none |
 
-A scope a stage does not accept and a value its column cannot hold are one
-exception, `Unnarrowable`, carrying both a `code` the API answers with and a
-message the command line prints.
+A scope a stage does not accept, or a value its column cannot hold, raises
+`Unnarrowable`, with a `code` for the API and a message for the command line.
 
 ## The command line
 
@@ -128,7 +87,7 @@ message the command line prints.
 python -m <stage>.run [--status|--start|--stop|--retry|--reclaim|--rerun|--wait] [--only SCOPE=VALUE] [--watch]
 ```
 
-The actions are **mutually exclusive**.
+The actions are mutually exclusive.
 
 | Flag | Does | Has a route |
 |---|---|---|
@@ -136,12 +95,12 @@ The actions are **mutually exclusive**.
 | `--start` | Queue the rows never asked for | yes |
 | `--stop` | Take back what has not begun | yes |
 | `--retry` | Return failed rows to the queue | yes |
-| `--rerun` | Queue every row again, finished ones included, after the preflight, then drain | yes |
-| `--reclaim` | Return a row a dead worker still holds, without waiting out its lease | yes |
-| `--wait` | Wait for the stage's container worker to empty the queue, logging the counts as they move and every five minutes when they do not, naming a worker that has claimed nothing: what `make corpus` does where that worker runs. Exits 3 when rows failed meanwhile, 75 when told to stop. Topic modelling has no such flag | — |
-| `--only SCOPE=VALUE` | Narrow the action to one item. Refused on a bare drain and on a `--rerun` while rows outside it are queued. Topic modelling takes no scope and ignores it | — |
-| `--watch` | Drain, and keep draining | — |
-| no flag | Drain the queue once, in the foreground, and stop | — |
+| `--rerun` | Queue every row again, finished ones included, then drain. Runs the preflight first | yes |
+| `--reclaim` | Return a row a dead worker still holds, without waiting out its lease. See [`reclaim`](#reclaim) | yes |
+| `--wait` | Wait for the stage's container worker to empty the queue, logging counts. Exits 3 when rows failed meanwhile, 75 when told to stop. Not in topic modelling | no |
+| `--only SCOPE=VALUE` | Narrow the action to one item. Refused on a bare drain, and on `--rerun` while rows outside it are queued. Topic modelling ignores it | no |
+| `--watch` | Drain, and keep draining | no |
+| no flag | Drain the queue once, in the foreground, and stop | no |
 
 ```bash
 python -m preprocessing.parsing.run --status
@@ -151,215 +110,131 @@ python -m topic_modelling.run --status
 python -m question_generation.run --rerun --only topic=7
 ```
 
-### What a drain exits with
+Stages add flags for their own operations: `--revocabulary` (chunking), `--revalidate`, `--bridge`,
+`--recap`, `--dedup` and `--embed` (extraction), `--reverify`, `--rescore`,
+`--rejudge` and `--balance` (question generation), `--enrol` (assessment).
 
-A one-off drain tells whoever ran it how it went, which is what `make corpus`
-and a host runner act on:
+Topic modelling builds its parser from its own actions. It has no `start`,
+`rerun` or `--reclaim`: a fit is one request row.
+
+### What a drain exits with
 
 | Exit | Means |
 |---|---|
 | 0 | Every row was worked |
-| 3 | A row failed, and the drain went on past it (`--retry` returns it); or its start was refused, before it claimed anything: a split the go-live profile cannot run, a stored row the catalogue refuses, a model that does not answer |
-| 75 | The drain stopped itself, with what it held back in the queue, and wants starting again |
+| 3 | A row failed and the drain went on past it (`--retry` returns it). Or the start was refused before anything was claimed: a split the production profile cannot run, a stored row the catalogue refuses, or a model that does not answer |
+| 75 | The drain stopped itself, left what it held in the queue, and wants starting again |
 
-The drain stops itself, and exits 75, in three cases:
+A drain stops itself, and exits 75, in three cases:
 
-- **The model could not be reached for five rows in a row** (`STOP_AFTER`).
-  The five go back to the queue, not to `failed`: the outage failed them, not
-  anything about them, and a row left failed is one the next run passes over.
-  An outage is a failure whose cause is transient or a fault of the whole
-  deployment: a timeout, a refused connection, a 429 past its patience, a 5xx,
-  or the credentials, the deployment's name or its permission. A request the
-  provider rejects for that row (a bad request, a context too long, a content
-  filter) and a shape the model could not fill are not: it answered, about
-  that row, and the row fails while the drain takes the next. One good row
-  ends the run of five.
-- **Extraction's model answered nothing for half of the last 50 readable
-  passages.** Every such row succeeds, so no count of failures sees it. The
-  passages it counted, and the one in hand, go back to the queue. The stop
-  stands for as long as the worker's settings do: a watching worker does not
-  read the same passages again each poll, and only a change of settings, which
-  builds its service anew, lifts it.
-- **`SPEND_CAP` is reached.** The drain adds up what litellm priced each call
-  at, in its own process, and stops before claiming the row that would pass
-  it. Nothing is held then. With it set, a model litellm cannot price is
-  refused at the start, since its calls would not count. The passes that
-  call a model outside the drain loop are bound by it as well: `--bridge`
-  where its link's topic changes, so a stop never leaves a topic half bridged
-  and `make extract-bridge MISSING=1` resumes after it, `--balance` between the
-  pairs the judge is asked about (the release as last drawn is written first)
-  and `--rejudge` between questions. Each keeps what it wrote and exits 75. A
-  rerun of `--rejudge` asks only for what no run has done. A rerun of
-  `--balance` keeps no verdicts between runs: it draws again and pays the twin
-  pairs again, so under the same cap it stops at the same place, and the cap
-  must be above what one balance costs.
+- The model could not be reached for five rows in a row (`STOP_AFTER`). The
+  five go back to the queue, not to `failed`. An outage is a timeout, a
+  refused connection, a 429 past its patience, a 5xx, or bad credentials,
+  deployment name or permission. A request the provider rejects for that row
+  (bad request, context too long, content filter) is not an outage: the row
+  fails and the drain takes the next. One good row ends the count.
+- Extraction's model answered nothing for half of the last 50 readable
+  passages. Those passages and the one in hand go back to the queue. The stop
+  lasts until the worker's settings change.
+- `SPEND_CAP` is reached. The drain adds up litellm's price for each call and
+  stops before claiming the row that would pass the cap. With a cap set, a
+  model litellm cannot price is refused at the start.
 
-A one-off drain installs the same handler a worker does, with its stage's
-grace: SIGTERM or SIGINT lets the row in hand finish and claims no more, and
-exits 75; a second signal, or the grace running out, gives the row back to
-the queue first and exits 75. A supervised run is never left holding a row for
-`abandon` to fail at the next start.
+The passes that call a model outside the drain loop obey the cap too. Each
+keeps what it wrote and exits 75. `--bridge` stops between topics, and
+`make extract-bridge MISSING=1` resumes. `--balance` stops between judged
+pairs. A rerun pays for the twin pairs again, so the cap must exceed what one
+balance costs. `--rejudge` stops between questions, and a rerun asks only for
+what no run has done.
 
-Before it starts, a drain prints how many rows are queued and what that is
-about to cost at the rate measured on the 2026-10 build, which moves with the
-model split. A watching worker does not exit: after a stop it waits the poll
-interval and tries again.
-
-A stage with an operation nobody else has declares it as one `Extra` and the
-parser grows a flag for it — `--revocabulary` on chunking, `--revalidate`,
-`--bridge`, `--recap`, `--dedup` and `--embed` on extraction, `--reverify`,
-`--rescore`, `--rejudge` and `--balance` on question generation, `--enrol` on
-assessment.
-
-Topic modelling builds its parser from actions of its own rather than the
-shared ones plus extras, because it has no `start` and no `rerun` to extend.
-It has no `--reclaim` either: a fit is one request row.
+A one-off drain handles signals as [the worker](#the-worker) does. Before it
+starts, it prints how many rows are queued and the estimated cost. A watching
+worker does not exit after a stop: it waits the poll interval and tries
+again.
 
 ### `reclaim`
 
-`abandon` is the automatic version and stays the normal one: it sweeps on a
-lease, because **a row a live worker holds must not be given to a second**.
-`reclaim` is the deliberate one, for when a person knows the worker is gone
-and the lease cannot.
+`abandon` is the automatic sweep, on a lease. `reclaim` frees a row held by a
+killed worker without waiting out the lease. `retry`, `rerun` and `stop` do
+not reach such a row.
 
-It fills the gap between the other verbs. `retry` takes the failed, `rerun`
-skips what a worker holds, and `stop` takes back only what has not begun — so
-a worker killed mid-row is the one case none of them reaches.
-
-Before the heartbeat this was the *only* way out, and the wait was the whole
-worst case the work might have taken — days for question generation, and
-longer at a long model timeout. A killed worker now loses its rows to
-`abandon` in five minutes, so this verb is for when five minutes is too long
-to wait.
-
-**Narrow it.** Nothing here can tell a dead claim from a live one:
+Narrow it. Nothing can tell a dead claim from a live one:
 
 ```bash
 make questions-reclaim TOPIC=473   # one topic, while a worker may be up
 make questions-reclaim             # every one the stage holds. Only when it is stopped
 ```
 
-It **has a route now**, and used not to. The argument for leaving it out was
-that the API cannot know a worker is gone — but neither can the command line,
-which a person runs just as blindly, so the asymmetry protected nobody and
-cost anyone driving this over HTTP the single stuck row that `retry`, `rerun`
-and `stop` all step over. What the danger needs is the narrowing this section
-already asks for, so that is what the route enforces:
+The route enforces the narrowing. Every write needs the API token:
 
 ```bash
-# Each with -H "X-API-Token: $API_TOKEN", as every write to the api is.
 curl -X POST -H "X-API-Token: $API_TOKEN" localhost:8000/questions/topic/473/reclaim   # one topic
 curl -X POST -H "X-API-Token: $API_TOKEN" localhost:8000/questions/reclaim             # 400, confirm it
 curl -X POST -H "X-API-Token: $API_TOKEN" 'localhost:8000/questions/reclaim?confirm=true'
 ```
 
-### Two things done once, before the first claim
+### Before the first claim
 
 `queue_main` takes two optional callables, both run before anything is
-drained. `preflight` also runs before `--rerun` queues a row again, so a model
-that will not answer leaves every stored row as it was.
+drained.
 
-**`preflight`** is what a stage proves before it claims anything — for the
-stages that call a model, that the model answers. It raises, and the process
-stops with nothing taken. A watching worker retries instead of dying, backing
-off from 5 seconds towards 60.
+`preflight` proves the stage can work: for a stage that calls a model, that
+the model answers. It raises, and the process stops with nothing taken.
+`--rerun` runs it before queueing, so a failing model leaves every stored row
+as it was. A watching worker retries instead, backing off from 5 seconds
+towards 60. The first refusal is logged in full, repeats are counted every ten
+minutes, and recovery gets a line.
 
-**It says so once.** How often a worker tries and how often it says so used
-to be the same number, and around each attempt the client wrote a traceback,
-instructor wrote its attempts and a credential library listed every identity
-it had tried — hundreds of lines a minute from one worker about one
-unreachable address. The check now silences those for the length of its own
-call, the first refusal is reported in full with the reason, and the repeats
-are counted every ten minutes. Coming back is a line of its own, so a log
-going quiet is not mistaken for a worker that started working.
+`prompts` records what the stage sends, so the version stamped on each row
+resolves to its text. It runs after the preflight and never fails a start. A
+text rewritten under an unchanged version is warned about and stored. See
+[`prompts.py`](prompts.py) and [`backend/database/`](../database/README.md).
 
-The retry interval is deliberately unchanged. How fast a worker recovers
-is a different question from how loud it is while it waits.
-
-**`prompts`** records what this stage sends, so the version stamped on each
-row can be resolved to the text that produced it. It runs after preflight and
-never fails a start. A text rewritten under an unchanged version is warned
-about, stored, and moves the row's `updated_at`; a changed model alone
-rewrites the row and is not warned about. The recorded prompts list newest
-version first, by number. See [`prompts.py`](prompts.py) and
-[`backend/database/`](../database/README.md).
-
-What it writes it also **publishes to Phoenix**, so a span's
-`llm.prompt_template.version` opens against a prompt without anybody
-remembering a command. What it *wrote* and not the catalogue:
-`prompts.create` posts a new Phoenix version every call and compares
-nothing, so publishing everything each run would add an identical version
-per prompt per run. A start-up that changed nothing publishes nothing. See
-[`publish.py`](publish.py); `make prompts-publish` is the full republish,
-for a Phoenix wiped while the rows stayed.
+What it wrote is also published to Phoenix. See [`publish.py`](publish.py).
+`make prompts-publish` republishes everything, for a Phoenix wiped while the
+rows stayed.
 
 ### The worker
 
-`--watch` is what the six worker containers run: drain, sleep
-`WORKER_POLL_SECONDS`, drain again. A poll rather than `LISTEN`/`NOTIFY` — at
-this interval an idle worker costs one cheap query every few seconds.
+`--watch` is what the worker containers run: drain, sleep
+`WORKER_POLL_SECONDS`, drain again.
 
-`SIGTERM` and `SIGINT` are caught: the worker **stops claiming and finishes
-the item it holds**, and then stops. The wait between polls is an `Event`, so
-a worker asleep wakes at once instead of serving out its interval.
+`SIGTERM` and `SIGINT` make the worker stop claiming and finish the item it
+holds. A second signal, or the stage's grace after the first (`GRACE_SECONDS`:
+90 s for parsing and chunking, 270 s for stages that call a model), returns
+the held row to the queue as pending and exits 75. `compose.yaml` gives each
+worker a `stop_grace_period` above its grace by `RELEASE_MARGIN` (30 s), and a
+test holds the two together. A worker killed regardless is swept by the lease.
 
-It does not wait for ever. A **second signal**, or the stage's grace after the
-first (`GRACE_SECONDS`: 90 s for parsing and chunking, 270 s for the stages
-that call a model), makes it return the row it holds to the queue as pending,
-through the same `release` a stalled drain uses, and exit 75. A row a model
-worker holds can take many calls and minutes, which a supervisor will not
-wait for; killed holding it, the row sat `in_progress` until the next start
-failed it, and nothing retried a failed row. `compose.yaml` gives each worker
-a `stop_grace_period` above its grace by `RELEASE_MARGIN` (30 s), and a test
-holds the two together. A worker killed regardless is still swept by the lease.
-
-A watching worker rebuilds its service when the settings change. The check
-sits between drains, where nothing is claimed. Before it builds again it runs
-its `preflight` and waits there as it does at start, so a setting that names a
-model which will not answer claims nothing, and then records its prompts
-again. A build that fails drops the service it would have replaced and claims
-nothing, and is tried again on the same settings after five seconds, doubling
-to an hour while they stand, rather than at every poll. A worker's first build
-that races the object store or the model hub as the stack starts is therefore
-serving a poll later. Settings that move again are built at once, and a build
-of them that fails backs off from five seconds again.
+A watching worker rebuilds its service between drains when the settings
+change, running its `preflight` and recording its prompts again. A failed
+build claims nothing and is retried after five seconds, doubling to an hour.
 
 A `make` target runs one drain on the host, in the foreground, against the
-same database the containers use. It is the same code; there is no second
-path. It refuses while that stage's worker container is running. The
-container workers build the dataset; a host drain is for developing a stage.
-Nothing keeps a host run out of the dataset, though: a host parse, chunk or
-extract drain writes the same tables in the same database as the workers,
-nothing but a `RUN_ID`, where one is set, tells its rows apart, and the
-refusal checks only that the stage's worker is stopped. Do not build the
-dataset with one.
+containers' database. It refuses while the stage's worker container is
+running. Container workers build the dataset; a host drain is for developing a
+stage. Nothing keeps a host run out of the
+dataset: a host parse, chunk or extract drain writes the same tables in the
+same database as the workers, and only `RUN_ID`, when set, tells its rows
+apart. The refusal checks only that the stage's worker is stopped. Do not
+build the dataset with a host drain.
 
 ## Recalibrating stored confidences
 
-`make confidence-recalibrate` runs [`recalibrate.py`](recalibrate.py). It
-takes every stored margin again after a change to `QUESTIONS_DUPLICATE_FLOOR`
-or `EXTRACTION_DUPLICATE_FLOOR`, read with the stored overrides applied, and
-rewrites `gate_scores` and `confidence` on the questions and the facts.
+`make confidence-recalibrate` runs [`recalibrate.py`](recalibrate.py). After a
+change to `QUESTIONS_DUPLICATE_FLOOR` or `EXTRACTION_DUPLICATE_FLOOR`, it
+re-reads every stored margin, with the stored overrides applied, and rewrites
+`gate_scores` and `confidence` on the questions and the facts.
 
-It calls no model and no embedder: each `gate_scores` entry carries the
-reading and what it was read against. It moves no verdict, so `status` and
-`rejected_reason` stay as they are; that is what separates it from
-`make questions-reverify`. A row whose readings come back unchanged is left
-alone, so a second run writes nothing.
-
-It holds no lock while it reads and writes back in batches of 300, each row
-guarded by the scores it read. A row a rejudge or a verdict changed meanwhile
-is left as it is, counted in the log, and taken by the next run; the run does
-not stop a writer of a question or a fact.
+It calls no model and moves no verdict: `status` and `rejected_reason` stay
+as they are (`make questions-reverify` changes verdicts). A second run writes
+nothing. It works in batches of 300 without a lock, and a row changed
+meanwhile is left for the next run.
 
 A row written before `gate_scores` recorded a direction takes it from
-`_REFUSES_HIGH`: `near_duplicate` and `duplicate` refuse a high reading.
-
-An entry marked `opinion` - a model's verdict kept beside the readings, such
-as `settles` - has no margin and is rebuilt as one, so it never enters a
-recalculated confidence. The rows are locked while they are read and written
-back, so a `make questions-rejudge` adding one at the same time waits rather
-than having its entry written over.
+`_REFUSES_HIGH`: `near_duplicate` and `duplicate` refuse a high reading. An
+entry marked `opinion`, such as `settles`, has no margin and never enters a
+recalculated confidence.
 
 ## Configuration
 
@@ -368,47 +243,29 @@ than having its entry written over.
 | `WORKER_POLL_SECONDS` | How long a watching worker sleeps between drains. Fixed: served read-only, never stored |
 | `SPEND_CAP` | The most, in USD, one drain spends on model calls. Unset: no cap. Fixed. See [What a drain exits with](#what-a-drain-exits-with) |
 
-Everything else a stage needs is the stage's own. The lease is neither
-configured nor derived: it counts missed heartbeats, and a worker that is
-alive keeps its row however long the work runs.
-
 ## Tests
 
 ```sh
 poetry run pytest tests/unit/stages tests/integration/database/test_queue.py
 ```
 
-| File | Covers |
-|---|---|
-| [`test_cli.py`](../../tests/unit/stages/test_cli.py) | Narrowing and the flag combinations refused, the preflight and how a waiting worker reports, a rebuilt worker waiting for its models, and a failed rebuild backing off |
-| [`test_queue_narrowing.py`](../../tests/unit/stages/test_queue_narrowing.py) | Narrowing to one item, and both refusals |
-| [`test_worker.py`](../../tests/unit/stages/test_worker.py) | Ending a worker's loop |
-| [`test_recalibrate.py`](../../tests/unit/stages/test_recalibrate.py) | Rebuilding a stored gate reading, and the two floors `make confidence-recalibrate` reads |
-| [`test_prompt_recording.py`](../../tests/unit/stages/test_prompt_recording.py) | That what reaches Phoenix is what the write moved, and nothing on a start-up that changed nothing |
-| [`test_prompt_publishing.py`](../../tests/unit/stages/test_prompt_publishing.py) | What a published version carries beside its text |
-| [`test_queue.py`](../../tests/integration/database/test_queue.py) | Claiming, the lease sweep and the queue verbs against a real PostgreSQL |
-| [`test_prompt_store.py`](../../tests/integration/database/test_prompt_store.py) | Recording a prompt once per version, and reading back what a version asked for |
-| [`test_question_queue.py`](../../tests/integration/database/test_question_queue.py) | Two queues on one table |
-| [`test_reloading.py`](../../tests/integration/database/test_reloading.py) | A worker picking up a changed setting without being restarted |
-| [`test_stages.py`](../../tests/integration/api/test_stages.py) | The five verbs that have a route, over HTTP |
+Unit tests cover the command line and narrowing (`test_cli.py`,
+`test_queue_narrowing.py`), the worker loop (`test_worker.py`), recalibration
+(`test_recalibrate.py`) and prompt recording and publishing
+(`test_prompt_recording.py`, `test_prompt_publishing.py`). Integration tests
+run claiming, the lease sweep and the verbs on PostgreSQL (`test_queue.py`,
+`test_question_queue.py`), prompt storage (`test_prompt_store.py`), settings
+reloading (`test_reloading.py`) and the five verbs over HTTP
+(`test_stages.py`).
 
 ## Limits
 
-- **`topics` carries two queues on one table.** A row with a NULL
-  `topic_index` is a request to refit; a row that is a topic belongs to
-  question generation. Every operation on the second carries
-  `topic_index IS NOT NULL`.
-- **`rerun` skips what a worker holds right now.** It is not a way to
-  interrupt a running item. `reclaim` is, and it is the one verb that can
-  hand a live worker's row to a second one.
-- **`reclaim` over a whole stage needs `?confirm=true`.** Neither the route
-  nor the command line can tell a dead claim from a live one; narrowed to
-  one item it is the ordinary way out of a killed worker.
-- **`ready` gates queueing, never claiming.** Chunking is the only stage
-  that declares one, and a row already `pending` is worked whatever it says.
-- **A worker that cannot call its model does not start.** A watching worker
-  backs off and waits.
-- **A `make` drain refuses only while compose reports the stage's worker
-  running.** With no engine answering it cannot tell, and drains.
-- **Scaling `topic-worker` past one achieves nothing.**
-- **A stage's failure never reaches the API as a 500.**
+- `topics` carries two queues on one table. A row with a NULL `topic_index`
+  is a request to refit. A row that is a topic belongs to question
+  generation, and every operation on it carries `topic_index IS NOT NULL`.
+- `rerun` skips what a worker holds right now. `reclaim` is the one verb that
+  can hand a live worker's row to a second one.
+- A `make` drain refuses only while compose reports the stage's worker
+  running. With no engine answering, it drains.
+- Scaling `topic-worker` past one achieves nothing.
+- A stage's failure never reaches the API as a 500.
