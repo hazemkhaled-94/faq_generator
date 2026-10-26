@@ -88,7 +88,12 @@ def compose(*args: str) -> subprocess.CompletedProcess:
         text=True,
         timeout=300,
         check=False,
-        env={**os.environ, "COMPOSE_ENV_FILES": ENV_FILES},
+        # Without COMPOSE_PROFILES: `make test-smoke` exports it as `*` for
+        # every compose command it runs, and a test names its own profiles.
+        env={
+            **{k: v for k, v in os.environ.items() if k != "COMPOSE_PROFILES"},
+            "COMPOSE_ENV_FILES": ENV_FILES,
+        },
     )
 
 
