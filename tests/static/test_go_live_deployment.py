@@ -118,9 +118,9 @@ def test_every_condition_that_holds_is_in_the_go_live_section(
     item: str, rule: str
 ) -> None:
     """Its row names the item and the setting or rule an operator follows."""
-    row = _row(_section(_operations(), "## Go-live deployment"), item)
+    row = _row(_section(_operations(), "## Production deployment"), item)
 
-    assert row, f"docs/operations.md's Go-live deployment has no row for {item}"
+    assert row, f"docs/operations.md's Production deployment has no row for {item}"
     assert rule in row, f"{item}'s row does not name {rule!r}: {row}"
 
 
@@ -131,7 +131,7 @@ def test_a_lifted_condition_is_named_once_in_the_upgrade_notes(item: str) -> Non
     upgrade = _section(text, "## Upgrading to v0.5.2")
 
     assert _row(upgrade, item), f"Upgrading to v0.5.2 does not name {item}"
-    assert not _row(_section(text, "## Go-live deployment"), item), item
+    assert not _row(_section(text, "## Production deployment"), item), item
 
 
 def _deployed() -> list[Path]:
