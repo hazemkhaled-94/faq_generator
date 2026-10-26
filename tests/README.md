@@ -1,43 +1,42 @@
 # Tests
 
-Eleven directories, eight markers. `make test` runs everything that gates a
-merge but `smoke`, which CI runs as a job of its own; `eval` and `perf`
-never gate and are excluded too.
+Twelve layers and nine markers. `make test` runs every layer that gates a
+merge except `smoke`, which CI runs as its own job. `eval` and `perf` never
+gate.
 
 ```bash
-make test           # everything that gates but smoke; starts containers of its own
-make test-fast      # only the fast layers: no spaCy, no pyright, no containers
-make test-unit      # everything but the integration, smoke, eval and perf layers
+make test           # everything that gates but smoke; starts its own containers
+make test-fast      # no spaCy, no pyright, no containers
+make test-unit      # all but integration, smoke, eval and perf
 make test-integration
 make test-e2e
 make test-smoke     # build both images and look inside them
-make test-eval      # score the served model against the golden passages
-make test-perf      # time the ceilings the code names in a comment
+make test-eval      # score the served model on the golden passages
+make test-perf      # time the ceilings named in the code
 make test-coverage  # the gating layers, with a coverage report
-make mutation       # change a gate and ask whether a test notices. Hours
+make mutation       # change a gate and see whether a test notices. Hours
 ```
 
 ## The layers
 
 | Directory | What it covers | Needs |
 |---|---|---|
-| [`static/`](static/) | The repository against itself: settings declared where they are read, the migration chain, the schema extensions, the locks, the workflows, the env files and the compose file, the Makefile's recipes, the dashboards, the pinned surface of five services, every prompt pinned by digest, the frontend's gate list, the two import contracts, every relative link and heading a README names, and pyright at zero | nothing |
-| [`unit/`](unit/) | One module at a time, no I/O. Includes the Dagster code location, the review round trip and the experiment evaluators | spaCy, for some |
+| [`static/`](static/) | The repository against itself: settings, migrations, locks, workflows, env files, compose, Makefile recipes, dashboards, prompt digests, import contracts, documentation links and pyright at zero | nothing |
+| [`unit/`](unit/) | One module at a time, with no network or disk. Includes the Dagster code location | spaCy, for some |
 | [`property/`](property/) | Invariants over generated input, with hypothesis | spaCy, for some |
-| [`regression/`](regression/) | The verdicts the checks have always reached, pinned as a table | spaCy |
-| [`contract/`](contract/) | The OpenAPI surface, the paths the frontend builds, the refusals each route declares, and generated calls against every read route | a container |
-| [`integration/`](integration/) | The database, the object store and the HTTP surface, against the images compose runs | a container |
-| [`e2e/`](e2e/) | One document through every stage in this process, then a German and an English shop's terms through the bridge pass, the release draw, a stub-judged assessment and the workbook export, with the PDF converter, the served models, the judge, the embedder and the topic fit stood in for | a container |
-| [`golden/`](golden/) | Real PDFs through the real converter and chunker, against stored snapshots of their text, heading trail, pages and tables. Two pages of the shop corpus (CC BY 4.0, see `pdfs/ATTRIBUTION.txt`) and one made in the test. `make test-golden`; `make golden-refresh` after a change that is meant | the cached Docling and tokenizer weights |
-| [`frontend/`](frontend/) | Each Streamlit page against a scripted backend | nothing |
-| [`smoke/`](smoke/) | Both images built and looked inside, and the compose file resolved | a container engine |
-| [`eval/`](eval/) | How a real served model reads the golden passages, answers the phrasing judgements and writes questions, and whether the round-trip gate splits the golden questions | a served model |
-| [`perf/`](perf/) | The ceilings the code names in a comment, as wall-clock budgets of five times each one's measured mean | nothing |
+| [`regression/`](regression/) | The verdicts the checks have always reached | spaCy |
+| [`contract/`](contract/) | The OpenAPI surface, declared refusals, and calls generated from the OpenAPI document against every read route (`unsupported_method` is off, because `POST /questions/{action}` is a real route) | a container |
+| [`integration/`](integration/) | The database, the object store and the HTTP surface | a container |
+| [`e2e/`](e2e/) | One document through every stage in this process, then the bridge pass, release draw, assessment and workbook export, with models and converters stood in | a container |
+| [`golden/`](golden/) | Real PDFs through the real converter and chunker, against stored snapshots (CC BY 4.0, see `pdfs/ATTRIBUTION.txt`). `make test-golden` runs it; `make golden-refresh` updates the snapshots | the cached Docling and tokenizer weights |
+| [`frontend/`](frontend/) | Each Streamlit page, against a scripted backend | nothing |
+| [`smoke/`](smoke/) | Both images built and inspected, and the compose file resolved | a container engine |
+| [`eval/`](eval/) | A real served model reading the golden passages, judging phrasing and writing questions | a served model |
+| [`perf/`](perf/) | The ceilings named in the code, as budgets of five times the measured mean | nothing |
 
 ## The markers
 
-`--strict-markers` is on, so a typo is an error rather than a test that
-silently never runs.
+`--strict-markers` is on: a misspelled marker is an error.
 
 | Marker | Means |
 |---|---|
@@ -47,162 +46,87 @@ silently never runs.
 | `frontend` | Runs a Streamlit view |
 | `e2e` | Drives the whole pipeline in this process |
 | `smoke` | Builds images and reads the compose file |
-| `slow` | Converts real PDFs with Docling from the cached weights; `make test` leaves it out, `make test-golden` runs it |
-| `eval` | Scores a real served model; **never gates** |
-| `perf` | Times the ceilings the code names; **never gates** |
+| `slow` | Converts real PDFs with Docling. `make test` leaves it out, `make test-golden` runs it |
+| `eval` | Scores a real served model. Never gates |
+| `perf` | Times the named ceilings. Never gates |
 
 ## A prompt is pinned, not just versioned
 
-[`static/test_prompts_pinned.py`](static/test_prompts_pinned.py) pins every
-prompt a stage sends by **digest**, under the `PROMPT_VERSION` its module
-declares.
+[`static/test_prompts_pinned.py`](static/test_prompts_pinned.py) pins the
+digest of every stage prompt under its module's `PROMPT_VERSION`. After
+changing a prompt, bump the version and write down the new digest.
 
-Changing a prompt fails this file, and the only way to make it pass is to
-bump the version and write the new digest down — which is the decision the
-version exists to record. The digest and not the text, because the prompts
-run to hundreds of lines, spelled the way `stages/prompts.py` spells it.
+## Import and dependency checks
 
-## Two checks that are a tool rather than a test
-
-import-linter also runs in `make test`, through a thin wrapper in
-`static/`; deptry has no wrapper, and CI runs `make deps` as a step of the
-`static` job. Both have a target of their own that prints the finding
-itself:
-
-| | Runs | Covers |
-|---|---|---|
-| `make lint-imports` | import-linter, over [`.importlinter`](../.importlinter) | A stage sits above what it shares, and no backend service imports another |
-| `make deps` | deptry | A declared dependency nothing imports, an import nothing declares, and a package reached only through somebody else's |
-
-`.importlinter` does **not** replace
-[`static/test_api_stays_light.py`](static/test_api_stays_light.py), and
-cannot: grimp counts an import inside a function body, and deferring a heavy
-import into one is exactly how the topic service keeps pyLDAvis out of the
-api.
-
-## Generated calls
-
-[`contract/test_openapi_conformance.py`](contract/test_openapi_conformance.py)
-reads the published document and sends calls derived from it, checking each
-answer back against what was promised. Four checks only — a 5xx, an
-undeclared status, a body that does not match its schema, and a media type
-that does not.
-
-`unsupported_method` is off: `POST /questions/{action}` is a real route, so a
-POST to `/questions/quality` genuinely matches it and is refused 422.
-
-It found two classes of real defect on its first run, now fixed in
-[`backend/api/params.py`](../backend/api/params.py): an id or offset above
-`bigint` reaching PostgreSQL, and a NUL byte in a search term reaching
-psycopg. Both are now 422 from FastAPI's own validation.
-
-## Containers
-
-The integration layers start a PostgreSQL and a SeaweedFS of their own
-through testcontainers and **skip, with a reason**, where no container engine
-answers. Nothing they do touches a running stack.
+`make lint-imports` runs import-linter over [`.importlinter`](../.importlinter):
+a stage sits above what it shares, and no backend service imports another.
+`make deps` runs deptry: an unused declared dependency, an undeclared import,
+or a package reached only through another. `make test` runs import-linter;
+CI runs `make deps` in the `static` job.
 
 ## What never gates
 
-`tests/eval/` prints its numbers and asserts little: a model's answers move
-between versions and between runs at the same temperature.
+`tests/eval/` prints its numbers and asserts little, because a model's
+answers vary between runs. It asserts only that each piece works: the
+round-trip gate splits the golden questions, each phrasing judgement beats a
+judge that always answers the same, and extraction and the writer produce
+something.
 
-`tests/perf/` does assert, but never on a pull request — a wall-clock budget
-on a shared runner measures the runner. It runs nightly and by hand.
+`tests/perf/` runs nightly and by hand, not on pull requests: a wall-clock
+budget on a shared runner measures the runner.
 
-What `eval` does assert is that the round-trip gate splits its golden
-questions the right way round, that each phrasing judgement beats a judge
-answering the same way every time, that extraction proposes and keeps
-something, and that the writer writes something for every kind. That is not
-a measurement of the model's taste; it is whether each piece is wired up at
-all, and **a gate that accepts everything cannot be told from no gate**.
+## Tests that skip rather than download 2.2 GB
 
-## Two tests that skip rather than download 2.2 GB
-
-- [`unit/nlp/test_embedding.py`](unit/nlp/test_embedding.py) skips unless
-  `EMBEDDING_MODEL` is already in the Hugging Face cache. The six tests that
-  take the embedder are marked `nlp`; `cosine` is arithmetic over two lists
-  and is not, so it still runs in the fast layer.
-- [`e2e/test_pipeline.py`](e2e/test_pipeline.py) stands the embedder in for
-  with a digest.
-
-Every skip on a missing weight goes through
-[`weights.unavailable`](weights.py), which fails instead where
-`REQUIRE_MODELS=1`. The nightly `weights` job sets it, so a model that is not
-there is an error in the job and not a skip nobody reads.
-
-## Every warning is an error
-
-`filterwarnings = error`, with five ignores in
-[`pyproject.toml`](../pyproject.toml), each pinned to what one third-party
-module raises — not to a built-in category, so the same category from this
-code still fails. Nothing failed on a deprecation before, which is how a
-`StarletteDeprecationWarning` sat unread in every run's summary.
+[`unit/nlp/test_embedding.py`](unit/nlp/test_embedding.py) skips unless
+`EMBEDDING_MODEL` is cached. A skip on a missing weight goes through
+[`weights.unavailable`](weights.py), which fails instead when
+`REQUIRE_MODELS=1`, as the nightly `weights` job sets.
 
 ## How the tests are written
 
-Non-UI tests follow the same **page-object** structure the UI tests do: one
-*driver* per thing under test, holding the wiring out of the test body.
-
-| File | Holds |
-|---|---|
-| [`conftest.py`](conftest.py) | The environment every test runs in, and the containers some need |
-| [`factories.py`](factories.py) | Builders the tests share |
-| [`drivers.py`](drivers.py) | The objects the facts tests drive the extraction service through |
-| [`integration/seed.py`](integration/seed.py) | Rows to test against, with only the columns the schema insists on |
-| [`frontend/pages.py`](frontend/pages.py) | One page object over every view, and the answers each view needs |
-
-What is stood in for: the database and the buckets in the layers that start
-no container, the backend in `frontend/`, the served models, and in `e2e`
-the PDF converter, the embedder and the topic fit.
-
-Two static gates keep that structure from eroding, because it already had:
-
-- [`static/test_pages_are_the_only_way_in.py`](static/test_pages_are_the_only_way_in.py)
-  refuses a frontend test that reads `view.app.<widget>` past the page
-  object, and one that imports from the bare name `conftest` — which
-  resolves to whichever `conftest.py` pytest loaded first, and silently
-  changes with the collection order.
-- [`static/test_fake_backend_matches_the_api.py`](static/test_fake_backend_matches_the_api.py)
-  compares every fake response in `frontend/pages.py` against the dataclass
-  the API actually serialises. Twenty shapes and the settings builder: a
-  field the API gains and the fake does not is what it exists to catch.
+[`conftest.py`](conftest.py) sets the environment, and
+[`factories.py`](factories.py) and [`integration/seed.py`](integration/seed.py)
+build rows. [`frontend/pages.py`](frontend/pages.py) is one page object over
+every view. [`static/test_pages_are_the_only_way_in.py`](static/test_pages_are_the_only_way_in.py)
+refuses a frontend test that reads `view.app.<widget>` past it, and
+[`static/test_fake_backend_matches_the_api.py`](static/test_fake_backend_matches_the_api.py)
+compares its fake responses with the API's dataclasses.
 
 ## Continuous integration
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every pull
-request and every push to `main`:
+request and push to `main`:
 
 | Job | Runs |
 |---|---|
-| `setup` | Installs the dependencies and caches the virtualenv |
-| `static` | The `static/` layer, pyright included, and `make lint`, `make lint-imports` and `make deps` |
-| `unit` | Everything that needs neither a container nor a served model |
+| `setup` | Installs the dependencies |
+| `static` | The `static/` layer, `make lint`, `make lint-imports` and `make deps` |
+| `unit` | Everything that needs no container or served model |
 | `integration` | The container layers, against pulled images |
-| `smoke` | Builds both images and looks inside them |
-| `coverage` | Combines the three jobs' shares into one figure |
-| `gate` | Waits for the rest. **This is the one a branch protection rule needs to require** |
+| `smoke` | Builds and inspects both images |
+| `coverage` | Combines the other jobs' coverage |
+| `gate` | Waits for the rest. Require this job in branch protection |
 
 [`.github/workflows/nightly.yml`](../.github/workflows/nightly.yml) runs at
 03:00:
 
 | Job | Runs |
 |---|---|
-| `audit` | Known advisories against both locks |
-| `everything` | Every layer but `eval` and `perf`, images included |
-| `mutation` | `make mutation`, with the survivors in the job summary |
+| `audit` | Known advisories in both locks |
+| `everything` | Every layer but `eval` and `perf` |
+| `mutation` | `make mutation`, with survivors in the summary |
 | `ceilings` | `make test-perf` |
-| `weights` | Fetches the embedding, NLI and Docling weights at their pinned revisions, then runs the tests that need them offline with `REQUIRE_MODELS=1`: the embedder, the duplicate-verdict table, the chunker's tokenizer and the golden PDFs |
-| `evaluate` | The model evaluation — every test skips unless `LLM_MODEL` is a repository variable |
+| `weights` | Fetches the embedding, NLI and Docling weights, then runs the tests that need them with `REQUIRE_MODELS=1` |
+| `evaluate` | The model evaluation. Skips unless `LLM_MODEL` is a repository variable |
 
 ## Limits
 
-- **A skipped integration test is not a passing one.** With no container
-  engine the whole layer skips with a reason. Read the reason.
-- **`make test` excludes `smoke`, `eval` and `perf`.**
-- **`tests/contract/openapi.json` is a committed fixture.** A route added
-  without updating it fails the contract test.
-- **`make test-fast` skips spaCy, pyright and every container.** It is a
-  smoke-check while editing.
-- **The coverage figures in [docs/measurements.md](../docs/measurements.md)
-  are a snapshot.** `make test-coverage` is what re-measures.
+- The integration layers start their own PostgreSQL and SeaweedFS through
+  testcontainers and never touch a running stack. With no container engine
+  the whole layer skips, with a reason. A skip is not a pass.
+- `filterwarnings = error`, with five ignores in
+  [`pyproject.toml`](../pyproject.toml), each for one third-party module.
+- `tests/contract/openapi.json` is a committed fixture: a new route fails the
+  contract test until it is updated.
+- The coverage figures in [docs/measurements.md](../docs/measurements.md) are
+  a snapshot: `make test-coverage` re-measures.

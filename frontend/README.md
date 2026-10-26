@@ -1,113 +1,67 @@
 # Frontend
 
-A Streamlit application: one page per stage, and a page runs that stage and no
-other.
+A Streamlit application with one page per stage. A page runs its own stage
+and no other.
 
-It holds **one address it calls** — `BACKEND_URL` — and no knowledge of the
-database, the object store, or the services behind the API.
-
-`PHOENIX_BASE_URL` is a second address and not a second exception: nothing
-here calls it. It is written into a link a **browser** follows, which is why
-compose leaves it as the host sees it rather than setting a container name
-over it.
+The frontend calls one address, `BACKEND_URL`, and has no access to the
+database or the object store. `PHOENIX_BASE_URL` is never called: it is
+written into links that a browser follows, so compose leaves it as the host
+sees it.
 
 ## The pages
 
 | Page | Lists | Runs | Over | Configures |
 |---|---|---|---|---|
-| Upload | — | ingestion | the files you choose | ingestion |
+| Upload | nothing | ingestion | the files chosen | ingestion |
 | Documents | documents | parsing | a document | parsing |
 | Passages | passages | chunking | a document | chunking |
 | Facts | facts | extraction | a passage | extraction |
 | Topics | topics | topic modelling | the whole corpus | topics |
 | Questions | questions | question generation | a topic | questions |
-| Assessment | what an LLM judge said about each artefact | the evaluation phase | the kinds of artefact ticked | assessment |
-| System health | components, and every container, with a link to each that serves a page | nothing | — | the platform all seven share |
+| Assessment | the judge's verdicts | the evaluation phase | the kinds ticked | assessment |
+| System health | components and containers | nothing | nothing | the platform |
 
-**Nothing on a page can reach another page's stage.**
+Documents also has the **Pipeline** panel. It asks the orchestrator to run
+every stage except the topic fit, in order. See
+[`lib/pipeline.py`](lib/pipeline.py). Assessment can be switched off: see
+[`backend/assessment/`](../backend/assessment/README.md). System health reads
+`GET /services`.
 
-Documents carries one control that is not a stage's: the **Pipeline** panel,
-which takes the corpus through every stage but the topic fit, in order. It
-is not an exception to the rule above, because it reaches no stage — it asks
-the orchestrator to decide that the pipeline should run, and the orchestrator
-is what then starts each in turn. It is on Documents because that is where somebody lands after
-an upload, with "now take it through" to ask. See
-[`lib/pipeline.py`](lib/pipeline.py).
+Chunking replaces all of a document's passages, and extraction writes all of
+a passage's facts, so on those pages a picked row runs through the unit the
+stage queues.
 
-Assessment is the one page that lists an opinion rather than an artefact,
-and the one whose stage can be switched off entirely — see
-[`backend/assessment/`](../backend/assessment/README.md).
+### Links from a question
 
-System health is the one that lists something the pipeline did not produce.
-It asks `GET /services` rather than probing anything itself — the topology
-puts the api between the browser and everything else.
+On the Questions page, Type is what a question asks for (`question_type`)
+and Kind is how it was written (single, needs_both, compound). A picked
+question links to two things:
 
-The queue's unit is not always the row: chunking replaces all of a document's
-passages at once, and extraction reads a passage and writes all of its facts
-together, so a row picked on those pages is run through the thing its stage
-actually queues over. The page says so where it offers the control.
+- Phoenix, from `questions.span_id` (the gate decision) and
+  `questions.trace_id` (the whole topic). Without `PHOENIX_BASE_URL` on the
+  `streamlit` service, the ids show as text.
+- The prompt as sent, inline, from `questions.prompt_version` and
+  `question_type` through `GET /prompts`.
 
-### A picked question links out to what produced it
+### How an artefact was produced
 
-On the Questions page Type is what a question asks for (`question_type`) and Kind is what it was written as (single, needs_both, compound).
+Documents, Passages, Facts, Topics and Questions each have a **How this was
+produced** fold, from [`lib/lineage.py`](lib/lineage.py) over
+`GET /lineage/{kind}/{id}`. It shows the chain from document to passages,
+facts, topics and questions, with each step's stage number, verdict, judge
+opinion and span link.
 
-| | From | Opens |
-|---|---|---|
-| The calls | `questions.span_id` and `questions.trace_id` | Phoenix. **Two links**: the span is the gate decision, the trace is the whole topic |
-| The prompt | `questions.prompt_version` and `question_type`, through `GET /prompts` | The prompt as it was sent, inline — both halves, system then user |
-
-Both degrade rather than break. A question written before the columns existed
-says so; a deployment with no `PHOENIX_BASE_URL` on the `streamlit` service
-shows the ids as text instead of links.
-
-### Every artefact says how it was produced
-
-Documents, Passages, Facts, Topics and Questions each carry a **How this
-was produced** fold, from [`lib/lineage.py`](lib/lineage.py) over
-`GET /lineage/{kind}/{id}`. It shows the chain the artefact came out of —
-the document, the passages cut from it, the facts read out of those, the
-topics they sit in, the questions written from them — each step numbered by
-the stage that produced it, with that stage's verdict, what the judge made
-of it, and a link to its own span.
-
-On a question it also lists every gate that read it, at its fixed position.
-The gates after the one that refused it are **absent rather than shown as
-passed**: the checker returns on the first failure, so they never ran.
-
-It ends with **Where to look next**, one line per tool naming the one thing
-that tool answers and nothing else does:
-
-| | Opens |
-|---|---|
-| Grafana | The Run dashboard, narrowed to the run that produced this artefact |
-| Dagster | The asset that stage materialises — `facts`, `topics`, `questions` |
-| Argilla | The datasets, and the name of the one this kind is reviewed in |
-| Phoenix | Per artefact, in the tables above: the span and the trace |
-
-The addresses come from `GET /services`, which serves `SERVICE_URLS` —
-compose builds it out of the published ports, and that is the only place
-both halves of "grafana serves 3000 and is published on 3001" are written
-down. Cached for ten minutes, because that route opens a socket to every
-service to answer; the empty list an unreachable API answers is not cached.
-A tool this deployment does not publish gets no line rather than an address
-nobody can open.
-
-Behind a selection and collapsed, like everything else not needed on
-arrival.
+On a question, the fold also lists every gate that read it. Gates after the
+one that refused the question are absent, because the checker stops at the
+first failure. The fold ends with **Where to look next**: the Grafana Run
+dashboard for the run, the Dagster asset the stage materialises, the Argilla
+datasets, and the Phoenix span and trace. The addresses come from
+`GET /services` (`SERVICE_URLS`), cached for ten minutes. A tool the
+deployment does not publish gets no line.
 
 ## The shape of every page
 
-The same sequence of panels, on the six stage pages that list something
-(Upload draws its figures and the upload form, with `Configuration` under
-it, and after an upload a table of what became of each file. A caption above
-the picker names the caps and `make ingest DIR=`, because Streamlit sends each
-file to the page's process as it is picked, form or not, so the cap is checked
-only after the selection is held in memory. It refuses a
-selection above 20 files or 200 MB in all, `UPLOAD_MAX_FILES` and
-`UPLOAD_MAX_BYTES` in [`lib/config.py`](lib/config.py), and names
-`make ingest DIR=<directory>`, which loads a host directory through the same
-ingest service; a timeout is shown as unknown, with the Documents list as the
-place to check):
+The six stage pages that list something draw these panels, top to bottom:
 
 ```
 the few figures worth seeing on arrival
@@ -119,30 +73,28 @@ the table
 everything held about that row, as one table of every field it has
 ```
 
-The configuration is where it is because the remedy for changing it is
-directly above it: a setting that stales what the stage produced is rebuilt
-by the Redo button in the same panel.
+Upload draws its figures, the upload form and, after an upload, a table of
+what became of each file. A selection above 20 files or 200 MB in all is
+refused (`UPLOAD_MAX_FILES` and `UPLOAD_MAX_BYTES` in
+[`lib/config.py`](lib/config.py)), and the page names `make ingest
+DIR=<directory>` for larger loads. The cap is checked after the selection is
+in memory. A timeout shows as unknown: check the Documents list.
 
-Its controls are drawn from what the API says each setting is, so the page
-holds no list of settings — adding one to
-[`settings/catalog.py`](../backend/settings/catalog.py) adds it to the page.
+A setting added to [`settings/catalog.py`](../backend/settings/catalog.py)
+appears on its page without a frontend change.
 
-Two pages carry a delete box, because two things can be deleted: a document,
-with or without what was derived from it, and the topics, all at once. A
-passage, a fact and a question have no delete.
+Only Documents (with or without what was derived) and Topics (all at once)
+have a delete box.
 
-Redo on every stage's page asks first in the same two clicks, and says what
-goes or what it costs: a re-chunk or a re-extraction deletes the questions
-resting on that work, a re-judge blanks the stored verdicts, a re-parse
-replaces the stored parse, and a re-ask of the questions calls the model for
-every topic. The page sends a whole-stage Redo with `confirm=true`, which the
-api requires of any caller. A picked
-bridge fact offers no Redo and names `make extract-bridge` instead.
+Redo asks for confirmation in two clicks and says what it costs. A re-chunk
+or re-extraction deletes the questions resting on that work, a re-judge
+blanks the stored verdicts, a re-parse replaces the stored parse, and a
+re-ask of the questions calls the model for every topic. A whole-stage Redo
+is sent with `confirm=true`, which the API requires. A picked bridge fact
+offers no Redo and names `make extract-bridge`.
 
-A stage's controls and counts redraw every few seconds for as long as the
-page is open, and while the stage has anything queued or in hand its panel
-carries a spinner. **No verb does the work**: they move rows between
-statuses, and a worker picks up what became claimable. The page stays usable throughout, and Stop stays live.
+Counts and controls redraw every few seconds. A verb only moves rows between
+statuses; a worker does the work.
 
 ## Layout
 
@@ -150,106 +102,57 @@ statuses, and a worker picks up what became claimable. The page stays usable thr
 |---|---|
 | [`app.py`](app.py) | The entry point: `st.navigation` over the views |
 | [`views/`](views/) | One module per page, run top to bottom on every interaction |
-| [`lib/page.py`](lib/page.py) | The shared layout every view calls |
-| [`lib/stage.py`](lib/stage.py) | The one service a page runs, and the controls that move its queue |
-| [`lib/catalog.py`](lib/catalog.py) | The one panel holding the search box, the filters and the pager |
-| [`lib/configure.py`](lib/configure.py) | The configuration panel |
-| [`lib/lineage.py`](lib/lineage.py) | The "How this was produced" panel |
-| [`lib/backend/`](lib/backend/) | The API clients, one module per group of calls |
+| [`lib/`](lib/) | Shared panels (`page.py`, `stage.py`, `catalog.py`, `configure.py`, `lineage.py`) and the API clients in `lib/backend/` |
 | [`styles.css`](styles.css) | The custom styling, on top of the theme |
-
-A view is a **script**, not a component tree. Streamlit runs it top to bottom
-on every interaction, which is why the tests run each one the same way.
 
 ## Themes and colour
 
-The palette: `#A100FF` core purple, `#460073` and `#7500C0` deeps, `#C2A3FF`
-and `#E6DCFF` lights, `#FF50A0` / `#224BFF` / `#05F2DB` secondaries, neutral
-greys. **No logo and no wordmark of any kind.**
+The palette is `#A100FF` (core purple), `#460073` and `#7500C0` (deep),
+`#C2A3FF` and `#E6DCFF` (light), `#FF50A0`, `#224BFF` and `#05F2DB`
+(secondary) and neutral greys. The app shows no logo. Type is
+Graphik where installed, otherwise Arial: Graphik is licensed and not
+shipped.
 
-The **light** ground is the reference. White, with black type and purple
-carrying the structure: a filled header on every table, figures set in the
-deep purple, purple section headings. The app is light, and the purple is
-what makes it vivid.
+[`.streamlit/config.toml`](.streamlit/config.toml) holds the theme under
+`[theme.light]` and `[theme.dark]`. The app follows the browser's
+`prefers-color-scheme`, and the toolbar menu switches it. A colour set in
+`[theme]` itself, or `theme.base`, applies to both themes.
+[`styles.css`](styles.css) holds the rest.
 
-[`.streamlit/config.toml`](.streamlit/config.toml) carries most of it. It
-gives Streamlit a palette under `[theme.light]` and another under
-`[theme.dark]`, starting from the browser's `prefers-color-scheme` and
-switched per page from the toolbar menu. Put a colour in `[theme]` itself, or
-set `theme.base`, and it applies to **both**.
+Purple fills the one control in a group that commits something (Start, Fit,
+Save, Accept). Red is used only for deletion. Every other button is outlined,
+and a control that would do nothing is greyed out, not hidden.
 
-The dark theme is a near-black carrying a violet cast rather than a flat
-black, and swaps the core purple for the light one, which a dark ground needs
-to read an accent at all.
+Rules for editing the styles:
 
-Tables get the light-header variant. The grid draws its header text on a
-canvas, so no stylesheet can correct that text: the fill has to be one it
-already reads on, which rules out a filled deep-purple header.
-
-Type is Graphik. It is licensed and not shipped, so the stack falls through
-to Arial and picks up a locally installed Graphik ahead of it.
-
-[`styles.css`](styles.css) holds what the theme config cannot express: the
-one-line header, the section headings, the queue state line and the delete
-box. It reads its own palette off `light-dark()`, which resolves against the
-`color-scheme` Streamlit sets from the theme it settled on — so the custom
-styling follows the chrome whichever way the chrome was decided. The purple
-and the red that only deletion uses are written twice, and so are
-`--qa-disabled`, `--qa-on-accent`, `--qa-shade` and `--qa-title`; the other
-neutrals are mixed from `currentColor`.
-
-**Colour carries one meaning.** Purple fills the one control that commits
-something in a group — Start, Fit, Save, Accept — and red is spent only on
-deletion. Everything else is an outlined button, and a control that would do
-nothing right now is greyed rather than hidden.
-
-Red is not in the palette. It stays because a destructive control should not
-be the first place a reader learns what the colours mean.
-
-The sidebar is the deep end of the purple ramp, `#460073`, and holds
-the navigation and nothing else. Both sidebar palettes set their own
-`textColor` and `primaryColor`: a section that inherits them from the page
-puts dark type on a dark panel.
-
-Every colour pair here is at or above 4.5:1 against the ground it sits on, in
-both themes, measured at the element that actually renders the text rather
-than the one the rule names. `--qa-muted` is mixed at 65% rather than 58% for
-that reason.
-
-**A translucent colour cannot be set on an element and its descendants.**
-Streamlit nests a button's label five levels deep, and `color-mix(…,
-currentColor 60%, transparent)` re-resolves against its own parent at each
-level: 0.6, then 0.36, then 0.216, down to 0.078, which is an empty button.
-`--qa-disabled` is therefore an opaque pair. Anything applied with a `*`
-has to be.
-
-The topic map stays on white in either theme: it is a pyLDAvis document
-inside an iframe, so nothing outside it can restyle it.
-
-Selectors here are tied to Streamlit's DOM, which it renames between
-versions. `footer` no longer matches anything.
+- Keep every colour pair at 4.5:1 contrast or better in both themes.
+- Do not set a translucent colour on an element and its descendants. It
+  compounds through Streamlit's nested button label and leaves an empty
+  button, so `--qa-disabled` is an opaque pair.
+- Set `textColor` and `primaryColor` in both sidebar palettes. A section that
+  inherits them from the page puts dark type on a dark panel.
+- Tables use the light-header variant, because the grid draws header text on
+  a canvas that no stylesheet can change.
 
 ## Configuration
 
 | Setting | Where | What it does |
 |---|---|---|
-| `BACKEND_URL` | compose, from `BACKEND_CONTAINER_URL` in `configs/env/deployment.env`; the Makefile derives the host's | The one address |
+| `BACKEND_URL` | compose, from `BACKEND_CONTAINER_URL` in `configs/env/deployment.env`; the Makefile derives the host's | The one address the frontend calls |
 | `PAGE_SIZE` | `configs/env/deployment.env` | Rows per page in the listings |
-| `PHOENIX_BASE_URL` | compose and the Makefile, from `PHOENIX_PORT` | Where a **browser** reaches Phoenix. Optional: unset shows the ids as text |
-| `LOG_LEVEL` | `configs/env/deployment.env` | The frontend logs through the same telemetry configuration as every other process |
+| `PHOENIX_BASE_URL` | compose and the Makefile, from `PHOENIX_PORT` | Where a browser reaches Phoenix. Optional: unset shows the ids as text |
+| `LOG_LEVEL` | `configs/env/deployment.env` | The log level |
 
-The first two are **required**. Being in an env file alone is not enough —
-the variable also has to be listed in the `streamlit` service's
-`environment` in `compose.yaml`. A missing `PAGE_SIZE` raises an error that
-says so, and so does one outside 1 to 500, the most a listing route returns;
-a missing `BACKEND_URL` raises a bare `KeyError`.
+`BACKEND_URL` and `PAGE_SIZE` are required. A variable in an env file must
+also be listed in the `streamlit` service's `environment` in `compose.yaml`,
+or it does not reach the frontend. A missing or out-of-range `PAGE_SIZE`
+(1 to 500) raises an error that names it. A missing `BACKEND_URL` raises a
+bare `KeyError`.
 
-`server.maxUploadSize` in [`.streamlit/config.toml`](.streamlit/config.toml)
-must be kept in step with `MAX_FILE_SIZE_MB`.
-
-`server.allowedHosts` in the same file names the hosts the app's WebSocket
-is accepted from: `localhost` and `127.0.0.1`, which is all the published
-loopback port is reached by. A proxy in front of it needs its own name added.
+In [`.streamlit/config.toml`](.streamlit/config.toml),
+`server.maxUploadSize` must match `MAX_FILE_SIZE_MB`, and
+`server.allowedHosts` (`localhost` and `127.0.0.1`) needs a proxy's name
+added.
 
 ## Tests
 
@@ -257,36 +160,23 @@ loopback port is reached by. A proxy in front of it needs its own name added.
 poetry run pytest tests/frontend
 ```
 
-Each view is a script Streamlit runs top to bottom, so an `AppTest` runs it
-the same way. **The backend is stubbed**: what these cover is what the page
-does with an answer, including the answers that are refusals.
+An `AppTest` runs each view with the backend stubbed, covering what a page
+does with an answer, including a refusal. The tests need no container and no
+spaCy, and `make test-fast` runs them.
 
 | File | Covers |
 |---|---|
-| [`test_views.py`](../tests/frontend/test_views.py) | The rules every page keeps, checked on every page |
-| [`test_assessment_page.py`](../tests/frontend/test_assessment_page.py), [`test_facts_page.py`](../tests/frontend/test_facts_page.py), [`test_questions_page.py`](../tests/frontend/test_questions_page.py), [`test_topics_page.py`](../tests/frontend/test_topics_page.py) | Four pages in depth, against a scripted backend |
-| [`test_pipeline_panel.py`](../tests/frontend/test_pipeline_panel.py) | The Pipeline panel on Documents, with and without an orchestrator |
-| [`test_backend_clients.py`](../tests/frontend/test_backend_clients.py) | The HTTP mechanics every backend client shares |
-| [`test_configuration_panel.py`](../tests/frontend/test_configuration_panel.py) | The configuration panel |
-| [`test_lineage_panel.py`](../tests/frontend/test_lineage_panel.py) | The links the lineage panel offers into the other four tools |
-| [`pages.py`](../tests/frontend/pages.py) | One page object over every view, and the answers each view needs |
-| [`test_frontend_vocabularies.py`](../tests/static/test_frontend_vocabularies.py) | That the gate list on the Questions page is exactly what the checker can reject under, and every other list a page copies from a backend enum is exactly that enum |
-
-These need no container and no spaCy. `make test-fast` runs them.
+| [`test_views.py`](../tests/frontend/test_views.py) | The rules every page keeps |
+| `test_*_page.py` | Assessment, facts, questions and topics in depth, against a scripted backend |
+| `test_pipeline_panel.py`, `test_configuration_panel.py`, `test_lineage_panel.py`, `test_backend_clients.py` | The Pipeline panel, the configuration panel, the lineage links and the shared HTTP behaviour |
+| [`pages.py`](../tests/frontend/pages.py) | One page object over every view, and the answers each needs |
+| [`test_frontend_vocabularies.py`](../tests/static/test_frontend_vocabularies.py) | That lists copied from a backend enum, such as the gate list, equal the enum |
 
 ## Limits
 
-- **A variable that is not in the `streamlit` service's `environment` in
-  `compose.yaml` does not reach the frontend.** For `PAGE_SIZE` the error
-  says so by name.
-- **`MAX_FILE_SIZE_MB` and `server.maxUploadSize` are two numbers for one
-  limit.** Streamlit enforces its own first.
-- **A page that shows a spinner is not doing the work.** Closing the tab does
-  not stop the worker, and closing it does not stop a pipeline run either:
-  the waiting between stages is held by Dagster, not by the browser.
-- **Run is disabled without an orchestrator**, and says so in its help. The
-  other three pipeline controls are queue verbs and go on working.
-- **Every listing filters server-side** apart from `/topics`, which returns
-  every topic at once.
-- **A rejected question stays visible on purpose.** The share that was thrown
-  away is the evidence behind the coverage report.
+- A spinner does not mean the page is working. Closing the tab stops neither
+  the worker nor a pipeline run.
+- Run is disabled without an orchestrator. The other pipeline controls keep
+  working.
+- A rejected question stays visible: the discarded share is the evidence
+  behind the coverage report.
