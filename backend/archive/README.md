@@ -1,7 +1,7 @@
 # Archive
 
-Every deletion is the first of two. This is what the first one leaves behind,
-and the second one that takes it.
+Every deletion keeps a copy of what it removed. This package lists, restores
+and purges those copies.
 
 ```bash
 make archive                                           # what is held, by table, with its age
@@ -11,152 +11,92 @@ make archive-purge ALL=1 CONFIRM=<database>            # the whole thing, object
 # a purge deletes 10,000 rows per committed transaction; `python -m archive.run --size` estimates rows and size from pg_class
 ```
 
-## Nothing here archives anything
+## How rows are archived
 
-The archiving is a **trigger**, not code in this package:
+A trigger archives, not this package.
 
 ```
 DELETE on any table  ──▶  archive_deleted_row()  ──▶  archived_rows
                                                        (table_name, payload, archived_at)
 ```
 
-An `AFTER DELETE ... FOR EACH ROW` trigger on all thirteen tables and one
-shared function, both created by the first migration,
+An `AFTER DELETE ... FOR EACH ROW` trigger on all thirteen tables calls one
+shared function, both from the first migration,
 [`20260927_1913_initial_schema.py`](../database/migrations/versions/20260927_1913_initial_schema.py).
-The table it fills is declared in
-[`archived_rows.py`](../database/qa_generator/archived_rows.py).
+It covers deletions that never pass through Python: the foreign keys and
+orphan triggers behind one `make delete SHA=... CONFIRM=<database>` are
+described in the [database README](../database/README.md#deletion).
 
-A trigger because the services are not where most of the deleting happens.
-`make delete SHA=... CONFIRM=<database>` removes one row; the foreign keys take its passages,
-their memberships and their citations, then
-`fact_passages_delete_orphan_fact` takes every bridge resting on a passage
-that is gone and every other fact left resting on none, then
-`question_facts_delete_orphan_question` rejects every question left with no
-fact as `source_changed` and keeps it; the questions resting on the
-document's removed facts were deleted first, explicitly, by the repository, so the cascade
-on `follows_id` takes their follow-ups and the cascades on `assessments`
-their judgements. One command, up to nine tables,
-and only the first row passes through Python.
-
-The objects are the other half: the removal paths **move** them to the
-`archive` bucket, keyed `{origin}/{key}@{UTC time}`, so a second deletion of
-the same key keeps a second copy. A copy taken before the stamp is keyed
-`{origin}/{key}`.
+The removal paths move objects to the `archive` bucket, keyed
+`{origin}/{key}@{UTC time}` (`{origin}/{key}` for a copy taken before the
+stamp existed).
 
 | Deletion | What it archives |
 |---|---|
-| `make delete SHA= CONFIRM=<database>` | The document's rows and everything cascading from them; its file and its parsed form |
+| `make delete SHA= CONFIRM=<database>` | The document's rows, everything cascading from them, its file and its parsed form |
 | `make delete-derived SHA= CONFIRM=<database>` | Its passages, and by cascade its facts and questions |
-| `make wipe` | All of that for every document, plus the upload history and the topics |
-| `make topics-delete` | Every topic and membership, the stored factorisations and the pyLDAvis figures |
-| A re-chunk, a re-extraction, a rerun | Whatever the new run replaced |
-| Anything typed into psql or Adminer | The same |
+| `make wipe CONFIRM=<database>` | All of that for every document, plus the upload history and the topics |
+| `make topics-delete CONFIRM=<database>` | Every topic and membership, the stored models and the figures |
+| A re-chunk, a re-extraction, a rerun, or SQL typed into psql or Adminer | Whatever the new run or statement replaced |
 
-## Not a soft delete
+This is not a soft delete: no table has `deleted_at`. There is no undo,
+only a restore.
 
-There is no `deleted_at` anywhere. That would be a predicate every query in
-every repository has to grow and one of them will forget, and the partial
-indexes serving the queue columns would have to carry it too. The live tables
-still lose the row, so nothing that already works reads differently and the
-archive is a table nothing joins to.
-
-The cost is that there is no undo, only a restore:
+## Restoring
 
 ```bash
-make restore-documents                         # the newest deleting transactions
-make restore-documents SINCE=2026-10-07T09:14  # every one from then on (only lists)
-make restore-documents AT=<archived_at>[,...]  # put those deletions back
+make restore-documents                         # lists the newest deleting transactions
+make restore-documents SINCE=2026-10-07T09:14  # lists every one from then on (only lists)
+make restore-documents AT=<archived_at>[,...]  # puts those deletions back
 ```
 
-The listing names each deleting transaction by its exact `archived_at` with
-the rows it took per table. `AT` puts back those transactions and nothing
-archived beside them: the facts a re-extraction replaced and a setting
-somebody cleared stay as they are. It puts the rows back with
-`jsonb_populate_record`, in foreign-key order, primary keys included, and
-copies the files, parsed forms, figures and models of the documents and
-topics among them back out of the bucket. It is a copy: the archive keeps
-what it held.
+The listing names each deleting transaction by its `archived_at` with the
+rows it took per table. `AT` is required: it restores those transactions and
+nothing archived beside them, with the files, parsed forms, figures and
+models they own. `SINCE` only lists, because the archive also holds every row
+a rerun replaced. The archive keeps what it held.
 
-- **A row whose key a live row holds is skipped**, and so is an object
-  already in its bucket. A second run restores nothing.
-- **A row or an object archived twice comes back as its newest copy.** The
-  newest object is the one the store wrote last, whatever `SINCE` says.
-- **A row whose parent is gone is left behind.** It rests on nothing, so it
-  stays in the archive and the run counts it; the other rows go back in one
-  transaction.
-- **A restored question keeps its release only where it still belongs to
-  one.** The release stays where a question live all along holds the same id,
-  and a follow-up also needs the turn it follows still accepted and released in it; otherwise the
-  question comes back accepted but undrawn.
-- **A duplicate refusal whose twin is gone comes back pointing at none.** Its
-  twin, a fact of another passage, may have been deleted or read again since;
-  where it is neither live nor put back by the same restore, `twin_id` comes
-  back NULL, which marks the refusal for the dedup replay that points it at a
-  twin again, rather than failing its foreign key and the whole restore.
-- **A follow-up whose root is gone is left behind**, with every turn below it,
-  and counted with the rows whose parent is gone. Deleted with its own
-  document while its root rested on another, deleted later, it comes back only
-  where its root is live or put back by the same restore: the root's deletion
-  would have taken it, and `follows_id` cannot name a row that is not there.
-- **A fact left resting on no passage is dropped.** Its citations were left
-  behind, and the trigger that drops such a fact fires only on `DELETE`, so
-  the restore does it, with the question links that cascade from it.
-- **`AT` is required, and `SINCE` only lists.** The archive also holds every
-  row a rerun replaced, and restoring those would put them beside their
-  replacements.
-- **`service_settings` and `prompts` are skipped** unless `TABLES` names them;
+- A row whose key a live row holds is skipped, as is an object already in its
+  bucket, so a second run restores nothing. Twice-archived items come back as
+  the newest copy.
+- A row whose parent is gone, or a follow-up whose root is gone (with every
+  turn below it), stays in the archive and is counted. The rest goes back in
+  one transaction.
+- A restored question keeps its release only where a live question holds the
+  same id. A follow-up also needs the turn it follows accepted and released.
+- A duplicate refusal whose twin is neither live nor restored comes back with
+  `twin_id` NULL.
+- A fact left resting on no passage is dropped, with its question links.
+- `service_settings` and `prompts` are skipped unless `TABLES` names them.
   `TABLES=a,b` restricts the restore to those tables.
-- **A refit's transaction is listed as not restorable.** Its topics and
-  memberships were deleted and a later fit holds the same topics under their
-  unique key; it is skipped, and the run fails if nothing else was chosen.
-- **A restored document with passages is marked `chunked`**, in the restore's
-  transaction.
-- **Rejected questions whose facts are all back are listed** with their ids.
-  No command reopens them (`make questions-reverify` skips every rejected
-  question): a person accepts each again, with `PATCH /questions/<id>`.
+- A refit's transaction is not restorable. A restored document with passages
+  is marked `chunked`.
+- Rejected questions whose facts are all back are listed. Accept each with
+  `PATCH /questions/<id>`: no command reopens them.
 
-The `embedding` comes back NULL. It is the one column not kept — a vector
-renders as about 13 kB of text a row, ten times everything else a fact holds
-— and it is recomputed from the text it belongs to. `extract-embed` puts the
-passages' and the facts' back; nothing writes a stored question's again.
+The `embedding` comes back NULL. `make extract-embed` recomputes the
+passages' and facts' vectors, but nothing recomputes a question's.
 
-The key is dropped from the jsonb rather than the column named per table, and
-`jsonb - text` on a row without that key is the row unchanged, so one
-function serves the four tables carrying a vector and the nine that do not.
+## Purging
 
-## What a purge measures its age by
+A purge reads the database's clock once and cuts both `archived_at` and an
+object's `LastModified` at that moment.
 
-**The database's clock, read once.** The purge reads `now()` less the age
-from the database and cuts both halves at that moment: `archived_at` and an
-object's `LastModified` alike. The host running the purge is not asked.
+`TABLE=` deletes rows only. `DAYS=` and `ALL=1` also delete objects, and
+each warns and pauses first. `DAYS=0` means everything held until now, and a
+negative age is refused, as is `ALL=1` beside `TABLE=` or `DAYS=`.
 
-`TABLE=` is about rows and leaves the bucket alone — an archived upload
-belongs to no table. `DAYS=` and `ALL=1` take the objects too.
-
-`DAYS=` refuses an age below zero, and `DAYS=0` is everything held until
-now. `DAYS=` and `ALL=1` each warn and pause first, and `ALL=1` beside
-`TABLE=` or `DAYS=` is refused.
-
-## It grows on ordinary runs
-
-A re-extraction deletes the facts it replaces, a re-chunk deletes the
-passages, and the topic queue deletes its own pending rows; all of that is
-archived. `make archive` is how you see it, and there is **no automatic
-retention**.
+A re-extraction or re-chunk archives what it replaces, so the archive grows
+on ordinary runs. There is no automatic retention.
 
 ## Layout
 
-| File | Holds |
-|---|---|
-| [`store.py`](store.py) | Reading the archive and emptying it, over both the table and the bucket |
-| [`run.py`](run.py) | The command line |
-| [`restore.py`](restore.py) | Putting archived rows and objects back, before a purge makes the archive unreadable |
-
-The table is in
-[`database/qa_generator/archived_rows.py`](../database/qa_generator/archived_rows.py),
-the trigger in the first migration, and the bucket is
-[`blob_store/s3/archive.py`](../blob_store/s3/archive.py).
-Neither imports this package.
+[`store.py`](store.py) reads and empties the archive,
+[`run.py`](run.py) is the command line and [`restore.py`](restore.py) puts
+rows and objects back. The table is
+[`archived_rows.py`](../database/qa_generator/archived_rows.py) and the bucket
+[`blob_store/s3/archive.py`](../blob_store/s3/archive.py). Neither imports
+this package.
 
 ## Tests
 
@@ -165,37 +105,20 @@ poetry run pytest tests/integration/test_archive.py tests/integration/test_resto
 poetry run pytest tests/unit/archive
 ```
 
-[`test_archive.py`](../../tests/integration/test_archive.py) covers the rows
-a cascade archives, the objects a deletion moves, and each shape of purge.
-Every test deletes through a path a person uses and reads `archived_rows`
-afterwards; one inserting into it directly would pass against no trigger at
-all.
-
-`test_every_table_archives_its_deletions` compares the triggers against
-`Base.metadata`, so a table added without one fails rather than deleting for
-good.
-
-[`test_restore.py`](../../tests/integration/test_restore.py) restores a
-wipe and its edge cases, and
-[`test_archive_cli.py`](../../tests/unit/archive/test_archive_cli.py) covers
-which purges the command line refuses.
+`test_every_table_archives_its_deletions` in
+[`test_archive.py`](../../tests/integration/test_archive.py) fails for a table
+added without a trigger.
 
 ## Limits
 
-- **Nothing is ever purged automatically.**
-- **`TRUNCATE` fires no row trigger and archives nothing.**
-  `make schema-reset` and the test fixtures empty tables without a copy.
-- **The embedding does not come back.** Restored passages and facts carry
-  NULL until `make extract-embed`; a restored question keeps NULL.
-- **A question the deletion rejected comes back rejected.** A partial
-  `make delete SHA= CONFIRM=<database>` rejects, as `source_changed`, every question that loses
-  one fact and keeps another. That was an update, which nothing archives, so
-  the restore puts every fact link back and leaves the status as it is;
-  a person decides it again.
-- **A column added `NOT NULL` since a row was archived** takes its server
-  default; with no default the restore stops, naming the column, and puts
-  nothing back.
-- **A purge is not archived.** Otherwise it would write one row for every row
-  it took.
-- **`make delete` twice is not a way to purge.** `make archive-purge` is the
-  only thing that empties the archive.
+- Nothing is purged automatically. A purge is not archived.
+- `TRUNCATE` archives nothing, so `make schema-reset CONFIRM=<database>` and
+  the test fixtures empty tables without a copy. `make down-volumes
+  CONFIRM=all-volumes` removes the archive with all other container data.
+- A question that a partial `make delete SHA= CONFIRM=<database>` rejected as
+  `source_changed` comes back rejected, because nothing archives an update.
+  The restore puts its fact links back. A person decides it again.
+- A column added `NOT NULL` since a row was archived takes its server
+  default, or the restore stops and names the column.
+- Only `make archive-purge` empties the archive. Running `make delete` twice
+  does not.

@@ -1,135 +1,93 @@
 # Database
 
-One PostgreSQL schema, one module per table (`assessments.py` holds both
-`assessments` and `assessment_metrics`), and the engine every process opens
-its own pool against.
+The PostgreSQL schema: one module per table (`assessments.py` holds both
+`assessments` and `assessment_metrics`), the enums, the connection and the
+migrations. It holds no business logic. Each stage owns a repository over
+these models.
 
-This package builds the connection to PostgreSQL. It holds **no business
-logic**: a stage owns a repository over these models, and this package owns
-the tables, the enums, the connection and the migrations.
-
-## The tables
+## Tables
 
 | Table | Holds | Written by |
 |---|---|---|
 | `ingest_events` | Every upload attempt that declares its length, refused ones included | [ingestion](../ingestion/README.md) |
-| `documents` | One row per kept document, keyed by the SHA-256 of its bytes, carrying every stage's status | ingestion, then each stage's own column |
+| `documents` | One row per kept document, keyed by the SHA-256 of its bytes, with each stage's status | ingestion, then each stage's own column |
 | `passages` | Text, numbered sentences, lemmas, language, table cells, bounding box, heading trail | [chunking](../preprocessing/chunking/README.md) |
-| `facts` | One claim each, with its verdict, its rejection code and the configuration it was produced under | [extraction](../extraction/README.md) |
-| `fact_passages` | Which passages a fact rests on, and the span it cited in each | extraction |
+| `facts` | One claim each, with its verdict, rejection code and producing configuration | [extraction](../extraction/README.md) |
+| `fact_passages` | Which passages a fact rests on, and the span cited in each | extraction |
 | `topics` | Both a fitted topic and a request to refit | [topic modelling](../topic_modelling/README.md), [question generation](../question_generation/README.md) |
 | `passage_topics` | How much of each topic a passage holds | topic modelling |
-| `questions` | The question, its answer, its derived difficulty, its thread, its embedding, its release and the models that wrote and checked it | question generation |
+| `questions` | The question, answer, difficulty, thread, embedding, release and the models that wrote and checked it | question generation |
 | `question_facts` | Which facts each question cites | question generation |
 | `service_settings` | The settings a deployment changed | the API, the CLI, the UI |
-| `assessments` | What an independent judge made of one artefact, and the queue the phase claims over | [the assessment phase](../assessment/README.md) |
-| `assessment_metrics` | One judgement one judge made about one artefact — the name, the labels and the scores are Phoenix's, so a metric means the same here as anywhere else that posts one | the assessment phase |
-| `prompts` | One prompt per version per service, stored **as composed** — the system message, the user message as its template, and the JSON schema the answer came back in | each stage, once before its first claim |
-| `archived_rows` | Every row deleted from any of the thirteen above, as JSON | an AFTER DELETE trigger |
+| `assessments` | What an independent judge made of one artefact, and its queue | [the assessment phase](../assessment/README.md) |
+| `assessment_metrics` | One judgement by one judge about one artefact, with Phoenix's names, labels and scores | the assessment phase |
+| `prompts` | One prompt per version per service, stored as composed (system message, user template, answer JSON schema) | each stage, once before its first claim |
+| `archived_rows` | Every row deleted from any of the thirteen tables above, as JSON | an AFTER DELETE trigger |
 
-### `assessments` reaches its artefact through one of three keys
+An assessment reaches its artefact (fact, topic or question) through exactly
+one of three cascading foreign keys.
 
-A fact, a topic or a question — exactly one foreign key is set and each
-cascades. An assessment of a fact that has been deleted is an opinion about
-nothing, and a polymorphic `(kind, id)` pair would have left it behind for
-a trigger to sweep.
+`topics` carries two queues. A row with a NULL `topic_index` is a request to
+refit and belongs to topic modelling. A row with an index is a topic and
+belongs to question generation, which queues over it by `question_status`.
+Every question generation operation on topics tests `topic_index IS NOT
+NULL`, or a refit request is queued as a subject.
 
-### `topics` carries two queues
+A fact or question reaches its topics through its passages (`fact_passages`,
+then `passage_topics`).
 
-A row with a **NULL `topic_index`** is a request to refit and belongs to
-topic modelling. A row that **is** a topic belongs to question generation,
-which queues over it by `question_status`.
+## Deletion
 
-Every operation on the second carries `topic_index IS NOT NULL`, because
-without it `start` would queue the asking as though it were a subject and the
-two workers would fight over one row.
+Deleting a document deletes its passages and their topic memberships. A
+trigger on `fact_passages` then deletes each bridge citing one of those
+passages and each other fact left citing none. A trigger on `question_facts`
+reaches the questions resting on those facts. Their assessments cascade.
 
-### How a row reaches its topics
+A question that loses a fact is rejected as `source_changed` and leaves its
+release. The trigger never deletes a question, so a re-chunk or
+re-extraction keeps every accepted, reviewed and released question. A
+document deletion by a person deletes the questions resting on its facts
+explicitly, before the cascade (`ingestion.repository`).
 
-A fact or a question reaches its topics by **joining through its passages** —
-`fact_passages` → `passage_topics` — rather than holding a topic of its own,
-so no two rows can disagree about which topic a passage is in.
+A third trigger, `questions_release_thread_whole`, removes every follow-up
+below a question (through `follows_id`) from the release when that question
+stops being accepted. The follow-ups keep their status. A restore applies the
+same rule.
 
-### Cascades and triggers
+The triggers lock the fact or question before deciding. The deleting paths
+first call `lock_reached`, which locks the facts, questions and duplicate
+refusals the cascade reaches in id order, so two deletions cannot wait on
+each other.
 
-Deleting a document takes its passages, their topic memberships and, through
-a trigger on `fact_passages`, each bridge citing one of them and each other
-fact left citing no passage. A trigger on `question_facts` then reaches the
-questions resting on those facts.
+`ingest_events.sha256` is a plain column, not a foreign key, so the record of
+an upload outlives its document. Topics have no foreign key to a document, so
+deleting every document leaves them standing. The next fit replaces the rows
+of every language it fits, and `make wipe` runs both in order.
 
-The `question_facts` trigger exists because a cascade cannot express it: a
-question rests on *several* facts, so `ON DELETE CASCADE` from `facts` would
-take the question when its **first** citation went rather than its last. A
-question that loses a fact is rejected as `source_changed`, its release
-cleared, whatever is left of its other facts: the last fact included. The
-trigger never deletes a question, so a re-chunk or a re-extraction that
-replaces the facts under accepted, reviewed and released questions keeps
-every one of them. A person deleting a document, or what was derived from
-it, deletes the questions resting on a fact it removes explicitly, before the cascade
-(`ingestion.repository`).
-
-A third trigger, `questions_release_thread_whole` on `questions`, keeps a
-thread whole in the release. A question that stops being accepted, whoever
-changed its status (a person, a re-check, or the `question_facts` trigger
-above), clears the release of every follow-up below it, through `follows_id`.
-The follow-ups keep their own status. A restore from the archive applies the
-same rule to the follow-ups it puts back, because the trigger fires on the
-root's update and they were in the archive then.
-
-The two triggers lock the fact or the question before deciding, so two
-deletions at once leave neither a fact with no citation nor a question
-still accepted with no fact. The assessments of whatever goes cascade with it.
-
-The triggers lock row by row in the order the rows are stored, so two deletions
-reaching the same facts through different rows could each wait on the other.
-The paths that delete (`store` of a passage's facts, a chunk store, a
-document's deletion) first call `lock_reached`, which locks the facts and
-questions the cascade will reach in id order, so every such deletion waits in
-one line. The duplicate refusals naming a reached fact as their twin are
-locked with the facts: the delete sets their `twin_id` NULL, rows of another
-document it would otherwise update unlocked.
-
-`ingest_events.sha256` is a plain column, not a foreign key, so the record
-that an upload happened outlives the document and keeps its digest.
-
-What a deletion does **not** take is `topics`, which has no foreign key to a
-document. Deleting every document leaves the topics standing, describing
-passages that are gone; the next fit replaces the rows of every language it
-fits, and `make wipe` runs both in order.
-
-### Nothing is deleted without a copy
+### Archive trigger
 
 Every table carries an `AFTER DELETE ... FOR EACH ROW` trigger that writes
-the row into [`archived_rows`](qa_generator/archived_rows.py) as
-`to_jsonb(OLD) - 'embedding'`. One shared function, because `to_jsonb` names
-no column.
-
-A trigger and not the services: one `make delete` reaches up to nine tables
-and only the first row of it passes through any Python. A re-chunk, a re-extraction
-and a statement typed into Adminer are archived the same way.
-
-It is not a soft delete. There is no `deleted_at` on any table and the live
-tables still lose the row. `make archive-purge` finishes a deletion; see
+the row into [`archived_rows`](qa_generator/archived_rows.py) without its
+embedding, whatever path deleted it. It is not a soft delete: no table has
+`deleted_at`. `make archive-purge` finishes a deletion; see
 [`archive/`](../archive/README.md).
 
 ## Extensions
 
 Installed by the initial revision and by
-[`configs/postgres/init.sh`](../../configs/postgres/init.sh) alike:
+[`configs/postgres/init.sh`](../../configs/postgres/init.sh), which
+`tests/static/test_schema_extensions.py` checks agree.
 
 | Extension | For |
 |---|---|
 | `vector` | The embedding column on `passages`, `facts`, `topics` and `questions`, and the HNSW indexes the dedup gates probe |
-| `pg_trgm` | The trigram indexes behind the substring search on `passages.text`, `facts.statement` and `facts.evidence_text`; every other `q` box matches with no trigram index |
-
-`tests/static/test_schema_extensions.py` checks that both routes build the
-same database.
+| `pg_trgm` | The trigram indexes behind the substring search on `passages.text`, `facts.statement` and `facts.evidence_text`. Every other `q` box matches without one |
 
 ## Migrations
 
-Alembic owns the schema. The models say what the tables should be; a revision
-under [`migrations/versions/`](migrations/versions/) says how to get an
-existing database there.
+Alembic owns the schema. A revision under
+[`migrations/versions/`](migrations/versions/) takes an existing database to
+what the models declare.
 
 ```bash
 make migration m="add the dropped counts"  # write a revision from the models
@@ -140,123 +98,72 @@ make schema-reset CONFIRM=<database>       # drop every table and rebuild. Irrev
 make schema-stamp                          # adopt a database that already holds the tables
 ```
 
-**Read the generated revision before applying it.** Autogenerate compares
-tables, columns, indexes, foreign keys and column comments; it does not see
-a CHECK constraint's body, a trigger, a data backfill, an extension, or
-anything ordered. The three trigger functions, the fifteen triggers and the
-two extensions in the initial revision are written by hand for that reason,
-and `test_schema.py` compares every CHECK body against the models.
-
-It does not compare an index *predicate* either. A partial index therefore
-belongs in `__table_args__` as an `Index(..., postgresql_where=...)` rather
-than as `index=True` on the column: the second renders a plain index, and
-nothing downstream reports the difference.
+Read the generated revision before applying it. Autogenerate does not see a
+CHECK constraint's body, a trigger, a data backfill, an extension, an index
+predicate or anything ordered. Declare a partial index as
+`Index(..., postgresql_where=...)` in `__table_args__`: `index=True` on the
+column renders a plain index.
 
 Every revision is reversible, and
-`tests/integration/database/test_migration_rollback.py` applies and takes
-back out every one of them on a real PostgreSQL. Five lose information:
-`20261019_2300_question_kind.py` backfills `questions.kind` from
-`passage_scope`, so taking it out and putting it back turns every compound
-question into `needs_both`; `20261020_0100_a_bridge_keeps_its_reading.py`
-holds the relation and probe question of each bridge, which taking it out
-drops; `20261020_1200_a_thread_leaves_the_release_whole.py` takes the
-follow-ups of a question that is not accepted out of the release, which
-taking it out does not put back;
-`20261021_0100_the_papers_judge_scores_a_question.py` deletes the paper's
-`rubric_` scores on the way out, because the narrower CHECK refuses them;
-and `20261021_0200_a_question_records_its_categories.py` holds the
-categories each question's writer was told, which taking it out drops.
+`tests/integration/database/test_migration_rollback.py` applies and reverses
+each one on a real PostgreSQL. Five lose information on the way down:
 
-Each revision runs in a transaction of its own, with a 5 second lock timeout
-and a 10 minute statement timeout (`migrations/env.py`), so a revision that
-cannot get its table fails and is run again, instead of holding every query
-behind it. A revision written after `20261021_0300` therefore:
+- `20261019_2300`: re-applying turns every compound question into
+  `needs_both`.
+- `20261020_0100`: drops each bridge's relation and probe question.
+- `20261020_1200`: does not put removed follow-ups back in the release.
+- `20261021_0100`: deletes the `rubric_` scores, which the narrower CHECK
+  refuses.
+- `20261021_0200`: drops the stored categories.
 
-- adds a CHECK `NOT VALID` (`op.execute("ALTER TABLE ... ADD CONSTRAINT ...
-  CHECK (...) NOT VALID")`) and validates it in a revision of its own;
+Each revision runs in its own transaction with a 5 second lock timeout and a
+10 minute statement timeout (`migrations/env.py`). A revision after
+`20261021_0300` therefore:
+
+- adds a CHECK as `NOT VALID` (`op.execute("ALTER TABLE ... ADD CONSTRAINT
+  ... CHECK (...) NOT VALID")`) and validates it in a later revision.
   `op.create_check_constraint` scans the table under its lock, and
   `tests/static/test_migrations.py` refuses it;
 - backfills many rows in batches, committed one at a time, outside the DDL
   transaction;
 - builds an index on a table with data `CONCURRENTLY`, in an autocommit block.
 
-Two revisions of this release on `facts` do not do the last two:
-`20261024_0100_a_duplicate_refusal_keeps_its_twin.py` builds
-`ix_facts_twin_id` and adds its foreign key inside its transaction, and
-`20261024_1300_a_fact_carries_its_language.py` backfills `facts.language` in
-one `UPDATE` there and analyses the table. Each holds `facts` for its whole
-run: on a copy of the reviewed build (13,716 facts) each upgrade took 21 s,
-the process's start included, inside the timeouts above, with the workers
-stopped as the upgrade order in [operations](../../docs/operations.md) says.
-On a corpus many times that size, time them on a copy first.
+Two revisions on `facts` break the last two rules and hold `facts` for their
+whole run: `20261024_0100` (builds `ix_facts_twin_id`) and `20261024_1300`
+(backfills `facts.language` in one `UPDATE`). On 13,716 facts each took 21 s
+with the workers stopped, as [operations](../../docs/operations.md) orders.
+On a much larger corpus, time them on a copy first.
 
-A revision's docstring says **why**; the diff says what.
+`/status` and every queue compare the database's revision with the head in
+[`revision.py`](qa_generator/revision.py). Until `make schema` applies the
+head, `/status` is not green and no queue claims anything.
 
-`/status` and every queue compare the revision the database records with the
-head these carry ([`revision.py`](qa_generator/revision.py)): until
-`make schema` has applied it, `/status` is not green and a queue claims
-nothing.
+### Revisions
 
-The revisions, oldest first:
-
-| File | Changes |
-|---|---|
-| `20260927_1913_initial_schema.py` | Every table, index, constraint and column comment, the two extensions, the three trigger functions and the fifteen triggers |
-| `20261001_1730_fact_keeps_its_other_citations.py` | A bridge goes with any citation it loses; any other fact only with its last |
-| `20261008_1700_released_question_is_accepted.py` | A CHECK: a question in the release is `accepted` |
-| `20261008_1710_question_losing_a_fact_is_rejected.py` | A question that loses one of its facts is rejected as `source_changed` and leaves the release; one left with none is deleted |
-| `20261008_1720_upload_keeps_its_digest.py` | `ingest_events.sha256` is a plain column, no longer a foreign key to `documents` |
-| `20261008_1730_topic_records_its_decision.py` | Adds `topics.decided_at`, when a person last named a topic or set its coverage |
-| `20261008_1800_question_names_its_models.py` | Adds `questions.writer_model`, `verifier_model` and `phrasing_model` |
-| `20261008_1810_orphan_triggers_lock_the_parent.py` | Both orphan triggers lock the fact or the question before deciding |
-| `20261008_1820_citation_carries_both_bounds.py` | A citation that names its sentences must carry both evidence bounds |
-| `20261008_1830_column_comments_say_what_is_there.py` | Comments only: `fact_passages.passage_id`, `assessment_metrics.metric`, `questions.question_type`, `questions.settings_version` |
-| `20261008_1840_oversized_names_the_real_budget.py` | Comment only: `documents.oversized` names the budget the chunker cuts to |
-| `20261009_1000_settings_version_comments.py` | Comments only: `settings_version` on `facts`, `topics` and `assessments`, and `questions.prompt_version` |
-| `20261009_1200_column_comments_after_the_fixes.py` | Comments only: `prompts.version`, `prompts.digest`, `facts.prompt_version`, `topics.embedding` |
-| `20261009_2000_refit_and_reader_comments.py` | Comments only: `topics.question_status`, `assessments.topic_id`, `prompts.service`, and the `service_settings` table |
-| `20261013_2300_settles_opinion_comment.py` | Comment only: `questions.gate_scores` carries `settles` verdicts as opinions |
-| `20261013_1200_a_refusal_cites_nothing.py` | Comment only: `fact_passages.position` says what a later position on a passage fact is |
-| `20261013_1210_a_capped_prompt_names_its_floor.py` | Comments only: `facts.prompt_version` and `prompts.version` name the capped atomic prompt as 10+cap4 |
-| `20261018_1200_passages_comment_says_what_a_rechunk_keeps.py` | Comment only: the `passages` table says a re-chunk keeps every passage it cuts again unchanged |
-| `20261019_2300_question_kind.py` | Adds `questions.kind` (single, needs_both, compound, false_premise), NOT NULL with a CHECK, backfilled from `passage_scope` in the table and in archived question payloads |
-| `20261020_0100_a_bridge_keeps_its_reading.py` | Adds `facts.bridge`, a nullable JSONB column holding a bridge's `{relation, question, answer}`, NULL on every other fact and on every bridge already stored, with a CHECK that only a bridge carries it |
-| `20261020_1200_a_thread_leaves_the_release_whole.py` | A trigger takes every follow-up below a question that stops being accepted out of the release, and the upgrade does the same for the threads already split |
-| `20261021_0100_the_papers_judge_scores_a_question.py` | `assessment_metrics.metric` also accepts the DataMorgana paper's six question scores, `rubric_fluency` to `rubric_answerability`, in its CHECK and its comment |
-| `20261021_0200_a_question_records_its_categories.py` | Adds `questions.categories`, a nullable JSONB column holding the categories `QUESTIONS_CATEGORIZATIONS` dealt a question as its writer was told them, NULL where none was rendered and on every question already stored |
-| `20261021_0300_column_comments_say_what_is_there.py` | Comments only: `questions.categories` is NULL wherever no category was rendered, `topics.top_terms` is not what a label is matched on across a refit, `topics.embedding` is read to place a passage the fit left in no topic, and `facts.bridge` also holds the id of the passage that headed the link |
-| `20261024_1300_a_fact_carries_its_language.py` | Adds `facts.language`, the language of the passage at position 0 of `fact_passages` (its document's where the passage is too short to tell), backfilled from that citation, so the dedup probe filters on the fact itself and the HNSW index serves it |
-| `20261024_0100_a_duplicate_refusal_keeps_its_twin.py` | Adds `facts.twin_id`, the fact a duplicate refusal repeats, a foreign key set NULL when that fact is deleted, so the dedup replay reads only the refusals that lost their twin; indexed (`ix_facts_twin_id`), since a delete looks up the refusals pointing at it; NULL on every row already stored |
-| `20261024_1000_a_question_losing_every_fact_is_rejected.py` | The `question_facts` trigger rejects a question left with no fact as `source_changed` instead of deleting it; a document's deletion deletes its own questions explicitly first; `questions.source_digests`, stamped by BEFORE DELETE triggers on `passages`, `facts` and `fact_passages`, names the documents of a question left with no fact so that deletion finds it; the `questions` table comment says so |
-
-## Column comments
-
-Column comments live on the models and are carried into the database by the
-migrations, so `\d+ passages` in `psql` and Adminer's column list both say
-what a column is for.
+The initial revision, `20260927_1913_initial_schema.py`, creates every table,
+index, constraint and column comment, the two extensions and, by hand, the
+three trigger functions and fifteen triggers. File names say what a later
+revision changes, and its docstring says why. Column comments live on the
+models, so `\d+ passages` in `psql` shows what a column is for.
 
 ## Connections
 
-Each process opens its **own** pool, sized by `DATABASE_POOL_SIZE` and
-`DATABASE_POOL_OVERFLOW`. The total across the API and every worker has to
-stay under PostgreSQL's `max_connections`.
+Each process opens its own pool, sized by `DATABASE_POOL_SIZE` and
+`DATABASE_POOL_OVERFLOW`. The total across the API and every worker must stay
+under PostgreSQL's `max_connections`. Both are read-only in
+`/settings/platform` (`fixed`) and need a restart to change. The URL is
+never a setting.
 
-Both are read before a service could ask a database for anything, so they are
-served read-only through `/settings/platform` and marked `fixed`. Changing
-one needs a restart. The URL is assembled from the credentials in `.env` and
-is never a setting.
+## Grafana role
 
-## Grafana reads as a different role
+`grafana_reader` holds `SELECT` and nothing else, on the application's
+database and on Phoenix's. On Phoenix's it reads only the five tables the Run
+dashboard queries, granted by `make up` and `make dev` through
+`make grafana-grants` once Phoenix has created them.
 
-`grafana_reader` holds `SELECT` and nothing else. It is granted on **two**
-databases, the application's and Phoenix's, which the Run dashboard reads
-together. On Phoenix's it reads only the five tables that dashboard queries,
-granted by `make up` and `make dev` through `make grafana-grants` once
-Phoenix has made them.
-
-The role is created by
-[`configs/postgres/init.sh`](../../configs/postgres/init.sh), which only runs
-on the first boot of an empty volume. On a stack that already has one:
+[`configs/postgres/init.sh`](../../configs/postgres/init.sh) creates the
+role and runs only on the first boot of an empty volume. On an existing
+stack:
 
 ```bash
 podman compose exec postgres bash /docker-entrypoint-initdb.d/init.sh
@@ -271,28 +178,21 @@ poetry run pytest tests/integration/database
 | File | Covers |
 |---|---|
 | [`test_schema.py`](../../tests/integration/database/test_schema.py) | The schema alembic builds on an empty database |
-| [`test_migration_rollback.py`](../../tests/integration/database/test_migration_rollback.py) | Every revision, applied and taken back out |
+| [`test_migration_rollback.py`](../../tests/integration/database/test_migration_rollback.py) | Every revision, applied and reversed |
 | [`test_constraints.py`](../../tests/integration/database/test_constraints.py), [`test_fact_constraints.py`](../../tests/integration/database/test_fact_constraints.py) | What the database refuses to hold |
-| [`test_indexes.py`](../../tests/integration/database/test_indexes.py) | The indexes and column types the queries are written against |
-| [`test_trigger.py`](../../tests/integration/database/test_trigger.py) | The triggers that delete a fact or a question once its last source is gone, two deletions at once included |
-| [`test_queue.py`](../../tests/integration/database/test_queue.py), [`test_question_queue.py`](../../tests/integration/database/test_question_queue.py) | Claiming, the lease sweep, and two queues on one table |
+| [`test_indexes.py`](../../tests/integration/database/test_indexes.py) | Indexes and column types |
+| [`test_trigger.py`](../../tests/integration/database/test_trigger.py) | The delete triggers, two deletions at once included |
+| [`test_queue.py`](../../tests/integration/database/test_queue.py), [`test_question_queue.py`](../../tests/integration/database/test_question_queue.py) | Claiming, the lease sweep, two queues on one table |
 | [`test_orphans.py`](../../tests/integration/test_orphans.py) | What survives deleting every document |
-| [`tests/static/test_migrations.py`](../../tests/static/test_migrations.py) | The revision chain: one head, no gaps |
-| [`tests/static/test_schema_extensions.py`](../../tests/static/test_schema_extensions.py) | The migrations install every extension the bootstrap does |
+| [`test_migrations.py`](../../tests/static/test_migrations.py), [`test_schema_extensions.py`](../../tests/static/test_schema_extensions.py) | One revision head. Migrations install the bootstrap's extensions |
 
-These start a PostgreSQL of their own through testcontainers and skip, with a
-reason, where no container engine answers.
+These tests skip where no container engine answers.
 
 ## Limits
 
-- **A CHECK constraint duplicates a check the code already makes.** That is
-  deliberate for `unsupported_addition` and `unresolved_reference`, so a bug
-  in the checker cannot store a fact that contradicts them.
-- **`make schema-reset` is irreversible.** The data is gone; the objects in
-  the buckets are not.
-- **Autogenerate will not notice a trigger.**
-- **`documents` is the one row two stages both write.** Parsing owns
-  `parse_status` and chunking owns `chunk_status`. Chunking reads
-  `parse_status` to know which documents may be queued; parsing never reads
-  `chunk_status`.
-- **Deleting every document does not empty the corpus.** The topics survive.
+- A CHECK repeats the code check for `unsupported_addition` and
+  `unresolved_reference`, so a checker bug cannot store such a fact.
+- `make schema-reset` is irreversible. The data is gone; the objects in the
+  buckets stay.
+- `documents` is the one row two stages write. Parsing owns `parse_status`
+  and chunking owns `chunk_status`. Only chunking reads the other's column.
