@@ -33,8 +33,19 @@ _SWAGGER_UI = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.33.3"
 
 
 def _guarded(method: str, path: str) -> bool:
-    """Whether `SharedSecret` asks a request for the secret."""
+    """Whether `SharedSecret` asks a request for the secret.
+
+    `path` is the one routing reads: the request's, less any root path.
+    """
     return method.upper() not in _READS or path.startswith("/settings")
+
+
+def _routed(scope: Scope) -> str:
+    """The path routing matches, as Starlette reads it: less the root path."""
+    path, root = scope["path"], scope.get("root_path", "")
+    if root and path.startswith(root) and path[len(root) : len(root) + 1] in ("", "/"):
+        return path[len(root) :]
+    return path
 
 
 class SharedSecret:
@@ -52,7 +63,7 @@ class SharedSecret:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Answers 401 `unauthorized`, or hands the request on."""
-        if scope["type"] == "http" and _guarded(scope["method"], scope["path"]):
+        if scope["type"] == "http" and _guarded(scope["method"], _routed(scope)):
             secret = os.environ.get("API_TOKEN", "").encode()
             sent = Headers(scope=scope).get("x-api-token", "").encode("latin-1")
             if not secret or not hmac.compare_digest(sent, secret):

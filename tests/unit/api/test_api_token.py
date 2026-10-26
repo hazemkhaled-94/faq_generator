@@ -133,3 +133,47 @@ def test_what_asks_for_the_secret_documents_the_401_it_answers() -> None:
     assert "401" in paths["/documents"]["post"]["responses"]
     assert "401" not in paths["/documents"]["get"]["responses"]
     assert reference.rsplit("/", 1)[-1] in document["components"]["schemas"]
+
+
+def _status(app, method: str, path: str, root_path: str) -> int:
+    """The status an ASGI call answers, as uvicorn --root-path hands it the path."""
+    import asyncio
+
+    sent: list[dict] = []
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": method,
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "root_path": root_path,
+        "query_string": b"",
+        "headers": [(b"host", b"localhost:8000")],
+        "client": ("127.0.0.1", 1),
+        "server": ("localhost", 8000),
+    }
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: dict) -> None:
+        sent.append(message)
+
+    asyncio.run(app(scope, receive, send))
+    return next(one["status"] for one in sent if one["type"] == "http.response.start")
+
+
+@pytest.mark.parametrize("root_path", ["", "/api"])
+def test_a_settings_read_behind_a_root_path_needs_the_secret(root_path: str) -> None:
+    """Routing reads the path less the root path; the guard reads the same one."""
+    from api.main import app
+
+    behind = FastAPI(middleware=app.user_middleware)
+
+    @behind.get("/settings/{service}")
+    def settings(service: str) -> dict[str, str]:
+        return {"service": service}
+
+    assert _status(behind, "GET", f"{root_path}/settings/platform", root_path) == 401
