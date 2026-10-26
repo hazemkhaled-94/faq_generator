@@ -27,14 +27,17 @@ References:
 Valid only if the labelled rows are a random sample of the same rows the
 judge scored, and the judge was fixed before the labels were read. The
 guarantee is asymptotic, so under MIN_LABELS labels the interval is not the
-corrected one but the labels' own, by Wilson, and the row is called rough: in
-a simulation the corrected interval covered about 70% at 17 labels. From
-MIN_LABELS on the interval takes a t quantile on the variances with one
+corrected one but the labels' own, by Wilson, and the row is called rough.
+From MIN_LABELS on the interval takes a t quantile on the variances with one
 degree of freedom taken off, and a group whose labels leave no spread gets
 the rule-of-three bound. In a simulation whose labelled rows are a random
-sample of the judged ones, shares from 0.5 to 0.95 and a judge right on 60%
-of rows, that interval covered 0.93 to 0.95 from 30 to 100 labels. One
-interval covers the share, not any single row.
+sample of the judged ones (shares from 0.5 to 0.95, a judge right on 60% of
+rows, 2,000 draws a share at each count of labels), the interval printed
+covered 0.94 to 0.97 from 5 to 29 labels and 0.92 to 0.95 from 30 to 100:
+under 0.93 at 13 of the 71 counts from 30 to 100, all between 61 and 75
+labels (0.920 to 0.929), and about 0.85 at the share of 0.95 alone there.
+The t interval would have covered 0.935 at 17 labels in the same simulation.
+One interval covers the share, not any single row.
 
 Pure functions over numbers: the predictions and the labels come from
 elsewhere.

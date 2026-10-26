@@ -247,8 +247,9 @@ def test_the_interval_covers_the_true_share_whatever_the_number_of_labels(
 ) -> None:
     """Seeded: shares from 0.5 to 0.95, a judge that agrees with 60% of the labels.
 
-    Averaged over the shares, as a deployment's groups are a mix of them. The
-    corrected Wald interval covered about 0.70 at 17 labels.
+    Averaged over the shares, as a deployment's groups are a mix of them.
+    These counts miss the dip from 61 to 75 labels, where the t interval
+    covered 0.920 to 0.929 at 2,000 draws a share.
     """
     rng = np.random.default_rng(labelled)
     shares = [0.5, 0.6, 0.7, 0.8, 0.9, 0.95]
