@@ -4,47 +4,17 @@ Human review of what the models decided, through Argilla.
 
 | Dataset | The decision | Lands in |
 |---|---|---|
-| `4-facts` | Does the statement follow from the evidence, and stand on its own? | `facts.reviewed_verdict` |
-| `5-topic-labels` | Is this a good name for these terms, and is it a subject worth asking about? | `topics.label`, `topics.include_in_coverage` |
+| `4-facts` | Does the statement follow from the evidence and stand on its own? | `facts.reviewed_verdict` |
+| `5-topic-labels` | Is this a good name for these terms, and a subject worth asking about? | `topics.label`, `topics.include_in_coverage` |
 | `6-questions` | Would somebody ask this, and is the answer right? | `questions.status` |
 
-The number is the stage that produced the kind, and it is the same number
-Phoenix's projects and Dagster's groups carry —
-[`telemetry/pipeline.py`](../telemetry/pipeline.py) holds it once. Argilla
-sorts its datasets by name, and `facts, questions, topic-labels` is not the
-order they are produced in.
+The number is the producing stage, as in Phoenix and Dagster
+([`telemetry/pipeline.py`](../telemetry/pipeline.py)). The command line takes
+the bare name: `--push facts`. Datasets pushed under old names are not
+migrated.
 
-**The CLI still takes the bare name.** `--push facts`, not `--push 4-facts`:
-the number is what Argilla shows, not what anybody types. Datasets pushed
-under the old names are not migrated and stay beside the new ones until
-they are deleted.
-
-Argilla holds a **copy** of the rows put in front of somebody and the answers
-they gave. A pull brings the answers home and the copy is disposable —
-delete the Argilla dataset and the pipeline has lost nothing.
-
-## Two machine verdicts on every record
-
-Each record already carried what the **checker** decided. It now also
-carries what an **LLM judge** decided, from
-[the evaluation phase](../backend/assessment/README.md): a `judge` field
-holding the judgement and its reasoning, and `judge_verdict` and
-`judge_disagrees` as metadata to filter on. Every record's metadata carries a `language`: a topic's own, a question's own, and for a fact the language of the passage at its own citation (`unknown` where it has none). The question record's metadata also carries `kind` (single, needs_both, compound); the guideline tells reviewers a compound question asks two separate things on purpose, each answered by its own passage, and is judged one half at a time and rejected if either half fails. A record whose question was dealt categories has a `categories` field listing them as `Categorization=category`, with `(query)` after one written as a search query; the guideline says such a question is judged as a query typed into a search box and not rejected as a malformed question. A follow-up record has a `thread` field listing the turns it follows, oldest first, and a `turn` metadata term, and the guideline says it is judged after those turns and not rejected for leaning on them.
-
-`judge_disagrees=yes` is the sitting worth having. Those are the artefacts
-the pipeline **kept** and the judge refused — one of the two is wrong, and a
-person is the only thing that settles which.
-
-Neither machine verdict is an answer key, and the guidelines say so on every
-dataset. Anchoring is the risk and it is the lesser one: a sample nobody can
-interpret gets abandoned.
-
-`not_judged` where the phase has not run, which is a filterable value rather
-than an absent field — "which of these has nobody judged" is a question a
-reviewer asks.
-
-Nothing in the pipeline reads Argilla, and no container carries the client:
-this runs on the host, like `make schema`.
+Argilla holds a copy of the rows and the answers, and deleting a dataset
+loses nothing from the pipeline. No container carries the client.
 
 ## Using it
 
@@ -54,18 +24,19 @@ make review-pull-facts                 # write the submitted verdicts back
 make review-push-topics
 make review-pull-topics
 make review-push-questions             # a sample, spread over the gates
+make review-push-questions IDS=12,34,56  # exactly those rows
 make review-pull-questions
 make review-status                     # how much has been looked at, and who agreed
 
-make review                            # push both samples and every topic in one go
-make review-all                        # every row of every kind still to review, not a sample
+make review                            # push both samples and every topic
+make review-all                        # every row still to review, not a sample
 make pull                              # pull all three back
 make review-delete CONFIRM=<database>  # delete the three review datasets, and no other
 ```
 
-Push, review in the UI at `ARGILLA_API_URL`, then pull.
-
-Underneath, one command line:
+Push, review in the UI at `ARGILLA_API_URL`, then pull. The Assessment page
+lists the questions the gates kept and the judge refused, each with its `IDS=`
+command. Underneath:
 
 ```bash
 python -m review.run --push facts
@@ -75,77 +46,51 @@ python -m review.run --status
 python -m review.run --delete
 ```
 
-`--push`, `--pull`, `--status` and `--delete` are mutually exclusive and one
-is required.
-`--all` and `--ids` modify a push.
+`--push`, `--pull`, `--status` and `--delete` are mutually exclusive, one
+required. `--all` and `--ids` modify a push.
+
+## What a record carries
+
+Each record carries the judge's decision from [the evaluation
+phase](../backend/assessment/README.md): a `judge` field with its reasoning,
+and `judge_verdict` and `judge_disagrees` metadata (`not_judged` where the
+phase has not run). `judge_disagrees=yes` marks an artefact the pipeline kept
+and the judge refused. Neither is an answer key.
+
+Metadata also carries a `language` (for a fact, that of the passage at its own
+citation, or `unknown`). A question record adds:
+
+- `kind` metadata (single, needs_both, compound). A compound question asks two
+  things on purpose and is rejected if either half fails.
+- A `categories` field listing its categories as `Categorization=category`,
+  with `(query)` after one written as a search query, which is judged as one.
+- For a follow-up, a `thread` field of the turns it follows, oldest first, and
+  a `turn` term. It is not rejected for leaning on them.
 
 ## What a review produces
 
-`review-status` reports, per dataset, how many rows carry a verdict and **how
-often the person and the model reached the same one**:
+`review-status` reports, per dataset, the rows with a verdict and how often
+the person and the model agreed:
 
 ```text
 facts: <reviewed> of <total> reviewed (<accepted> accepted, <rejected> rejected); agreed with the model on <agreed> of them, <share>%
 questions: 0 of <total> reviewed; nobody has looked, so there is no agreement to report
 ```
 
-It is a query because the two verdicts are kept in different columns and
-neither overwrites the other. A fact holds the checker's in `validated` and
-the person's in `reviewed_verdict`. A question holds the gates' in
-`rejected_reason` and the person's in `reviewed_verdict`, with `status`
-saying what the question now is.
-
-Accepting a question a gate refused does **not** clear `rejected_reason`: it
-is the other half of the disagreement, and cleared it would make an overruled
-rejection indistinguishable from a question no gate ever stopped.
+The person's verdict is `reviewed_verdict`, separate from the machine's
+(`validated` for a fact, `rejected_reason` for a question). Accepting a
+question a gate refused leaves `rejected_reason` in place. A `rejected` fact
+binds: question generation never writes from it, and re-verify rejects a
+question resting on it as `source_changed`. An `accepted` changes nothing,
+and `extract-revalidate` leaves `reviewed_verdict` alone. A pull takes only
+submitted answers, not drafts.
 
 ## A sample, or the corpus
 
-`REVIEW_SAMPLE_SIZE` facts or questions spread over the verdicts is the
-default, and what `make review` sends; topics are pushed whole every time.
-`--all` sends every fact or question nobody has reviewed instead, so Argilla
-holds the corpus and the reviewer filters there.
-
-Either way a row that already carries a verdict, given here or on the
-Questions page, is not sent again, and neither is a fact or a question
-answered in Argilla and not yet pulled.
-
-`make review-all` is that over all three kinds. It is the right shape when
-somebody is working through a corpus; the sample is the right shape when the
-question is "how are we doing".
-
-**Stratified over the verdicts, not in id order.** A review answers "is the
-checker right", and a sample of only what it accepted cannot answer that —
-nor can a sample in id order, which for a corpus is a sample of whichever
-document was extracted first. At least one from each group, because a
-rejection code that fired twice in a whole corpus is the interesting one.
-
-## Reviewing a queue somebody else built
-
-```bash
-make review-push-questions IDS=12,34,56
-```
-
-Exactly those rows instead of a sample. What produces the list is the
-Assessment page's disagreements: the questions the gates **kept** and the
-judge refused, each shown with this command. A stratified sample cannot
-find them — they are rare in every band and every verdict.
-
-## Where each verdict lands
-
-Two of the three write through routes that already existed, so a verdict
-given here and one given on the Questions or Topics page are the same write.
-
-Facts had nowhere. `validated` and `rejection_code` are the checker's, and
-`make extract-revalidate` rewrites both from scratch, so a human decision
-recorded there would last until the next re-judgement.
-`reviewed_verdict` is its own column, and a `rejected` there binds: question
-generation never writes from that fact, and re-verify rejects a question
-resting on it as `source_changed`. An `accepted` there changes nothing.
-
-A pull takes only **submitted** answers. Argilla saves a draft the moment a
-record is touched, and writing one back would record an opinion nobody has
-finished having.
+A push sends `REVIEW_SAMPLE_SIZE` facts or questions, stratified over the
+verdicts with at least one row per group, and topics whole. `--all` sends
+every unreviewed fact or question. A row with a verdict, or answered in
+Argilla and not yet pulled, is not sent again.
 
 ## Configuration
 
@@ -159,13 +104,20 @@ From [`configs/env/deployment.env`](../configs/env/deployment.env) and `.env`:
 
 | Setting | What it does |
 | --- | --- |
-| `ARGILLA_API_URL` | The **host's** address, derived by the Makefile from `ARGILLA_PORT` in `deployment.env`: this is a `make` target, not a container |
-| `ARGILLA_API_KEY` | In `.env`, not in git. Argilla shows it under "My settings". **Not** `ARGILLA_PASSWORD` |
+| `ARGILLA_API_URL` | The host's address, derived from `ARGILLA_PORT` in `deployment.env` |
+| `ARGILLA_API_KEY` | In `.env`. Argilla shows it under "My settings". Not `ARGILLA_PASSWORD` |
 | `ARGILLA_WORKSPACE` | In `deployment.env`. One per deployment |
 
-Argilla's Elasticsearch is the one the logs already use — a shared heap, and
-[`configs/env/elasticsearch.env`](../configs/env/elasticsearch.env) is where
-`ES_JAVA_OPTS` raises it.
+Argilla shares the logs' Elasticsearch. `ES_JAVA_OPTS` in
+[`configs/env/elasticsearch.env`](../configs/env/elasticsearch.env) raises its
+heap.
+
+## One workspace, many databases
+
+Dataset names carry the database (`6-questions__qa_generator`), and push,
+pull and `make review-delete` touch only this database's datasets. A dataset
+under a bare name from an earlier version is left alone: pull it before
+upgrading, then push again.
 
 ## Tests
 
@@ -173,50 +125,22 @@ Argilla's Elasticsearch is the one the logs already use — a shared heap, and
 poetry run pytest tests/unit/review
 ```
 
-| File | Covers |
-|---|---|
-| [`test_records.py`](../tests/unit/review/test_records.py) | How a review sample is drawn, and what a record carries |
-| [`test_service.py`](../tests/unit/review/test_service.py) | Bringing verdicts home |
-| [`test_review_cli.py`](../tests/unit/review/test_review_cli.py) | The command line, and what it refuses |
-
-None of them reaches a network.
+[`tests/unit/review/`](../tests/unit/review) covers sampling, records, pulls
+and the command line, without a network.
 
 ## Limits
 
-- **`ARGILLA_API_KEY` is not `ARGILLA_PASSWORD`.**
-- **A draft is not pulled.** Only a submitted answer comes home.
-- **Reviewers who disagree are not applied.** A pull logs the ids of the
-  records whose submitted answers to one question differ, and both answers
-  stay in Argilla for a person to settle.
-- **A push adds to a dataset and never empties it.** Every answer stays,
-  so a pull applies one only where the row still reads as its record and
-  the answer is newer than the row's own last decision: its creation, a
-  verdict, or a change of status.
-- **A topic answer without a name keeps the topic's name.** Only its
-  coverage is written, and `labelled_by` stays as it was. An answer without
-  a coverage answer keeps the topic's coverage. The name is optional, so a
-  reviewer who agrees with it leaves the box empty; a topics dataset created
-  while it was required still asks for one until it is recreated:
-  `make review-pull-topics`, then delete the dataset in Argilla and push
+- Reviewers who disagree are not applied. A pull logs the record ids, and both
+  answers stay in Argilla.
+- A push never empties a dataset. A pull applies an answer only where the row
+  still reads as its record and the answer is newer than the row's last
+  decision (creation, a verdict, or a status change).
+- A topic answer without a name keeps the topic's name and `labelled_by`, and
+  one without coverage keeps its coverage. A topics dataset created while the
+  name was required still asks for one: pull, delete it, push again.
+- A corrected topic name over 120 characters is not pulled. A pull logs the
+  topic ids and leaves the answer in Argilla.
+- A facts dataset created before v0.4.5 has no `language` metadata, and a
+  questions dataset created before v0.4.3 has no `categories` field. A push
+  drops the term with a warning: pull, delete the dataset in Argilla, push
   again.
-- **A corrected name over 120 characters is not pulled.** PATCH /topics and
-  the Topics page take no longer name, so a pull logs the topic ids and
-  leaves the answer, coverage included, in Argilla for the reviewer to
-  shorten.
-- **A facts dataset created before v0.4.5 has no `language` metadata.** A push
-  to it drops the term (a warning names the pull and delete steps):
-  `make review-pull-facts`, then delete the dataset in Argilla and push again.
-- **A questions dataset created before v0.4.3 has no `categories` field.** A push
-  to it drops the field (a warning names the pull and delete steps), and its
-  guideline is the old one: `make review-pull-questions`, then delete the
-  dataset in Argilla and push again.
-- **`extract-revalidate` does not touch `reviewed_verdict`.**
-- **This never runs in a container.** No image carries the Argilla client.
-
-## One workspace, many databases
-
-The Argilla workspace is shared, so each dataset's name carries the database
-(`6-questions__qa_generator`, by `datasets.dataset_name`). Push, pull and
-`make review-delete` read and delete only this database's. A dataset an
-earlier version pushed under the bare name is left where it is: pull its
-verdicts before upgrading (`make review-pull-*`), and push again afterwards.

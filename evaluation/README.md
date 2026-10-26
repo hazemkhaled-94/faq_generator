@@ -1,10 +1,8 @@
 # Evaluation
 
 The golden cases, and scoring a served model against them in Phoenix.
-
-`make test-eval` scores a model against the cases in [`cases.py`](cases.py)
-and **prints** the numbers. This package records each run in Phoenix instead,
-so two can be compared by more than their scrollback.
+`make test-eval` prints a model's scores on the cases in
+[`cases.py`](cases.py). This package records each run in Phoenix instead.
 
 ## Using it
 
@@ -16,7 +14,7 @@ make eval-phrasing                               # the two phrasing judgements, 
 make prompts-publish                             # the recorded prompts
 ```
 
-Underneath:
+The targets wrap three mutually exclusive options, one required:
 
 ```bash
 python -m evaluation.run --upload extraction-golden
@@ -24,56 +22,28 @@ python -m evaluation.run --score extraction-golden
 python -m evaluation.run --publish-prompts
 ```
 
-The three are mutually exclusive and one is required. Results are at
-<http://localhost:6006>.
+Results are at <http://localhost:6006>.
 
 ## Publishing the prompts
 
-A span already carries the prompt it sent, filled in with that call's
-passages. What it cannot show is the **template**, and
-`llm.prompt_template.version` on the span names a version with nothing in
-Phoenix under it.
-
-Each recorded prompt becomes a Phoenix prompt, so a span's version opens
-beside the trace and the playground can select one. A published version
-carries the whole call:
+`make prompts-publish` records each prompt in Phoenix, so the version a span
+names in `llm.prompt_template.version` opens beside the trace and the
+playground can select it. A version carries the whole call:
 
 | What Phoenix shows | Where it comes from |
 |---|---|
 | System message | `prompts.text`, composed by the stage that sends it |
-| User message | `prompts.user_text`, the template with `{{name}}` where a call substitutes |
-| Invocation parameters | `llm.config.Settings` — the temperature, and `reasoning_effort` where it is one Phoenix knows. The timeout, `num_ctx` and Ollama's `off` go in the version's description, as "Also sent" |
+| User message | `prompts.user_text`, with `{{name}}` where a call substitutes |
+| Invocation parameters | `llm.config.Settings`: the temperature, and `reasoning_effort` where Phoenix knows it. The timeout, `num_ctx` and Ollama's `off` go in the description |
 | Response format | `prompts.response_schema`, the JSON schema of the Pydantic shape |
 
-All four go through `PromptVersion.from_openai`. The plain `PromptVersion`
-constructor takes a message list, a model name and a template format and
-nothing else, so a version built that way carries an empty
-invocation-parameters block and no response format.
+Versions are published oldest first, because Phoenix keeps the last created as
+current. The version and digest go in the version's description.
 
-Versions are published **oldest first**, because Phoenix keeps the one
-created last as the prompt's current version.
-
-The version and the digest go in the **version's** description, not the
-prompt's: `prompt_description` is set when Phoenix creates a prompt and
-ignored on every version after it. The prompt's description carries only
-what never changes.
-
-**A stage publishes what it records when it starts**, so this target is the
-full republish rather than the only way in. The publisher lives in
-[`backend/stages/publish.py`](../backend/stages/publish.py), beside the
-write, and goes wherever that goes — a host command, a worker container,
-the stage a Dagster run set going. `record` hands it the prompts it
-actually wrote, which is none on every start-up after the first, and that
-is what stops an identical Phoenix version piling up per prompt per run.
-
-What this target covers is the one case the table cannot detect: a Phoenix
-wiped while the rows stayed. It reads from the **database**, not from the
-code, which is also what makes it work for a version the source has moved
-past — a publisher that asked `question_generation.prompts` would load
-litellm to read a string.
-
-**The source is the code.** Phoenix's UI allows an edit and an edit there
-reaches nothing: the next publish writes over whatever the UI did.
+A stage publishes the prompts it newly records at start-up, through
+[`backend/stages/publish.py`](../backend/stages/publish.py). The make target is
+the full republish, for a Phoenix wiped while the database rows stayed. The
+code is the source of truth: the next publish overwrites a UI edit.
 
 ## Comparing two runs
 
@@ -82,96 +52,53 @@ make questions-runs                              # which runs there are
 make questions-diff RUNS="a-gpt-4.1 b-gemma4-12b"
 ```
 
-Two things made that possible, and neither is in this package:
+The diff reads live and archived rows (`archived_rows`), so `questions-rerun`
+does not destroy the other run. Runs are told apart by `questions.run_id`
+([`settings/runs.py`](../backend/settings/runs.py)). A run named with
+`RUN_ID` sends its spans to a Phoenix project `<position>-<stage>-<name>`,
+which holds calls, tokens, latency and spend.
 
-- **`questions.run_id`**, from
-  [`settings/runs.py`](../backend/settings/runs.py). `settings_version` names
-  a *configuration*, so two runs under one configuration were
-  indistinguishable — which is every A/B where only the model moved.
-- **`archived_rows`**. `questions-rerun` deletes what it replaces, so
-  producing run B used to destroy run A. The diff reads live rows **and**
-  archived ones.
+## Comparing scores
 
-A run named with `RUN_ID` also sends its spans to a Phoenix project of its
-own, `<position>-<stage>-<name>`, which is the half SQL cannot answer: the
-gate counts are columns, and the calls, tokens, latency and spend are in the
-spans.
+Phoenix versions the dataset, so a new case keeps earlier experiments valid.
+Each run records the model and temperature as metadata, plus the
+structured mode (extraction) and prompt version and floors (phrasing). Unset,
+`EVAL_RUN_NAME` names the experiment after the model. Set it when the model is
+the same and something else changed.
 
-## What makes two runs comparable
+## Scoring
 
-Phoenix **versions the dataset**, so a case added today does not invalidate
-yesterday's experiments. Each run records the model and the temperature as
-metadata, with the structured mode for extraction and the prompt version and
-the floors for phrasing.
+The pipeline's own checker scores the cases, not an LLM judge, because the
+checker decides which facts are kept. The reader is built as in a worker:
+`EXTRACTION_MODEL` where set, and the atomic cap
+`EXTRACTION_MIN_OTHER_SHARE` works out to. Both are read from the environment
+alone, so a value stored through the settings page or `make settings-set` does
+not reach a score.
 
-`EVAL_RUN_NAME` is optional, and its absence means something: unset, the
-runner names the experiment after the **model** it scored. Set it when the
-model is the same and something else changed.
+The `extraction` and `phrasing` sets are scored, asserting nothing. The
+`questions` set is only uploaded, for browsing, because it already asserts and
+gates a pull request.
 
-## Scored by the pipeline's own checker
-
-Not by an LLM judge. The checker is what decides whether a fact is kept in
-production, so a golden set scored by anything else measures something this
-pipeline does not use.
-
-Read by the reader a worker builds, for the same reason: `EXTRACTION_MODEL`
-where it is set, and the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out
-to, so the prompt scored is the capped one production sends. Scores recorded
-before that read the shared model uncapped and are not comparable with
-later ones.
-
-A known limit: those settings are read from the environment alone, the files
-the Makefile sources. A value stored through the settings page or
-`make settings-set` does not reach a score, so a stored `EXTRACTION_MODEL`
-or cap is scored only once the same value is set in the environment for the
-run.
-
-### Two of the three sets are scored
-
-| Set | Scored | Because |
-|---|---|---|
-| `extraction` | yes | Its numbers are pure measurement, asserted against nothing |
-| `phrasing` | yes | The same, and each judgement is scored beside the floor a judge that ignores its input reaches |
-| `questions` | no | It already **asserts**, so it is a gate that fails a pull request rather than a trend |
-
-The questions set is uploaded anyway, so the cases are browsable from the
-Phoenix UI.
-
-`make eval-phrasing` records four numbers, not two: `names_its_source` and
-`self_contained`, and a `_floor` for each. The floor is what a judge that
-answers the same thing every time would score on the same cases, computed
-from `cases.py` rather than written down. A fifth, `answered`, counts how
-much was judged at all, so a run where the model was unreachable does not
-read as a run where the judge got everything wrong.
+`make eval-phrasing` records `names_its_source` and `self_contained`, a
+`_floor` for each (the score of a judge giving the same answer every time),
+and `answered`, the count judged, so an unreachable model does not read as a
+wrong judge.
 
 ## Never a gate
 
-A model's answers move between versions, between quantisations, and between
-two runs at the same temperature. A threshold here would fail on somebody
-else's Tuesday rather than on a regression.
-
-What `tests/eval/` asserts is that each piece is wired up at all: the
-round-trip gate splits its golden questions the right way round, each
-phrasing judgement beats its floor and is scored on every case, German ones
-included, extraction proposes and keeps something, and the writer writes
-something for every kind.
+Model answers move between runs, so a threshold would fail without a
+regression. `tests/eval/` asserts only that each piece is wired up: the
+round-trip gate splits golden questions correctly, each phrasing judgement
+beats its floor on every case (German included), extraction keeps something,
+and the writer writes for every kind.
 
 ## Layout
 
-| File | Holds |
-|---|---|
-| [`cases.py`](cases.py) | The golden cases, and nothing that runs them. Read by this package **and** by `tests/eval/` |
-| [`experiments.py`](experiments.py) | Scoring the cases into Phoenix, and the floor each score is read against |
-| [`config.py`](config.py) | Where Phoenix is |
-| [`run.py`](run.py) | The command line |
-
-`cases.py` holding no runner is what lets one set of cases serve both the
-pytest layer and the Phoenix layer without either importing the other.
-
-Nothing here runs in an image. Both this and `review/`'s Argilla client run
-on the host: a worker has no business holding a judge. The backend image does
-carry `arize-phoenix-client`, for the one thing a worker posts itself — the
-verdicts in [`telemetry/evaluations.py`](../telemetry/evaluations.py).
+[`cases.py`](cases.py) holds the golden cases, read by this package and by
+`tests/eval/`. [`experiments.py`](experiments.py) scores them into Phoenix,
+[`config.py`](config.py) says where Phoenix is, and [`run.py`](run.py) is the
+command line. Nothing here runs in an image; the backend image carries
+`arize-phoenix-client` for [`telemetry/evaluations.py`](../telemetry/evaluations.py).
 
 ## Configuration
 
@@ -182,7 +109,7 @@ verdicts in [`telemetry/evaluations.py`](../telemetry/evaluations.py).
 | `PHOENIX_ADMIN_SECRET` | `.env` | At least 32 characters, including a digit and a lower-case letter |
 | `LLM_MODEL`, `LLM_BASE_URL` | `.env` | The model being scored, unless `EXTRACTION_MODEL` names extraction's own |
 
-`PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD` is applied only when Phoenix first
+`PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD` applies only when Phoenix first
 creates its admin user.
 
 ## Tests
@@ -192,26 +119,14 @@ poetry run pytest tests/unit/evaluation   # no network
 poetry run pytest tests/eval              # needs a served model
 ```
 
-| File | Covers |
-|---|---|
-| [`test_experiments.py`](../tests/unit/evaluation/test_experiments.py) | The scores an experiment records, and the shape it records them in |
-| [`test_evaluation_cli.py`](../tests/unit/evaluation/test_evaluation_cli.py) | Which operation each flag selects, and the exit code of a set with no task |
-| [`test_extraction_quality.py`](../tests/eval/test_extraction_quality.py) | How well a real served model reads facts out of a passage |
-| [`test_question_quality.py`](../tests/eval/test_question_quality.py) | How a real served model writes and checks questions |
-| [`test_phrasing_judgements.py`](../tests/eval/test_phrasing_judgements.py) | How well a real served model answers the phrasing judgements, against their floor |
-
-`tests/eval/` is excluded from `make test`. The nightly workflow runs it, and
-every test in it skips unless `LLM_MODEL` is a repository variable.
+[`tests/unit/evaluation/`](../tests/unit/evaluation) covers the recorded scores
+and the flags. [`tests/eval/`](../tests/eval) covers a served model's
+extraction, writing and judging. It is excluded from `make test` and run
+nightly, and skips unless `LLM_MODEL` is a repository variable.
 
 ## Limits
 
-- **Nothing here gates a merge, ever.**
-- **`--score` needs the set uploaded first.** `--upload` is not implied.
-- **A case added today does not invalidate yesterday's numbers.**
-- **`EVAL_RUN_NAME` unset is the useful default.** Setting it to something
-  static makes two runs of two models look like one experiment.
-- **Changing `PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD` after first boot does
-  nothing.**
-- **A phrasing score without its floor means nothing.**
-- **Rows written before `run_id` existed carry NULL** and cannot be told
-  apart. Nothing is backfilled.
+- Nothing here gates a merge.
+- `--score` needs the set uploaded first.
+- A static `EVAL_RUN_NAME` makes two models look like one experiment.
+- Rows from before `run_id` existed carry NULL and cannot be told apart.
