@@ -88,6 +88,11 @@ what it held.
   one.** The release stays where a question live all along holds the same id,
   and a follow-up also needs the turn it follows still accepted and released in it; otherwise the
   question comes back accepted but undrawn.
+- **A duplicate refusal whose twin is gone comes back pointing at none.** Its
+  twin, a fact of another passage, may have been deleted or read again since;
+  where it is neither live nor put back by the same restore, `twin_id` comes
+  back NULL, which marks the refusal for the dedup replay that points it at a
+  twin again, rather than failing its foreign key and the whole restore.
 - **A fact left resting on no passage is dropped.** Its citations were left
   behind, and the trigger that drops such a fact fires only on `DELETE`, so
   the restore does it, with the question links that cascade from it.

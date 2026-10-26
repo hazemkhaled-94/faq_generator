@@ -281,3 +281,133 @@ def test_questions_whose_facts_are_back_are_listed_for_reverification(
     assert str(asked_id) in shown
     # reverify skips every rejected question: the printed remedy must be what reopens one.
     assert "make questions-reverify" not in shown and "PATCH /questions/" in shown
+
+
+#: A duplicate refusal and the fact it repeats, in each configured language and
+#: in one no configuration names, which the restore must not read differently.
+TWINS = {
+    "de": "Die Gebühr beträgt 12 EUR im Jahr.",
+    "en": "The fee is EUR 12 a year.",
+    "sw": "Ada ni EUR 12 kwa mwaka.",
+}
+
+
+def twinned(engine, language: str) -> dict[str, int | str]:
+    """Documents a and b; a holds a fact of its own and a refusal twinned to b's fact."""
+    from blob_store.s3 import DocumentsBucket, ParsedBucket
+
+    made: dict[str, int | str] = {}
+    with Session(engine) as session:
+        for name in ("a", "b"):
+            sha = digest(name + language)
+            source, parsed = DocumentsBucket(), ParsedBucket()
+            source.put(
+                source.key_for(sha, "application/pdf"),
+                b"%PDF-1.7",
+                content_type="application/pdf",
+            )
+            parsed.put(parsed.key_for(sha), b"{}", content_type="application/json")
+            session.add(
+                document(
+                    sha,
+                    parse_status="parsed",
+                    chunk_status="chunked",
+                    language=language,
+                )
+            )
+            session.flush()
+            cut = passage(sha, ordinal=1, text=TWINS[language], language=language)
+            session.add(cut)
+            session.flush()
+            made[name], made[name + "_sha"] = cut.id, sha
+        twin = fact(made["b"], statement=TWINS[language])
+        session.add(twin)
+        session.flush()
+        refusal = fact(
+            made["a"],
+            statement=TWINS[language],
+            validated=False,
+            rejection_code="duplicate",
+            twin_id=twin.id,
+        )
+        session.add_all([refusal, fact(made["a"], statement=f"a {language} fact")])
+        session.commit()
+        made["twin"], made["refusal"] = twin.id, refusal.id
+    return made
+
+
+def twin_of(engine, refusal: int) -> int | None:
+    """The twin a restored refusal points at, None for none."""
+    with engine.connect() as connection:
+        return connection.execute(
+            text("SELECT twin_id FROM facts WHERE id = :id"), {"id": refusal}
+        ).scalar_one()
+
+
+@pytest.mark.parametrize("language", sorted(TWINS))
+def test_a_refusal_whose_twin_a_later_deletion_took_comes_back_pointing_at_none(
+    engine, database, buckets, monkeypatch, capsys, language
+) -> None:
+    """The deletion of a alone is put back; b's, which took the twin, is not."""
+    made = twinned(engine, language)
+    run(engine, f"DELETE FROM documents WHERE sha256 = '{made['a_sha']}'")
+    first = deleted_at(engine, "documents")
+    run(engine, f"DELETE FROM documents WHERE sha256 = '{made['b_sha']}'")
+
+    assert restore(monkeypatch, AT=first) == 0
+
+    assert "Nothing restored" not in capsys.readouterr().out
+    assert (
+        count(
+            engine, f"SELECT count(*) FROM facts WHERE statement = 'a {language} fact'"
+        )
+        == 1
+    )
+    assert twin_of(engine, int(made["refusal"])) is None
+
+
+@pytest.mark.parametrize("language", sorted(TWINS))
+def test_a_refusal_whose_twin_was_read_again_comes_back_pointing_at_none(
+    engine, database, buckets, monkeypatch, capsys, language
+) -> None:
+    """The twin went when b's passage was read again and said something else."""
+    from facts import checked
+
+    from extraction.repository import PassageQueue
+
+    made = twinned(engine, language)
+    run(engine, f"DELETE FROM documents WHERE sha256 = '{made['a_sha']}'")
+    first = deleted_at(engine, "documents")
+    PassageQueue().store(
+        int(made["b"]), [checked(int(made["b"]), "A changed reading.")]
+    )
+
+    assert restore(monkeypatch, AT=first) == 0
+
+    assert "Nothing restored" not in capsys.readouterr().out
+    assert twin_of(engine, int(made["refusal"])) is None
+
+
+@pytest.mark.parametrize("language", sorted(TWINS))
+def test_a_refusal_whose_twin_is_live_or_restored_beside_it_keeps_it(
+    engine, database, buckets, monkeypatch, language
+) -> None:
+    """Live, or put back by the same restore: the refusal still names it.
+
+    The second deletion takes the refusal before its twin in one transaction,
+    so the archive holds the refusal still naming the twin beside the twin.
+    """
+    made = twinned(engine, language)
+    run(engine, f"DELETE FROM documents WHERE sha256 = '{made['a_sha']}'")
+
+    assert restore(monkeypatch, AT=deleted_at(engine, "documents")) == 0
+    assert twin_of(engine, int(made["refusal"])) == made["twin"]
+
+    with engine.begin() as connection:
+        for name in ("a_sha", "b_sha"):
+            connection.execute(
+                text("DELETE FROM documents WHERE sha256 = :sha"), {"sha": made[name]}
+            )
+
+    assert restore(monkeypatch, AT=deleted_at(engine, "documents")) == 0
+    assert twin_of(engine, int(made["refusal"])) == made["twin"]

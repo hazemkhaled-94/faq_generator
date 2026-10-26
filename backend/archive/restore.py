@@ -52,11 +52,13 @@ _CHOSEN = "a.archived_at = ANY(CAST(:chosen AS timestamptz[]))"
 #: unique key, so the archived row has nothing to rest on.
 #:
 #: A key missing from an older payload is filled from :defaults, the column's
-#: server default, which jsonb_populate_record would leave NULL.
+#: server default, which jsonb_populate_record would leave NULL. A key of
+#: `_CLEARED` is set NULL where the row it names is gone (`{cleared}`).
 _FROM = (
     """
 FROM archived_rows a,
-     jsonb_populate_record(NULL::{table}, CAST(:defaults AS jsonb) || a.payload) r
+     jsonb_populate_record(
+         NULL::{table}, CAST(:defaults AS jsonb) || a.payload{cleared}) r
 WHERE a.table_name = :table AND """
     + _CHOSEN
     + "\n"
@@ -70,6 +72,30 @@ ON CONFLICT DO NOTHING
 """
 )
 _ORPHANS = "SELECT count(*) " + _FROM + "AND NOT ({parents})"
+
+
+#: The keys to a table's own rows that a restore clears where the row they
+#: name is neither live nor put back beside them: a duplicate refusal's twin,
+#: deleted or read again since. NULL is what marks a refusal for the dedup
+#: replay, which points it at a twin again; kept, the key would fail the
+#: foreign key and roll the whole restore back.
+_CLEARED = {"facts": "twin_id"}
+
+
+def _cleared(table: str) -> str:
+    """What `_FROM` adds to a payload: its `_CLEARED` key set NULL where that row is gone."""
+    if (column := _CLEARED.get(table)) is None:
+        return ""
+    named = f"(a.payload->>'{column}')::bigint"
+    return (
+        f" || CASE WHEN a.payload->>'{column}' IS NULL"
+        f" OR EXISTS (SELECT 1 FROM {table} t WHERE t.id = {named})"
+        " OR EXISTS (SELECT 1 FROM archived_rows c"
+        f" WHERE c.table_name = '{table}'"
+        " AND c.archived_at = ANY(CAST(:chosen AS timestamptz[]))"
+        f" AND (c.payload->>'id')::bigint = {named})"
+        f" THEN '{{}}'::jsonb ELSE jsonb_build_object('{column}', NULL) END"
+    )
 
 
 def _parents(table: str) -> str:
@@ -494,11 +520,19 @@ def main() -> int:
                     "defaults": _defaults(connection, table, chosen),
                 }
                 parents = _parents(table)
+                cleared = _cleared(table)
                 left = connection.execute(
-                    text(_ORPHANS.format(table=table, parents=parents)), parameters
+                    text(
+                        _ORPHANS.format(table=table, parents=parents, cleared=cleared)
+                    ),
+                    parameters,
                 ).scalar_one()
                 restored = connection.execute(
-                    text(_RESTORE.format(table=table, parents="AND " + parents)),
+                    text(
+                        _RESTORE.format(
+                            table=table, parents="AND " + parents, cleared=cleared
+                        )
+                    ),
                     parameters,
                 ).rowcount
                 print(f"  {table:<20} {restored:>8} of {held[table]} row(s)")
