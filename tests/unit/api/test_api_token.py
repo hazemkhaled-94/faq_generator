@@ -119,3 +119,17 @@ def test_the_docs_page_sends_the_secret_where_the_api_asks_for_it() -> None:
         ("header", "X-API-Token")
     }
     assert _declared(paths["/documents"]["get"], schemes) == set()
+
+
+def test_what_asks_for_the_secret_documents_the_401_it_answers() -> None:
+    """A caller, and schemathesis, read the refusal off the document."""
+    from api.main import app
+
+    document = app.openapi()
+    paths = document["paths"]
+    refused = paths["/settings/{service}"]["get"]["responses"]["401"]
+    reference = refused["content"]["application/json"]["schema"]["$ref"]
+
+    assert "401" in paths["/documents"]["post"]["responses"]
+    assert "401" not in paths["/documents"]["get"]["responses"]
+    assert reference.rsplit("/", 1)[-1] in document["components"]["schemas"]

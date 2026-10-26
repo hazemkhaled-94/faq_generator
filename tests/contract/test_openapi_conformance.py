@@ -51,9 +51,12 @@ READ_ONLY = {"GET"}
 #: an action that is not one. That is the router working.
 #:
 #: `negative_data_rejection` and `positive_data_acceptance` are opinions
-#: about which status a malformed query deserves; `ignored_auth`,
-#: `use_after_free` and `ensure_resource_availability` need an auth scheme
-#: and a stateful link graph, and this API publishes neither.
+#: about which status a malformed query deserves; `use_after_free` and
+#: `ensure_resource_availability` need a stateful link graph, which this API
+#: does not publish. `ignored_auth` is off: every call here sends the secret
+#: the document declares, and `tests/unit/api/test_api_token.py` holds the
+#: refusal without it. A generated call that leaves it out is answered the 401
+#: the document names.
 CONFORMANCE = [
     # A 5xx is a defect whatever the document says.
     schemathesis.checks.not_a_server_error,

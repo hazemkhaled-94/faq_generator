@@ -120,17 +120,27 @@ def _openapi() -> dict[str, Any]:
     """The schema, declaring X-API-Token on what `SharedSecret` guards.
 
     So /docs offers Authorize and sends the secret on a write and a settings
-    read; the middleware is what checks it.
+    read, and each of those names the 401 it answers without it; the
+    middleware is what checks it.
     """
     if app.openapi_schema is None:
         document = FastAPI.openapi(app)
         document.setdefault("components", {})["securitySchemes"] = {
             "APIToken": {"type": "apiKey", "in": "header", "name": "X-API-Token"}
         }
+        refused = {
+            "description": "unauthorized: no X-API-Token, or not the deployment's",
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/ErrorBody"}
+                }
+            },
+        }
         for path, verbs in document["paths"].items():
             for method, operation in verbs.items():
                 if _guarded(method, path):
                     operation["security"] = [{"APIToken": []}]
+                    operation.setdefault("responses", {})["401"] = refused
     return app.openapi_schema or {}
 
 
