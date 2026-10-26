@@ -1,8 +1,8 @@
 """A request that rebuilds a whole stage, or deletes every topic, is confirmed.
 
 Nothing here puts back what a rerun replaces: a re-chunk or a re-extraction
-deletes the questions that rested on the work, reviewed and released ones
-included, and a topic's label is stored nowhere else.
+rejects as `source_changed` the questions that rested on the work, reviewed
+and released ones included, and a topic's label is stored nowhere else.
 """
 
 from __future__ import annotations
@@ -94,6 +94,44 @@ def test_an_unnarrowed_rerun_without_confirm_is_refused_before_a_row_moves(
     assert "chunking" in body["detail"]
     assert "3" in body["detail"]
     assert queue.ran == []
+
+
+class Resting(Queue):
+    """A queue that can say which questions rest on what it holds."""
+
+    def resting(self, within=None):
+        """Four questions, one released, two accepted, one reviewed."""
+        from stages.resting import Resting as Counted
+
+        return Counted(questions=4, released=1, accepted=2, reviewed=1)
+
+
+def test_the_refusal_names_the_questions_at_stake_and_deletes_none() -> None:
+    """Where the stage can count them: rejected as source_changed, kept."""
+    from api import errors
+    from api.routes.stage import stage_router
+
+    queue = Resting()
+    app = FastAPI()
+    errors.install(app)
+    app.include_router(stage_router(name="extraction", repository=queue))  # type: ignore[arg-type]
+
+    detail = TestClient(app, headers=HEADERS).post("/extraction/rerun").json()["detail"]
+
+    assert "4 question(s)" in detail
+    assert "source_changed" in detail
+    assert "delete" not in detail
+    assert queue.ran == []
+
+
+def test_a_stage_that_counts_no_questions_says_nothing_is_deleted(stage) -> None:
+    """Parsing or assessment: the rows, and no claim of a deletion."""
+    client, _ = stage
+
+    detail = client.post("/chunking/rerun").json()["detail"]
+
+    assert "delete" not in detail
+    assert "question" not in detail
 
 
 def test_an_unnarrowed_rerun_with_confirm_is_queued(stage) -> None:

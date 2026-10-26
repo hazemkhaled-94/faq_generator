@@ -411,13 +411,23 @@ def stage_router(
             )
         if action == "rerun" and not confirm:
             held = sum(repository.queue_state().rows.values())
+            # The questions at stake, where the stage can count them.
+            resting = getattr(repository, "resting", None)
+            at_risk = resting(None) if resting is not None else None
+            stake = (
+                f"; {at_risk.questions:,} question(s) rest on it "
+                f"({at_risk.released:,} released, {at_risk.accepted:,} accepted, "
+                f"{at_risk.reviewed:,} reviewed) and would be rejected as "
+                f"source_changed"
+                if at_risk
+                else ""
+            )
             raise ApiError(
                 400,
                 "confirm_required",
                 f"rerun over the whole {name} stage queues its {held:,} rows "
-                f"again and rebuilds what the stage made of them, which can "
-                f"delete work a person reviewed or released. Narrow it to one "
-                f"item, or pass ?confirm=true.",
+                f"again and rebuilds what the stage made of them{stake}. Narrow "
+                f"it to one item, or pass ?confirm=true.",
             )
         if action == "rerun" and before_rerun:
             before_rerun()
