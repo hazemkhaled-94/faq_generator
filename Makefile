@@ -1955,7 +1955,9 @@ typecheck:
 # a red run is how an advisory is reported, and a run that always passed
 # reported none.
 #
-# --no-deps because both locks already pin every transitive dependency.
+# --no-deps because both locks already pin every transitive dependency, and
+# --disable-pip so each list is read as pinned rather than installed through
+# pip, which fails on a pin with no wheel for this platform (pywin32 on Linux).
 #
 # Against OSV rather than pip-audit's default, PyPI's own feed, which listed
 # 18 of the 21 advisories OSV holds on Pillow 12.3.0 and left out a critical
@@ -1994,7 +1996,7 @@ audit:
 	    poetry run python configs/audit_ignores.py $$l $(AUDIT_ACCEPTED) > /dev/null || exit 1; \
 	  done && \
 	  for f in api:$$d/api.lock frontend:frontend/requirements.lock poetry:$$d/poetry.lock; do \
-	    poetry run pip-audit --vulnerability-service osv --no-deps --progress-spinner off --format json --aliases on --output $$d/found.$${f%%:*}.json -r $${f#*:}; \
+	    poetry run pip-audit --vulnerability-service osv --no-deps --disable-pip --progress-spinner off --format json --aliases on --output $$d/found.$${f%%:*}.json -r $${f#*:}; \
 	  done; \
 	  poetry run python configs/audit_ignores.py --verdict $(AUDIT_ACCEPTED) $$d
 

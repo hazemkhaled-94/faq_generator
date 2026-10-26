@@ -413,6 +413,23 @@ def test_the_audit_reads_every_lock_against_osv(tmp_path: Path) -> None:
     assert all("--vulnerability-service osv" in call for call in audited), audited
 
 
+def test_the_audit_reads_each_lock_as_pinned_without_pip(tmp_path: Path) -> None:
+    """The pinned list read as it is, never installed through pip.
+
+    --no-deps alone still installs it through pip, which a pin with no wheel
+    for this platform fails: pywin32 on Linux, a CUDA wheel on a Mac.
+    """
+    calls = _auditing(tmp_path)
+
+    assert made("audit", "AUDIT_ACCEPTED=/dev/null", path=tmp_path).returncode == 0
+    audited = calls.read_text().splitlines()
+
+    assert len(audited) == 3, audited
+    assert all("--no-deps" in call and "--disable-pip" in call for call in audited), (
+        audited
+    )
+
+
 @pytest.mark.parametrize("target", ["audit", "lock"])
 def test_the_scratch_files_of_a_target_stay_out_of_the_source_tree(target: str) -> None:
     """An interrupted run would leave them untracked among the sources."""
