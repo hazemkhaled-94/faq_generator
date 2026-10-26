@@ -285,9 +285,9 @@ Row counts follow from the corpus:
 - A stage whose workers scale (`DRAINS=questions=2`) divides its time by the
   drains and keeps its spend.
 
-The production corpus is ten times the reviewed one: 300 PDFs and 20,000
-passages, which give 410 topics and 21,750 accepted questions. One drain of
-each stage takes 81 hours and costs USD 725. The 410 topics follow from
+The production corpus has 300 PDFs and 20,000 passages (ten times the reviewed
+one), which give 410 topics and 21,750 accepted questions. One drain of each
+stage takes 81 hours and costs USD 725. The 410 topics follow from
 `TOPIC_NUM_TOPICS` at 300 a language. Spending less means lowering
 `QUESTIONS_PER_TOPIC`, which scales the questions and the coverage down
 together.
