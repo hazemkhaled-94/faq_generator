@@ -181,7 +181,7 @@ facts: mean 0.190 (8,955 rows). Accepted questions: mean 0.228 (2,064 rows).
 
 Per call (median, p95, slowest): extraction 1.6, 2.8, 10.0 s; topics 0.8, 1.0,
 1.3 s; questions 0.8, 2.4, 12.6 s; evaluation 0.7, 1.0, 2.2 s.
-`LLM_TIMEOUT_SECONDS` is sized against the slowest.
+`LLM_TIMEOUT_SECONDS` is sized against the slowest call.
 
 ## Reproducing this page
 
@@ -198,7 +198,7 @@ WHERE a.run_id = 'assess-stratified-2026-10-06'
       >= a.metrics_due;
 ```
 
-Wall clock comes from the run's logs in `./logs`, the counts from the tables.
+Wall clock comes from `./logs`, counts from the tables.
 
 
 ## The evaluation phase
@@ -364,11 +364,11 @@ at least 2 set before the run, so the probe is unchanged (FIX-R55).
 
 The *Laws of the Game 2026/27* (football rules), one PDF in German (139 pages)
 and its English translation (131 pages), through every stage by v0.3.0. Not
-read by hand; [bugs.md](bugs.md#after-the-fixes) sets its figures beside the
-v0.2.2 rebuild. Writer `azure/gpt-5.4`; extractor, digest, topic labeller,
-verifier and phrasing judge `azure/gpt-4.1`. 2 h 26 min, 5,846 calls, USD
-17.93 (USD 20.93 with two discarded runs: a first extraction and a first
-release draw at `aggregation` weight 4).
+read by hand; [bugs.md](bugs.md#after-the-fixes) compares it with the v0.2.2
+rebuild. Writer `azure/gpt-5.4`; extractor, digest, topic labeller, verifier
+and phrasing judge `azure/gpt-4.1`. 2 h 26 min, 5,846 calls, USD 17.93 (USD
+20.93 with two discarded runs: a first extraction and a first release draw at
+`aggregation` weight 4).
 
 | Stage | Wall clock | Calls | Cost (USD) |
 |---|---|---|---|
@@ -403,7 +403,7 @@ no topic.
 Most common refusals (German, English): `asks_nothing_new` 59, 55;
 `not_recoverable` 54, 51; `answerable_elsewhere` 31, 43; `answer_incomplete`
 27, 34; `wrong_type` 37, 29; `answerable_after_all` 25, 31. The writer
-declined 36 slots and 10 follow-up turns. No topic failed.
+declined 36 slots and 10 follow-up turns.
 
 ### The release
 
@@ -504,7 +504,7 @@ a single passage answers whole.
 A padded question that cites a bridge keeps both passages, so the stored share
 is lower than the share the reading decides. The check adds one verifier call
 per accepted answerable needs_both question citing two passages (about USD
-0.45 to 0.5 per build). Calibration spend USD 0.79.
+0.45 to 0.5 per build).
 
 ### Bridges, the release draw, links and other replays
 
@@ -617,7 +617,7 @@ fix with the base code on a copy of the same frozen base, same topics,
 | Sanity | A baseline under 0.70 correct or 0.62 complete flags the link; re-label once by a new labeller |
 | Gate change replayed on stored rows | Every changed verdict labelled, up to 60. A loosening passes when newly admitted rows' usable share is at least the accepted baseline's minus 0.10 with at most 2 invalid per 60; a tightening when at most 35% of newly refused rows are usable |
 
-### Scoreboard, release draw and read fields
+### The offline scoreboard, base against the v0.4.3 stack
 
 | Row | v0.4.2 | v0.4.3 stack |
 |---|---|---|
@@ -626,9 +626,10 @@ fix with the base code on a copy of the same frozen base, same topics,
 | Answerable keys correct / complete | 0.8111 / 0.7264 | 0.8108 / 0.7259 |
 | Weld rate, accepted two-passage | 34/184 (0.185) | 34/183 (0.186) |
 
-The release draw of base and stack on the labelled v0.3.0 snapshot, 100 paired
-hash salts (bars: welded share at most 0.005 above the base, invalid per 100
-at most 0.5 above):
+### The release draw over 100 salts
+
+Base and stack on the labelled v0.3.0 snapshot, 100 paired hash salts (bars:
+welded share at most 0.005 above the base, invalid per 100 at most 0.5 above):
 
 | | Base (v0.4.2) | v0.4.3 stack |
 |---|---|---|
@@ -638,10 +639,11 @@ at most 0.5 above):
 | Invalid rows per 100 released | 3.30 | 3.03 (interval −0.35 to −0.18) |
 | Usable share of the release | 0.786 | 0.781 |
 
+### The read fields on 300 labelled rows
+
 Two fields of the round trip's read on 300 labelled rows (35 welds, 22
 circular reason keys, 183 usable), `azure/gpt-4.1`. Bars: each field refuses
-at least half of its labelled rows, and at most 35% of what it refuses is
-usable.
+at least half of its labelled rows, at most 35% of them usable.
 
 | Verifier version | Field | Refused | Caught | Usable among refused | Verdict |
 |---|---|---|---|---|---|
@@ -654,7 +656,7 @@ usable.
 Version 12 sits exactly at the bar. `asks_one` was withdrawn (see [the
 withdrawn items](bugs.md#tried-in-v043-and-withdrawn-with-the-reason)).
 
-### The title rule on stored rows
+### The B1 title rule on stored rows
 
 A question naming its page by a title that is also its subject was refused
 `leaks_source` by a free rule. Replayed read-only on the ten link databases:
