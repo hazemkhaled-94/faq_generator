@@ -293,7 +293,10 @@ where the links come from; a service nobody published gets no link.
 FastAPI serves its schema beside these at `GET /openapi.json`, and
 [`main.py`](main.py) serves `GET /docs` on it. That page loads Swagger UI from
 the CDN by exact version, where FastAPI's own names only the major version
-and so runs whatever was last published under it. There is no `/redoc`.
+and so runs whatever was last published under it. There is no `/redoc`. The
+schema declares `X-API-Token` on every write and every `/settings` read, so
+the page's **Authorize** takes the deployment's `API_TOKEN` and sends it on
+those; without it they answer 401.
 
 ### How one artefact was produced
 

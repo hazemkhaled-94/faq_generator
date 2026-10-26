@@ -93,3 +93,29 @@ def test_the_weights_path_is_not_written_at_run_time() -> None:
     from settings import catalog
 
     assert catalog.BY_NAME["DOCLING_ARTIFACTS_PATH"].fixed is True
+
+
+def _declared(operation: dict, schemes: dict) -> set[tuple[str, str]]:
+    """Where and under what name an operation's declared security sends a key."""
+    return {
+        (schemes[name]["in"], schemes[name]["name"])
+        for requirement in operation.get("security", [])
+        for name in requirement
+    }
+
+
+def test_the_docs_page_sends_the_secret_where_the_api_asks_for_it() -> None:
+    """Swagger's Authorize sends X-API-Token on a write and a settings read, not elsewhere."""
+    from api.main import app
+
+    document = app.openapi()
+    schemes = document["components"]["securitySchemes"]
+    paths = document["paths"]
+
+    assert _declared(paths["/documents"]["post"], schemes) == {
+        ("header", "X-API-Token")
+    }
+    assert _declared(paths["/settings/{service}"]["get"], schemes) == {
+        ("header", "X-API-Token")
+    }
+    assert _declared(paths["/documents"]["get"], schemes) == set()

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hmac
 import os
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -31,6 +32,11 @@ _READS = frozenset({"GET", "HEAD", "OPTIONS"})
 _SWAGGER_UI = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.33.3"
 
 
+def _guarded(method: str, path: str) -> bool:
+    """Whether `SharedSecret` asks a request for the secret."""
+    return method.upper() not in _READS or path.startswith("/settings")
+
+
 class SharedSecret:
     """Refuses a write, and any read of the settings, that lacks the secret.
 
@@ -46,9 +52,7 @@ class SharedSecret:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Answers 401 `unauthorized`, or hands the request on."""
-        if scope["type"] == "http" and (
-            scope["method"] not in _READS or scope["path"].startswith("/settings")
-        ):
+        if scope["type"] == "http" and _guarded(scope["method"], scope["path"]):
             secret = os.environ.get("API_TOKEN", "").encode()
             sent = Headers(scope=scope).get("x-api-token", "").encode("latin-1")
             if not secret or not hmac.compare_digest(sent, secret):
@@ -110,6 +114,27 @@ app = FastAPI(
 )
 
 errors.install(app)
+
+
+def _openapi() -> dict[str, Any]:
+    """The schema, declaring X-API-Token on what `SharedSecret` guards.
+
+    So /docs offers Authorize and sends the secret on a write and a settings
+    read; the middleware is what checks it.
+    """
+    if app.openapi_schema is None:
+        document = FastAPI.openapi(app)
+        document.setdefault("components", {})["securitySchemes"] = {
+            "APIToken": {"type": "apiKey", "in": "header", "name": "X-API-Token"}
+        }
+        for path, verbs in document["paths"].items():
+            for method, operation in verbs.items():
+                if _guarded(method, path):
+                    operation["security"] = [{"APIToken": []}]
+    return app.openapi_schema or {}
+
+
+app.openapi = _openapi
 
 
 @app.get("/docs", include_in_schema=False)
