@@ -626,7 +626,9 @@ def bridge(
                     continue
                 outages = 0
                 if not cleared:
-                    log.info("replacing %d bridge fact(s)", catalog.clear_bridges(within))
+                    log.info(
+                        "replacing %d bridge fact(s)", catalog.clear_bridges(within)
+                    )
                     cleared = True
                 try:
                     written += catalog.add_bridges(
