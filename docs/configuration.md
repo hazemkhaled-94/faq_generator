@@ -59,7 +59,8 @@ export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
 
 The Makefile builds each host address below only when `ENV_FILE` or the
 environment leaves it unset. Naming one there points a host command at a
-managed database, an object store or a collector.
+managed database, an object store or a collector. `make doctor` says for each
+which of those gave it, or that it was built from the ports.
 
 | Value | Built from | By |
 |---|---|---|

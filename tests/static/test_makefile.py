@@ -1706,3 +1706,48 @@ def test_doctor_warns_about_a_secrets_file_other_accounts_can_read() -> None:
 
     assert "readable by other accounts" in recipe
     assert "chmod 600" in recipe
+
+
+ADDRESSES = [
+    "DATABASE_URL",
+    "BACKEND_URL",
+    "S3_ENDPOINT",
+    "PHOENIX_BASE_URL",
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "ARGILLA_API_URL",
+]
+
+
+def test_doctor_says_where_each_address_came_from(tmp_path: Path) -> None:
+    """One line each: the env file, the environment, the command line, or the ports."""
+    done = probe(
+        tmp_path,
+        "$(ORIGINS)",
+        "BACKEND_URL=https://api.example.net",
+        env_text="DATABASE_URL=postgresql+psycopg://u:p@pg.example.net/ledger\n",
+        S3_ENDPOINT="https://s3.example.net",
+    )
+
+    said = dict(line.split(": ", 1) for line in done.stdout.strip().splitlines())
+    assert list(said) == ADDRESSES, done
+    assert said["DATABASE_URL"] == "scratch.env", done
+    assert said["S3_ENDPOINT"] == "the environment", done
+    assert said["BACKEND_URL"] == "the command line", done
+    for name in ADDRESSES[3:]:
+        assert said[name] == "built from the ports", done
+
+
+def test_the_origin_lines_never_print_an_address(tmp_path: Path) -> None:
+    """An address may carry a password."""
+    done = probe(
+        tmp_path,
+        "$(ORIGINS)",
+        env_text="DATABASE_URL=postgresql+psycopg://u:hunter2@pg.example.net/ledger\n",
+    )
+
+    assert "hunter2" not in done.stdout and "pg.example.net" not in done.stdout
+
+
+def test_doctor_prints_the_origins() -> None:
+    """The recipe runs them."""
+    assert "built from the ports" in "\n".join(printed("doctor"))
