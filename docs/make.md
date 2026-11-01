@@ -358,13 +358,14 @@ Track.
 
 Every target that destroys data in a database refuses unless
 `CONFIRM=<database>`, typed on the command line (an exported `CONFIRM` does
-not count), names the database the settings resolve to. The refusal says which
-database and port it would act on. The targets are `schema-down`,
+not count), names the database `DATABASE_URL` resolves to. The refusal says which
+database and port it would act on. A `DATABASE_URL` naming no database is
+refused, because libpq would take the user's namesake, the main database. The targets are `schema-down`,
 `schema-reset`, `wipe`, `wipe-all`, `delete`, `delete-derived`,
 `topics-delete`, an unnarrowed `*-rerun`, `archive-purge` with `TABLE`, `ALL`
 or `DAYS`, and the wipe's store steps `phoenix-purge`, `review-delete`,
 `logs-wipe` and `dagster-wipe`. An `APP_DB_NAME` exported in the shell beats
-`deployment.env`.
+`deployment.env`. `logs-wipe` takes every stream only under `ALL_DATABASES=1`.
 
 A deletion here is the first of two: rows are archived and objects moved to
 the `archive` bucket. `make restore-documents AT=<time>` puts them back until

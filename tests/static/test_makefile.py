@@ -1491,6 +1491,65 @@ def probe(
     )
 
 
+GUARDED = "$(call CONFIRMED,probe) && echo went-on"
+
+
+def test_the_guard_refuses_without_confirm_and_goes_on_with_it(tmp_path: Path) -> None:
+    """The control: a named database still needs its name typed."""
+    assert probe(tmp_path, GUARDED).returncode == 2
+    done = probe(tmp_path, GUARDED, "CONFIRM=qa_generator")
+    assert done.returncode == 0 and "went-on" in done.stdout, done
+
+
+@pytest.mark.parametrize("given", [("APP_DB_NAME=",), ("APP_DB_NAME=", "CONFIRM=")])
+def test_an_empty_database_name_is_refused_with_or_without_confirm(
+    tmp_path: Path, given: tuple[str, ...]
+) -> None:
+    """Both sides of the comparison were empty, so it passed and libpq took the user's namesake."""
+    done = probe(tmp_path, GUARDED, *given)
+    assert done.returncode == 2 and "REFUSED" in done.stderr, done
+    assert "went-on" not in done.stdout, done
+
+
+@pytest.mark.parametrize(
+    ("url", "confirm", "goes_on"),
+    [
+        ("postgresql+psycopg://u:p@bank.example.net:5432/ledger", "ledger", True),
+        (
+            "postgresql+psycopg://u:p@bank.example.net:5432/ledger?sslmode=require",
+            "ledger",
+            True,
+        ),
+        (
+            "postgresql+psycopg://u:p@bank.example.net:5432/ledger",
+            "qa_generator",
+            False,
+        ),
+        ("postgresql+psycopg://u:p@bank.example.net:5432/", "", False),
+        ("postgresql+psycopg://u:p@bank.example.net:5432/?sslmode=require", "", False),
+    ],
+)
+def test_the_guard_compares_confirm_with_the_database_the_url_names(
+    tmp_path: Path, url: str, confirm: str, goes_on: bool
+) -> None:
+    """APP_DB_NAME alone said nothing about a DATABASE_URL the env file brought."""
+    done = probe(
+        tmp_path, GUARDED, f"CONFIRM={confirm}", env_text=f"DATABASE_URL={url}\n"
+    )
+    assert ("went-on" in done.stdout) is goes_on, done
+    assert done.returncode == (0 if goes_on else 2), done
+
+
+def test_the_refusal_names_the_database_the_url_names(tmp_path: Path) -> None:
+    """The operator is told which name to type."""
+    done = probe(
+        tmp_path,
+        GUARDED,
+        env_text="DATABASE_URL=postgresql+psycopg://u:p@shop.example.net/orders\n",
+    )
+    assert "orders" in done.stderr and "CONFIRM=orders" in done.stderr, done
+
+
 REMOTE = {
     "DATABASE_URL": "postgresql+psycopg://u:p@pg.example.net:5432/ledger?sslmode=require",
     "S3_ENDPOINT": "https://s3.eu-central-1.example.net",

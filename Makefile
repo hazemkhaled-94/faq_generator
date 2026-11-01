@@ -179,16 +179,22 @@ STORE_DOWN = echo "$(1) is not running: not checked, and $(2) is skipped by the 
 WIPE_STEP = if $(call RUNNING,$(1)); then $(MAKE) $(2); else $(call STORE_DOWN,$(1),$(2)); fi
 
 # Names where a command acts, once the settings are loaded.
+RESOLVED_DB = db=$$(printf %s "$$DATABASE_URL" | sed -n 's|^[^:]*://[^/]*/\([^?]*\).*|\1|p')
+
 BANNER = $(LOADENV) && echo "on database $$APP_DB_NAME on localhost:$$POSTGRES_PORT" >&2
 
 # Refuses unless CONFIRM, typed on the command line (one exported in the shell
-# does not count), equals the database the settings resolve to, and
-# names the database and the port it would act on. $(1) says what is asked.
+# does not count), equals the database DATABASE_URL names once the settings
+# are loaded, and names the database and the port it would act on. A URL that
+# names none is refused too: libpq would take the user's namesake, the main
+# database. $(1) says what is asked.
 #
 #     @$(call CONFIRMED,wipe)
-CONFIRMED = $(LOADENV) && { [ "$(if $(filter command line,$(origin CONFIRM)),$(CONFIRM))" = "$$APP_DB_NAME" ] || \
-            { echo "REFUSED: $(1) acts on database $$APP_DB_NAME on localhost:$$POSTGRES_PORT." >&2; \
-              echo "  Run it again with CONFIRM=$$APP_DB_NAME to go on." >&2; exit 2; }; }
+CONFIRMED = $(LOADENV) && $(RESOLVED_DB) && \
+            { [ -n "$$db" ] || { echo "REFUSED: $(1) acts on no database: DATABASE_URL names none." >&2; exit 2; }; } && \
+            { [ "$(if $(filter command line,$(origin CONFIRM)),$(CONFIRM))" = "$$db" ] || \
+            { echo "REFUSED: $(1) acts on database $$db on localhost:$$POSTGRES_PORT." >&2; \
+              echo "  Run it again with CONFIRM=$$db to go on." >&2; exit 2; }; }
 
 # What the parse or chunk drain is given under WAIT=1, which `corpus` sets,
 # while $(1), the container worker draining the same queue, is running:
