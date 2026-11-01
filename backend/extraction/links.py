@@ -23,7 +23,7 @@ import numpy as np
 
 from database.qa_generator.passages import headings_of, trail_of
 from extraction.models import PassageToExtract
-from extraction.validation import HEADING_LABEL, label_word, numbered
+from extraction.validation import label_of, label_word, label_words, numbered
 from nlp.analysis import content, normalised, parse
 
 #: A quoted span, as two patterns by what opens it. A double mark closes at a
@@ -194,19 +194,19 @@ class _Headings:
         default_factory=lambda: defaultdict(list)
     )
     parents: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+    #: The label words each document's titled headings teach, `label_words`.
+    titled: dict[str | None, frozenset[str]] = field(default_factory=dict)
 
 
 def _headings(partners: Sequence[PassageToExtract]) -> _Headings:
     """Reads every trail: its numbered headings, its headings and their parents."""
-    read = _Headings()
+    read = _Headings(titled=label_words(partners))
     for p in partners:
         trail = _segments(p)
         plain = [_plain(s) for s in trail]
         for depth, segment in enumerate(trail):
-            if match := HEADING_LABEL.match(segment):
-                read.labels[(match.group(1).casefold(), match.group(2))].append(
-                    (depth, segment, p)
-                )
+            if label := label_of(segment, read.titled.get(p.doc_sha256, ())):
+                read.labels[label].append((depth, segment, p))
             read.headings[plain[depth]].append((segment, p))
             read.parents[plain[depth]].update(plain[:depth])
     return read
@@ -257,9 +257,9 @@ def _references(
     labels, headings, parents = index.labels, index.headings, index.parents
     for head in partners:
         own = {
-            (m.group(1).casefold(), m.group(2))
+            label
             for s in _segments(head)
-            if (m := HEADING_LABEL.match(s))
+            if (label := label_of(s, index.titled.get(head.doc_sha256, ())))
         }
         named = read[head.id].named
         for key in sorted(k for k in named if k not in own):

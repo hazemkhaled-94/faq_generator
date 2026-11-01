@@ -7,7 +7,8 @@ matrix and for what each one is protecting against.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Collection, Sequence
+from collections import defaultdict
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from functools import partial
 
@@ -100,8 +101,16 @@ def _cited_text(passage: PassageToExtract, cited: Sequence[Sentence]) -> str:
 
 
 #: One ' > ' segment of a heading trail that is a word and a number
-#: ('Section 7', 'Regel 5.1', '§ 3'): the document's own way to number a part.
-HEADING_LABEL = re.compile(r"^([^\W\d_]+|§)\s?(\d+(?:\.\d+)*)$")
+#: ('Section 7', 'Regel 5.1', '§ 3', 'Art. 5'): the document's own way to
+#: number a part. The word may end in the full stop of an abbreviation.
+HEADING_LABEL = re.compile(r"^([^\W\d_]+\.?|§)\s?(\d+(?:\.\d+)*)$")
+
+#: The same with a title after the number ('Article 17 Termination', '§ 5
+#: Kündigung', 'Section 7: Fees'). Read as a label only where the document's
+#: own headings number a series with its word, see `label_words`.
+TITLED_LABEL = re.compile(
+    r"^([^\W\d_]+\.?|§)\s?(\d+(?:\.\d+)*)(?:\s*[:.\u2013\u2014-]\s*|\s+)\S.*$"
+)
 
 #: A heading number as the documents write it ('7', '5.1').
 NUMBER = re.compile(r"\d+(?:\.\d+)*")
@@ -109,6 +118,52 @@ NUMBER = re.compile(r"\d+(?:\.\d+)*")
 #: A token holding a section number, with any subsection the tokenizer glued
 #: on after it ('7(2'): the section it names is the number before the bracket.
 _SECTION_TOKEN = re.compile(rf"({NUMBER.pattern})(?:\(.*)?")
+
+
+def label_of(
+    segment: str, words: Collection[str] | None = None
+) -> tuple[str, str] | None:
+    """The label word and the number a heading segment is, or None.
+
+    A word and a number alone is always one. With a title after the number
+    it is one only where its word is in `words`, those `label_words` learned
+    for the document; None accepts every titled form, for a caller that has
+    already chosen the segments. The word is folded to lower case and its
+    abbreviating full stop dropped.
+    """
+    text = segment.strip()
+    bare = HEADING_LABEL.match(text)
+    found = bare or TITLED_LABEL.match(text)
+    if found is None:
+        return None
+    word = found.group(1).casefold().rstrip(".")
+    if bare is None and words is not None and word not in words:
+        return None
+    return word, found.group(2)
+
+
+def label_words(
+    passages: Iterable[PassageToExtract],
+) -> dict[str | None, frozenset[str]]:
+    """The label words whose titled headings count as labels, by document.
+
+    A product or a year before its name ('iPhone 15 Pro', 'Tarif 2025
+    Privatkunden') is a title, not the document's way to number its parts. A
+    word numbers parts where its headings in one document carry two or more
+    distinct numbers and one of them is 1: 'Article 1 Scope', 'Article 2
+    Fees', 'Article 17 Termination'. Bare headings count towards the series
+    but are labels either way.
+    """
+    seen: dict[tuple[str | None, str], set[str]] = defaultdict(set)
+    for passage in passages:
+        for segment in headings_of(passage.section_path):
+            if (found := label_of(segment)) is not None:
+                seen[(passage.doc_sha256, found[0])].add(found[1])
+    series: dict[str | None, set[str]] = defaultdict(set)
+    for (document, word), numbers in seen.items():
+        if len(numbers) >= 2 and "1" in numbers:
+            series[document].add(word)
+    return {document: frozenset(words) for document, words in series.items()}
 
 
 def _section(text: str) -> str | None:
@@ -352,11 +407,12 @@ def label_word(
     lemma as written). An inflection is an ending of the language's table.
     """
     token = tokens[at]
-    forms = {token.text.casefold(), token.lemma_.casefold()}
+    # An abbreviation's full stop is no part of the word: 'Art.' is `art`.
+    forms = {token.text.casefold().rstrip("."), token.lemma_.casefold().rstrip(".")}
     if found := next((w for w in words if w in forms), None):
         return found
     if at + 1 < len(tokens) and _section(tokens[at + 1].text):
-        text = token.text.casefold()
+        text = token.text.casefold().rstrip(".")
         ends = _INFLECTIONS.get(language or "", ())
         return next(
             (w for w in words if any(text == w + end for end in ends)),
@@ -380,6 +436,9 @@ def numbered(tokens: Sequence, at: int) -> list[str]:
     found = []
     plural = "Plur" in tokens[at].morph.get("Number", [])
     nxt = at + 1
+    # The full stop of an abbreviation, 'Art. 5', is a token of its own.
+    if nxt < len(tokens) and tokens[nxt].text == "." and not tokens[at].whitespace_:
+        nxt += 1
     while nxt < len(tokens) and (number := _section(tokens[nxt].text)):
         found.append(number)
         joined = nxt + 2
@@ -423,10 +482,8 @@ def _located(judged: Judged) -> Failure | None:
     """Refuses a bridge naming the numbered heading one of its passages sits under."""
     tokens = list(pipeline(judged.language)(judged.statement))
     for label in judged.labels:
-        match = HEADING_LABEL.match(label.strip())
-        if match and _names(
-            tokens, match.group(1).casefold(), match.group(2), judged.language
-        ):
+        found = label_of(label)
+        if found and _names(tokens, found[0], found[1], judged.language):
             return (
                 Rejection.NOT_BRIDGING,
                 (
@@ -518,6 +575,7 @@ class FactChecker:
         offered: Sequence[PassageToExtract],
         candidate: CandidateFact,
         provenance: Provenance | None = None,
+        titled: Mapping[str | None, Collection[str]] | None = None,
     ) -> CheckedFact:
         """Checks one candidate drawn from a group of passages.
 
@@ -526,6 +584,9 @@ class FactChecker:
                 them. A candidate names them by position.
             candidate: What the extractor proposed.
             provenance: What produced it, recorded on the fact.
+            titled: The label words of titled headings the corpus teaches,
+                by document, as `label_words` reads them. None reads a
+                heading as a label only where it is a word and a number alone.
 
         Returns:
             The candidate as a storable fact, carrying a span in each passage
@@ -585,7 +646,7 @@ class FactChecker:
                 segment
                 for passage, _ in rested
                 for segment in headings_of(passage.section_path)
-                if HEADING_LABEL.match(segment.strip())
+                if label_of(segment, (titled or {}).get(passage.doc_sha256, ()))
             ),
             language=anchor.language,
             claims=2 if candidate.relation in _TWO_SIDED else 1,

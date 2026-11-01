@@ -317,3 +317,135 @@ def test_a_bridge_names_its_section_in_the_language_of_its_passages(
 
     assert bridged.rejection_code == Rejection.NOT_BRIDGING
     assert "(Regel 5)" in (bridged.validation_error or "")
+
+
+@pytest.mark.parametrize(
+    ("language", "statement", "path", "texts", "label_word"),
+    [
+        (
+            "en",
+            "The monthly fee is set in Article 17 of the terms.",
+            "Terms > Article 17 Termination",
+            ("A dormant card account is charged 10 EUR a year.", "A fee is set."),
+            "article",
+        ),
+        (
+            "de",
+            "Die Kündigung ist in § 5 geregelt.",
+            "AGB > § 5 Kündigung",
+            ("Ein Konto kann monatlich gekündigt werden.", "Eine Gebühr fällt an."),
+            "§",
+        ),
+        (
+            "de",
+            "Die Kündigung ist in Art. 5 geregelt.",
+            "AGB > Art. 5 Kündigung",
+            ("Ein Konto kann monatlich gekündigt werden.", "Eine Gebühr fällt an."),
+            "art",
+        ),
+    ],
+)
+def test_a_bridge_naming_a_learned_titled_heading_is_refused(
+    language, statement, path, texts, label_word
+) -> None:
+    """Where the corpus numbers its titled headings, naming one is a claim about the document."""
+    under = passage(
+        texts[0], language=language, section_path=path, id=1, doc_sha256="d"
+    )
+    other = passage(
+        texts[1], language=language, section_path="Other > Part", id=2, doc_sha256="d"
+    )
+
+    learned = Checker().bridge(statement, [under, other], titled={"d": {label_word}})
+    unlearned = Checker().bridge(statement, [under, other])
+
+    assert learned.rejection_code == Rejection.NOT_BRIDGING, learned.validation_error
+    assert unlearned.rejection_code != Rejection.NOT_BRIDGING
+
+
+def test_a_bridge_naming_a_product_is_not_refused_as_a_location() -> None:
+    """'iPhone 15' under 'iPhone 15 Pro' is a product, not a numbered section."""
+    under = passage(
+        "The handset has a 48 MP camera.",
+        language="en",
+        section_path="Phones > iPhone 15 Pro",
+        id=1,
+        doc_sha256="d",
+    )
+    other = passage(
+        "The handset has a 12 MP camera.",
+        language="en",
+        section_path="Phones > Other",
+        id=2,
+        doc_sha256="d",
+    )
+
+    judged = Checker().bridge(
+        "The iPhone 15 has a 48 MP camera.", [under, other], titled={"d": set()}
+    )
+
+    assert judged.rejection_code != Rejection.NOT_BRIDGING
+
+
+@pytest.mark.parametrize(
+    ("language", "label", "statement", "texts"),
+    [
+        (
+            "de",
+            "Art. 5",
+            "Die Gebühr für Auslandsüberweisungen steht in Art. 5.",
+            ("Eine Auslandsüberweisung kostet 1 EUR.", "Die Bank legt Gebühren fest."),
+        ),
+        (
+            "de",
+            "Nr. 3",
+            "Die Gebühr für Auslandsüberweisungen steht in Nr. 3.",
+            ("Eine Auslandsüberweisung kostet 1 EUR.", "Die Bank legt Gebühren fest."),
+        ),
+        (
+            "en",
+            "Sec. 7",
+            "The fee for a transfer abroad is set in Sec. 7.",
+            ("A transfer abroad costs 1 EUR.", "The bank sets fees for transfers."),
+        ),
+    ],
+)
+def test_a_bridge_naming_an_abbreviated_heading_label_is_refused(
+    language, label, statement, texts
+) -> None:
+    """The full stop of 'Art.' is no part of the label word: the label is read as 'Artikel 5' is."""
+    under = passage(
+        texts[0],
+        language=language,
+        section_path=f"{label} > Fees",
+        id=1,
+        doc_sha256="d",
+    )
+    other = passage(
+        texts[1],
+        language=language,
+        section_path="Accounts > Charges",
+        id=2,
+        doc_sha256="d",
+    )
+
+    judged = Checker().bridge(statement, [under, other])
+
+    assert judged.rejection_code == Rejection.NOT_BRIDGING, judged.validation_error
+
+
+@pytest.mark.parametrize(
+    ("language", "statement", "word"),
+    [
+        ("de", "Die Gebühr steht in Art. 5", "art"),
+        ("de", "Die Gebühr steht in Nr. 5.", "nr"),
+        ("en", "The fee is set in Sec. 5", "sec"),
+        ("fr", "Les frais sont fixés selon Art. 5", "art"),
+        ("el", "Η χρέωση ορίζεται στο Αρ. 5", "αρ"),
+    ],
+)
+def test_the_full_stop_of_an_abbreviated_label_word_is_read_in_any_language(
+    language, statement, word
+) -> None:
+    """The label is learned from the heading as text, so no language's table is consulted."""
+    assert _names(_read(language, statement), word, "5", language) is True

@@ -124,8 +124,8 @@ trail and the document's title. A name or number found only in an uncited
 sentence is an addition. So is a figure only the rest of the passage states,
 when the cited sentences state another of its kind: "costs EUR 2" for a cited
 "costs EUR 5". `not_bridging` also refuses a statement naming the numbered
-heading of a cited passage ("Section 7"), because that is a claim about the
-document.
+heading of a cited passage ("Section 7", "Art. 5", or "Article 17 Termination" where the document
+numbers its articles in a series), because that is a claim about the document.
 
 `unresolved_reference` refuses a pronoun or demonstrative that points outside
 the statement. A pronoun is resolved when an earlier noun outside its own
@@ -196,7 +196,11 @@ A reference outranks a sibling, and a sibling outranks a term. Each passage
 heads at most one pair, and a pair that already holds a stored bridge is not
 offered. A topic is worth `EXTRACTION_BRIDGES_PER_TOPIC` pairs on the passages
 that head them. A heading numbered before its word ("1.2 Returns") gives no
-reference link.
+reference link. A heading with a title after its number ("Article 17
+Termination", "§ 5 Kündigung") is a numbered heading only where the document's
+headings number a series with that word: two or more numbers, one of them 1.
+A product or a year before its name ("iPhone 15 Pro", "Tarif 2025 Privatkunden")
+is a title. The full stop of an abbreviation is no part of the word ("Art. 5").
 
 The model sees the pair as `[P0]` and `[P1]`, each with numbered sentences and
 its validated atomic facts, plus one line naming the link. It answers with one
