@@ -1294,6 +1294,58 @@ class TestATopicSitsWhereItsPassagesDo:
 
         assert three not in {passage for passage, _, _ in store.memberships()}
 
+    def test_a_refit_of_one_language_leaves_the_others_centroids_alone(
+        self, store
+    ) -> None:
+        """The placement is written for the fitted languages, once."""
+        from sqlalchemy import event, text
+
+        store.given_passages(de=2, en=2)
+        de_one, de_two = store.passages["de"]
+        en_one, en_two = store.passages["en"]
+        store.given_passage_vectors(
+            **{str(de_one): 0, str(de_two): 1, str(en_one): 5, str(en_two): 5}
+        )
+        both = [
+            fitting(
+                "de",
+                weights=[PassageWeight(de_one, 0, 0.9), PassageWeight(de_two, 1, 0.9)],
+            ),
+            fitting(
+                "en",
+                weights=[PassageWeight(en_one, 0, 0.9), PassageWeight(en_two, 1, 0.9)],
+            ),
+        ]
+        store.queue.replace(store.request(), both)
+        # The English passages move, as a re-embedding would move them.
+        store.given_passage_vectors(**{str(en_one): 9, str(en_two): 9})
+
+        placed: list[str] = []
+
+        def watch(connection, cursor, statement, *rest) -> None:
+            if "SET embedding" in statement:
+                placed.append(statement)
+
+        event.listen(store.engine, "before_cursor_execute", watch)
+        try:
+            store.queue.replace(store.request(), [both[0]])
+        finally:
+            event.remove(store.engine, "before_cursor_execute", watch)
+
+        with store.engine.connect() as connection:
+            english = {
+                row.topic_index: [float(one) for one in row.embedding[1:-1].split(",")]
+                for row in connection.execute(
+                    text(
+                        "SELECT topic_index, embedding::text AS embedding FROM topics "
+                        "WHERE language = 'en' AND topic_index IS NOT NULL"
+                    )
+                )
+            }
+        assert english[0][5] == pytest.approx(1.0), "English kept the centroid it had"
+        assert english[0][9] == pytest.approx(0.0)
+        assert len(placed) == 1, placed
+
     def test_a_centroid_is_a_unit_vector(self, store) -> None:
         """Normalised, so a cosine between two is a dot product.
 

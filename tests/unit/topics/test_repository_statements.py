@@ -43,3 +43,14 @@ def test_the_fit_reads_its_passages_in_document_order_not_in_id_order() -> None:
 
     sql = str(session.asked[-1][0].compile(dialect=postgresql.dialect()))
     assert sql.endswith("ORDER BY passages.doc_sha256, passages.ordinal"), sql
+
+
+def test_the_centroids_are_placed_for_the_fitted_languages_only() -> None:
+    """A refit of one language leaves every other's centroids where they are."""
+    session = _Session()
+
+    repository._place(session, ["de"])
+
+    statement, params = session.asked[0]
+    assert "t.language = ANY(:languages)" in str(statement)
+    assert params == {"languages": ["de"]}
