@@ -320,6 +320,17 @@ def test_the_stack_job_starts_compose_yaml_alone_and_runs_the_orchestrator_smoke
     assert "compose.dev.yaml" not in commands
     assert "up -d --wait" in commands
     assert "tests/smoke/test_orchestrator_queries.py" in commands
+    # The path end to end: two PDFs the golden tests hold, uploaded, then parsed
+    # and chunked by a Dagster run of the first two assets.
+    assert "tests/golden/pdfs/shopping_de.pdf" in commands
+    assert "tests/golden/pdfs/shopping_en.pdf" in commands
+    assert (
+        "dagster asset materialize" in commands
+        and "--select parsed_documents,passages" in commands
+    )
+    assert "docling-weights" in commands
+    assert (ROOT / "tests/golden/pdfs/shopping_de.pdf").exists()
+    assert (ROOT / "tests/golden/pdfs/shopping_en.pdf").exists()
     assert job["if"] == "github.event_name != 'pull_request'"
     assert (ROOT / "tests/smoke/test_orchestrator_queries.py").exists()
 

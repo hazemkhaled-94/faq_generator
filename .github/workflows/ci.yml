@@ -158,15 +158,18 @@ jobs:
   # environment. A reduced stack (Postgres, SeaweedFS, the api, the parse and
   # chunk workers and Dagster) is brought up and waited for on its health checks,
   # and the orchestrator smoke tests then send every GraphQL document to the
-  # running Dagster. Only on a push to main (the release push) and a manual
-  # run: it builds both images and starts eleven containers.
+  # running Dagster. Two PDFs are then uploaded and parsed and chunked by a
+  # Dagster run, which is what proves the path end to end. Only on a push to
+  # main (the release push) and a manual run: it builds both images and starts
+  # eleven containers.
   stack:
     name: Stack without mounts
     needs: setup
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     env:
-      COMPOSE: docker compose --env-file configs/env/deployment.env --env-file .env
+      # Not named COMPOSE, which make reads as the engine to run.
+      DC: docker compose --env-file configs/env/deployment.env --env-file .env
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
@@ -181,29 +184,69 @@ jobs:
       # every write on the placeholder `.env.example` ships.
       - run: make setup
       - name: Build the backend and orchestration images
-        run: $COMPOSE build api dagster-webserver
+        run: $DC build api dagster-webserver
       - name: Start the database and the object store
-        run: $COMPOSE up -d --wait postgres seaweedfs-s3
+        run: $DC up -d --wait postgres seaweedfs-s3
       # From the host, against the published port, before any worker starts: a
       # worker that finds no tables fails its first claim.
       - name: Apply the schema
         run: make schema
+      # Docling's weights are read offline from the `models` volume, so they are
+      # fetched into it once, from a container of the image under test.
+      - name: Fetch Docling's weights into the models volume
+        run: make COMPOSE="docker compose" CONTAINER=docker docling-weights
       - name: Start the rest, from the images alone
-        run: $COMPOSE up -d --wait api parse-worker chunk-worker dagster-webserver dagster-daemon
+        run: $DC up -d --wait api parse-worker chunk-worker dagster-webserver dagster-daemon
         env:
           COMPOSE_PROFILES: orchestrated
       - name: Send every orchestrator query to the running Dagster
-        run: poetry run pytest -m smoke tests/smoke/test_orchestrator_queries.py
+        # A skip is a failure here: that file skips when the webserver does not
+        # answer, which after `--wait` means it died.
+        run: |
+          poetry run pytest -m smoke tests/smoke/test_orchestrator_queries.py -rs | tee smoke.txt
+          ! grep -q " skipped" smoke.txt
+      # The two shopping PDFs the golden tests already hold (CC BY 4.0, see
+      # tests/golden/pdfs/ATTRIBUTION.txt), through the api's upload route.
+      - name: Upload two PDFs
+        run: |
+          token=$(sed -n 's/^API_TOKEN=//p' .env)
+          port=$(sed -n 's/^BACKEND_PORT=//p' configs/env/deployment.env)
+          for pdf in tests/golden/pdfs/shopping_de.pdf tests/golden/pdfs/shopping_en.pdf; do
+            curl -fsS -H "X-API-Token: $token" -F "file=@$pdf" "http://127.0.0.1:$port/documents"
+            echo
+          done
+      # Dagster's own run of the first two assets: each posts its stage's start
+      # to the api and waits for the worker to drain the queue, so this goes
+      # through Dagster, the api, the queue, the worker and the object store.
+      - name: Parse and chunk them through Dagster
+        run: >-
+          $DC exec -T dagster-webserver dagster asset materialize
+          --select parsed_documents,passages
+          -w /opt/dagster/dagster_home/workspace.yaml
+        env:
+          COMPOSE_PROFILES: orchestrated
+      - name: Check both documents were parsed and chunked
+        run: |
+          port=$(sed -n 's/^BACKEND_PORT=//p' configs/env/deployment.env)
+          curl -fsS "http://127.0.0.1:$port/pipeline" | python3 -c '
+          import json, sys
+          stages = {one["stage"]: one["rows"] for one in json.load(sys.stdin)["stages"]}
+          print(stages)
+          for stage, done in (("parsing", "parsed"), ("chunking", "chunked")):
+              rows = stages[stage]
+              assert rows.get(done, 0) == 2, (stage, rows)
+              assert not rows.get("failed", 0), (stage, rows)
+          '
       - name: What the containers said
         if: failure()
         run: |
-          $COMPOSE ps -a
-          $COMPOSE logs --tail=80
+          $DC ps -a
+          $DC logs --tail=80
         env:
           COMPOSE_PROFILES: orchestrated
       - name: Take the stack down
         if: always()
-        run: $COMPOSE down -v
+        run: $DC down -v
         env:
           COMPOSE_PROFILES: orchestrated
 
