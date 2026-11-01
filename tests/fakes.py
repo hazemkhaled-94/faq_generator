@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
+from typing import Any, ClassVar
 
 from botocore.exceptions import ClientError
 
@@ -256,6 +257,7 @@ class FakeDagsterSession:
         )()
 
     def _view(self, run: dict) -> dict:
+        """View."""
         return {
             "runId": run["runId"],
             "status": run["status"],
@@ -264,6 +266,7 @@ class FakeDagsterSession:
         }
 
     def _repository(self) -> dict:
+        """Repository."""
         return {
             "__typename": "Repository",
             "sensors": [
@@ -281,6 +284,7 @@ class FakeDagsterSession:
         }
 
     def _runs_or_error(self, limit=None, statuses=None) -> dict:
+        """Runs or error."""
         found = [
             r
             for r in reversed(self.runs)
@@ -289,27 +293,33 @@ class FakeDagsterSession:
         return {"__typename": "Runs", "results": [self._view(r) for r in found[:limit]]}
 
     def _State(self, limit, **_):
+        """State."""
         return {
             "runsOrError": self._runs_or_error(limit),
             "repositoryOrError": self._repository(),
         }
 
     def _Runs(self, filter, limit=None):
+        """Runs."""
         return {"runsOrError": self._runs_or_error(limit, filter.get("statuses"))}
 
     def _Triggers(self, **_):
+        """Triggers."""
         return {"repositoryOrError": self._repository()}
 
     def _Launch(self, params):
+        """Launch."""
         run = {"runId": f"run-{len(self.runs)}", "status": "STARTED"}
         self.runs.append(run)
         return {"launchRun": {"__typename": "LaunchRunSuccess", "run": self._view(run)}}
 
     def _RunStatus(self, runId):
+        """Runstatus."""
         run = next(r for r in self.runs if r["runId"] == runId)
         return {"runOrError": {"__typename": "Run", **run}}
 
     def _Terminate(self, runId, policy=None):
+        """Terminate."""
         run = next(r for r in self.runs if r["runId"] == runId)
         if run["status"] in ("SUCCESS", "FAILURE", "CANCELED"):
             one = {
@@ -327,19 +337,24 @@ class FakeDagsterSession:
         }
 
     def _switch(self, kind: str, on: bool) -> dict:
+        """Switch."""
         self.status[kind] = "RUNNING" if on else "STOPPED"
         return {"x": {"__typename": "ScheduleStateResult"}}
 
     def _StartSensor(self, selector):
+        """Startsensor."""
         return self._switch("sensor", True)
 
     def _StopSensor(self, id):
+        """Stopsensor."""
         return self._switch("sensor", False)
 
     def _StartSchedule(self, selector):
+        """Startschedule."""
         return self._switch("schedule", True)
 
     def _StopSchedule(self, id):
+        """Stopschedule."""
         return self._switch("schedule", False)
 
 
@@ -432,13 +447,17 @@ class FakePhoenixHttp:
         self.refuse_retention = False
 
     class _Answer:
+        """_Answer."""
+
         def __init__(self, body: dict | None = None, ok: bool = True) -> None:
             self._body, self.ok, self.status_code = body or {}, ok, 200 if ok else 404
 
         def json(self) -> dict:
+            """The port's json."""
             return self._body
 
         def raise_for_status(self) -> None:
+            """The port's raise for status."""
             if not self.ok:
                 raise RuntimeError(self.status_code)
 
@@ -518,3 +537,166 @@ class FakePhoenixSdk:
     def get_experiment_url(self, dataset_id, experiment_id) -> str:
         """Where it is read."""
         return f"http://traces.invalid/{dataset_id}/{experiment_id}"
+
+
+class FakeReviewTool:
+    """The `ReviewTool` port over dicts, with a reviewer who can `submit`."""
+
+    #: Which field holds the text a reviewer read, per dataset.
+    TEXT: ClassVar[dict[str, str]] = {
+        "facts": "statement",
+        "questions": "question_text",
+        "topic-labels": "label",
+    }
+
+    def __init__(self) -> None:
+        """Starts with no dataset pushed."""
+        self.shown: dict[str, dict[int, tuple[str, object]]] = {}
+        self.given: dict[str, dict[int, list[tuple[str, str | None, str]]]] = {}
+        self.checked = 0
+
+    def check(self) -> None:
+        """Counts the ask."""
+        self.checked += 1
+
+    def push(self, name, rows) -> int:
+        """Shows the rows, once each by id."""
+        held = self.shown.setdefault(name, {})
+        for row, opinion in rows:
+            held[row.id] = (getattr(row, self.TEXT[name], ""), opinion)
+        return len(list(rows))
+
+    def submit(
+        self, name: str, row_id: int, answers: dict[str, str], status: str = "submitted"
+    ) -> None:
+        """A reviewer answers."""
+        self.given.setdefault(name, {}).setdefault(row_id, []).extend(
+            (question, value, status) for question, value in answers.items()
+        )
+
+    def answered(self, name) -> set[str]:
+        """The rows with a submitted answer."""
+        return {
+            str(row_id)
+            for row_id, given in self.given.get(name, {}).items()
+            if any(status == "submitted" for *_, status in given)
+        }
+
+    def pull(self, name):
+        """Every submitted answer, or None when nothing was pushed."""
+        from datetime import UTC, datetime
+
+        from review.service import Answer
+
+        if name not in self.shown:
+            return None
+        found = []
+        for row_id, given in self.given.get(name, {}).items():
+            submitted = [(q, v) for q, v, status in given if status == "submitted"]
+            if not submitted:
+                continue
+            values: dict[str, str | None] = {}
+            disputed = False
+            for question, value in submitted:
+                if question in values and values[question] != value:
+                    disputed = True
+                values.setdefault(question, value)
+            found.append(
+                Answer(
+                    row_id,
+                    self.shown[name][row_id][0],
+                    datetime(2026, 1, 1, tzinfo=UTC),
+                    disputed,
+                    values,
+                )
+            )
+        return found
+
+    def drop(self) -> int:
+        """Deletes everything pushed."""
+        count = len(self.shown)
+        self.shown.clear()
+        self.given.clear()
+        return count
+
+
+class FakeArgilla:
+    """Argilla's client as the adapter calls it: workspaces, datasets of records, and the REST listing."""
+
+    def __init__(self) -> None:
+        """Starts with a workspace and no dataset."""
+        self.held: dict[str, FakeArgilla.Dataset] = {}
+        self.http_client = self
+        self.deleted: list[str] = []
+
+    class Workspaces:
+        """Workspaces."""
+
+        def __call__(self, name):
+            """A workspace, whatever is asked for."""
+            return object()
+
+    workspaces = Workspaces()
+
+    class Dataset:
+        """Dataset."""
+
+        def __init__(self, owner: FakeArgilla, name: str) -> None:
+            self.owner, self.name, self.id = owner, name, f"id-{name}"
+            self.logged: dict[str, Any] = {}
+            self.responses: dict[str, list] = {}
+            self.settings = type("S", (), {"fields": [], "metadata": []})()
+            self.records = self
+
+        def log(self, records) -> None:
+            """Keeps the records by id."""
+            """The port's log."""
+            for one in records:
+                self.logged[str(one.id)] = one
+
+        def __call__(self, with_responses: bool = False):
+            """The records, each with its responses."""
+            from types import SimpleNamespace
+
+            return iter(
+                SimpleNamespace(
+                    id=key,
+                    metadata=dict(one.metadata),
+                    fields=dict(one.fields),
+                    responses=self.responses.get(key, []),
+                )
+                for key, one in self.logged.items()
+            )
+
+        def delete(self) -> None:
+            """The port's delete."""
+            self.owner.deleted.append(self.name)
+            del self.owner.held[self.name]
+
+    def datasets(self, name: str = "", workspace=None):
+        """The dataset, or None."""
+        return self.held.get(name)
+
+    def make(self, name: str) -> FakeArgilla.Dataset:
+        """Creates a dataset, as the operator's first push would."""
+        return self.held.setdefault(name, FakeArgilla.Dataset(self, name))
+
+    def get(self, path: str, params=None):
+        """The records listing, with each response's time."""
+        from types import SimpleNamespace
+
+        dataset = next(d for d in self.held.values() if d.id == path.split("/")[4])
+        items = []
+        for key, one in dataset.logged.items():
+            items.append(
+                {
+                    "metadata": dict(one.metadata),
+                    "responses": [
+                        {"status": r.status, "updated_at": "2026-01-01T00:00:00"}
+                        for r in dataset.responses.get(key, [])
+                    ],
+                }
+            )
+        return SimpleNamespace(
+            raise_for_status=lambda: None, json=lambda: {"items": items}
+        )

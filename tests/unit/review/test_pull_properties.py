@@ -75,11 +75,11 @@ def _pulled(name: str, key: str, held: dict) -> Catalogs:
     catalogs = Catalogs(facts=Facts(), questions=Questions(), topics=Topics())
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(
-            "review.service.connect", lambda settings: Client(Dataset(records))
+            "review.datasets.connect", lambda settings: Client(Dataset(records))
         )
         # Only a record with a submitted answer has a time, as `_given_at` reads it.
         patch.setattr(
-            "review.service._given_at",
+            "review.datasets._given_at",
             lambda client, dataset, key: {
                 row_id: ANSWERED
                 for row_id, got in held.items()

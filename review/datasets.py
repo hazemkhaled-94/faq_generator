@@ -20,11 +20,17 @@ the answers back and the copy is disposable.
 
 from __future__ import annotations
 
+import logging
+from datetime import UTC, datetime
+
 import argilla as rg
 
+from review.config import Settings
 from review.judged import UNJUDGED, Opinion
 from review.records import FactRow, QuestionRow
 from telemetry import pipeline
+
+log = logging.getLogger(__name__)
 
 #: What the CLI takes, and what the code branches on.
 FACTS = "facts"
@@ -385,3 +391,272 @@ def question_record(row: QuestionRow, judge: Opinion = UNJUDGED) -> rg.Record:
             **({} if row.confidence is None else {"confidence": row.confidence}),
         },
     )
+
+
+# ── The Argilla adapter of `review.service.ReviewTool` ────────────────────
+#
+# Everything below is the one place the review package speaks Argilla's
+# client: opening it, its datasets, its records and their responses.
+
+
+def connect(settings: Settings) -> rg.Argilla:
+    """Opens the client and makes sure the workspace is there."""
+    client = rg.Argilla(api_url=settings.api_url, api_key=settings.api_key)
+    if client.workspaces(settings.workspace) is None:
+        log.info("creating workspace %s", settings.workspace)
+        client.workspaces.add(rg.Workspace(name=settings.workspace))
+    return client
+
+
+def check(settings: Settings) -> None:
+    """Opens the client and asks Argilla who it is, creating nothing.
+
+    Raises:
+        Exception: Whatever the client raises when the address is wrong or the
+            key is refused, which is what a preflight is for.
+    """
+    _ = rg.Argilla(api_url=settings.api_url, api_key=settings.api_key).me
+
+
+def _warn_if_stale(found: rg.Dataset, name: str) -> None:
+    """Says so when a dataset predates something the records now carry.
+
+    Argilla drops a field or a metadata term a record sets and the dataset
+    does not declare. It does not refuse the push and it does not warn: the
+    records arrive, and the part the dataset never heard of is simply not
+    there.
+
+    That is how the judge's verdict went missing the first time it was
+    pushed. The datasets had been created before the evaluation phase
+    existed, `_dataset` reuses what it finds rather than recreating it -
+    deliberately, because recreating throws away every answer not yet
+    pulled - and the push reported its records written with nothing on them.
+
+    Warned rather than fixed automatically, for the same reason: what to do
+    about it depends on whether anybody has answered. The warning counts
+    the submitted answers the dataset holds and names the pull to run
+    before deleting it in Argilla.
+    """
+    try:
+        declared = {one.name for one in found.settings.fields} | {
+            one.name for one in found.settings.metadata
+        }
+        wanted = {one.name for one in SETTINGS[name]().fields} | {
+            one.name for one in SETTINGS[name]().metadata
+        }
+        missing = sorted(wanted - declared)
+        waiting = len(answered(found)) if missing else 0
+    except Exception as unreadable:  # noqa: BLE001 - any of them means quiet
+        # Best-effort, like every other diagnostic in this repository: a
+        # warning that cannot be worked out must not fail the push it was
+        # only ever commenting on.
+        log.debug("could not compare %s against its settings: %s", name, unreadable)
+        return
+    if not missing:
+        return
+    log.warning(
+        "the Argilla dataset %s was created before %s existed, so Argilla "
+        "will DROP %s from every record this push writes. It holds %d "
+        "submitted answer(s), and deleting it loses every one not yet "
+        "pulled: run `make review-pull-%s` first, then delete the dataset "
+        "in Argilla and push again.",
+        found.name,
+        ", ".join(missing),
+        ", ".join(missing),
+        waiting,
+        "topics" if name == TOPIC_LABELS else name,
+    )
+
+
+def _dataset(client: rg.Argilla, settings: Settings, name: str) -> rg.Dataset:
+    """The dataset by that name, created on first push.
+
+    Not recreated if it is there: a dataset holds the answers given so far,
+    and a push that dropped it would throw away every verdict not yet
+    pulled. What that costs when the settings have moved on is
+    :func:`_warn_if_stale`.
+    """
+    held = dataset_name(name)
+    found = client.datasets(name=held, workspace=settings.workspace)
+    if found is not None:
+        _warn_if_stale(found, name)
+        return found
+    log.info("creating dataset %s in %s", held, settings.workspace)
+    return rg.Dataset(
+        name=held,
+        workspace=settings.workspace,
+        settings=SETTINGS[name](),
+        client=client,
+    ).create()
+
+
+#: How Argilla spells a response somebody has finished giving.
+_SUBMITTED = ("submitted", "ResponseStatus.submitted")
+
+#: Each dataset's id metadata, and the field holding the text a reviewer read.
+_KEYS = {
+    FACTS: ("fact_id", "statement"),
+    QUESTIONS: ("question_id", "question"),
+    TOPIC_LABELS: ("topic_id", "terms"),
+}
+
+#: How many records one page of Argilla's listing asks for.
+_PAGE = 256
+
+
+def _given_at(client: rg.Argilla, dataset: rg.Dataset, key: str) -> dict[int, datetime]:
+    """When each row's latest submitted answer was given, by the row's id.
+
+    Read off Argilla's REST listing: the SDK drops a response's timestamps.
+    A pull applies an answer only where every submitted one agrees, so the
+    latest is when the applied answer was last given.
+    """
+    # ponytail: a second read of the dataset beside the SDK's, so a response
+    # submitted between the two reads can be applied with the time before
+    # it. Upgrade: read answers and times from this one listing.
+    given: dict[int, datetime] = {}
+    offset = 0
+    while True:
+        page = client.http_client.get(
+            f"/api/v1/datasets/{dataset.id}/records",
+            params={"offset": offset, "limit": _PAGE, "include": ["responses"]},
+        )
+        page.raise_for_status()
+        items = page.json()["items"]
+        for item in items:
+            times = [
+                datetime.fromisoformat(one["updated_at"])
+                for one in item.get("responses") or ()
+                if one["status"] == "submitted"
+            ]
+            if times:
+                # Argilla writes UTC without an offset.
+                given[int(item["metadata"][key])] = max(
+                    one if one.tzinfo else one.replace(tzinfo=UTC) for one in times
+                )
+        if len(items) < _PAGE:
+            return given
+        offset += len(items)
+
+
+def answered(dataset) -> set[str]:
+    """The records of one dataset that already carry a submitted answer."""
+    return {
+        str(record.id)
+        for record in dataset.records(with_responses=True)
+        if any(str(one.status) in _SUBMITTED for one in record.responses)
+    }
+
+
+def _disagreed(record) -> bool:
+    """Whether two submitted answers to one question differ."""
+    said: dict[str, set] = {}
+    for response in record.responses:
+        if str(response.status) in _SUBMITTED:
+            said.setdefault(response.question_name, set()).add(response.value)
+    return any(len(values) > 1 for values in said.values())
+
+
+def _answer(record, question: str) -> str | None:
+    """What a reviewer submitted for one question, or None.
+
+    Drafts are skipped. Argilla saves one the moment a record is touched,
+    so a draft is somebody part-way through rather than a decision, and
+    writing it back would record an opinion nobody has finished having.
+    """
+    for response in record.responses:
+        if response.question_name == question and str(response.status) in _SUBMITTED:
+            return response.value
+    return None
+
+
+#: Which function turns a row into a record, per dataset.
+_BUILDERS = {
+    FACTS: fact_record,
+    QUESTIONS: question_record,
+    TOPIC_LABELS: topic_record,
+}
+
+
+class ArgillaTool:
+    """The `ReviewTool` over Argilla, from the host.
+
+    Redis is Argilla's own and nothing here speaks it.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        """Binds to Argilla's address and key. Nothing is opened until asked."""
+        self._settings = settings
+        self._opened: rg.Argilla | None = None
+
+    def _client(self) -> rg.Argilla:
+        """The client, opened once, with the workspace made."""
+        if self._opened is None:
+            self._opened = connect(self._settings)
+        return self._opened
+
+    def check(self) -> None:
+        """See `ReviewTool.check`."""
+        check(self._settings)
+
+    def answered(self, name: str) -> set[str]:
+        """See `ReviewTool.answered`."""
+        return answered(_dataset(self._client(), self._settings, name))
+
+    def push(self, name: str, rows) -> int:
+        """See `ReviewTool.push`."""
+        dataset = _dataset(self._client(), self._settings, name)
+        records = [_BUILDERS[name](row, opinion) for row, opinion in rows]
+        if not records:
+            return 0
+        dataset.records.log(records)
+        log.info(
+            "%s: %d record(s) pushed to %s", name, len(records), self._settings.api_url
+        )
+        return len(records)
+
+    def pull(self, name: str):
+        """See `ReviewTool.pull`."""
+        from review.service import Answer
+
+        client = self._client()
+        dataset = client.datasets(
+            name=dataset_name(name), workspace=self._settings.workspace
+        )
+        if dataset is None:
+            return None
+        key, text = _KEYS[name]
+        given = _given_at(client, dataset, key)
+        found = []
+        for record in dataset.records(with_responses=True):
+            row_id = int(record.metadata[key])
+            if row_id not in given:
+                continue
+            values = {
+                one.question_name: _answer(record, one.question_name)
+                for one in record.responses
+            }
+            found.append(
+                Answer(
+                    row_id=row_id,
+                    shown=str(record.fields[text]),
+                    at=given[row_id],
+                    disputed=_disagreed(record),
+                    values=values,
+                )
+            )
+        return found
+
+    def drop(self) -> int:
+        """See `ReviewTool.drop`."""
+        client = self._client()
+        deleted = 0
+        for name in NAMES:
+            held = dataset_name(name)
+            found = client.datasets(name=held, workspace=self._settings.workspace)
+            if found is None:
+                continue
+            log.info("deleting dataset %s", held)
+            found.delete()
+            deleted += 1
+        return deleted

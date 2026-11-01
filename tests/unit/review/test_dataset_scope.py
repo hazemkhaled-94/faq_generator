@@ -49,7 +49,7 @@ def test_a_pull_reads_only_its_own_database_dataset(monkeypatch) -> None:
     class Settings:
         workspace = "shared"
 
-    monkeypatch.setattr("review.service.connect", lambda settings: Client())
+    monkeypatch.setattr("review.datasets.connect", lambda settings: Client())
     use(monkeypatch, "qa_bank")
     assert pull(datasets.FACTS, Settings(), object()) == 0
     use(monkeypatch, "qa_shop")

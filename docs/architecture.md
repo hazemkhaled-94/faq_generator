@@ -229,6 +229,7 @@ today's adapter and an in-memory fake, so a new adapter passes the same suite.
 | Annotations, prompts, projects, datasets | `TraceStore` in `telemetry/evaluations.py` | `TRACE_STORE` (`phoenix`) | `PhoenixStore`: Phoenix's client and REST API | `none`: the verdicts and prompts stay in Postgres |
 | System health | `SERVICE_PROBES`, data read by `api/services.py` | `SERVICE_PROBES` (the compose stack's list) | a TCP probe of each compose host | Container Apps health state, and each managed service's own endpoint |
 | Dashboards | configuration: the provisioned datasources read `GRAFANA_DB_HOST`, `GRAFANA_DB_SSLMODE` and `GRAFANA_ELASTICSEARCH_URL` | those three | Grafana over the compose stack's Postgres and Elasticsearch | Azure Managed Grafana; the log dashboards would be rewritten in KQL |
+| Review tool | `ReviewTool` in `review/service.py`; Redis is Argilla's own and has no code binding | `REVIEW_TOOL` (`argilla`) | `ArgillaTool` in `review/datasets.py`, from the host | none native: Argilla itself on Container Apps with Azure Cache for Redis |
 | Models | `Model` in `backend/llm/client.py`, which alone imports litellm and instructor | `LLM_CLIENT` (`litellm`); the model itself is `LLM_MODEL` and the per-stage models | `Client` over litellm and instructor | Azure OpenAI or Foundry deployments, already reachable through an `azure/` model id |
 
 ## What keeps this page true

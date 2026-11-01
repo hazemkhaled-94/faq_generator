@@ -13,19 +13,82 @@ thinking rather than a decision.
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import Any
-
-import argilla as rg
+from datetime import datetime
+from typing import Any, Protocol
 
 from review import datasets
 from review.config import Settings
-from review.judged import UNJUDGED, opinions
+from review.judged import UNJUDGED, Opinion, opinions
 from review.records import ReviewRepository
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class Answer:
+    """One record somebody answered, as the tool hands it back."""
+
+    #: The database id of the row it was about.
+    row_id: int
+    #: The text the reviewer read, to see the row still reads that way.
+    shown: str
+    #: When the latest submitted answer was given.
+    at: datetime
+    #: Whether two reviewers submitted different answers to one question.
+    disputed: bool
+    #: What was submitted for each question, a draft not counting.
+    values: dict[str, str | None]
+
+
+class ReviewTool(Protocol):
+    """Where a person looks at what the models decided, and says whether they agree.
+
+    The sample, and what is done with an answer, stay above it: the database
+    decides. The tool shows rows and returns what was submitted.
+    `REVIEW_TOOL` names the adapter, and `argilla` is the only one there is.
+    """
+
+    def check(self) -> None:
+        """Asks the tool who it is, creating nothing.
+
+        Raises:
+            Exception: Whatever it raises when the address is wrong or the key
+                is refused, which is what a preflight is for.
+        """
+        ...
+
+    def answered(self, name: str) -> set[str]:
+        """The ids of the records of one dataset that carry a submitted answer."""
+        ...
+
+    def push(self, name: str, rows: Sequence[tuple[Any, Opinion]]) -> int:
+        """Shows rows, each with the machine's verdict, and returns how many were written."""
+        ...
+
+    def pull(self, name: str) -> list[Answer] | None:
+        """Every submitted answer, or None when nothing has been pushed there yet."""
+        ...
+
+    def drop(self) -> int:
+        """Deletes the datasets, answers and all, and returns how many went."""
+        ...
+
+
+def review_tool(settings: Settings) -> ReviewTool:
+    """The adapter REVIEW_TOOL names, `argilla` unless told otherwise.
+
+    Raises:
+        ValueError: If it names none that exists.
+    """
+    adapter = os.environ.get("REVIEW_TOOL", "argilla")
+    if adapter == "argilla":
+        return datasets.ArgillaTool(settings)
+    raise ValueError(
+        f"REVIEW_TOOL={adapter!r} names no adapter; the one there is is argilla"
+    )
 
 
 @dataclass(frozen=True)
@@ -53,95 +116,14 @@ class Catalogs:
     judge: Any = None
 
 
-def connect(settings: Settings) -> rg.Argilla:
-    """Opens the client and makes sure the workspace is there."""
-    client = rg.Argilla(api_url=settings.api_url, api_key=settings.api_key)
-    if client.workspaces(settings.workspace) is None:
-        log.info("creating workspace %s", settings.workspace)
-        client.workspaces.add(rg.Workspace(name=settings.workspace))
-    return client
-
-
 def check(settings: Settings) -> None:
-    """Opens the client and asks Argilla who it is, creating nothing.
+    """Asks the review tool who it is, creating nothing.
 
     Raises:
-        Exception: Whatever the client raises when the address is wrong or the
+        Exception: Whatever the tool raises when the address is wrong or the
             key is refused, which is what a preflight is for.
     """
-    _ = rg.Argilla(api_url=settings.api_url, api_key=settings.api_key).me
-
-
-def _warn_if_stale(found: rg.Dataset, name: str) -> None:
-    """Says so when a dataset predates something the records now carry.
-
-    Argilla drops a field or a metadata term a record sets and the dataset
-    does not declare. It does not refuse the push and it does not warn: the
-    records arrive, and the part the dataset never heard of is simply not
-    there.
-
-    That is how the judge's verdict went missing the first time it was
-    pushed. The datasets had been created before the evaluation phase
-    existed, `_dataset` reuses what it finds rather than recreating it -
-    deliberately, because recreating throws away every answer not yet
-    pulled - and the push reported its records written with nothing on them.
-
-    Warned rather than fixed automatically, for the same reason: what to do
-    about it depends on whether anybody has answered. The warning counts
-    the submitted answers the dataset holds and names the pull to run
-    before deleting it in Argilla.
-    """
-    try:
-        declared = {one.name for one in found.settings.fields} | {
-            one.name for one in found.settings.metadata
-        }
-        wanted = {one.name for one in datasets.SETTINGS[name]().fields} | {
-            one.name for one in datasets.SETTINGS[name]().metadata
-        }
-        missing = sorted(wanted - declared)
-        waiting = len(answered(found)) if missing else 0
-    except Exception as unreadable:  # noqa: BLE001 - any of them means quiet
-        # Best-effort, like every other diagnostic in this repository: a
-        # warning that cannot be worked out must not fail the push it was
-        # only ever commenting on.
-        log.debug("could not compare %s against its settings: %s", name, unreadable)
-        return
-    if not missing:
-        return
-    log.warning(
-        "the Argilla dataset %s was created before %s existed, so Argilla "
-        "will DROP %s from every record this push writes. It holds %d "
-        "submitted answer(s), and deleting it loses every one not yet "
-        "pulled: run `make review-pull-%s` first, then delete the dataset "
-        "in Argilla and push again.",
-        found.name,
-        ", ".join(missing),
-        ", ".join(missing),
-        waiting,
-        "topics" if name == datasets.TOPIC_LABELS else name,
-    )
-
-
-def _dataset(client: rg.Argilla, settings: Settings, name: str) -> rg.Dataset:
-    """The dataset by that name, created on first push.
-
-    Not recreated if it is there: a dataset holds the answers given so far,
-    and a push that dropped it would throw away every verdict not yet
-    pulled. What that costs when the settings have moved on is
-    :func:`_warn_if_stale`.
-    """
-    held = datasets.dataset_name(name)
-    found = client.datasets(name=held, workspace=settings.workspace)
-    if found is not None:
-        _warn_if_stale(found, name)
-        return found
-    log.info("creating dataset %s in %s", held, settings.workspace)
-    return rg.Dataset(
-        name=held,
-        workspace=settings.workspace,
-        settings=datasets.SETTINGS[name](),
-        client=client,
-    ).create()
+    review_tool(settings).check()
 
 
 def push(
@@ -168,51 +150,41 @@ def push(
     Returns:
         How many records were written.
     """
-    client = connect(settings)
-    dataset = _dataset(client, settings, name)
+    tool = review_tool(settings)
     draw = None if everything else settings.sample
 
     if name == datasets.FACTS:
-        # Less what Argilla holds an answer to, as for questions below.
-        judged = answered(dataset)
+        # Less what the tool holds an answer to, as for questions below.
+        judged = tool.answered(name)
         rows = [one for one in catalogs.facts.facts(draw) if str(one.id) not in judged]
-        said = opinions(catalogs.judge, "fact", [one.id for one in rows])
-        records = [
-            datasets.fact_record(one, said.get(one.id, UNJUDGED)) for one in rows
-        ]
+        kind = "fact"
     elif name == datasets.QUESTIONS:
         # What says a sample has nothing left to ask about this row. The
         # draw already skips one `questions.reviewed_verdict` holds; this
-        # reads Argilla as well, because the two are not the same set: a
-        # verdict submitted in the UI and not yet pulled is in Argilla and
+        # reads the tool as well, because the two are not the same set: a
+        # verdict submitted in the UI and not yet pulled is in the tool and
         # not in the column, and pushing that row again asks somebody to
         # judge it twice.
         # Never for an explicit queue: naming an id asks for that row.
-        judged = set() if ids else answered(dataset)
+        judged = set() if ids else tool.answered(name)
         rows = [
             one
             for one in catalogs.facts.questions(draw, ids)
             if str(one.id) not in judged
         ]
-        said = opinions(catalogs.judge, "question", [one.id for one in rows])
-        records = [
-            datasets.question_record(one, said.get(one.id, UNJUDGED)) for one in rows
-        ]
+        kind = "question"
     else:
         # Every topic, not a sample. A corpus has dozens, not thousands,
         # and a topic left unreviewed is one whose name nobody checked.
         rows = catalogs.topics.topics()
-        said = opinions(catalogs.judge, "topic", [one.id for one in rows])
-        records = [
-            datasets.topic_record(one, said.get(one.id, UNJUDGED)) for one in rows
-        ]
+        kind = "topic"
+    said = opinions(catalogs.judge, kind, [one.id for one in rows])
+    shown = [(one, said.get(one.id, UNJUDGED)) for one in rows]
 
-    if not records:
+    if not shown:
         log.info("%s: nothing left to review", name)
         return 0
-    dataset.records.log(records)
-    log.info("%s: %d record(s) pushed to %s", name, len(records), settings.api_url)
-    return len(records)
+    return tool.push(name, shown)
 
 
 def drop(settings: Settings) -> int:
@@ -221,7 +193,7 @@ def drop(settings: Settings) -> int:
     The facts, the topic labels and the questions, by their current names.
     A dataset under any other name in the workspace is left.
 
-    The opposite decision from :func:`_dataset`, which reuses what it finds
+    The opposite decision from a push, which reuses what it finds
     precisely so a push never throws away an answer nobody has pulled. This
     throws them away on purpose: `make wipe` deletes the corpus, and a
     dataset of facts that no longer exist is a reviewer being asked about
@@ -233,17 +205,7 @@ def drop(settings: Settings) -> int:
     Returns:
         How many datasets were deleted.
     """
-    client = connect(settings)
-    deleted = 0
-    for name in datasets.NAMES:
-        held = datasets.dataset_name(name)
-        found = client.datasets(name=held, workspace=settings.workspace)
-        if found is None:
-            continue
-        log.info("deleting dataset %s", held)
-        found.delete()
-        deleted += 1
-    return deleted
+    return review_tool(settings).drop()
 
 
 def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
@@ -252,34 +214,23 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
     Returns:
         How many rows were written.
     """
-    client = connect(settings)
-    dataset = client.datasets(
-        name=datasets.dataset_name(name), workspace=settings.workspace
-    )
-    if dataset is None:
+    submitted = review_tool(settings).pull(name)
+    if submitted is None:
         log.info("%s: no such dataset; nothing has been pushed yet", name)
         return 0
 
-    key, text = _KEYS[name]
-    given = _given_at(client, dataset, key)
-    submitted = [
-        record
-        for record in dataset.records(with_responses=True)
-        if int(record.metadata[key]) in given
-    ]
-    rows = catalogs.facts.held(name, [int(one.metadata[key]) for one in submitted])
+    rows = catalogs.facts.held(name, [one.row_id for one in submitted])
     answered, moved, later, disputed = [], 0, 0, []
-    for record in submitted:
-        row_id = int(record.metadata[key])
-        row, at = rows.get(row_id), given[row_id]
-        if row is None or row.text != record.fields[text]:
+    for one in submitted:
+        row = rows.get(one.row_id)
+        if row is None or row.text != one.shown:
             moved += 1
-        elif row.decided is not None and row.decided >= at:
+        elif row.decided is not None and row.decided >= one.at:
             later += 1
-        elif _disagreed(record):
-            disputed.append(row_id)
+        elif one.disputed:
+            disputed.append(one.row_id)
         else:
-            answered.append((row_id, record, at))
+            answered.append(one)
     if moved:
         log.warning(
             "%s: %d answer(s) skipped because the row with that id no longer "
@@ -297,7 +248,7 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
     if disputed:
         log.warning(
             "%s: %d record(s) skipped because their reviewers disagree; both "
-            "answers stay in Argilla for a person to settle: %s",
+            "answers stay in the review tool for a person to settle: %s",
             name,
             len(disputed),
             ", ".join(map(str, disputed)),
@@ -306,46 +257,49 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
     if name == datasets.FACTS:
         written = catalogs.facts.review_facts(
             [
-                (row_id, verdict, at)
-                for row_id, record, at in answered
-                if (verdict := _answer(record, "verdict")) is not None
+                (one.row_id, verdict, one.at)
+                for one in answered
+                if (verdict := one.values.get("verdict")) is not None
             ]
         )
     elif name == datasets.QUESTIONS:
         dated = [
-            (row_id, at)
-            for row_id, record, at in answered
-            if (verdict := _answer(record, "verdict")) is not None
-            and catalogs.questions.decide(row_id, verdict)
+            (one.row_id, one.at)
+            for one in answered
+            if (verdict := one.values.get("verdict")) is not None
+            and catalogs.questions.decide(one.row_id, verdict)
         ]
         catalogs.facts.date_questions(dated)
         written = len(dated)
     else:
         written = 0
         overlong: list[int] = []
-        for row_id, record, at in answered:
-            label = (_answer(record, "corrected_label") or "").strip()
+        for one in answered:
+            label = (one.values.get("corrected_label") or "").strip()
             if len(label) > LABEL_MAX:
-                overlong.append(row_id)
+                overlong.append(one.row_id)
                 continue
-            coverage = _answer(record, "in_coverage")
+            coverage = one.values.get("in_coverage")
             # Unanswered leaves the coverage as it is.
             include = None if coverage is None else coverage != "no"
             if label:
                 written += bool(
                     catalogs.topics.describe(
-                        row_id, label=label, include_in_coverage=include, at=at
+                        one.row_id,
+                        label=label,
+                        include_in_coverage=include,
+                        at=one.at,
                     )
                 )
             elif include is not None:
                 # No name keeps the topic's label and its labelled_by.
-                written += catalogs.facts.cover(row_id, include, at)
+                written += catalogs.facts.cover(one.row_id, include, one.at)
         if overlong:
             # Stored, the page would draw the name cut and a Save write it so.
             log.warning(
                 "%s: %d answer(s) skipped because the corrected name is longer "
                 "than the %d characters PATCH /topics and the Topics page take; "
-                "shorten it in Argilla and pull again: %s",
+                "shorten it and pull again: %s",
                 name,
                 len(overlong),
                 LABEL_MAX,
@@ -359,82 +313,3 @@ def pull(name: str, settings: Settings, catalogs: Catalogs) -> int:
 #: The longest topic name PATCH /topics takes, which the Topics page holds
 #: too; a static test holds it to the route's.
 LABEL_MAX = 120
-
-#: How Argilla spells a response somebody has finished giving.
-_SUBMITTED = ("submitted", "ResponseStatus.submitted")
-
-#: Each dataset's id metadata, and the field holding the text a reviewer read.
-_KEYS = {
-    datasets.FACTS: ("fact_id", "statement"),
-    datasets.QUESTIONS: ("question_id", "question"),
-    datasets.TOPIC_LABELS: ("topic_id", "terms"),
-}
-
-#: How many records one page of Argilla's listing asks for.
-_PAGE = 256
-
-
-def _given_at(client: rg.Argilla, dataset: rg.Dataset, key: str) -> dict[int, datetime]:
-    """When each row's latest submitted answer was given, by the row's id.
-
-    Read off Argilla's REST listing: the SDK drops a response's timestamps.
-    A pull applies an answer only where every submitted one agrees, so the
-    latest is when the applied answer was last given.
-    """
-    # ponytail: a second read of the dataset beside the SDK's, so a response
-    # submitted between the two reads can be applied with the time before
-    # it. Upgrade: read answers and times from this one listing.
-    given: dict[int, datetime] = {}
-    offset = 0
-    while True:
-        page = client.http_client.get(
-            f"/api/v1/datasets/{dataset.id}/records",
-            params={"offset": offset, "limit": _PAGE, "include": ["responses"]},
-        )
-        page.raise_for_status()
-        items = page.json()["items"]
-        for item in items:
-            times = [
-                datetime.fromisoformat(one["updated_at"])
-                for one in item.get("responses") or ()
-                if one["status"] == "submitted"
-            ]
-            if times:
-                # Argilla writes UTC without an offset.
-                given[int(item["metadata"][key])] = max(
-                    one if one.tzinfo else one.replace(tzinfo=UTC) for one in times
-                )
-        if len(items) < _PAGE:
-            return given
-        offset += len(items)
-
-
-def answered(dataset) -> set[str]:
-    """The records of one dataset that already carry a submitted answer."""
-    return {
-        str(record.id)
-        for record in dataset.records(with_responses=True)
-        if any(str(one.status) in _SUBMITTED for one in record.responses)
-    }
-
-
-def _disagreed(record) -> bool:
-    """Whether two submitted answers to one question differ."""
-    said: dict[str, set] = {}
-    for response in record.responses:
-        if str(response.status) in _SUBMITTED:
-            said.setdefault(response.question_name, set()).add(response.value)
-    return any(len(values) > 1 for values in said.values())
-
-
-def _answer(record, question: str) -> str | None:
-    """What a reviewer submitted for one question, or None.
-
-    Drafts are skipped. Argilla saves one the moment a record is touched,
-    so a draft is somebody part-way through rather than a decision, and
-    writing it back would record an opinion nobody has finished having.
-    """
-    for response in record.responses:
-        if response.question_name == question and str(response.status) in _SUBMITTED:
-            return response.value
-    return None

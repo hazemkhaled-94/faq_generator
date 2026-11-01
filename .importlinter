@@ -154,6 +154,7 @@ forbidden_modules =
     instructor
     phoenix
     openinference
+    argilla
 allow_indirect_imports = True
 ignore_imports =
     blob_store.s3.client -> boto3
@@ -162,3 +163,4 @@ ignore_imports =
     llm.client -> instructor
     telemetry.evaluations -> phoenix
     telemetry.traces -> openinference
+    review.datasets -> argilla

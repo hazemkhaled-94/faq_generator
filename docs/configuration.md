@@ -175,6 +175,7 @@ component](architecture.md#swapping-a-component) says what each port is.
 | `OBJECT_STORE` | `s3` | the object store adapter; `s3` is the only one there is |
 | `ORCHESTRATOR` | `dagster` | what orders the stages: `dagster`, or `none` for a deployment whose stages run some other way |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | how spans are sent to `OTEL_EXPORTER_OTLP_ENDPOINT`: `grpc`, or `http/protobuf` for a collector behind an HTTPS ingress |
+| `REVIEW_TOOL` | `argilla` | where a person reviews what the models decided; `argilla` is the only one there is |
 | `TRACE_STORE` | `phoenix` | where annotations, published prompts, projects, golden sets and trace retention go: `phoenix`, or `none` where traces live elsewhere and are sent by OTLP alone |
 | `LOG_FORMAT` | `text` | how every service writes stdout: `text`, or `json` for a platform that collects container output (`LOG_DIR` may then be empty) |
 | `LLM_CLIENT` | `litellm` | what asks the model; `litellm` is the only one there is, and reaches Azure OpenAI through an `azure/` model id |
