@@ -420,7 +420,7 @@ def ranked(facts: Iterable[SourceFact]) -> list[SourceFact]:
     neither is in one sentence of a passage.
     """
     held: dict[str, list[SourceFact]] = {}
-    for fact in sorted(facts, key=lambda one: (not one.units, one.id)):
+    for fact in sorted(facts, key=lambda one: (one.refused, not one.units, one.id)):
         held.setdefault(fact.kind, []).append(fact)
     ordered = [held[kind] for kind in _KINDS if kind in held]
     return [fact for row in zip_longest(*ordered) for fact in row if fact is not None]
@@ -515,9 +515,12 @@ class Deal:
         order = interleaved(by_passage(facts), wanted)
         # A passage quoting another with parts elided is the worse source of
         # the two, so it is dealt only once the rest have been.
-        self._order = [one for one in order if not derivative(one[0])] + [
-            one for one in order if derivative(one[0])
-        ]
+        # The same goes for a passage whose every fact was refused by a gate
+        # no wording can pass: a rerun deals what was not tried before it.
+        self._order = sorted(
+            order,
+            key=lambda one: (derivative(one[0]), all(fact.refused for fact in one)),
+        )
         self._bridges = interleaved(by_passage(bridges))
         #: Every passage this topic can offer, by id. `widen` reaches a
         #: passage by name rather than by turn, and a bridge's passages are

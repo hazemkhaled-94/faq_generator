@@ -25,6 +25,7 @@ from database.qa_generator import (
     PassageTopic,
     Question,
     QuestionFact,
+    QuestionRejection,
     QuestionStatus,
     ReviewVerdict,
     Status,
@@ -76,6 +77,34 @@ _ALREADY_ASKED = (
     select(QuestionFact.fact_id)
     .join(Question, Question.id == QuestionFact.question_id)
     .where(QuestionFact.fact_id == Fact.id, Question.status == QuestionStatus.ACCEPTED)
+    .exists()
+)
+
+
+#: The codes of a gate that reads the draft's own words and nothing the
+#: slot's type asks for: another draft of the same fact fails it the same
+#: way. A type or form gate is left out, as a fact refused as one kind of
+#: question may answer another.
+_REFUSED_BY = (
+    QuestionRejection.MALFORMED,
+    QuestionRejection.COMPOUND,
+    QuestionRejection.LEAKS_SOURCE,
+    QuestionRejection.RESTATES_QUESTION,
+    QuestionRejection.EXPLANATION_UNUSABLE,
+    QuestionRejection.OFF_TOPIC,
+)
+
+#: A fact some draft was written from and one of those gates refused. A rerun
+#: deals it after the facts no gate has refused, so the same drafts are not
+#: paid for again.
+_ALREADY_REFUSED = (
+    select(QuestionFact.fact_id)
+    .join(Question, Question.id == QuestionFact.question_id)
+    .where(
+        QuestionFact.fact_id == Fact.id,
+        Question.status == QuestionStatus.REJECTED,
+        Question.rejected_reason.in_(_REFUSED_BY),
+    )
     .exists()
 )
 
@@ -183,6 +212,7 @@ _SOURCE = (
         Fact.units_statement,
         Fact.embedding,
         Fact.evidence_text,
+        _ALREADY_REFUSED.label("refused"),
     )
     .select_from(Fact)
     .join(FactPassage, (FactPassage.fact_id == Fact.id) & (FactPassage.position == 0))
@@ -284,6 +314,7 @@ def _fact(row: Any, resting: tuple[SourcePassage, ...]) -> SourceFact:
         units=tuple(row.units_statement or ()),
         embedding=_vector(row.embedding),
         evidence=row.evidence_text or "",
+        refused=row.refused,
     )
 
 
@@ -398,11 +429,23 @@ class QuestionQueue(RowQueue):
         )
         if claimed is None:
             return None
+        with self._session() as session:
+            asked = session.scalar(
+                select(func.count(QuestionFact.question_id.distinct()))
+                .join(
+                    FactPassage,
+                    (FactPassage.fact_id == QuestionFact.fact_id)
+                    & (FactPassage.position == 0),
+                )
+                .join(DOMINANT, DOMINANT.c.passage_id == FactPassage.passage_id)
+                .where(DOMINANT.c.topic_id == claimed.id)
+            )
         return TopicToCover(
             id=claimed.id,
             language=claimed.language,
             label=claimed.label,
             include_in_coverage=claimed.include_in_coverage,
+            asked=asked or 0,
         )
 
     def facts(self, topic_id: int) -> list[SourceFact]:
