@@ -414,10 +414,25 @@ def test_opposite_signs_are_different_numbers_for_the_dedup_gate(
             "Das Konto hat einen Zinssatz von 0,5 % pro Jahr.",
             "Das Konto hat einen Zinssatz von -0,5 % pro Jahr.",
         ),
+        (
+            "en",
+            "The savings account pays 2½ % interest a year.",
+            "The savings account pays 2¼ % interest a year.",
+        ),
+        (
+            "de",
+            "Das Sparkonto bringt 2½ % Zinsen pro Jahr.",
+            "Das Sparkonto bringt 2¼ % Zinsen pro Jahr.",
+        ),
+        (
+            "en",
+            "Express delivery takes 1½ days.",
+            "Express delivery takes 1¾ days.",
+        ),
     ],
 )
-def test_a_flipped_sign_is_refused(lang, text, fact):
-    """The sign is part of the figure the passage states."""
+def test_a_flipped_sign_or_another_fraction_is_refused(lang, text, fact):
+    """The sign and the fraction are part of the figure the passage states."""
     must_refuse(lang, text, fact)
 
 
@@ -426,8 +441,26 @@ def test_a_flipped_sign_is_refused(lang, text, fact):
     [
         ("en", "The account pays an interest rate of -0.5 % a year."),
         ("de", "Das Konto hat einen Zinssatz von -0,5 % pro Jahr."),
+        ("en", "The savings account pays 2½ % interest a year."),
+        ("de", "Das Sparkonto bringt 2½ % Zinsen pro Jahr."),
     ],
 )
-def test_a_statement_keeping_its_sign_validates(lang, text):
+def test_a_statement_keeping_its_sign_or_fraction_validates(lang, text):
     """The restated figure is the cited one."""
     must_validate(lang, text)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "twin"),
+    [
+        ("en", "Express delivery takes 1½ days.", "Express delivery takes 1¾ days."),
+        ("de", "Die Lieferung dauert 1½ Tage.", "Die Lieferung dauert 1¾ Tage."),
+        ("fr", "La livraison prend 1½ jours.", "La livraison prend 1¾ jours."),
+        ("el", "Η παράδοση διαρκεί 1½ ημέρες.", "Η παράδοση διαρκεί 1¾ ημέρες."),
+    ],
+)
+def test_another_fraction_is_another_number_for_the_dedup_gate(lang, text, twin):
+    """The two fractions are two numbers, so the statements are no twins."""
+    from extraction.service import _counted_alike
+
+    assert not _counted_alike(text, twin, lang)

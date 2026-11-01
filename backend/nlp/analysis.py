@@ -655,6 +655,7 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
 #: letters make the digits a number word, which states no figure.
 _FIGURE_TOKEN = re.compile(
     r"[+±−-]?\(?\d{1,3}(?:['’]\d{3})*[\d.,:/()– -]*(?:(?<=\d)[^\W\d_]{1,4})?%?"
+    r"|[\u00bc-\u00be\u2150-\u215e]"
 )
 
 
@@ -1103,6 +1104,28 @@ _DIGITS = re.compile(
     r"(?:(?<!\S)[-−])?\d+(?:['’]\d{3}(?!\d))*(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)*"
 )
 
+#: A vulgar fraction, with the digits it follows: `2½`, `¾`. Unicode names the
+#: set and each value, so no language is read here.
+_VULGAR = re.compile(r"(\d+)?([\u00bc-\u00be\u2150-\u215e])")
+
+
+def _fractions(token: str) -> tuple[list[str], str]:
+    """The values of the vulgar fractions a token writes, and the token without them.
+
+    `2½` is 2.5 and a lone `¾` is 0.75, each as the string `_value` gives a
+    figure of that value. Language-free: a value cannot be mistaken for a
+    thousands group here, as `figures` would take `2.125` in German.
+    """
+    values = []
+
+    def fold(found: re.Match[str]) -> str:
+        total = int(found[1] or 0) + unicodedata.numeric(found[2])
+        values.append(str(int(total)) if total == int(total) else repr(total))
+        return " "
+
+    return values, _VULGAR.sub(fold, token)
+
+
 #: The zeros a run of digits opens with, which are no part of its value.
 _PADDING = re.compile(r"^0+(?=\d)")
 
@@ -1246,9 +1269,11 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
     spoken = _spoken(document)
     found: list[str] = []
     for token in document:
-        if digits := _DIGITS.findall(token.text):
+        fractions, rest = _fractions(token.text)
+        found += fractions
+        if digits := _DIGITS.findall(rest):
             found += [_value(one, document.lang_) for one in digits]
-        elif spoken.get(token.i):
+        elif spoken.get(token.i) and not fractions:
             found.append(str(spoken[token.i]))
     return tuple(sorted(found))
 
@@ -1262,7 +1287,9 @@ def numerals(text: str, language: str | None) -> frozenset[str]:
     document = _read(text, language)
     found: set[str] = set()
     for token in document:
-        if digits := _DIGITS.findall(token.text):
+        fractions, rest = _fractions(token.text)
+        found.update(fractions)
+        if digits := _DIGITS.findall(rest):
             found.update(
                 _PADDING.sub("", _value(one, document.lang_)) for one in digits
             )

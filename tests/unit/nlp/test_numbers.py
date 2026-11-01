@@ -331,3 +331,22 @@ def test_figures_keep_the_sign_a_number_has() -> None:
 
     assert figures("a rate of -0.5 % and 5-7 days", "en") == [-0.5, 5.0, 7.0]
     assert figures("ein Zins von −0,5 % und 1.234,5", "de") == [-0.5, 1234.5]
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "value"),
+    [
+        ("The account pays 2½ % interest.", "en", ("2.5",)),
+        ("Das Sparkonto bringt 2¼ % Zinsen.", "de", ("2.25",)),
+        ("Delivery takes ¾ of a day.", "en", ("0.75",)),
+        ("Die Lieferung dauert 1⅛ Tage.", "de", ("1.125",)),
+        ("Le compte rapporte 2½ % par an.", "fr", ("2.5",)),
+        ("Ο λογαριασμός αποδίδει 2½ % ετησίως.", "el", ("2.5",)),
+    ],
+)
+def test_a_vulgar_fraction_reads_as_its_value(text, language, value) -> None:
+    """A fraction after digits adds to them, and alone is its own value."""
+    from nlp.analysis import numbers, numerals
+
+    assert numbers(text, language) == value
+    assert numerals(text, language) == frozenset(value)

@@ -780,7 +780,9 @@ def _kind_of(tokens: Sequence, at: int, language: str | None) -> str | None:
     """
     token = tokens[at]
     if any(one.isdigit() for one in token.text) and (
-        attached := re.sub(r"[\d.,:/\s()+\-−±]+", "", token.text)
+        attached := re.sub(
+            r"[\d.,:/\s()+\-−±\u00bc-\u00be\u2150-\u215e]+", "", token.text
+        )
     ):
         return _named_kind(attached, language) or attached.casefold()
     ahead = at + 1
