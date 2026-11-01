@@ -122,3 +122,47 @@ def test_the_makefile_names_the_override_on_the_development_profile_only() -> No
 
     assert "compose.dev.yaml" not in go_live
     assert "-f compose.yaml -f compose.dev.yaml" in development
+
+
+@pytest.mark.parametrize("name", ["dagster-webserver", "dagster-daemon"])
+def test_a_dagster_container_starts_over_a_volume_holding_root_owned_config(
+    name: str, tmp_path: Path
+) -> None:
+    """An old dagster_home holds the two files from the bind mounts, not writable by the app user.
+
+    Overwriting such a file fails, unlinking it does not (the directory is the
+    app user's), so the start removes before it copies. Run here against a
+    read-only file standing in for the root-owned one.
+    """
+    import subprocess
+
+    script = BASE[name]["command"][2].replace("$$", "$")
+    copy = script.split(" && exec ", 1)[0]
+    config, home = tmp_path / "config", tmp_path / "home"
+    config.mkdir()
+    home.mkdir()
+    (config / "dagster.yaml").write_text("new instance\n")
+    (config / "workspace.yaml").write_text("new workspace\n")
+    for held in ("dagster.yaml", "workspace.yaml"):
+        (home / held).write_text("left by a mount\n")
+        (home / held).chmod(0o444)
+    copy = copy.replace("/opt/dagster/config", str(config))
+
+    ran = subprocess.run(
+        ["sh", "-c", copy],
+        env={"DAGSTER_HOME": str(home), "PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert ran.returncode == 0, ran.stderr
+    assert (home / "dagster.yaml").read_text() == "new instance\n"
+    assert (home / "workspace.yaml").read_text() == "new workspace\n"
+
+
+def test_the_health_checks_that_need_a_shell_have_one() -> None:
+    """Phoenix is distroless and so uses the exec form; filebeat's reads its config as its command does."""
+    phoenix = BASE["phoenix"]["healthcheck"]["test"]
+    assert phoenix[0] == "CMD" and phoenix[1].startswith("/")
+    assert "--strict.perms=false" in BASE["filebeat"]["healthcheck"]["test"][1]
