@@ -74,6 +74,13 @@ def test_grafana_opens_the_run_dashboard_narrowed_to_this_run() -> None:
     assert "http://localhost:3001/d/qa-pipeline-runs/?var-run=full-20260922" in grafana
 
 
+def test_a_run_id_with_a_space_or_a_bracket_is_quoted_in_the_link() -> None:
+    """A row's run id is data: it must not end the link it is written into."""
+    (grafana, *_) = elsewhere(chain(run="x) [y](z a"), PUBLISHED)
+
+    assert "?var-run=x%29%20%5By%5D%28z%20a)" in grafana
+
+
 def test_a_row_naming_no_run_still_links_to_grafana() -> None:
     """Every row written before run_id existed carries NULL and cannot."""
     (grafana, *_) = elsewhere(chain(run=None), PUBLISHED)

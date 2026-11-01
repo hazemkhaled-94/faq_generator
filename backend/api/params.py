@@ -58,7 +58,12 @@ NO_NUL = r"^[^\x00]*$"
 NAME_MAX = 80
 
 #: The run a verb's queued rows are stamped with, which each of them stores.
-RunName = Annotated[str | None, Query(max_length=NAME_MAX, pattern=NO_NUL)]
+#: Written into links on the pages, so the characters a link could be broken
+#: with are refused: Dagster's own ids and every name `RUN_ID` is given are
+#: letters, digits and `._:-`.
+RunName = Annotated[
+    str | None, Query(min_length=1, max_length=NAME_MAX, pattern=r"^[A-Za-z0-9._:-]+$")
+]
 
 SearchText = Annotated[
     str | None,

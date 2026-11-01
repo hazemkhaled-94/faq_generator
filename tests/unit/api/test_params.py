@@ -66,3 +66,29 @@ def test_a_free_text_parameter_refuses_a_nul(route, name) -> None:
     pattern = bounds(route, name).get("pattern")
 
     assert isinstance(pattern, str) and "\\x00" in pattern
+
+
+@pytest.mark.parametrize(
+    "run",
+    ["full-20260922", "9f1c2a7e-4b3d-4e0a-8c55-0d6e1a2b3c4d", "nightly:2026-11-01.2"],
+)
+def test_a_run_name_a_run_id_can_be_is_taken(run: str) -> None:
+    """Dagster's uuids and the names `RUN_ID` is given."""
+    from pydantic import TypeAdapter
+
+    from api.params import RunName
+
+    assert TypeAdapter(RunName).validate_python(run) == run
+
+
+@pytest.mark.parametrize(
+    "run", ["x) [y](z", "a b", "a/b", "a?b", "a#b", "é", "α", "a" * 81, ""]
+)
+def test_a_run_name_that_could_break_a_link_is_refused(run: str) -> None:
+    """The run id is written into links, so it holds no space, bracket, slash or quote."""
+    from pydantic import TypeAdapter, ValidationError
+
+    from api.params import RunName
+
+    with pytest.raises(ValidationError):
+        TypeAdapter(RunName).validate_python(run)
