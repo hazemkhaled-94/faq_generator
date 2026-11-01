@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 
 from extraction.repository import PassageQueue
@@ -798,6 +800,7 @@ class _Emptied:
         """Holds the counts each poll reads, the last one standing."""
         self.polls = list(polls)
         self.read = 0
+        self.lease = timedelta(hours=1)
 
     def counts_by_status(self, within=None) -> dict:
         """The next poll's counts."""
@@ -882,6 +885,42 @@ def test_a_wait_told_to_stop_exits_75(monkeypatch, _signals) -> None:
             return {Status.IN_PROGRESS: 1}
 
     assert _wait(monkeypatch, _Busy({})) == cli.STOPPED
+
+
+def test_a_wait_on_a_worker_that_is_not_draining_stops_after_the_lease(
+    caplog,
+) -> None:
+    """Pending rows that never move and nothing in progress: exit 75, naming the worker."""
+    from database.qa_generator import Status
+    from stages import cli
+
+    queue = _Emptied({Status.PENDING: 5})
+    queue.lease = timedelta(minutes=5)
+    clock = iter(range(0, 10_000, 60))
+
+    with caplog.at_level("INFO"):
+        code = cli.wait_for_worker(
+            "parsing", queue, 0.0, clock=lambda: float(next(clock))
+        )
+
+    assert code == cli.STOPPED
+    assert any("not draining" in r.getMessage() for r in caplog.records)
+    assert queue.read < 40
+
+
+def test_a_wait_on_a_worker_with_a_row_in_progress_does_not_give_up() -> None:
+    """A long row holds the count still, but it is being worked."""
+    from database.qa_generator import Status
+    from stages import cli
+
+    queue = _Emptied({Status.PENDING: 5, Status.IN_PROGRESS: 1}, {Status.PARSED: 6})
+    queue.lease = timedelta(minutes=5)
+    clock = iter(range(0, 100_000, 400))
+
+    assert (
+        cli.wait_for_worker("parsing", queue, 0.0, clock=lambda: float(next(clock)))
+        == 0
+    )
 
 
 def test_a_wait_that_does_not_move_is_said_every_five_minutes(

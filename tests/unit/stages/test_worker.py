@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import signal
+import time
 from typing import Any
 
 import pytest
@@ -159,12 +160,40 @@ def test_one_signal_lets_the_row_finish_and_gives_nothing_back() -> None:
     leaving.shutdown.done()
 
 
-def test_a_second_signal_gives_the_held_row_back_and_leaves() -> None:
-    """Nobody is waiting any longer: the row goes back to pending."""
-    leaving = _Leaving()
+def _signals_apart(monkeypatch, seconds: float) -> _Leaving:
+    """Sends two SIGTERMs `seconds` apart on a fake clock."""
+    from stages import worker
 
+    now = {"t": 100.0}
+    monkeypatch.setattr(worker.time, "monotonic", lambda: now["t"])
+    leaving = _Leaving()
     leaving.shutdown._request(signal.SIGTERM, None)
+    now["t"] += seconds
     leaving.shutdown._request(signal.SIGTERM, None)
+    return leaving
+
+
+def test_a_repeat_signal_ten_milliseconds_later_is_the_same_stop(monkeypatch) -> None:
+    """A supervisor and its shell both signal: the held row still finishes."""
+    leaving = _signals_apart(monkeypatch, 0.01)
+    time.sleep(0.1)
+
+    assert leaving.events == []
+    leaving.shutdown.done()
+
+
+def test_a_repeat_inside_the_window_is_the_same_stop(monkeypatch) -> None:
+    """1.6 s after the first signal is still one stop."""
+    leaving = _signals_apart(monkeypatch, 1.6)
+    time.sleep(0.1)
+
+    assert leaving.events == []
+    leaving.shutdown.done()
+
+
+def test_a_second_signal_gives_the_held_row_back_and_leaves(monkeypatch) -> None:
+    """Nobody is waiting any longer: 2.4 s later the row goes back to pending."""
+    leaving = _signals_apart(monkeypatch, 2.4)
     leaving.wait()
 
     assert leaving.events == ["given back", ("left", 75)]
@@ -194,8 +223,12 @@ def test_a_worker_that_finishes_in_time_never_gives_anything_back() -> None:
     assert leaving.events == []
 
 
-def test_a_row_that_cannot_be_given_back_is_left_to_its_lease() -> None:
+def test_a_row_that_cannot_be_given_back_is_left_to_its_lease(monkeypatch) -> None:
     """The worker still leaves, and says so."""
+    from stages import worker
+
+    now = {"t": 0.0}
+    monkeypatch.setattr(worker.time, "monotonic", lambda: now["t"])
     events: list[object] = []
 
     def refuse() -> None:
@@ -205,7 +238,8 @@ def test_a_row_that_cannot_be_given_back_is_left_to_its_lease() -> None:
     shutdown = Shutdown(60.0, refuse, lambda code: events.append(code))
     shutdown._request(signal.SIGTERM, None)
     shutdown._request(signal.SIGTERM, None)
-    import time
+    now["t"] += 3.0
+    shutdown._request(signal.SIGTERM, None)
 
     for _ in range(200):
         if events:

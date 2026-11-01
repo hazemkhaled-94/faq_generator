@@ -11,6 +11,7 @@ import logging
 import os
 import signal
 import threading
+import time
 from collections.abc import Callable
 from types import FrameType
 
@@ -25,6 +26,10 @@ log = logging.getLogger(__name__)
 #: being killed in progress and failed by the next start.
 GRACE_SECONDS = {"parsing": 90.0, "chunking": 90.0}
 DEFAULT_GRACE_SECONDS = 270.0
+
+#: A second signal this soon after the first is the same stop arriving twice
+#: (a supervisor and its shell, or a process group), not somebody giving up.
+SAME_STOP_SECONDS = 2.0
 
 #: What `stop_grace_period` in compose.yaml must be above the grace: the time
 #: to give the row back and exit. A static test holds the two together.
@@ -57,6 +62,7 @@ class Shutdown:
         self._give_back = give_back
         self._leave = leave
         self._timer: threading.Timer | None = None
+        self._first_at = 0.0
 
     def install(self) -> Shutdown:
         """Catches the signals a supervisor stops a container with."""
@@ -65,16 +71,22 @@ class Shutdown:
         return self
 
     def _request(self, number: int, frame: FrameType | None) -> None:
-        """Records the request; a second one, or the grace running out, ends it.
+        """Records the request; a later second one, or the grace running out, ends it.
 
         The first signal stops the worker claiming and lets the row finish. A
-        second signal says nobody is waiting any longer, and `grace` seconds
-        after the first is when the supervisor stops waiting: either way the
-        held row goes back to the queue and the worker leaves, rather than
-        being killed holding a row nothing will retry.
+        repeat within `SAME_STOP_SECONDS` is the same stop and changes nothing.
+        A later second signal says nobody is waiting any longer, and `grace`
+        seconds after the first is when the supervisor stops waiting: either
+        way the held row goes back to the queue and the worker leaves, rather
+        than being killed holding a row nothing will retry.
         """
         del frame
         if self._event.is_set():
+            if time.monotonic() - self._first_at < SAME_STOP_SECONDS:
+                log.info(
+                    "%s received again: the same stop", signal.Signals(number).name
+                )
+                return
             log.warning("%s received again", signal.Signals(number).name)
             self._leaving("asked twice")
             return
@@ -84,6 +96,7 @@ class Shutdown:
             signal.Signals(number).name,
             self._grace,
         )
+        self._first_at = time.monotonic()
         self._event.set()
         self._timer = threading.Timer(self._grace, self._leaving, ["out of time"])
         self._timer.daemon = True
