@@ -789,6 +789,28 @@ def test_the_papers_scores_are_kept_and_taken_back_out(spare: str) -> None:
     assert sql(spare, held) == [("relevance",), ("rubric_clarity",)]
 
 
+def test_taking_the_papers_scores_out_archives_none_of_them(spare: str) -> None:
+    """Archived, they would be restored into a table whose CHECK refuses them."""
+    from alembic import command
+
+    config = alembic(spare)
+    command.upgrade(config, "head")
+    sql(
+        spare,
+        "INSERT INTO questions (id, question_text, answerable, language) "
+        "VALUES (1, 'One?', true, 'en')",
+        "INSERT INTO assessments (id, artifact_kind, question_id) "
+        "VALUES (1, 'question', 1)",
+        "INSERT INTO assessment_metrics (assessment_id, metric, label, score, "
+        "approved) VALUES (1, 'relevance', 'relevant', 1.0, true), "
+        "(1, 'rubric_fluency', '3', 1.0, true)",
+    )
+
+    command.downgrade(config, THREADED)
+
+    assert sql(spare, "SELECT payload->>'metric' FROM archived_rows") == []
+
+
 def test_a_fact_takes_the_language_of_its_first_citation(spare: str) -> None:
     """The passage's own, the document's where it has none, and NULL where neither.
 

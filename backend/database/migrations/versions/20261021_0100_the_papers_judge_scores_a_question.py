@@ -85,7 +85,16 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Deletes the rubric's rows and puts back the seven-name CHECK and comment."""
+    # Not archived: a restore would put back rows the narrower CHECK refuses.
+    # The trigger is off for the delete and not told to skip, so this holds
+    # whichever version of the archive function a later downgrade left.
+    op.execute(
+        "ALTER TABLE assessment_metrics DISABLE TRIGGER assessment_metrics_archive_deleted_row"
+    )
     op.execute("DELETE FROM assessment_metrics WHERE starts_with(metric, 'rubric_')")
+    op.execute(
+        "ALTER TABLE assessment_metrics ENABLE TRIGGER assessment_metrics_archive_deleted_row"
+    )
     op.drop_constraint(_CHECK, "assessment_metrics", type_="check")
     op.create_check_constraint(_CHECK, "assessment_metrics", _names(_PHOENIX))
     _comment(_BEFORE, _NOW)
