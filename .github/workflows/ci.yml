@@ -153,6 +153,60 @@ jobs:
       - run: cp .env.example .env
       - run: make test-smoke
 
+  # The deployment as a platform starts it: compose.yaml alone, with none of the
+  # checkout mounted, so every image runs from its own files and the
+  # environment. A reduced stack (Postgres, SeaweedFS, the api, the parse and
+  # chunk workers and Dagster) is brought up and waited for on its health checks,
+  # and the orchestrator smoke tests then send every GraphQL document to the
+  # running Dagster. Only on a push to main (the release push) and a manual
+  # run: it builds both images and starts eleven containers.
+  stack:
+    name: Stack without mounts
+    needs: setup
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    env:
+      COMPOSE: docker compose --env-file configs/env/deployment.env --env-file .env
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      # The backend image is torch-sized and a runner has about 14 GB free.
+      - name: Make room for the images
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /
+
+      - uses: ./.github/actions/setup
+      # Generated secrets, as an operator's first run has them: the api refuses
+      # every write on the placeholder `.env.example` ships.
+      - run: make setup
+      - name: Build the backend and orchestration images
+        run: $COMPOSE build api dagster-webserver
+      - name: Start the database and the object store
+        run: $COMPOSE up -d --wait postgres seaweedfs-s3
+      # From the host, against the published port, before any worker starts: a
+      # worker that finds no tables fails its first claim.
+      - name: Apply the schema
+        run: make schema
+      - name: Start the rest, from the images alone
+        run: $COMPOSE up -d --wait api parse-worker chunk-worker dagster-webserver dagster-daemon
+        env:
+          COMPOSE_PROFILES: orchestrated
+      - name: Send every orchestrator query to the running Dagster
+        run: poetry run pytest -m smoke tests/smoke/test_orchestrator_queries.py
+      - name: What the containers said
+        if: failure()
+        run: |
+          $COMPOSE ps -a
+          $COMPOSE logs --tail=80
+        env:
+          COMPOSE_PROFILES: orchestrated
+      - name: Take the stack down
+        if: always()
+        run: $COMPOSE down -v
+        env:
+          COMPOSE_PROFILES: orchestrated
+
   # The two halves put together. Neither job covers the other's: the
   # repositories are the integration layer's and the gates are the unit
   # layer's, so a threshold against either alone is against the wrong
@@ -185,7 +239,7 @@ jobs:
   gate:
     name: All gates
     if: always()
-    needs: [setup, static, unit, integration, smoke, coverage]
+    needs: [setup, static, unit, integration, smoke, stack, coverage]
     runs-on: ubuntu-24.04
     steps:
       - name: Report which gates did not pass
@@ -195,10 +249,12 @@ jobs:
           echo "unit:        ${{ needs.unit.result }}"
           echo "integration: ${{ needs.integration.result }}"
           echo "smoke:       ${{ needs.smoke.result }}"
+          echo "stack:       ${{ needs.stack.result }}"
           echo "coverage:    ${{ needs.coverage.result }}"
           [ "${{ needs.setup.result }}" = "success" ] \
             && [ "${{ needs.static.result }}" = "success" ] \
             && [ "${{ needs.unit.result }}" = "success" ] \
             && [ "${{ needs.integration.result }}" = "success" ] \
             && [ "${{ needs.smoke.result }}" = "success" ] \
+            && { [ "${{ needs.stack.result }}" = "success" ] || [ "${{ needs.stack.result }}" = "skipped" ]; } \
             && [ "${{ needs.coverage.result }}" = "success" ]

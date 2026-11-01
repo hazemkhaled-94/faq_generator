@@ -307,3 +307,27 @@ def test_the_weights_job_caches_docling_by_its_version_and_keeps_a_failed_conver
     assert kept and kept[0]["if"] == "failure()"
     assert kept[0]["with"]["path"] == "tests/golden/snapshots"
     assert steps.index(refresh[0]) < steps.index(kept[0])
+
+
+def test_the_stack_job_starts_compose_yaml_alone_and_runs_the_orchestrator_smoke_tests() -> (
+    None
+):
+    """C-104's CI half: images without mounts, then the queries against a live Dagster."""
+    ci = loaded(ROOT / ".github/workflows/ci.yml")
+    job = ci["jobs"]["stack"]
+    commands = " ".join(step.get("run", "") for step in job["steps"])
+
+    assert "compose.dev.yaml" not in commands
+    assert "up -d --wait" in commands
+    assert "tests/smoke/test_orchestrator_queries.py" in commands
+    assert job["if"] == "github.event_name != 'pull_request'"
+    assert (ROOT / "tests/smoke/test_orchestrator_queries.py").exists()
+
+
+def test_the_gate_tolerates_the_stack_job_being_skipped_on_a_pull_request() -> None:
+    """Skipped is not a failure; anything else but success is."""
+    gate = loaded(ROOT / ".github/workflows/ci.yml")["jobs"]["gate"]
+    script = " ".join(step.get("run", "") for step in gate["steps"])
+
+    assert "stack" in gate["needs"]
+    assert 'needs.stack.result }}" = "skipped"' in script
