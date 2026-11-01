@@ -38,9 +38,9 @@ def test_rekey_copies_only_the_objects_this_databases_rows_name(
         DocumentsBucket,
         ParsedBucket,
         rekey,
-        s3_client,
     )
     from blob_store.s3.bucket import _COUNTS
+    from blob_store.s3.client import s3_client
 
     mine, theirs = digest("rekey-mine"), digest("rekey-theirs")
     with Session(engine) as session:
