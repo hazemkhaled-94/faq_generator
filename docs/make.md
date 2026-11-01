@@ -287,7 +287,7 @@ python -m question_generation.export --help     # every filter there is
 ```
 
 The workbook has four sheets: the questions, the facts each cites (one row per
-fact per passage, with page and passage ordinal), the LLM judge's assessment
+fact per passage, with first and last page as integers and the passage ordinal), the LLM judge's assessment
 (empty unless the judge has run), and the counts.
 
 ## The evaluation phase

@@ -63,7 +63,6 @@ from question_generation.models import (
     QuestionSource,
     StoredQuestion,
     Unanswered,
-    pages,
 )
 from question_generation.queue import AROUND, ASSERTS, HOLDS, IS_TOPIC, NeverAsked
 from question_generation.types import CHECKED
@@ -408,6 +407,9 @@ _REACH = tuple(str(one.key) for one in _COVERAGE.selected_columns)
 #: The constant reciprocal rank fusion is usually run with: large enough
 #: that a first place in one ranking does not outweigh two good places.
 _FUSION = 60
+
+#: Rows a streamed read holds at once.
+_BATCH = 1000
 
 
 def _fused(*rankings: list[int]) -> list[int]:
@@ -1305,6 +1307,30 @@ class QuestionCatalog(Repository):
             rows = session.execute(listing.limit(limit).offset(offset)).all()
         return total, [_stored(row) for row in rows]
 
+    def stream(
+        self,
+        document: str | None = None,
+        topic: int | None = None,
+        search: str | None = None,
+        status: str | None = None,
+        answerable: bool | None = None,
+        field: str | None = None,
+        read: Session | None = None,
+        **scopes: Any,
+    ) -> Iterator[StoredQuestion]:
+        """Yields every question a filter selects, a thousand rows at a time.
+
+        What the export reads: the same rows as `page(limit=None)`, drawn
+        through a server-side cursor, so the api holds a batch of them and
+        not the corpus. The session stays open until the last row is taken
+        or the generator is closed.
+        """
+        chosen = _ids(document, topic, search, status, answerable, field, **scopes)
+        listing = _listing().where(Question.id.in_(chosen.correlate(None)))
+        with self._reading(read) as session:
+            for row in session.execute(listing.execution_options(yield_per=_BATCH)):
+                yield _stored(row)
+
     def _thread(self, question: StoredQuestion) -> list[StoredQuestion]:
         """The whole thread this question sits in, oldest first.
 
@@ -1390,8 +1416,10 @@ class QuestionCatalog(Repository):
             ],
         )
 
-    def citations(self, read: Session | None = None, **where: Any) -> list[Citation]:
-        """What every question a filter selects was written from.
+    def citations(
+        self, read: Session | None = None, **where: Any
+    ) -> Iterator[Citation]:
+        """Yields what every question a filter selects was written from.
 
         The same rows :meth:`detail` reads one question at a time, for a
         whole filter in one query. An export runs over thousands of
@@ -1432,22 +1460,22 @@ class QuestionCatalog(Repository):
                 .join(Passage, Passage.id == FactPassage.passage_id)
                 .join(Document, Document.sha256 == Passage.doc_sha256, isouter=True)
                 .order_by(QuestionFact.question_id, Passage.doc_sha256, Passage.ordinal)
-            ).all()
-        return [
-            Citation(
-                question_id=row.question_id,
-                fact_id=row.fact_id,
-                statement=row.statement,
-                evidence_text=row.evidence_text,
-                validated=row.validated,
-                document=row.title or row.doc_sha256[:12],
-                doc_sha256=row.doc_sha256,
-                ordinal=row.ordinal,
-                page=pages(row.page_from, row.page_to),
-                section_path=row.section_path,
+                .execution_options(yield_per=_BATCH)
             )
-            for row in rows
-        ]
+            for row in rows:
+                yield Citation(
+                    question_id=row.question_id,
+                    fact_id=row.fact_id,
+                    statement=row.statement,
+                    evidence_text=row.evidence_text,
+                    validated=row.validated,
+                    document=row.title or row.doc_sha256[:12],
+                    doc_sha256=row.doc_sha256,
+                    ordinal=row.ordinal,
+                    first_page=row.page_from,
+                    last_page=row.page_to or row.page_from,
+                    section_path=row.section_path,
+                )
 
     def earlier(
         self, questions: Sequence[StoredQuestion], read: Session | None = None

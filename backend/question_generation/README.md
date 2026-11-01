@@ -569,7 +569,7 @@ The workbook has four sheets:
 
 | Sheet | One row per |
 |---|---|
-| Questions | Question, with what it rests on folded in. A Kind column (single, needs_both, compound) follows Type |
+| Questions | Question, with what it rests on folded in. A Kind column (single, needs_both, compound) follows Type; its heading carries a note that Kind is the span of the answer's passages, so an unanswerable question reads `single` and Answerable is filtered first |
 | Citations | Question, fact and passage, so a bridge takes two. The Document ID column is the head of the document's digest, which `--diversity --by document` splits by |
 | Assessment | Judgement of a question. Empty unless the evaluation phase has run |
 | Summary | The counts from the quality report: types, bands, levels, rejections, kinds, each `categorization=category`, languages, and the models that wrote, verified and judged the questions |
@@ -595,6 +595,18 @@ workbook** on the Questions page. With no filter it holds everything, rejected
 rows included. `--no-citations` leaves the Citations sheet empty and skips its
 cost. A document with no title is named by the first 12 characters of its
 digest.
+
+The workbook is written as it is read: openpyxl's write-only mode, from rows
+drawn through a server-side cursor a thousand at a time, into a temporary file
+the route sends and then deletes. The judge's verdicts are asked for five
+hundred questions at a time, the ids bound as one array, so neither the rows
+nor the ids of a very large corpus are held at once. A sheet that would pass
+Excel's 1,048,575 data rows goes on in a numbered one (`Citations 2`) with the
+same headings. A cell starting with `=`, `+`, `-` or `@` is stored as text and
+marked with a quote prefix, so editing it or saving the sheet as CSV does not
+turn it into a formula. A cell over Excel's 32,767 characters is cut and marked
+`[truncated]`, whichever column it is in. The Citations sheet's page is two
+integer columns, `First page` and `Last page`.
 
 ### Reading the benchmark
 

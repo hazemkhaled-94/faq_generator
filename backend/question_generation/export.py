@@ -38,7 +38,9 @@ and the quality report take says, so the workbook is the thing on screen
 and a reader cannot be handed a set narrower than they asked for without
 having asked for it.
 
-`openpyxl` and `pandas` are both already dependencies, so this adds none.
+The workbook is written as it is read: openpyxl's write-only mode, from rows
+drawn through a server-side cursor, so the api holds a batch of them and not
+the corpus. Nothing here builds a frame.
 """
 
 from __future__ import annotations
@@ -48,12 +50,16 @@ import io
 import logging
 import sys
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict
-from typing import Any, cast
+from functools import partial
+from itertools import islice
+from typing import IO, Any
 
-import pandas as pd
+from openpyxl import Workbook
+from openpyxl.cell import WriteOnlyCell
 from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
+from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
@@ -86,7 +92,8 @@ _COLUMNS = (
     ("answerable", "Answerable"),
     ("question_type", "Type"),
     # The span of the answer's passages (single, needs_both, compound), so a
-    # question with no answer reads `single`: filter on Answerable first.
+    # question with no answer reads `single`: filter on Answerable first. The
+    # heading carries that note, for the tester who reads only the workbook.
     ("kind", "Kind"),
     ("answer_form", "Answer form"),
     ("cognitive_level", "Cognitive level"),
@@ -156,7 +163,8 @@ _CITATION_COLUMNS = (
     ("validated", "Fact still valid"),
     ("document", "Document"),
     ("doc_sha256", "Document ID"),
-    ("page", "Page"),
+    ("first_page", "First page"),
+    ("last_page", "Last page"),
     ("section_path", "Section"),
     ("ordinal", "Passage"),
     ("fact_id", "Fact ID"),
@@ -198,6 +206,18 @@ _WIDTHS = {
 #: Columns whose text is wrapped rather than run off under the next cell.
 _WRAPPED = frozenset(_WIDTHS)
 
+#: Data rows an .xlsx sheet holds below its header: Excel's 1,048,576 rows,
+#: less the heading. A sheet that would pass it goes on in a numbered one.
+_SHEET_ROWS = 1_048_575
+
+#: Rows read, looked up and written together. The judge's verdicts are asked
+#: for in batches this size, so the lookup never holds every question.
+_CHUNK = 500
+
+#: What a cell starting with one of these is to a spreadsheet: a formula, or a
+#: signed number when edited, or re-imported as CSV. Marked as text.
+_FORMULA_STARTS = ("=", "+", "-", "@")
+
 #: Beyond this, a cell is truncated. Excel refuses a cell over 32,767
 #: characters outright, and a workbook that raises at the last row is worse
 #: than one that marks the row.
@@ -226,30 +246,102 @@ def _flatten(value: Any, joiner: str = ", ") -> Any:
     return value
 
 
-def _frame(rows: Sequence[Any], columns: Sequence[tuple[str, str]]) -> pd.DataFrame:
-    """Builds one sheet's frame, in the column order named above."""
-    records = [
-        {
-            heading: _flatten(asdict(row).get(field), "\n" if field in _LINES else ", ")
-            for field, heading in columns
-        }
-        for row in rows
-    ]
-    # A page is a number or a first-last range, which one column cannot hold
-    # as numbers.
-    for record in records:
-        if "Page" in record and record["Page"] is not None:
-            record["Page"] = str(record["Page"])
-    # An empty selection still gets its headings, so a workbook of nothing
-    # is a workbook a reader can see the shape of rather than a blank page.
-    return pd.DataFrame(records, columns=pd.Index([head for _, head in columns]))
+_WRAP = Alignment(wrap_text=True, vertical="top")
+
+#: A note on a heading whose values read wrong without it.
+_NOTES = {
+    "Kind": (
+        "The span of the answer's passages: single, needs_both or compound. A "
+        "question with no answer reads single, so filter on Answerable first."
+    ),
+}
+_BOLD = Font(bold=True)
 
 
-def _cited_frame(citations: Sequence[Any]) -> pd.DataFrame:
-    """The Citations sheet, its document column carrying the digest's head."""
-    frame = _frame(citations, _CITATION_COLUMNS)
-    frame["Document ID"] = frame["Document ID"].str[:_ID_CHARS]
-    return frame
+def _printable(value: Any) -> Any:
+    """Drops the control characters openpyxl refuses from one cell."""
+    return ILLEGAL_CHARACTERS_RE.sub("", value) if isinstance(value, str) else value
+
+
+class _Sheet:
+    """One sheet of the workbook, written row by row.
+
+    Continued in a numbered sheet (`Citations 2`) with the same headings
+    where it would pass Excel's row limit, which nothing else checks.
+    """
+
+    def __init__(self, book: Workbook, name: str, headings: Sequence[str]) -> None:
+        """Opens the first sheet, headings written."""
+        self._book = book
+        self._name = name
+        self._headings = list(headings)
+        self._part = 0
+        self._rows = 0
+        self.total = 0
+        self._open()
+
+    def _open(self) -> None:
+        """Starts the next sheet: frozen headings, sized columns, bold heading row."""
+        self._part += 1
+        title = self._name if self._part == 1 else f"{self._name} {self._part}"
+        sheet = self._book.create_sheet(title)
+        sheet.freeze_panes = "A2"
+        for index, heading in enumerate(self._headings, start=1):
+            sheet.column_dimensions[get_column_letter(index)].width = _WIDTHS.get(
+                heading, min(max(len(str(heading)) + 2, 10), 24)
+            )
+        row = []
+        for heading in self._headings:
+            cell = WriteOnlyCell(sheet, value=heading)
+            cell.font = _BOLD
+            if heading in _NOTES:
+                cell.comment = Comment(_NOTES[heading], "qa_generator")
+            row.append(cell)
+        sheet.append(row)
+        self._sheet = sheet
+        self._rows = 0
+
+    def _cell(self, heading: str, value: Any) -> Any:
+        """One value as a cell: text kept text, wrapped where the column is."""
+        value = _printable(_flatten(value))
+        quoted = isinstance(value, str) and value.startswith(_FORMULA_STARTS)
+        wrapped = heading in _WRAPPED
+        if not (quoted or wrapped):
+            return value
+        cell = WriteOnlyCell(self._sheet, value=value)
+        if isinstance(value, str):
+            # openpyxl stores a string starting with = as a formula, which
+            # Excel runs when the workbook is opened.
+            cell.data_type = "s"
+        if quoted:
+            cell.quotePrefix = True
+        if wrapped:
+            cell.alignment = _WRAP
+        return cell
+
+    def append(self, values: Sequence[Any]) -> None:
+        """Writes one row, in a new sheet if this one is full."""
+        if self._rows >= _SHEET_ROWS:
+            self._seal()
+            self._open()
+        self._sheet.append(
+            [
+                self._cell(head, value)
+                for head, value in zip(self._headings, values, strict=True)
+            ]
+        )
+        self._rows += 1
+        self.total += 1
+
+    def _seal(self) -> None:
+        """Filters the headings of the sheet being left, if it holds a row."""
+        if self._rows:
+            last = get_column_letter(len(self._headings))
+            self._sheet.auto_filter.ref = f"A1:{last}{self._rows + 1}"
+
+    def close(self) -> None:
+        """Finishes the last sheet."""
+        self._seal()
 
 
 def _turns(turns: Sequence[tuple[str, str | None]]) -> str:
@@ -260,66 +352,56 @@ def _turns(turns: Sequence[tuple[str, str | None]]) -> str:
     )
 
 
-def _sources(citations: Sequence[Citation]) -> dict[int, str]:
-    """Where each question was drawn from: document, pages and section, a line each."""
-    lines: dict[int, list[str]] = {}
-    for one in citations:
-        line = ", ".join(
-            part
-            for part in (
-                one.document,
-                f"p. {one.page}" if one.page is not None else "",
-                one.section_path or "",
-            )
-            if part
-        )
-        held = lines.setdefault(one.question_id, [])
-        if line not in held:
-            held.append(line)
-    return {question: "\n".join(held) for question, held in lines.items()}
+def _source(question: StoredQuestion, cited: Sequence[Citation]) -> str:
+    """Where a question was drawn from: document, pages and section, a line each.
 
-
-def _judged_frame(
-    questions: Sequence[StoredQuestion],
-    judged: Mapping[int, Any],
-    earlier: Mapping[int, Sequence[tuple[str, str | None]]] | None = None,
-    citations: Sequence[Citation] = (),
-) -> pd.DataFrame:
-    """The Questions sheet, with the judge's three columns filled in.
-
-    Filled after the frame is built rather than read off the row, because
-    `StoredQuestion` carries no judgement and this package cannot read the
-    table that does. The three columns keep their declared position either
-    way, which is what building them into `_COLUMNS` as blanks buys.
+    Without citation rows, the documents are all there is to name.
     """
-    frame = _frame(questions, _COLUMNS)
-    if not len(frame):
-        return frame
-    drawn = _sources(citations)
-    frame["Earlier turns"] = [
-        _turns((earlier or {}).get(one.id, ())) for one in questions
-    ]
-    # Without citation rows, the documents are all there is to name.
-    frame["Source"] = [
-        drawn.get(one.id) or "\n".join(one.documents) for one in questions
-    ]
-    # An unanswerable question has no key: what a good reply does for its
-    # kind stands in, a criterion for a judge or a person, never a string to
-    # match. Blank where none was stored.
-    frame["Answer"] = [
-        _flatten(f"Expected behaviour: {one.behaviour}")
-        if not one.answerable and one.behaviour
-        else answer
-        for one, answer in zip(questions, frame["Answer"], strict=True)
-    ]
-    found = [judged.get(one.id) for one in questions]
-    frame["Judge"] = [_verdict(one) for one in found]
-    frame["Judge refused by"] = [
-        ", ".join(getattr(one, "refused", ()) or ()) if one is not None else ""
-        for one in found
-    ]
-    frame["Why the judge said so"] = [_reasoning(one) for one in found]
-    return frame
+    lines: list[str] = []
+    for one in cited:
+        pages = ""
+        if one.first_page is not None:
+            last = one.last_page
+            pages = f"p. {one.first_page}" + (
+                f"–{last}" if last not in (None, one.first_page) else ""
+            )
+        line = ", ".join(
+            part for part in (one.document, pages, one.section_path or "") if part
+        )
+        if line not in lines:
+            lines.append(line)
+    return "\n".join(lines) or "\n".join(question.documents)
+
+
+def _question_row(
+    question: StoredQuestion,
+    found: Any,
+    earlier: Sequence[tuple[str, str | None]] = (),
+    cited: Sequence[Citation] = (),
+) -> list[Any]:
+    """One question as the Questions sheet's cells, in `_COLUMNS` order.
+
+    The judge's three columns are filled from `found` rather than read off
+    the row, because `StoredQuestion` carries no judgement and this package
+    cannot read the table that does. An unanswerable question has no key:
+    what a good reply does for its kind stands in, a criterion for a judge
+    or a person, never a string to match. Blank where none was stored.
+    """
+    fields = asdict(question)
+    row = {
+        heading: _flatten(fields.get(field), "\n" if field in _LINES else ", ")
+        for field, heading in _COLUMNS
+    }
+    row["Earlier turns"] = _turns(earlier)
+    row["Source"] = _source(question, cited)
+    if not question.answerable and question.behaviour:
+        row["Answer"] = _flatten(f"Expected behaviour: {question.behaviour}")
+    row["Judge"] = _verdict(found)
+    row["Judge refused by"] = (
+        ", ".join(getattr(found, "refused", ()) or ()) if found is not None else ""
+    )
+    row["Why the judge said so"] = _reasoning(found)
+    return [row[heading] for _, heading in _COLUMNS]
 
 
 def _reasoning(one: Any) -> str:
@@ -355,34 +437,6 @@ def _verdict(one: Any) -> str:
     return "approved" if one.approved else "refused"
 
 
-def _assessment_frame(
-    questions: Sequence[StoredQuestion], judged: Mapping[int, Any]
-) -> pd.DataFrame:
-    """The Assessment sheet: one row per judgement of each question.
-
-    Only the questions this workbook holds, so the sheet cannot describe
-    rows the filter excluded.
-    """
-    records = []
-    for question in questions:
-        one = judged.get(question.id)
-        if one is None:
-            continue
-        for metric in one.metrics or ():
-            records.append(
-                {
-                    "Question ID": question.id,
-                    "Judgement": metric.metric,
-                    "Answer": metric.label,
-                    "Approved": "yes" if metric.approved else "no",
-                    "Score": metric.score,
-                    "Why": _flatten(metric.explanation),
-                    "Judge": one.judge_model,
-                }
-            )
-    return pd.DataFrame(records, columns=pd.Index(list(_ASSESSMENT_COLUMNS)))
-
-
 #: What the judge's figures are and are not, said where they are read.
 _JUDGE_READING = (
     "a model's opinion of the questions in this workbook, which is not a "
@@ -390,78 +444,93 @@ _JUDGE_READING = (
 )
 
 
+class _Tally:
+    """What the Summary counts of the questions written, kept as they pass.
+
+    Counted while the rows go by, so the Summary needs neither the questions
+    nor their verdicts after the batch they came in.
+    """
+
+    def __init__(self) -> None:
+        """Starts with nothing written."""
+        self.languages: Counter[str] = Counter()
+        self.judgeable = 0
+        self.judged: Counter[str] = Counter()
+        self.approved = 0
+        self.disagreeing = 0
+        self.models: set[str] = set()
+        self.templates: set[str] = set()
+
+    def add(self, question: StoredQuestion, found: Any) -> None:
+        """Counts one question and the verdict it was found with, if any."""
+        self.languages[question.language] += 1
+        if (
+            question.answerable
+            and question.target_answer
+            and question.status != "draft"
+        ):
+            self.judgeable += 1
+        if found is None or found.approved is None:
+            return
+        self.judged[question.language] += 1
+        self.approved += bool(found.approved)
+        self.disagreeing += bool(found.disagrees)
+        if found.judge_model:
+            self.models.add(str(found.judge_model))
+        if found.prompt_version:
+            self.templates.add(str(found.prompt_version))
+
+
 def _summary(
     quality: QuestionQuality | None,
-    questions: Sequence[StoredQuestion],
+    tally: _Tally,
     cited: int,
-    judged: Mapping[int, Any] | None = None,
+    judged: bool,
     never: NeverAsked | None = None,
-) -> pd.DataFrame:
-    """The Summary sheet: what this workbook holds, as counts and notes.
+) -> list[tuple[str, Any, str | None]]:
+    """The Summary sheet's rows: what this workbook holds, as counts and notes.
 
     Reads the quality report the API already serves rather than counting
-    the frames again, so the figures in the workbook are the figures on the
-    page it was exported from.
+    again, so the figures in the workbook are the figures on the page it
+    was exported from.
 
     The judge's figures are counted over THIS workbook's questions
     rather than read off the corpus-wide report, because a workbook that
     says "38 disagreements" about a filter holding twelve questions is
     describing something the reader cannot see. What they are counted
     against goes beside them: how many of the questions the judge can judge,
-    by language, and which model and template judged.
+    by language, and which model and template judged. `judged` is whether
+    anything was asked of the judge at all.
 
     A count is a number, so a measure that is words (a model, a template, how
     to read a band) goes in the Note column, and the Count column stays
     numeric.
     """
-    languages = Counter(one.language for one in questions)
     rows: list[tuple[str, Any, str | None]] = [
-        ("Questions in this workbook", len(questions), None),
+        ("Questions in this workbook", sum(tally.languages.values()), None),
         *(
             (f"Questions in this workbook: {code}", n, None)
-            for code, n in sorted(languages.items())
+            for code, n in sorted(tally.languages.items())
         ),
         ("Citation rows", cited, None),
     ]
-    if judged is not None:
-        answered = {
-            question: one
-            for question, one in judged.items()
-            if one.approved is not None
-        }
-        spoken = {one.id: one.language for one in questions}
-        by_language = Counter(spoken.get(question) for question in answered)
-        models = sorted(
-            {str(one.judge_model) for one in answered.values() if one.judge_model}
-        )
-        templates = sorted(
-            {str(one.prompt_version) for one in answered.values() if one.prompt_version}
-        )
-        judgeable = sum(
-            1
-            for one in questions
-            if one.answerable and one.target_answer and one.status != "draft"
-        )
+    if judged:
         rows += [
-            ("Judgeable (answerable)", judgeable, None),
-            ("Judged by a model", len(answered), None),
+            ("Judgeable (answerable)", tally.judgeable, None),
+            ("Judged by a model", sum(tally.judged.values()), None),
             *(
-                (f"Judged by a model: {code}", by_language[code], None)
-                for code in sorted(languages)
-                if by_language.get(code)
+                (f"Judged by a model: {code}", tally.judged[code], None)
+                for code in sorted(tally.languages)
+                if tally.judged.get(code)
             ),
-            (
-                "Judge approved",
-                sum(1 for one in answered.values() if one.approved),
-                None,
-            ),
+            ("Judge approved", tally.approved, None),
             (
                 "Kept by the pipeline, refused by the judge",
-                sum(1 for one in answered.values() if one.disagrees),
+                tally.disagreeing,
                 None,
             ),
-            ("Judge model", None, ", ".join(models) or None),
-            ("Judge template", None, ", ".join(templates) or None),
+            ("Judge model", None, ", ".join(sorted(tally.models)) or None),
+            ("Judge template", None, ", ".join(sorted(tally.templates)) or None),
             ("Reading the judge", None, _JUDGE_READING),
         ]
     if never is not None:
@@ -499,89 +568,160 @@ def _summary(
             shown = "retrieval spread" if name == "difficulty" else name
             for key, value in sorted((measured.get(name) or {}).items()):
                 rows.append((f"{shown}: {key}", value, None))
-    return pd.DataFrame(rows, columns=pd.Index(["Measure", "Count", "Note"]))
+    return rows
 
 
-def _dress(sheet: Any, frame: pd.DataFrame) -> None:
-    """Freezes the headings, filters them, sizes the columns, keeps text text.
+#: What the judge is asked about a batch of questions: the verdicts by
+#: question id, whatever holds them.
+Verdicts = Callable[[list[int]], Mapping[int, Any]]
 
-    Not decoration. A sheet whose headings scroll away is one nobody can
-    read past the first screen, and the four long columns run to sixty
-    characters and hide every column after them until they are wrapped.
-
-    openpyxl stores a string that starts with = as a formula, which Excel
-    runs when the workbook is opened, and every string here is a document's
-    or a model's. Typed back as text, it is shown as written.
-    """
-    sheet.freeze_panes = "A2"
-    if len(frame):
-        sheet.auto_filter.ref = sheet.dimensions
-    for index, heading in enumerate(frame.columns, start=1):
-        letter = get_column_letter(index)
-        sheet.column_dimensions[letter].width = _WIDTHS.get(
-            heading, min(max(len(str(heading)) + 2, 10), 24)
-        )
-        sheet.cell(row=1, column=index).font = Font(bold=True)
-        if heading in _WRAPPED:
-            for cell in sheet[letter][1:]:
-                cell.alignment = Alignment(wrap_text=True, vertical="top")
-    for row in sheet.iter_rows(min_row=2):
-        for cell in row:
-            if cell.data_type == "f":
-                cell.data_type = "s"
+#: The turns before each follow-up of a batch of questions, by question id.
+Earlier = Callable[
+    [list[StoredQuestion]], Mapping[int, Sequence[tuple[str, str | None]]]
+]
 
 
-def _printable(value: Any) -> Any:
-    """Drops the control characters openpyxl refuses from one cell."""
-    return ILLEGAL_CHARACTERS_RE.sub("", value) if isinstance(value, str) else value
+def _held(held: Mapping[int, Any], ids: list[int]) -> Mapping[int, Any]:
+    """The verdicts a mapping holds for these questions."""
+    return {one: held[one] for one in ids if one in held}
 
 
-def workbook(
-    questions: Sequence[StoredQuestion],
-    citations: Sequence[Citation] = (),
+def _turns_held(
+    held: Mapping[int, Sequence[tuple[str, str | None]]], batch: list[StoredQuestion]
+) -> Mapping[int, Sequence[tuple[str, str | None]]]:
+    """The turns a mapping holds for these questions."""
+    return {one.id: held[one.id] for one in batch if one.id in held}
+
+
+def write(
+    target: str | IO[bytes],
+    questions: Iterable[StoredQuestion],
+    citations: Iterable[Citation] = (),
     quality: QuestionQuality | None = None,
-    judged: Mapping[int, Any] | None = None,
+    judged: Mapping[int, Any] | Verdicts | None = None,
     never: NeverAsked | None = None,
-    earlier: Mapping[int, Sequence[tuple[str, str | None]]] | None = None,
-) -> bytes:
-    """Builds the workbook, and returns it as the bytes of an .xlsx file.
+    earlier: Mapping[int, Sequence[tuple[str, str | None]]] | Earlier | None = None,
+) -> None:
+    """Writes the workbook to a path or a file, a batch at a time.
 
-    Bytes rather than a path, because the three callers want different
-    things with them: the API streams it, the command line writes it, and
-    the frontend hands it to a download button. Nothing here touches a
-    filesystem.
+    Rows are taken from `questions` and `citations` as they are written, the
+    judge's verdicts and the turns before each follow-up are asked for per
+    batch, so what is held at once is a batch whatever the corpus. Pass
+    generators. Both are read in question order: a batch's Source column is
+    made of the citations up to its last question, which is how they arrive
+    from the catalogue.
 
-    `judged` maps a question's id to what an independent model made of it,
-    as `assessment.models.StoredAssessment`. Passed in rather than read
-    here, and typed loosely for the same reason: no backend service
-    imports another, so this one is handed the verdicts by whichever
-    caller already holds a catalogue. None leaves the Assessment sheet out
-    and the three Judge columns blank, which is a deployment that has never
-    run the evaluation phase.
+    `judged` is either a mapping of a question's id to what an independent
+    model made of it, as `assessment.models.StoredAssessment`, or a function
+    taking a list of ids and returning that mapping for them. Passed in
+    rather than read here, and typed loosely for the same reason: no backend
+    service imports another, so this one is handed the verdicts by whichever
+    caller already holds a catalogue. None leaves the Assessment sheet empty
+    and the three Judge columns reading `not judged`, which is a deployment
+    that has never run the evaluation phase. `earlier` is the same, a mapping
+    or a function of a batch of questions.
     """
-    held: Mapping[int, Any] = judged or {}
-    sheets = {
-        "Questions": _judged_frame(questions, held, earlier, citations),
-        "Citations": _cited_frame(citations),
-        "Assessment": _assessment_frame(questions, held),
-        "Summary": _summary(quality, questions, len(citations), judged, never),
-    }
-    buffer = io.BytesIO()
-    # `WriteExcelBuffer` is a protocol a BytesIO satisfies at runtime and
-    # the stubs decline to match structurally.
-    with pd.ExcelWriter(cast("Any", buffer), engine="openpyxl") as writer:
-        for name, frame in sheets.items():
-            # Control characters openpyxl refuses (a vertical tab pasted from
-            # Word, an escape in a model's answer) are dropped from every
-            # sheet, so one of them cannot fail the workbook.
-            frame.map(_printable).to_excel(writer, sheet_name=name, index=False)
-            _dress(writer.sheets[name], frame)
+    lookup = judged if judged is None or callable(judged) else partial(_held, judged)
+    turns = (
+        earlier
+        if earlier is None or callable(earlier)
+        else partial(_turns_held, earlier)
+    )
+
+    book = Workbook(write_only=True)
+    asked = _Sheet(book, "Questions", [head for _, head in _COLUMNS])
+    cites = _Sheet(book, "Citations", [head for _, head in _CITATION_COLUMNS])
+    judgements = _Sheet(book, "Assessment", _ASSESSMENT_COLUMNS)
+    summary = _Sheet(book, "Summary", ["Measure", "Count", "Note"])
+
+    tally = _Tally()
+    drawn = iter(citations)
+    waiting = next(drawn, None)
+    stream = iter(questions)
+    while batch := list(islice(stream, _CHUNK)):
+        found = lookup([one.id for one in batch]) if lookup is not None else {}
+        before = turns(batch) if turns is not None else {}
+        # The citations of every question up to the batch's last, written to
+        # their sheet as they are taken and kept for the batch's Source column.
+        cited: dict[int, list[Citation]] = {}
+        while waiting is not None and waiting.question_id <= batch[-1].id:
+            cited.setdefault(waiting.question_id, []).append(waiting)
+            _append_citation(cites, waiting)
+            waiting = next(drawn, None)
+        for question in batch:
+            one = found.get(question.id)
+            asked.append(
+                _question_row(
+                    question,
+                    one,
+                    before.get(question.id, ()),
+                    cited.get(question.id, ()),
+                )
+            )
+            tally.add(question, one)
+            if one is None:
+                continue
+            for metric in one.metrics or ():
+                judgements.append(
+                    [
+                        question.id,
+                        metric.metric,
+                        metric.label,
+                        "yes" if metric.approved else "no",
+                        metric.score,
+                        metric.explanation,
+                        one.judge_model,
+                    ]
+                )
+    while waiting is not None:
+        _append_citation(cites, waiting)
+        waiting = next(drawn, None)
+    for measure in _summary(quality, tally, cites.total, judged is not None, never):
+        summary.append(list(measure))
+    for sheet in (asked, cites, judgements, summary):
+        sheet.close()
+    book.save(target)
     log.info(
         "wrote a workbook of %d question(s), %d citation row(s) and %d "
         "judgement row(s)",
-        len(questions),
-        len(citations),
-        len(sheets["Assessment"]),
+        asked.total,
+        cites.total,
+        judgements.total,
+    )
+
+
+def _append_citation(sheet: _Sheet, citation: Citation) -> None:
+    """One citation as a row of the Citations sheet."""
+    fields = asdict(citation)
+    # The document column carries the digest's head.
+    fields["doc_sha256"] = fields["doc_sha256"][:_ID_CHARS]
+    sheet.append([fields.get(field) for field, _ in _CITATION_COLUMNS])
+
+
+def workbook(
+    questions: Iterable[StoredQuestion],
+    citations: Iterable[Citation] = (),
+    quality: QuestionQuality | None = None,
+    judged: Mapping[int, Any] | Verdicts | None = None,
+    never: NeverAsked | None = None,
+    earlier: Mapping[int, Sequence[tuple[str, str | None]]] | Earlier | None = None,
+) -> bytes:
+    """Builds the workbook, and returns it as the bytes of an .xlsx file.
+
+    For a caller that wants the bytes: the frontend hands them to a download
+    button and the tests read them back. The api and the command line call
+    :func:`write`, which keeps no more than a batch in memory. Questions and
+    citations are put in question order here, as `write` takes them.
+    """
+    buffer = io.BytesIO()
+    write(
+        buffer,
+        sorted(questions, key=lambda one: one.id),
+        sorted(citations, key=lambda one: one.question_id),
+        quality,
+        judged,
+        never,
+        earlier,
     )
     return buffer.getvalue()
 
@@ -714,33 +854,29 @@ def main(argv: list[str] | None = None) -> int:
     }
 
     catalog = QuestionCatalog()
-    # The listing pages, and an export is every page. Unlimited rather than
-    # counted and then windowed to that count: those were two statements
-    # with a gap between them, and a question written into the gap did not
-    # fit the window the count had already decided on.
-    with catalog.snapshot() as read:
-        _, questions = catalog.page(limit=None, read=read, **where)
-        citations = () if args.no_citations else catalog.citations(read=read, **where)
-        quality = catalog.quality(read=read, **where)
-        never = catalog.never_asked(read=read, **where)
-        earlier = catalog.earlier(questions, read=read)
+    assessments = AssessmentCatalog()
 
-    # Imported inside `main` rather than at the top of the module, like
-    # the catalogue beside it. `workbook` is also called by the api, and
-    # no backend service may import another - this is the command line
-    # rather than the library, and it is allowed to know about both.
-    judged = AssessmentCatalog().verdicts_for("question", [one.id for one in questions])
+    def verdicts(ids: list[int]) -> Mapping[int, Any]:
+        """What the judge made of these questions.
 
-    with open(args.out, "wb") as handle:
-        handle.write(
-            workbook(
-                questions,
-                citations,
-                quality,
-                judged,
-                never,
-                earlier,
-            )
+        The catalogue is imported inside `main`, like the one beside it:
+        `write` is also called by the api, and no backend service may import
+        another - this is the command line rather than the library, and it
+        is allowed to know about both.
+        """
+        return assessments.verdicts_for("question", ids)
+
+    # Every row, from one snapshot, drawn as they are written: the rows, the
+    # citations and the counts are one moment, and the process holds a batch.
+    with catalog.snapshot() as read, open(args.out, "wb") as handle:
+        write(
+            handle,
+            catalog.stream(read=read, **where),
+            () if args.no_citations else catalog.citations(read=read, **where),
+            catalog.quality(read=read, **where),
+            verdicts,
+            catalog.never_asked(read=read, **where),
+            lambda batch: catalog.earlier(batch, read=read),
         )
     log.info("wrote %s", args.out)
     return 0

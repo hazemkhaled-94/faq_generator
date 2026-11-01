@@ -27,7 +27,6 @@ from question_generation.models import (
     Citation,
     QuestionQuality,
     StoredQuestion,
-    pages,
 )
 from question_generation.queue import NeverAsked
 
@@ -69,7 +68,8 @@ def cited(question_id: int = 1, **overrides) -> Citation:
         "document": "Service policy",
         "doc_sha256": "a1b2c3",
         "ordinal": 4,
-        "page": 2,
+        "first_page": 2,
+        "last_page": 2,
     }
     return Citation(**{**fields, **overrides})
 
@@ -225,15 +225,6 @@ def test_nothing_selected_still_has_its_headings() -> None:
     assert "Question" in read["Questions"].columns
 
 
-@pytest.mark.parametrize(
-    ("first", "last", "page"),
-    [(3, 5, "3–5"), (2, 2, 2), (2, None, 2), (None, None, None)],
-)
-def test_a_citation_names_every_page_its_passage_runs_over(first, last, page) -> None:
-    """The start alone where the passage stays on one page."""
-    assert pages(first, last) == page
-
-
 def test_a_cell_too_long_for_excel_is_cut_and_marked() -> None:
     """Excel refuses a cell over 32,767 characters outright.
 
@@ -380,17 +371,16 @@ class _Catalog:
         """The one session the reads share, which here is a marker."""
         yield "snapshot"
 
-    def page(self, limit=50, read=None, **where):
-        """Records the window asked for and answers within it."""
-        self.asked["page"] = where
-        self.limits.append(limit)
-        taken = self._rows if limit is None else min(limit, self._rows)
-        return self._rows, [stored(one) for one in range(1, taken + 1)]
+    def stream(self, read=None, **where):
+        """Records what was asked and yields every row, in one read."""
+        self.asked["stream"] = where
+        self.limits.append(None)
+        return (stored(one) for one in range(1, self._rows + 1))
 
     def citations(self, read=None, **where):
         """No citations."""
         self.asked["citations"] = where
-        return []
+        return iter(())
 
     def quality(self, read=None, **where):
         """No report, which the workbook takes as None."""
@@ -472,7 +462,7 @@ def test_released_narrows_every_read_to_the_release(
         ["--out", str(tmp_path / "release.xlsx"), "--status", "accepted", *flags]
     )
 
-    assert set(catalog.asked) == {"page", "citations", "quality", "never_asked"}
+    assert set(catalog.asked) == {"stream", "citations", "quality", "never_asked"}
     assert catalog.read["never_asked"] == "snapshot", "read in the rows' moment"
     for read, where in catalog.asked.items():
         assert where["released"] is released, read
@@ -674,11 +664,15 @@ def test_a_follow_up_row_carries_the_turns_before_it(language, earlier, answer) 
 def test_every_row_names_where_it_was_drawn_from() -> None:
     """The document, the pages and the section path, so a source can be found by hand."""
     drawn = cited(
-        1, document="Terms of sale", page="2–3", section_path="Returns > Receipts"
+        1,
+        document="Terms of sale",
+        first_page=2,
+        last_page=3,
+        section_path="Returns > Receipts",
     )
-    other = cited(2, document="Kreditbedingungen", page=7, section_path=None)
+    other = cited(2, document="Kreditbedingungen", first_page=7, last_page=7)
 
-    row = sheets(workbook([stored(1), stored(2)], [drawn, other, cited(1, page=2)]))[
+    row = sheets(workbook([stored(1), stored(2)], [drawn, other, cited(1)]))[
         "Questions"
     ]
 
@@ -710,15 +704,6 @@ def test_the_columns_a_tester_does_not_read_come_after_the_ones_they_do() -> Non
         list(sheets(workbook([stored()], [cited()]))["Citations"].columns)[-1]
         == "Fact ID"
     )
-
-
-def test_a_page_is_written_as_text() -> None:
-    """A range and a single page sit in one column, so neither is a number."""
-    read = sheets(
-        workbook([stored(1), stored(2)], [cited(1, page="2–3"), cited(2, page=7)])
-    )
-
-    assert list(read["Citations"]["Page"]) == ["2–3", "7"]
 
 
 @pytest.mark.parametrize("language", ["en", "de"])
