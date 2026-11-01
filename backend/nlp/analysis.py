@@ -1365,6 +1365,14 @@ _OWN_SUBJECTS = _SUBJECTS | {"expl", "ep"}
 _CONJUNCT = frozenset({"conj", "cj"})
 
 
+#: The gender the placeholder pronoun that anticipates a clause carries, by
+#: ISO 639-1 code: German `es` is neuter. None where the language's pipeline
+#: marks none on it, English `it`. A language with no row has no placeholder
+#: read here: a newly configured one supplies the gender of its own, French
+#: `il` being masculine.
+_PLACEHOLDER_GENDER: dict[str, str | None] = {"de": "Neut", "en": None}
+
+
 def _fixed_expletive(token) -> bool:
     """Whether a token opens one of its language's fixed expletive runs."""
     runs = _EXPLETIVE_RUNS.get(token.doc.lang_, ())
@@ -1389,7 +1397,12 @@ def _clausal_correlate(token) -> bool:
     """
     if token.dep_ not in _SUBJECTS and token.dep_ not in _EXPLETIVE:
         return False
-    if "Neut" not in token.morph.get("Gender") and token.doc.lang_ != "en":
+    language = token.doc.lang_
+    if language not in _PLACEHOLDER_GENDER:
+        return False
+    if (gender := _PLACEHOLDER_GENDER[language]) and gender not in token.morph.get(
+        "Gender"
+    ):
         return False
     if "Sing" not in token.morph.get("Number"):
         return False
@@ -1403,13 +1416,15 @@ def _clausal_correlate(token) -> bool:
             and child.pos_ in {"VERB", "AUX", "ADJ", "ADV"}
         ]
         chain += frontier
+    # The clause hangs on a verb of the chain, or on the pronoun itself, as a
+    # German parse hangs "Es ist verboten, die PIN zu notieren".
     return any(
         child.i > token.i
         and child.dep_ in {"oc", "ccomp", "xcomp", "re", "csubj"}
         and any(
             t.tag_ in {"PTKZU", "TO"} or t.dep_ in _SUBORDINATOR for t in child.subtree
         )
-        for child in (c for one in chain for c in one.children)
+        for child in (c for one in [*chain, token] for c in one.children)
     )
 
 

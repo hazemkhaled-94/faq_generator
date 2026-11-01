@@ -997,3 +997,101 @@ def test_the_reading_is_by_morphology_so_a_language_not_configured_reads_the_sam
     # nominalised 'other': inert.
     assert not _refers(_quantifier("fr", "autre", "NOUN", "Number=Plur"))
     assert not _refers(_quantifier("el", "άλλος", "NOUN", "Number=Plur"))
+
+
+# ── A German placeholder es before its clause ────────────────────────────
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Es ist verboten, die PIN auf der Karte zu notieren.",
+        "Es ist wichtig, dass der Kunde die PIN geheim hält.",
+        "Es ist kostenlos, Kontoauszüge online abzurufen.",
+        "Es wird empfohlen, die PIN regelmäßig zu ändern.",
+    ],
+)
+def test_a_german_placeholder_before_its_clause_is_no_reference(statement: str) -> None:
+    """The parse hangs the zu-infinitive or dass clause on the pronoun itself."""
+    from nlp.analysis import claim
+
+    assert not claim(statement, "de").references
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement", "refused"),
+    [
+        ("de", "Es kostet 5 Euro im Monat.", True),
+        ("en", "It costs 5 EUR a month.", True),
+        ("en", "It is forbidden to write the PIN on the card.", False),
+        ("en", "It is important that the customer keeps the PIN secret.", False),
+    ],
+)
+def test_a_pronoun_with_no_clause_after_it_still_points_outside(
+    language: str, statement: str, refused: bool
+) -> None:
+    """The English twins are unchanged; a bare es is still a pronoun."""
+    from nlp.analysis import claim
+
+    assert bool(claim(statement, language).references) is refused
+
+
+def _placeholder(language: str, gender: str):
+    """'It is possible to close the account', parsed by hand in a language of its own."""
+    import spacy
+    from spacy.tokens import Doc
+
+    return Doc(
+        spacy.blank(language).vocab,
+        words=["It", "is", "possible", "to", "close", "the", "account", "."],
+        heads=[1, 1, 1, 4, 1, 6, 4, 1],
+        deps=["nsubj", "ROOT", "acomp", "mark", "xcomp", "det", "dobj", "punct"],
+        pos=["PRON", "AUX", "ADJ", "PART", "VERB", "DET", "NOUN", "PUNCT"],
+        morphs=[
+            f"Gender={gender}|Number=Sing|Person=3|PronType=Prs",
+            "",
+            "",
+            "",
+            "VerbForm=Inf",
+            "",
+            "Number=Sing",
+            "",
+        ],
+    )[0]
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "gender", "is_placeholder"),
+    [
+        ("en", "Neut", True),
+        ("en", "Masc", True),
+        ("de", "Neut", True),
+        ("de", "Masc", False),
+        ("fr", "Masc", False),
+        ("pl", "Neut", False),
+        ("el", "Neut", False),
+    ],
+)
+def test_the_gender_a_placeholder_carries_comes_from_the_languages_table(
+    language: str, gender: str, is_placeholder: bool
+) -> None:
+    """No language code is branched on: one with no row reads no placeholder."""
+    from nlp.analysis import _clausal_correlate
+
+    assert _clausal_correlate(_placeholder(language, gender)) is is_placeholder
+
+
+@pytest.mark.nlp
+def test_a_newly_configured_language_supplies_its_row_and_nothing_else(
+    monkeypatch,
+) -> None:
+    """French 'Il est possible de ...': one row of the table makes the pronoun a placeholder."""
+    from nlp import analysis
+
+    monkeypatch.setitem(analysis._PLACEHOLDER_GENDER, "fr", "Masc")
+
+    assert analysis._clausal_correlate(_placeholder("fr", "Masc"))
+    assert not analysis._clausal_correlate(_placeholder("fr", "Fem"))

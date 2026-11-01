@@ -162,6 +162,7 @@ every language's words in one set or pattern.
 | `_ORDINALS` | same | The ordinals `_NUMBER_WORDS` holds. An English hyphenated ordinal (`twenty-first`) is read as its last word | `zweite`, `second` |
 | `ORDINAL_SUFFIX` | same | What follows the digits of an ordinal figure: `3rd`, a German `3.` | `st`, `nd`, `rd`, `th`, `.` |
 | `_CORRELATES` | same | Pronouns standing for an object or clause, not a noun | `es` |
+| `_PLACEHOLDER_GENDER` | same | The gender the placeholder pronoun before a clause carries, `None` where the pipeline marks none on it. A language with no row has no placeholder read: French `il` is masculine | `Neut` |
 | `_EXPLETIVE_RUNS` | same | Word runs whose pronoun is part of a fixed phrase and stands for nothing | `es sei denn` |
 | `_GENITIVE_DEMONSTRATIVES` | same | Demonstratives standing as the genitive of a noun (`die Bank und deren Lieferanten`). A language with no row reads none as resolved | `dessen`, `deren` |
 | `_CLAUSE_DEMONSTRATIVES` | same | Demonstratives that carry a clause or participle of their own (`except those related to the price cap`) | `those` |
