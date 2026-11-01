@@ -22,6 +22,7 @@ from docling_core.transforms.serializer.common import DocSerializer, create_ser_
 from docling_core.transforms.serializer.markdown import (
     MarkdownPictureSerializer,
     MarkdownTableSerializer,
+    MarkdownTextSerializer,
 )
 from docling_core.types.doc.common.reference import ProvenanceItem, RefItem
 from docling_core.types.doc.document import DoclingDocument
@@ -132,6 +133,17 @@ class _Picture(MarkdownPictureSerializer):
         )
 
 
+class _Text(MarkdownTextSerializer):
+    """A list item with no marker of its own is a dash, not its place in the group."""
+
+    @override
+    def serialize(self, *, item: Any, **kwargs: Any) -> SerializationResult:
+        """Serializes the item, a marker-less list item under a dash."""
+        if isinstance(item, ListItem) and not item.marker:
+            item = item.model_copy(update={"marker": "-"})
+        return super().serialize(item=item, **kwargs)
+
+
 class _Markdown(ChunkingSerializerProvider):
     """Renders every kind of block into the passage text, in Markdown."""
 
@@ -141,6 +153,7 @@ class _Markdown(ChunkingSerializerProvider):
             doc=doc,
             table_serializer=_Table(),
             picture_serializer=_Picture(),
+            text_serializer=_Text(),
         )
 
 

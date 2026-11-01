@@ -32,7 +32,10 @@ Docling's `HybridChunker` splits on the document's structure first and then
 merges or divides by token count, using the tokenizer of `EMBEDDING_MODEL`.
 `CHUNKING_MERGE_PEERS` decides whether undersized neighbours under one
 heading are combined. Every block, tables included, is serialised into the
-passage text as Markdown, because evidence must be a span of that text.
+passage text as Markdown, because evidence must be a span of that text. A list
+item prints the marker the document prints, and an item with none prints a
+dash: the serializer would otherwise number it by its place in the group, a
+number the document never printed.
 
 A list keeps its lead-in. The chunker can close a chunk between a paragraph
 ending in ":" and the list it introduces. [`lead_ins_kept`](passages.py)
