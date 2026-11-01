@@ -27,7 +27,7 @@ from docling_core.transforms.serializer.markdown import (
 from docling_core.types.doc.common.reference import ProvenanceItem, RefItem
 from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.items.group import ListGroup
-from docling_core.types.doc.items.node import DocItem, FloatingItem, NodeItem
+from docling_core.types.doc.items.node import DocItem, FloatingItem
 from docling_core.types.doc.items.picture.picture import PictureItem
 from docling_core.types.doc.items.table.table import TableItem
 from docling_core.types.doc.items.text import ListItem, TextItem
@@ -39,7 +39,14 @@ from nlp.language import detect, detect_surely
 from nlp.models import Sentence
 from nlp.text import right_to_left
 from nlp.windows import reserved
-from preprocessing.chunking.furniture import LEAD_IN, furniture_of, headed, tidied
+from preprocessing.chunking.furniture import (
+    _PROSE,
+    LEAD_IN,
+    _resolved,
+    furniture_of,
+    headed,
+    tidied,
+)
 from preprocessing.chunking.models import Chunk, Chunking
 from settings import required
 
@@ -298,8 +305,8 @@ def nested(document: DoclingDocument) -> DoclingDocument:
         under: dict[str, ListGroup] = {}
         for reference, parent in moves:
             if parent not in under:
-                under[parent] = tidy.add_list_group(parent=_node(parent, tidy))
-            item = _node(reference, tidy)
+                under[parent] = tidy.add_list_group(parent=_resolved(parent, tidy))
+            item = _resolved(reference, tidy)
             held = item.parent.resolve(tidy) if item.parent else None
             if held is not None:
                 held.children = [one for one in held.children if one.cref != reference]
@@ -353,11 +360,6 @@ def _ref(reference: str) -> RefItem:
     return RefItem.model_validate({"$ref": reference})
 
 
-def _node(reference: str, document: DoclingDocument) -> NodeItem:
-    """The node a reference names in a document."""
-    return _ref(reference).resolve(document)
-
-
 #: The indent of one level of a nested list, as the converter renders one.
 _INDENT = "    "
 
@@ -381,7 +383,9 @@ def _indented(
             continue
         text, at, pieces = chunk.text, 0, []
         for item, depth in zip(chunk.meta.doc_items, depths, strict=True):
-            rendered = serializer.serialize(item=_node(item.self_ref, document)).text
+            rendered = serializer.serialize(
+                item=_resolved(item.self_ref, document)
+            ).text
             found = text.find(rendered, at) if rendered else -1
             if found < 0:
                 continue
@@ -393,7 +397,7 @@ def _indented(
 
 def _depth(reference: str, document: DoclingDocument) -> int:
     """How many list items a list item is nested under; 0 for anything else."""
-    node = _node(reference, document)
+    node = _resolved(reference, document)
     if not isinstance(node, ListItem):
         return 0
     depth = 0
@@ -402,9 +406,6 @@ def _depth(reference: str, document: DoclingDocument) -> int:
         depth += isinstance(node, ListItem)
     return depth
 
-
-#: What a lead-in is: a paragraph, as the converter labels one.
-_PROSE = frozenset({DocItemLabel.TEXT, DocItemLabel.PARAGRAPH})
 
 #: What is read for its language, and what can end on a lead-in's colon: a
 #: paragraph or a list item.
@@ -587,7 +588,7 @@ def _prose_text(
     """
     if item.label not in labels:
         return None
-    found = RefItem.model_validate({"$ref": item.self_ref}).resolve(document)
+    found = _resolved(item.self_ref, document)
     return found.text.strip() if isinstance(found, TextItem) else None
 
 
@@ -872,7 +873,7 @@ def _tables_rendered(
             continue
         # Through the alias rather than the field name: it is the serialised
         # form and the only one a checker sees on the constructor.
-        table = RefItem.model_validate({"$ref": reference.self_ref}).resolve(document)
+        table = _resolved(reference.self_ref, document)
         rows = _rendered_rows(table, rendered, numbered)
         tables[reference.self_ref] = (table, rows)
         # A line one table took is no other table's.
