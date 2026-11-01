@@ -222,6 +222,7 @@ where compose set it and `PHOENIX_ADMIN_SECRET` where `.env` did.
 | `LOG_FORMAT` | `configs/env/deployment.env` | `text` (a person) or `json` (a collector) on stdout; the JSON is the file's, one object per line |
 | `LOG_DIR` | `configs/env/deployment.env`, set over in `compose.yaml` | Where the JSON file goes. Unset means no file, and stdout only |
 | `OTEL_CONTAINER_ENDPOINT` | `configs/env/deployment.env` | Trace collector, as the containers reach it |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | unset (`grpc`) | `grpc` or `http/protobuf`; the HTTP exporter reads its address and headers from the standard OpenTelemetry environment |
 | `TRACE_DATABASE` | unset | A span per SQL statement and per pool connect |
 
 `LOG_DIR` is read through a variable, so the static settings scan cannot see

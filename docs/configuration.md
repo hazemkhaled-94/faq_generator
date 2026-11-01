@@ -172,6 +172,7 @@ component](architecture.md#swapping-a-component) says what each port is.
 |---|---|---|
 | `OBJECT_STORE` | `s3` | the object store adapter; `s3` is the only one there is |
 | `ORCHESTRATOR` | `dagster` | what orders the stages: `dagster`, or `none` for a deployment whose stages run some other way |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | how spans are sent to `OTEL_EXPORTER_OTLP_ENDPOINT`: `grpc`, or `http/protobuf` for a collector behind an HTTPS ingress |
 | `LOG_FORMAT` | `text` | how every service writes stdout: `text`, or `json` for a platform that collects container output (`LOG_DIR` may then be empty) |
 | `LLM_CLIENT` | `litellm` | what asks the model; `litellm` is the only one there is, and reaches Azure OpenAI through an `azure/` model id |
 | `API_AUTH` | `token` | what guards the api's writes and settings reads; `token` is the shared secret `API_TOKEN` |

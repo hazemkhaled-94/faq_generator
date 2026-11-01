@@ -225,6 +225,7 @@ today's adapter and an in-memory fake, so a new adapter passes the same suite.
 | Stage order | `Orchestrator` in `backend/api/orchestrator.py`; the queue stays in Postgres | `ORCHESTRATOR` (`dagster`) | Dagster over GraphQL, or `none` | Container Apps jobs, scaled on queue depth |
 | API authentication | `Authenticator` in `backend/api/main.py` | `API_AUTH` (`token`) | the shared secret `API_TOKEN` as `X-API-Token` | Entra ID, through the platform's authentication or JWT validation |
 | Logs | the standard `logging.Handler`; `telemetry/logs.py` | `LOG_FORMAT` (`text`) and `LOG_DIR` | text on stdout, ECS JSON in a rotating file, Filebeat to Elasticsearch | JSON on stdout, collected by Azure Monitor |
+| Traces | OTLP, an open protocol, so the collector is whatever speaks it | `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_PROTOCOL` (`grpc`) | Phoenix over gRPC | Azure Monitor Application Insights over OTLP |
 | Models | `Model` in `backend/llm/client.py`, which alone imports litellm and instructor | `LLM_CLIENT` (`litellm`); the model itself is `LLM_MODEL` and the per-stage models | `Client` over litellm and instructor | Azure OpenAI or Foundry deployments, already reachable through an `azure/` model id |
 
 ## What keeps this page true

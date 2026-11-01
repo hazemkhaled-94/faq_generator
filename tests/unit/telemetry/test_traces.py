@@ -288,3 +288,82 @@ def test_the_exporter_is_left_configurable_by_the_environment(monkeypatch) -> No
 
     assert passed["args"] == (), "no positional sizing"
     assert passed["kwargs"] == {}, "no keyword sizing"
+
+
+def test_eight_threads_instrumenting_at_once_apply_the_instrumentor_once(
+    monkeypatch,
+) -> None:
+    """The once-per-process flag is checked and set under a lock."""
+    import sys
+    import threading
+    import time
+    import types
+
+    applied: list[int] = []
+
+    class Slow:
+        def instrument(self) -> None:
+            """Takes long enough for every thread to pass the check."""
+            time.sleep(0.05)
+            applied.append(1)
+
+    module = types.ModuleType("openinference.instrumentation.litellm")
+    module.LiteLLMInstrumentor = Slow  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "openinference.instrumentation.litellm", module)
+    monkeypatch.setattr(traces, "_llm_instrumented", False)
+    start = threading.Barrier(8)
+
+    def run() -> None:
+        start.wait()
+        traces.instrument_llm()
+
+    threads = [threading.Thread(target=run) for _ in range(8)]
+    for one in threads:
+        one.start()
+    for one in threads:
+        one.join()
+
+    assert applied == [1]
+
+
+@pytest.mark.parametrize(
+    ("protocol", "module"),
+    [
+        ("grpc", "opentelemetry.exporter.otlp.proto.grpc.trace_exporter"),
+        ("http/protobuf", "opentelemetry.exporter.otlp.proto.http.trace_exporter"),
+        (None, "opentelemetry.exporter.otlp.proto.grpc.trace_exporter"),
+    ],
+)
+def test_the_exporter_follows_the_otlp_protocol_setting(
+    exporters, monkeypatch, protocol, module
+) -> None:
+    """GRPC unless OTEL_EXPORTER_OTLP_PROTOCOL says http/protobuf, which an HTTPS ingress needs."""
+    if protocol:
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_PROTOCOL", protocol)
+    else:
+        monkeypatch.delenv("OTEL_EXPORTER_OTLP_PROTOCOL", raising=False)
+    built: list[type] = []
+    real = pytest.importorskip(module).OTLPSpanExporter
+
+    class Recording(real):  # type: ignore[valid-type, misc]
+        def __init__(self, *args, **kwargs) -> None:
+            built.append(type(self))
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(pytest.importorskip(module), "OTLPSpanExporter", Recording)
+
+    traces.configure("extraction", run="r1")
+
+    assert built == [Recording]
+
+
+def test_an_unknown_otlp_protocol_exports_nothing_and_says_so(
+    exporters, monkeypatch, caplog
+) -> None:
+    """Not a silent fall back to the other one."""
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "carrier-pigeon")
+
+    traces.configure("extraction", run="r1")
+
+    assert not any(type(p).__name__ == "BatchSpanProcessor" for p in exporters)
+    assert "carrier-pigeon" in caplog.text

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
@@ -43,6 +44,10 @@ log = logging.getLogger(__name__)
 #: Whether the model client has been instrumented in this process. The
 #: instrumentor warns when applied twice, and two stages build two clients.
 _llm_instrumented = False
+
+#: Held across the check and the set below: two stages building a client on
+#: two threads both read the flag false and both applied the instrumentor.
+_instrument_lock = threading.Lock()
 
 #: Set to put a span on every SQL statement and every pool connect. Off by
 #: default, and the one exception to the rule above: a statement is the
@@ -128,10 +133,7 @@ def configure(
     endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") if run else None
     if endpoint:
         try:
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
-                OTLPSpanExporter,
-            )
-
+            exporter = _exporter(endpoint)
             provider.add_span_processor(
                 # No sizing passed, on purpose. OpenTelemetry reads
                 # OTEL_BSP_MAX_QUEUE_SIZE, OTEL_BSP_SCHEDULE_DELAY and
@@ -144,12 +146,41 @@ def configure(
                 # "Queue full, dropping spans" per overflow - so this is a
                 # loud failure rather than a silent one, and `make logs`
                 # is where it would appear.
-                BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=True))
+                BatchSpanProcessor(exporter)
             )
         except Exception as exc:  # noqa: BLE001
             log.warning("tracing export disabled: %s: %s", type(exc).__name__, exc)
 
     trace.set_tracer_provider(provider)
+
+
+def _exporter(endpoint: str):
+    """The span exporter OTEL_EXPORTER_OTLP_PROTOCOL names: gRPC, or HTTP.
+
+    OTLP is the port, so any collector that speaks it takes the spans: Phoenix
+    on gRPC here, Azure Monitor's collector over HTTP behind an ingress. The
+    HTTP exporter reads its address and headers from the standard
+    environment itself, which is how it appends `/v1/traces`.
+
+    Raises:
+        ValueError: If the protocol is neither.
+    """
+    protocol = os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc").strip() or "grpc"
+    if protocol == "grpc":
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+            OTLPSpanExporter,
+        )
+
+        return OTLPSpanExporter(endpoint=endpoint, insecure=True)
+    if protocol == "http/protobuf":
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+            OTLPSpanExporter as HttpExporter,
+        )
+
+        return HttpExporter()
+    raise ValueError(
+        f"OTEL_EXPORTER_OTLP_PROTOCOL={protocol!r} is neither grpc nor http/protobuf"
+    )
 
 
 def instrument_llm() -> None:
@@ -169,26 +200,27 @@ def instrument_llm() -> None:
     instrumentor warns when applied to a library already instrumented.
     """
     global _llm_instrumented
-    if _llm_instrumented:
-        return
-    try:
-        from openinference.instrumentation.litellm import LiteLLMInstrumentor
-    except ImportError:
-        # Warned rather than passed over in silence, unlike the optional
-        # instrumentors above: a worker missing this still calls the model
-        # and still works, and the only symptom is that the spans it was
-        # meant to produce are the ones nobody notices are absent.
-        log.warning(
-            "openinference-instrumentation-litellm is not installed, so model "
-            "calls are timed in the logs but carry no prompt or token counts"
-        )
-        return
-    try:
-        LiteLLMInstrumentor().instrument()
-    except Exception as exc:  # noqa: BLE001
-        log.warning("could not instrument the model client: %s", exc)
-        return
-    _llm_instrumented = True
+    with _instrument_lock:
+        if _llm_instrumented:
+            return
+        try:
+            from openinference.instrumentation.litellm import LiteLLMInstrumentor
+        except ImportError:
+            # Warned rather than passed over in silence, unlike the optional
+            # instrumentors above: a worker missing this still calls the model
+            # and still works, and the only symptom is that the spans it was
+            # meant to produce are the ones nobody notices are absent.
+            log.warning(
+                "openinference-instrumentation-litellm is not installed, so model "
+                "calls are timed in the logs but carry no prompt or token counts"
+            )
+            return
+        try:
+            LiteLLMInstrumentor().instrument()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("could not instrument the model client: %s", exc)
+            return
+        _llm_instrumented = True
 
 
 @contextmanager
