@@ -2372,7 +2372,7 @@ def phrases(text: str, language: str | None) -> tuple[str, ...]:
     """
     document = _read(text, language)
     kept = []
-    for chunk in document.noun_chunks:
+    for chunk in chunks:
         content_words = [token for token in chunk if token.pos_ in _CONTENT]
         if not content_words:
             continue
@@ -2380,6 +2380,12 @@ def phrases(text: str, language: str | None) -> tuple[str, ...]:
         written = "".join(token.text_with_ws for token in words).strip()
         if written:
             kept.append((len(content_words), chunk.start, written))
+    try:
+        chunks = list(document.noun_chunks)
+    except NotImplementedError:
+        # spaCy has no syntax iterator for the language, and the gates reading
+        # phrases abstain.
+        return ()
     return tuple(
         written for _, _, written in sorted(kept, key=lambda one: (-one[0], one[1]))
     )

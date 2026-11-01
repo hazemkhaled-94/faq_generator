@@ -229,7 +229,7 @@ A language that fails one of these needs code.
 
 | | Needed by | Without it |
 |---|---|---|
-| `noun_chunks` | `phrases()`, and so `subject`, `enumerates`, `compares` | Raises. Russian, Chinese and Ukrainian have no syntax iterator, and Japanese needs SudachiPy |
+| `noun_chunks` | `phrases()`, and so `subject`, `enumerates`, `compares` | Raises `NotImplementedError` for a language without `spacy/lang/<code>/syntax_iterators.py`: Polish, Czech, Romanian, Croatian, Slovenian, Lithuanian, Korean, Russian, Ukrainian and Chinese have none, and `phrases()` then returns nothing so the gates abstain. Japanese needs SudachiPy |
 | An NER component with `PER` or `PERSON` | `names_parties`, the credits-page reading | Density is always 0, so the reading never fires and nothing says so |
 | `like_num` on spelled-out numerals | `claim().units` | Uneven: `de_core_news_md` tags `zwei` `like_num` false where `en_core_web_md` gives `two` both |
 

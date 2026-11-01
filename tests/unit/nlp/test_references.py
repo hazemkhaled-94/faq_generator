@@ -1163,6 +1163,48 @@ def test_a_language_no_pipeline_is_configured_for_reads_no_source_noun_either(
     )
 
 
+# ── Where no language has a noun_chunks iterator ─────────────────────────
+
+
+@pytest.mark.parametrize("language", ["pl", "cs", "ro", "hr", "sl", "lt", "ko"])
+def test_phrases_are_none_where_spacy_has_no_noun_chunks_for_the_language(
+    language: str, monkeypatch
+) -> None:
+    """The gates reading phrases() then abstain; a configured Polish does not crash them."""
+    import spacy
+    from spacy.tokens import Doc
+
+    from nlp import analysis
+
+    doc = Doc(
+        spacy.blank(language).vocab,
+        words=["Klient", "składa", "wniosek", "."],
+        heads=[1, 1, 1, 1],
+        deps=["nsubj", "ROOT", "obj", "punct"],
+        pos=["NOUN", "VERB", "NOUN", "PUNCT"],
+    )
+    monkeypatch.setattr(analysis, "_read", lambda text, language: doc)
+
+    assert analysis.phrases("Klient składa wniosek.", language) == ()
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "text"),
+    [
+        ("de", "Der Kunde eröffnet ein Konto."),
+        ("en", "The customer opens an account."),
+    ],
+)
+def test_phrases_are_read_where_the_language_has_noun_chunks(
+    language: str, text: str
+) -> None:
+    """The two configured languages are unchanged."""
+    from nlp.analysis import phrases
+
+    assert phrases(text, language)
+
+
 # ── The reader a polite Sie opens a statement for ────────────────────────
 
 _ADDRESSED = {
