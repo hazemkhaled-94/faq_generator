@@ -2240,3 +2240,90 @@ def test_a_dotted_amount_or_rate_does_not_support_its_minute_part(
     judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
 
     assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "de",
+            "Das Privatkonto kostet CHF 1'250.50 pro Jahr.",
+            "Das Privatkonto kostet CHF 250.50 pro Jahr.",
+        ),
+        (
+            "de",
+            "Das Privatkonto kostet CHF 1’250.50 pro Jahr.",
+            "Das Privatkonto kostet CHF 250.50 pro Jahr.",
+        ),
+        (
+            "de",
+            "Das Limit beträgt CHF 1'000'000 pro Kunde.",
+            "Das Limit beträgt CHF 1'000 pro Kunde.",
+        ),
+        (
+            "en",
+            "The private account costs CHF 1'250.50 a year.",
+            "The private account costs CHF 250.50 a year.",
+        ),
+    ],
+)
+def test_a_fact_dropping_the_thousands_of_an_apostrophe_grouped_amount_is_refused(
+    language, evidence, statement
+) -> None:
+    """The Swiss grouping is one figure: dropping its thousands changes the amount."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert not judged.validated, "a wrong amount was validated"
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "de",
+            "Das Privatkonto kostet CHF 1'250.50 pro Jahr.",
+            "Das Privatkonto kostet CHF 1250.50 pro Jahr.",
+        ),
+        (
+            "en",
+            "The private account costs CHF 1’250.50 a year.",
+            "The private account costs CHF 1250.50 a year.",
+        ),
+        (
+            "en",
+            "The private account costs CHF 1250.50 a year.",
+            "The private account costs CHF 1’250.50 a year.",
+        ),
+    ],
+)
+def test_an_apostrophe_grouped_amount_and_its_plain_spelling_support_each_other(
+    language, evidence, statement
+) -> None:
+    """The same amount in another grouping is no addition, in any language."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "fr",
+            "Le compte privé coûte CHF 1'250.50 par an.",
+            "Le compte privé coûte CHF 250.50 par an.",
+        ),
+        (
+            "el",
+            "Ο λογαριασμός κοστίζει 1.250,50 EUR.",
+            "Ο λογαριασμός κοστίζει 1.250,50 EUR.",
+        ),
+    ],
+)
+def test_a_language_no_pipeline_is_configured_for_is_refused_at_parse_not_read(
+    language, evidence, statement
+) -> None:
+    """No predicate is read in such a language, so the amount is never judged."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.ASSERTS_NOTHING

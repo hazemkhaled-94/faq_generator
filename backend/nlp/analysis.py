@@ -653,7 +653,9 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
 #: past its unit and is a word; a name ending in digits starts with a letter.
 #: The unit follows a digit directly: after a dash - `2-mal`, `3-fach` - the
 #: letters make the digits a number word, which states no figure.
-_FIGURE_TOKEN = re.compile(r"[+±−-]?\(?\d[\d.,:/()– -]*(?:(?<=\d)[^\W\d_]{1,4})?%?")
+_FIGURE_TOKEN = re.compile(
+    r"[+±−-]?\(?\d{1,3}(?:['’]\d{3})*[\d.,:/()– -]*(?:(?<=\d)[^\W\d_]{1,4})?%?"
+)
 
 
 def _figures(span: Doc | Span) -> tuple[str, ...]:
@@ -935,8 +937,12 @@ def _amount(text: str, start: int, end: int, language: str | None) -> bool:
 #: is not. The third alternative is a long figure with a fraction and no
 #: thousands mark: `1299,99`, `2500.00`. The first is a number grouped by
 #: spaces, which `figures` reads as one only beside a currency, see `_amount`.
+#: The second is the apostrophe grouping, `1'250.50`, either apostrophe, one
+#: figure wherever it stands: a digit and exactly three digits take it, a
+#: possessive (`90's`) never does.
 FIGURE = re.compile(
-    _SPACED.pattern + r"|(?<![\w.,])\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?(?![\w])"
+    _SPACED.pattern + r"|(?<![\w.,'’])\d{1,3}(?:['’]\d{3})+(?:[.,]\d+)?(?![\w])"
+    r"|(?<![\w.,])\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?(?![\w])"
     r"|(?<![\w.,])\d+(?![\w]|[.,]\d)"
     r"|(?<![\w.,])\d{4,}[.,]\d+(?![\w]|[.,]\d)"
 )
@@ -957,7 +963,7 @@ def figures(text: str, language: str | None = None) -> list[float]:
     mark = DECIMAL_MARK.get((language or "").strip().lower())
     found: list[float] = []
     for match in FIGURE.finditer(text):
-        raw = match.group()
+        raw = match.group().replace("'", "").replace("’", "")
         if any(char.isspace() for char in raw):
             if _amount(text, match.start(), match.end(), language):
                 raw = "".join(raw.split())
@@ -1050,7 +1056,7 @@ _NUMBER_WORDS: dict[str, dict[str, str]] = {
 #: A run of digits, with the decimal or thousands marks inside it. Read off a
 #: token rather than off `like_num`, so a figure glued to its unit - `45m` -
 #: or written as a time - `08:00` - is still a number.
-_DIGITS = re.compile(r"\d+(?: \d{3})*(?:[.,]\d+)*")
+_DIGITS = re.compile(r"\d+(?:['’]\d{3}(?!\d))*(?: \d{3})*(?:[.,]\d+)*")
 
 #: The zeros a run of digits opens with, which are no part of its value.
 _PADDING = re.compile(r"^0+(?=\d)")

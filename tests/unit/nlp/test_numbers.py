@@ -142,3 +142,77 @@ def test_a_space_grouped_amount_beside_an_iso_currency_is_one_figure(
     from nlp.analysis import figures
 
     assert figures(text, language) == value
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "value"),
+    [
+        ("Das Privatkonto kostet CHF 1'250.50 pro Jahr.", "de", [1250.5]),
+        ("The fee is CHF 1’250.50 a year.", "en", [1250.5]),
+        ("Le plafond est de 1'000'000 CHF.", "fr", [1000000.0]),
+        ("Ο λογαριασμός κοστίζει 1’250 EUR.", "el", [1250.0]),
+        ("Ο λογαριασμός κοστίζει 1.250,50 EUR.", "el", [1250.5]),
+        ("Das Limit beträgt 12'5000 CHF.", "de", [12.0, 5000.0]),
+    ],
+)
+def test_an_apostrophe_between_a_digit_and_three_digits_groups_thousands(
+    text, language, value
+) -> None:
+    """The Swiss mark, in either apostrophe, joins the groups into one figure."""
+    from nlp.analysis import figures
+
+    assert figures(text, language) == value
+
+
+@pytest.mark.parametrize(
+    ("text", "language"),
+    [
+        ("The 90's were quiet and Section 5's rule applies.", "en"),
+        ("Die 90's waren ruhig, Artikel 5's Regel gilt.", "de"),
+        ("Les années 90's et l'article 5's.", "fr"),
+        ("Τα 90's και το 5's.", "el"),
+    ],
+)
+def test_a_possessive_apostrophe_next_to_a_digit_is_no_group_mark(
+    text, language
+) -> None:
+    """Only a digit before and exactly three digits after make a group."""
+    from nlp.analysis import figures, numbers
+
+    assert figures(text, language) == [90.0, 5.0]
+    assert numbers(text, language) == ("5", "90")
+
+
+@pytest.mark.parametrize(
+    ("language", "grouped", "plain"),
+    [
+        (
+            "de",
+            "Das Konto kostet CHF 1'250.50 im Jahr.",
+            "Das Konto kostet CHF 1250.50 im Jahr.",
+        ),
+        (
+            "en",
+            "The account costs CHF 1’250.50 a year.",
+            "The account costs CHF 1250.50 a year.",
+        ),
+        (
+            "fr",
+            "Le compte coûte CHF 1'250.50 par an.",
+            "Le compte coûte CHF 1250.50 par an.",
+        ),
+        (
+            "el",
+            "Ο λογαριασμός κοστίζει CHF 1’250.50 τον χρόνο.",
+            "Ο λογαριασμός κοστίζει CHF 1250.50 τον χρόνο.",
+        ),
+    ],
+)
+def test_a_grouped_and_an_ungrouped_amount_are_one_number(
+    language, grouped, plain
+) -> None:
+    """The digits read the same whichever way the thousands are marked."""
+    from nlp.analysis import numbers, numerals
+
+    assert numbers(grouped, language) == numbers(plain, language)
+    assert numerals(grouped, language) == numerals(plain, language)
