@@ -179,7 +179,7 @@ map (C-088).
 | `QUESTIONS_TYPE_MIX`, `QUESTIONS_RELEASE_TYPES` | `backend.env` | `entity` and `temporal` at 0 until calibrated on the production corpus | C-176, C-217 |
 | `QUESTIONS_RELEASE_DIFFICULTY` | `backend.env` | Unset: the bands measure retrieval spread, not hardness | C-029 |
 | `QA_MODEL` | `backend.env` | Empty, until an encoder is calibrated | C-424 |
-| `EXTRACTION_DUPLICATE_COSINE` | `backend.env` | As shipped (0 also stops writing passage embeddings) | C-245 |
+| `EXTRACTION_DUPLICATE_COSINE` | `backend.env` | As shipped. 0 turns the refusal off; the embeddings are still written | C-245 |
 | `EMBEDDING_MAX_TOKENS` | `backend.env` | Above the corpus's widest table row, checked before ingest | C-278 |
 | `POSTGRES_*` | `deployment.env` | The production row of [Sizing Postgres](operations.md#sizing-postgres) | C-011 |
 | `PHOENIX_TRACE_RETENTION_DAYS` | `deployment.env` | Set: traces hold every passage a prompt sent | C-103 |
