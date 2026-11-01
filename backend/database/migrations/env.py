@@ -14,6 +14,7 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import engine_from_config, pool
 
 from database.qa_generator import Base
+from database.qa_generator.engine import authenticated
 
 config = context.config
 
@@ -73,14 +74,16 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Applies the migrations against the live database."""
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-        connect_args={
-            "options": f"-c lock_timeout={LOCK_TIMEOUT} "
-            f"-c statement_timeout={STATEMENT_TIMEOUT}"
-        },
+    connectable = authenticated(
+        engine_from_config(
+            config.get_section(config.config_ini_section, {}),
+            prefix="sqlalchemy.",
+            poolclass=pool.NullPool,
+            connect_args={
+                "options": f"-c lock_timeout={LOCK_TIMEOUT} "
+                f"-c statement_timeout={STATEMENT_TIMEOUT}"
+            },
+        )
     )
     with connectable.connect() as connection:
         context.configure(

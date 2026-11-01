@@ -171,12 +171,17 @@ component](architecture.md#swapping-a-component) says what each port is.
 | Setting | Default | Chooses |
 |---|---|---|
 | `OBJECT_STORE` | `s3` | the object store adapter; `s3` is the only one there is |
+| `DATABASE_AUTH` | `url` | where a connection's password comes from; `url` is the one in `DATABASE_URL` |
 
 `S3_BUCKETS` names the bucket of each role, as `documents,parsed,models,export,archive`
 or as `role=bucket` entries (`documents=acme-docs`) where a deployment names
 one differently. A role not named keeps its own name. The backend asks for each
 configured bucket by name and never lists the account's buckets, because a
 credential limited to one bucket is refused the listing.
+
+TLS to the database is part of `DATABASE_URL`: add `?sslmode=verify-full&sslrootcert=/path`
+to it. The adapter is asked for a password each time the pool opens a connection,
+so a token that expires is renewed.
 
 ## Production settings
 

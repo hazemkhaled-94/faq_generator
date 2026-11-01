@@ -148,6 +148,12 @@ models, so `\d+ passages` in `psql` shows what a column is for.
 
 ## Connections
 
+A `Credential` in `qa_generator/engine.py` supplies the password of every
+new connection (`DATABASE_AUTH`, `url` by default: the password in
+`DATABASE_URL`), so a token that expires is renewed. TLS travels in the URL's
+query. Only `engine.py` and `migrations/env.py` build an engine, which
+`tests/static/test_one_engine_builder.py` checks.
+
 Each process opens its own pool, sized by `DATABASE_POOL_SIZE` and
 `DATABASE_POOL_OVERFLOW`. The total across the API and every worker must stay
 under PostgreSQL's `max_connections`. Both are read-only in
