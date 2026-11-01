@@ -27,6 +27,12 @@ It covers deletions that never pass through Python: the foreign keys and
 orphan triggers behind one `make delete SHA=... CONFIRM=<database>` are
 described in the [database README](../database/README.md#deletion).
 
+A transaction can leave tables out: the function returns early for the tables
+named in `qa.archive_skip`, which is set with `SET LOCAL`. A topic fit sets it
+for `topics` and `passage_topics`, since a fit is over the whole corpus and a
+restore would not want its rows back, Every other deletion archives as before. The downgrade past the paper's scores
+switches the `assessment_metrics` trigger off for its one delete.
+
 The removal paths move objects to the `archive` bucket, keyed
 `{origin}/{key}@{UTC time}` (`{origin}/{key}` for a copy taken before the
 stamp existed).
