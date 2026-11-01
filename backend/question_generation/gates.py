@@ -1308,7 +1308,17 @@ def _asserts(text: str, language: str | None) -> tuple[str, ...]:
         unit
         for unit in claim(text, language).units
         if any(char.isdigit() for char in unit)
-    )
+    ) + tuple(sorted(_amounts(text, language)))
+
+
+def _amounts(text: str, language: str | None) -> frozenset[str]:
+    """The figures of a text by the one reader, each as the value `_folded` gives it.
+
+    `claim().units` is a token's reading, and a space-grouped amount is merged
+    into a token that is no number to it, so `EUR 200 000` asserted nothing.
+    `figures` reads the amount whole, as it does for every other gate.
+    """
+    return frozenset(repr(value) for value in figures(text, language))
 
 
 def explains(
@@ -1333,7 +1343,7 @@ def explains(
 
     - ASSERTING NOTHING THE MATERIAL DOES NOT. Every figure and date has
       to be in the cited passages - `asserted`'s reading, over the units
-      `_asserts` keeps. This is the only one of the three that can put a
+      `_asserts` keeps, amounts read by `figures`. This is the only one of the three that can put a
       wrong claim in front of a reader, and it is why the gate is not simply
       a length check.
 
@@ -1354,7 +1364,8 @@ def explains(
         return False
     units = _asserts(explanation, language)
     if units:
-        found = _values("\n".join(passages), language)
+        joined = "\n".join(passages)
+        found = _values(joined, language) | _amounts(joined, language)
         if not all(_readings(unit, language) & found for unit in units):
             return False
     said = content(explanation, language)
