@@ -219,7 +219,8 @@ where compose set it and `PHOENIX_ADMIN_SECRET` where `.env` did.
 | Setting | Where | What it does |
 | --- | --- | --- |
 | `LOG_LEVEL` | `configs/env/deployment.env` | Every service, the frontend included |
-| `LOG_DIR` | `configs/env/deployment.env`, set over in `compose.yaml` | Where the JSON file goes. Unset means stdout only |
+| `LOG_FORMAT` | `configs/env/deployment.env` | `text` (a person) or `json` (a collector) on stdout; the JSON is the file's, one object per line |
+| `LOG_DIR` | `configs/env/deployment.env`, set over in `compose.yaml` | Where the JSON file goes. Unset means no file, and stdout only |
 | `OTEL_CONTAINER_ENDPOINT` | `configs/env/deployment.env` | Trace collector, as the containers reach it |
 | `TRACE_DATABASE` | unset | A span per SQL statement and per pool connect |
 

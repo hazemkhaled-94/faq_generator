@@ -274,3 +274,118 @@ def test_a_binding_does_not_leak_between_threads(shipped) -> None:
         thread.join()
 
     assert "passage.id" not in lines()[0]
+
+
+@pytest.fixture
+def root():
+    """The root logger put back as it was, since `configure` replaces its handlers."""
+    from telemetry import logs
+
+    root = logging.getLogger()
+    held, level = list(root.handlers), root.level
+    logs.add_trace_fields()
+    yield root
+    for handler in root.handlers:
+        if handler not in held:
+            handler.close()
+    root.handlers[:] = held
+    root.setLevel(level)
+
+
+def test_an_unwritable_log_dir_is_a_record_on_stdout_with_the_usual_fields(
+    root, tmp_path, monkeypatch, capsys
+) -> None:
+    """Said on the stream handler the docstring promises, not on a bare stderr line."""
+    from telemetry.logs import configure
+
+    blocker = tmp_path / "not-a-dir"
+    blocker.write_text("x")
+    monkeypatch.setenv("LOG_DIR", str(blocker / "logs"))
+    monkeypatch.delenv("LOG_FORMAT", raising=False)
+
+    configure("probe")
+
+    shown = capsys.readouterr()
+    assert "is not writable" in shown.out, (shown.out, shown.err)
+    assert "WARNING" in shown.out and "[trace=" in shown.out
+    assert shown.err == ""
+
+
+def test_the_warning_is_the_json_record_when_stdout_is_json(
+    root, tmp_path, monkeypatch, capsys
+) -> None:
+    """The same failure, as one object with the file's ECS fields."""
+    from telemetry.logs import configure
+
+    blocker = tmp_path / "not-a-dir"
+    blocker.write_text("x")
+    monkeypatch.setenv("LOG_DIR", str(blocker / "logs"))
+    monkeypatch.setenv("LOG_FORMAT", "json")
+
+    configure("probe")
+
+    (record,) = [json.loads(one) for one in capsys.readouterr().out.splitlines()]
+    assert record["log.level"] == "warning"
+    assert record["service.name"] == "probe"
+    assert "is not writable" in record["message"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Überweisung 12,50 €",
+        "Virement de 12,50 EUR",
+        "Przelew 12,50 zł",
+        "Έμβασμα 12,50 €",
+    ],
+)
+def test_json_on_stdout_is_one_object_per_record_with_the_fields_of_the_file(
+    root, tmp_path, monkeypatch, capsys, message
+) -> None:
+    """One record is one line, whatever script it is in, and the file holds the same fields."""
+    from telemetry.logs import configure
+
+    monkeypatch.setenv("LOG_FORMAT", "json")
+    monkeypatch.setenv("LOG_DIR", str(tmp_path))
+
+    configure("probe")
+    logging.getLogger("probe.test").info(message, extra={"passage_id": 7})
+    for handler in logging.getLogger().handlers:
+        handler.flush()
+
+    (on_stdout,) = [json.loads(one) for one in capsys.readouterr().out.splitlines()]
+    (shipped,) = [
+        json.loads(one)
+        for f in tmp_path.glob("probe-*.log")
+        for one in f.read_text().splitlines()
+    ]
+    assert on_stdout["message"] == message
+    assert on_stdout["passage_id"] == 7
+    assert set(on_stdout) == set(shipped)
+
+
+def test_no_file_is_written_without_a_log_dir(
+    root, tmp_path, monkeypatch, capsys
+) -> None:
+    """Stdout alone is enough, as on a platform that collects it."""
+    from telemetry.logs import configure
+
+    monkeypatch.delenv("LOG_DIR", raising=False)
+    monkeypatch.setenv("LOG_FORMAT", "json")
+    monkeypatch.chdir(tmp_path)
+
+    configure("probe")
+    logging.getLogger("probe.test").info("hello")
+
+    assert [type(h).__name__ for h in logging.getLogger().handlers] == ["StreamHandler"]
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_an_unknown_log_format_is_refused(root, monkeypatch) -> None:
+    """`text` or `json`, and nothing quiet in between."""
+    from telemetry.logs import configure
+
+    monkeypatch.setenv("LOG_FORMAT", "xml")
+
+    with pytest.raises(ValueError, match="LOG_FORMAT"):
+        configure("probe")

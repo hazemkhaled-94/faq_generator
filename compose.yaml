@@ -67,6 +67,7 @@ x-service-env: &service-env
   TZ: UTC
   DATABASE_URL: postgresql+psycopg://${APP_DB_USER}:${APP_DB_PASSWORD:?add it to .env; .env.example names every secret}@postgres:5432/${APP_DB_NAME}
   LOG_LEVEL: ${LOG_LEVEL}
+  LOG_FORMAT: ${LOG_FORMAT}
   LOG_DIR: /var/log/qa
   HF_HOME: /home/app/.cache/huggingface
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_CONTAINER_ENDPOINT}
@@ -246,6 +247,7 @@ x-dagster: &dagster
     BACKEND_URL: ${BACKEND_CONTAINER_URL}
     API_TOKEN: ${API_TOKEN:?add it to .env; .env.example names every secret}
     LOG_LEVEL: ${LOG_LEVEL}
+    LOG_FORMAT: ${LOG_FORMAT}
     LOG_DIR: /var/log/qa
     OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_CONTAINER_ENDPOINT}
   volumes:
@@ -731,6 +733,7 @@ services:
       API_TOKEN: ${API_TOKEN:?add it to .env; .env.example names every secret}
       PAGE_SIZE: ${PAGE_SIZE}
       LOG_LEVEL: ${LOG_LEVEL}
+      LOG_FORMAT: ${LOG_FORMAT}
       LOG_DIR: /var/log/qa
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_CONTAINER_ENDPOINT}
       # The HOST's address, deliberately, and the one place in this file
