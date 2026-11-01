@@ -2,8 +2,9 @@
 
 The adapters are `S3Store` over a stand-in for boto3's client (today's, with
 no container) and an in-memory fake. An Azure Blob Storage adapter joins the
-list by being added to `STORES`. The gateway itself is covered by
-`tests/integration/blob`, which runs the buckets against SeaweedFS.
+list by being added to `STORES`. The port-level cases also run against a real
+SeaweedFS gateway, marked `integration`; the bucket classes are covered against
+it by `tests/integration/blob`.
 """
 
 from __future__ import annotations
@@ -33,19 +34,45 @@ def _s3() -> S3Store:
 STORES = {"fake": _fake, "s3": _s3}
 
 
-@pytest.fixture(params=STORES)
+@pytest.fixture(
+    params=["fake", "s3", pytest.param("gateway", marks=pytest.mark.integration)]
+)
 def objects(request):
-    """The port's objects."""
+    """The port's objects: two with no container, and the real gateway where there is one.
+
+    The gateway runs the same cases over `S3Store` and a SeaweedFS the
+    integration fixtures start, in the buckets that gateway has; CI runs it
+    with the other integration tests and a unit run leaves it out.
+    """
+    if request.param == "gateway":
+        request.getfixturevalue("buckets")
+        from blob_store.s3.client import s3_client
+
+        return S3Store(s3_client())
     return STORES[request.param]()
 
 
 @pytest.fixture
-def bound(objects, monkeypatch):
+def names(request) -> tuple[str, str]:
+    """The two buckets the port-level cases use: the gateway's own, or the stand-ins'."""
+    if request.node.callspec.params.get("objects") == "gateway":
+        return ("documents", "archive")
+    return ("statements", "archive-eu")
+
+
+@pytest.fixture(params=sorted(STORES))
+def local(request):
+    """The stores that need no container, for the cases that name buckets of their own."""
+    return STORES[request.param]()
+
+
+@pytest.fixture
+def bound(local, monkeypatch):
     """The buckets bound to the store under test, under a database named `qa_a`."""
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@db/qa_a")
-    monkeypatch.setattr(store, "object_store", lambda: objects)
+    monkeypatch.setattr(store, "object_store", lambda: local)
     monkeypatch.setattr(bucket_module, "_COUNTS", {})
-    return objects
+    return local
 
 
 class Statements(DocumentsBucket):
@@ -60,62 +87,70 @@ class Retained(ArchiveBucket):
     name = "archive-eu"
 
 
-def test_a_put_is_read_back_and_a_missing_key_is_none(objects) -> None:
+def test_a_put_is_read_back_and_a_missing_key_is_none(objects, names) -> None:
     """A put is read back and a missing key is none."""
-    objects.put("statements", "a/b", b"Kontoauszug", content_type="text/plain")
+    main, _ = names
+    objects.put(main, "a/b", b"Kontoauszug", content_type="text/plain")
 
-    assert objects.get("statements", "a/b") == b"Kontoauszug"
-    assert objects.get("statements", "a/c") is None
-    assert objects.exists("statements", "a/b")
-    assert not objects.exists("statements", "a/c")
+    assert objects.get(main, "a/b") == b"Kontoauszug"
+    assert objects.get(main, "a/c") is None
+    assert objects.exists(main, "a/b")
+    assert not objects.exists(main, "a/c")
 
 
-def test_a_delete_is_silent_about_a_key_that_is_not_there(objects) -> None:
+def test_a_delete_is_silent_about_a_key_that_is_not_there(objects, names) -> None:
     """A delete is silent about a key that is not there."""
-    objects.put("statements", "k", b"x", content_type="text/plain")
+    main, _ = names
+    objects.put(main, "k", b"x", content_type="text/plain")
 
-    objects.delete("statements", "k")
-    objects.delete("statements", "k")
+    objects.delete(main, "k")
+    objects.delete(main, "k")
 
-    assert not objects.exists("statements", "k")
+    assert not objects.exists(main, "k")
 
 
-def test_a_copy_reports_a_missing_source_and_keeps_the_original(objects) -> None:
+def test_a_copy_reports_a_missing_source_and_keeps_the_original(objects, names) -> None:
     """A copy reports a missing source and keeps the original."""
-    objects.put("statements", "k", "relevé".encode(), content_type="text/plain")
+    main, other = names
+    objects.put(main, "k", "relevé".encode(), content_type="text/plain")
 
-    assert objects.copy("statements", "k", "archive-eu", "k@1") is True
-    assert objects.copy("statements", "gone", "archive-eu", "gone@1") is False
-    assert objects.get("archive-eu", "k@1") == "relevé".encode()
-    assert objects.get("statements", "k") == "relevé".encode()
+    assert objects.copy(main, "k", other, "k@1") is True
+    assert objects.copy(main, "gone", other, "gone@1") is False
+    assert objects.get(other, "k@1") == "relevé".encode()
+    assert objects.get(main, "k") == "relevé".encode()
 
 
-def test_a_listing_takes_the_prefix_and_every_page(objects) -> None:
+def test_a_listing_takes_the_prefix_and_every_page(objects, names) -> None:
     """A listing takes the prefix and every page."""
+    main, _ = names
     for number in range(5):
-        objects.put("statements", f"qa_a/{number}", b"x", content_type="text/plain")
-    objects.put("statements", "qa_b/0", b"yy", content_type="text/plain")
+        objects.put(main, f"qa_a/{number}", b"x", content_type="text/plain")
+    objects.put(main, "qa_b/0", b"yy", content_type="text/plain")
 
-    held = objects.listed("statements", "qa_a/")
+    held = objects.listed(main, "qa_a/")
 
     assert [one.key for one in held] == [f"qa_a/{n}" for n in range(5)]
     assert {one.size for one in held} == {1}
-    assert len(objects.listed("statements")) == 6
+    assert len(objects.listed(main)) == 6
 
 
-def test_delete_many_removes_what_it_names(objects) -> None:
+def test_delete_many_removes_what_it_names(objects, names) -> None:
     """Delete many removes what it names."""
+    main, _ = names
     for key in ("a", "b", "c"):
-        objects.put("statements", key, b"x", content_type="text/plain")
+        objects.put(main, key, b"x", content_type="text/plain")
 
-    objects.delete_many("statements", ["a", "c"])
+    objects.delete_many(main, ["a", "c"])
 
-    assert [one.key for one in objects.listed("statements")] == ["b"]
+    assert [one.key for one in objects.listed(main)] == ["b"]
 
 
-def test_a_bucket_is_asked_of_by_name_and_never_by_listing_the_account(objects) -> None:
+def test_a_bucket_is_asked_of_by_name_and_never_by_listing_the_account(
+    objects, names
+) -> None:
     """The stand-in refuses ListBuckets, as it is refused to a bucket-scoped credential."""
-    assert objects.has_bucket("statements") is True
+    main, _ = names
+    assert objects.has_bucket(main) is True
     assert objects.has_bucket("never-made") is False
 
 
