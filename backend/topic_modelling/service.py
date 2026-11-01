@@ -14,7 +14,7 @@ from telemetry import tracer, working
 from telemetry.evaluations import current_ids
 from topic_modelling.labels import TopicLabeller
 from topic_modelling.models import FittedTopic, Fitting, PassageWeight
-from topic_modelling.repository import QuestionsRunning, TopicQueue
+from topic_modelling.repository import QuestionsRunning, TopicQueue, archive_fit
 from topic_modelling.space import dump
 from topic_modelling.topics import NoVocabulary, TopicFitter, carry_labels, dominant
 
@@ -241,15 +241,13 @@ class TopicModellingService(StageService):
         topics that no longer exist. Every failure is logged and left, as in
         `_keep`: the rows are already replaced.
         """
-        for language in gone:
-            for bucket, key in (
-                (self._export, self._export.topic_visualisation_key(language)),
-                (self._models, self._models.topic_model_key(language)),
-            ):
-                try:
-                    self._archive.take(bucket.name, key)
-                except Exception:
-                    log.exception("could not archive the %s %s", language, key)
+        archive_fit(
+            gone,
+            export=self._export,
+            models=self._models,
+            archive=self._archive,
+            strict=False,
+        )
 
     def _keep(self, fittings: list[Fitting]) -> None:
         """Stores each language's factorisation.
