@@ -1,6 +1,7 @@
 # Dagster workspace — the code locations, which are the Python packages
 # holding the assets, jobs, schedules and sensors.
-# Mounted read-only into DAGSTER_HOME in compose.yaml.
+# Baked into the orchestration image and copied into DAGSTER_HOME at start, as
+# dagster.yaml is.
 #
 # One location. `orchestration` is a top-level package beside `telemetry`,
 # on PYTHONPATH in the image and at the repository root for

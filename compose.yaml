@@ -799,7 +799,7 @@ services:
   # schedule and the arrivals sensor are stopped until somebody switches them on.
   dagster-webserver:
     <<: *dagster
-    command: ["sh", "-c", "rm -f \"$$DAGSTER_HOME\"/dagster.yaml \"$$DAGSTER_HOME\"/workspace.yaml && cp /opt/dagster/config/dagster.yaml /opt/dagster/config/workspace.yaml \"$$DAGSTER_HOME\"/ && exec dagster-webserver -h 0.0.0.0 -p 3000 -w \"$$DAGSTER_HOME\"/workspace.yaml"]
+    command: ["sh", "-c", "for f in dagster workspace; do cp /opt/dagster/config/$$f.yaml \"$$DAGSTER_HOME\"/.$$f.$$$$.$$(hostname) && mv -f \"$$DAGSTER_HOME\"/.$$f.$$$$.$$(hostname) \"$$DAGSTER_HOME\"/$$f.yaml; done && exec dagster-webserver -h 0.0.0.0 -p 3000 -w \"$$DAGSTER_HOME\"/workspace.yaml"]
     ports:
       - "127.0.0.1:${DAGSTER_WEBSERVER_PORT}:3000"
     healthcheck:
@@ -816,10 +816,11 @@ services:
   # What actually ticks the schedule and the sensors. Without it the UI
   # shows them and none ever fires.
   #
-  # The two files are removed first: a volume from before the config was baked
-  # holds them root-owned, from the bind mounts that used to land there, and
-  # the app user may unlink a file in a directory it owns but not open it for
-  # writing.
+  # Each file is written under a temporary name and renamed over the old one: a
+  # volume from before the config was baked holds them root-owned, from the bind
+  # mounts that used to land there, and the app user may replace a file in a
+  # directory it owns but not open it for writing. The rename is also one step,
+  # so the sibling container never reads a file half written or missing.
   # The workspace is named here as it is for the webserver, and for the
   # same reason: WORKDIR is /opt/dagster/app and the file is copied into
   # DAGSTER_HOME at start, so a daemon left to find its own looks in the wrong
@@ -828,7 +829,7 @@ services:
   # `restart: unless-stopped` above that is not a crash but a spin.
   dagster-daemon:
     <<: *dagster
-    command: ["sh", "-c", "rm -f \"$$DAGSTER_HOME\"/dagster.yaml \"$$DAGSTER_HOME\"/workspace.yaml && cp /opt/dagster/config/dagster.yaml /opt/dagster/config/workspace.yaml \"$$DAGSTER_HOME\"/ && exec dagster-daemon run -w \"$$DAGSTER_HOME\"/workspace.yaml"]
+    command: ["sh", "-c", "for f in dagster workspace; do cp /opt/dagster/config/$$f.yaml \"$$DAGSTER_HOME\"/.$$f.$$$$.$$(hostname) && mv -f \"$$DAGSTER_HOME\"/.$$f.$$$$.$$(hostname) \"$$DAGSTER_HOME\"/$$f.yaml; done && exec dagster-daemon run -w \"$$DAGSTER_HOME\"/workspace.yaml"]
     healthcheck:
       test: ["CMD-SHELL", "dagster-daemon liveness-check || exit 1"]
       interval: 30s

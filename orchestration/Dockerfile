@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # This image installs the ranges in requirements.txt, so that is what its hash
 # is of: telemetry/lockcheck.sh compares it at every start with the checkout's
-# own, which the orchestration mount supplies.
+# own where compose.dev.yaml mounts it, and with this image's copy otherwise.
 RUN sha256sum requirements.txt | cut -d' ' -f1 > /etc/lock-sha
 ENV LOCK_SHA=/etc/lock-sha LOCK_FILE=/opt/dagster/app/orchestration/requirements.txt
 

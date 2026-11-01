@@ -106,10 +106,9 @@ def test_the_orchestration_image_carries_its_config_and_copies_it_where_dagster_
 
     for name in ("dagster-webserver", "dagster-daemon"):
         command = " ".join(BASE[name]["command"])
-        assert (
-            "cp /opt/dagster/config/dagster.yaml /opt/dagster/config/workspace.yaml"
-            in command
-        ), name
+        assert "for f in dagster workspace" in command, name
+        assert "cp /opt/dagster/config/$$f.yaml" in command, name
+        assert "mv -f" in command, name
 
 
 def test_the_makefile_names_the_override_on_the_development_profile_only() -> None:
@@ -168,25 +167,56 @@ def test_the_health_checks_that_need_a_shell_have_one() -> None:
     assert "--strict.perms=false" in BASE["filebeat"]["healthcheck"]["test"][1]
 
 
-def test_every_bare_compose_recipe_for_the_development_stack_names_the_override() -> (
+def test_every_compose_up_in_the_docs_names_the_override_or_says_it_is_go_live() -> (
     None
 ):
-    """A compose command that names compose.yaml alone recreates the first-party containers unmounted."""
-    for page in (
+    """A compose command that names compose.yaml alone recreates the first-party containers unmounted.
+
+    Every bash block that runs compose `up`, `run`, `exec` or `create` carries
+    the override, or sits beside the line saying it is the go-live profile's.
+    """
+    pages = (
         "docs/operations.md",
         "docs/architecture.md",
         "backend/stages/README.md",
         "docs/configuration.md",
-    ):
+    )
+    for page in pages:
         text = (ROOT / page).read_text()
         for block in re.findall(r"```bash\n(.*?)```", text, re.DOTALL):
-            if "COMPOSE_ENV_FILES" in block and re.search(
-                r"compose (up|exec)\b", block
-            ):
-                assert "COMPOSE_FILE=compose.yaml:compose.dev.yaml" in block, (
-                    page,
-                    block,
-                )
+            if not re.search(r"compose\b[^\n]*\b(up|run|exec|create)\b", block):
+                continue
+            assert "compose.dev.yaml" in block or "go-live" in block, (page, block)
     assert (
         "COMPOSE_FILE=compose.yaml:compose.dev.yaml" in (ROOT / "Makefile").read_text()
     )
+
+
+def test_make_upgrade_rebuilds_the_images_before_it_stops_or_starts_anything() -> None:
+    """On the go-live profile no source is mounted, so the build is the only way code gets in."""
+    import subprocess
+
+    lines = subprocess.run(
+        ["make", "-n", "--no-print-directory", "upgrade", "UPGRADE_FREE_GB=0"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    build = next(
+        i for i, one in enumerate(lines) if " build" in one and "compose" in one
+    )
+    stop = next(i for i, one in enumerate(lines) if " stop " in one)
+    up = max(i for i, one in enumerate(lines) if one.rstrip().endswith("make up"))
+
+    assert build < stop < up
+    assert " build api" not in lines[build], (
+        "the build names services: every first-party image must be built"
+    )
+
+
+def test_the_go_live_section_says_code_reaches_it_only_through_make_upgrade() -> None:
+    """A git pull changes nothing in containers that mount nothing."""
+    text = " ".join((ROOT / "docs/operations.md").read_text().split())
+
+    assert "only through `make upgrade`" in text

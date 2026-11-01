@@ -2,9 +2,11 @@
 # The first thing every container of our images runs: refuses to start when the
 # lock it installs from changed after the image was built.
 #
-# The hash of the lock is baked at build (LOCK_SHA) and the checkout's own
-# copy is bind-mounted read-only (LOCK_FILE), so the two differ exactly when
-# somebody edited the lock and did not run `compose build`. Without this the
+# The hash of the lock is baked at build (LOCK_SHA) and compared with LOCK_FILE:
+# the checkout's own copy where compose.dev.yaml bind-mounts it read-only, so the
+# two differ exactly when somebody edited the lock and did not run `compose
+# build`; the image's own copy where nothing is mounted (compose.yaml alone), which
+# passes by construction. Without this the
 # container starts on the old packages and fails at the first import the new
 # lock was meant to supply, or worse, runs on versions nobody reviewed.
 #

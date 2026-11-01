@@ -128,6 +128,7 @@ for the pages. Then bring up one stage worker at a time, queue its stage and
 stop the worker once the queue is drained:
 
 ```bash
+export COMPOSE_FILE=compose.yaml:compose.dev.yaml   # the development stack only; leave it out with HOST_RUNNER=1
 podman compose up -d parse-worker
 make parse-start                 # make parse-status says when it is done
 podman compose stop parse-worker
@@ -457,7 +458,7 @@ From a fresh clone:
    engine). `make docling-weights HOST=1` fetches the same weights into the
    host's Hugging Face cache, which `make doctor` and host drains read with
    the Hub off.
-4. `make up`. With `HOST_RUNNER=1` it starts postgres, the object store, the
+4. `make up`. With `HOST_RUNNER=1` the containers run the images as built, with no source mounted: a `git pull` changes nothing in them until `make upgrade` rebuilds the images and restarts the containers, so code changes reach the go-live stack only through `make upgrade`, while the host runner already runs the checkout. With `HOST_RUNNER=1` it starts postgres, the object store, the
    API, the parse and chunk workers, the web page and Phoenix. `make
    corpus-hosted` waits for the parse and chunk queues to empty before the
    model stages. This `make up` does not stop model workers (`local-models`)
@@ -1090,6 +1091,9 @@ undone.
    poetry install --with llm,nlp,data,storage,api,pipeline,viz,observability,dev
    podman compose --env-file configs/env/deployment.env --env-file .env build
    make up
+   # development profile, as make up started it:
+   podman compose --env-file configs/env/deployment.env --env-file .env -f compose.yaml -f compose.dev.yaml up -d --remove-orphans
+   # go-live profile (HOST_RUNNER=1), compose.yaml alone:
    podman compose --env-file configs/env/deployment.env --env-file .env up -d --remove-orphans
    ```
 
@@ -1153,6 +1157,9 @@ undone.
 Rebuild and `make up`, then once remove the old `seaweedfs-ui` container:
 
 ```bash
+# development profile, as make up started it:
+podman compose --env-file configs/env/deployment.env --env-file .env -f compose.yaml -f compose.dev.yaml up -d --remove-orphans
+# go-live profile (HOST_RUNNER=1), compose.yaml alone:
 podman compose --env-file configs/env/deployment.env --env-file .env up -d --remove-orphans
 ```
 
