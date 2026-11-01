@@ -63,6 +63,37 @@ def test_with_sizing_off_fewer_distinct_passages_than_topics_are_one_topic(
     assert fitting.unplaced == 0
 
 
+@pytest.mark.parametrize(
+    ("language", "first", "second"),
+    [
+        ("de", "konto", "karte"),
+        ("en", "fee", "card"),
+        ("fr", "frais", "carte"),
+        ("el", "τέλος", "κάρτα"),
+    ],
+)
+def test_with_two_topics_asked_two_indistinguishable_passages_are_one_topic(
+    language, first, second
+) -> None:
+    """TOPIC_NUM_TOPICS=2 with sizing off: two passages that no term tells apart cannot be two topics."""
+    off = dict(DEFAULTS) | {"passages_per_topic": 0, "num_topics": 2}
+
+    fitting = FitterDriver(off, _counts(first, second, 2)).fit(language)
+
+    assert len(fitting.fitting.topics) == 1
+    assert fitting.unplaced == 0
+
+
+def test_with_two_topics_asked_three_indistinguishable_passages_name_the_filter() -> (
+    None
+):
+    """From three distinct passages an empty filter is refused, as from as many as topics before."""
+    off = dict(DEFAULTS) | {"passages_per_topic": 0, "num_topics": 2}
+
+    with pytest.raises(NoVocabulary, match="TOPIC_NO_BELOW"):
+        FitterDriver(off, _counts("fee", "card", 3)).fit("en")
+
+
 def test_with_sizing_off_as_many_distinct_passages_as_topics_name_the_filter() -> None:
     """From TOPIC_NUM_TOPICS distinct passages an empty filter is refused."""
     off = dict(DEFAULTS) | {"passages_per_topic": 0}

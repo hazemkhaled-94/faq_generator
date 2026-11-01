@@ -296,7 +296,9 @@ class TopicFitter:
         passages.
         """
         if self._passages_per_topic <= 0:
-            return passages < self._num_topics
+            # Two passages no term tells apart are no two topics, whatever
+            # the count asked for, so a fit needs more than the fewest.
+            return passages < max(self._num_topics, _FEWEST + 1)
         return passages < _FEWEST * self._passages_per_topic
 
     def _single(self, corpus: Corpus, language: str, counted: int) -> Fitting:
