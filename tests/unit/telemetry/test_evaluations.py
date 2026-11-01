@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from telemetry.evaluations import Evaluations, Verdict
+from telemetry.evaluations import Evaluations, PhoenixStore, Verdict
 
 BASE = "http://phoenix.invalid:6006"
 
@@ -103,7 +103,9 @@ def test_a_host_command_signs_in_with_the_name_it_has(monkeypatch) -> None:
 
     monkeypatch.setattr("phoenix.client.Client", _Client)
 
-    Evaluations(BASE)._connect()._sdk()
+    connected = Evaluations(BASE)._connect()
+    assert isinstance(connected, PhoenixStore)
+    connected._sdk()
 
     assert signed["headers"] == {"Authorization": "Bearer a-secret"}
 

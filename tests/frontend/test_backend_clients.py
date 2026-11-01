@@ -236,8 +236,10 @@ def test_deleting_every_topic_is_sent_confirmed() -> None:
 )
 def test_every_client_sends_to_backend_url_with_the_token(factory, monkeypatch) -> None:
     """The HTTP API is the seam: an ingress address changes BACKEND_URL and nothing else."""
-    from lib import backend, config
+    import importlib
 
+    backend = importlib.import_module("lib.backend")
+    config = importlib.import_module("lib.config")
     monkeypatch.setattr(config, "BACKEND_URL", "https://api.example.invalid/base")
     monkeypatch.setenv("API_TOKEN", "s3cret")
     backend._session.clear()
