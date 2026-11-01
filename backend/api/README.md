@@ -93,7 +93,8 @@ with no orchestrator calls it again after each drain. It leaves topic
 modelling and assessment alone: a fit replaces every topic and the judge
 costs model calls.
 
-With `DAGSTER_URL` unset or the webserver down:
+With `DAGSTER_URL` unset, the webserver down or slower than three seconds, or
+`ORCHESTRATOR=none`:
 
 - `GET /pipeline` and `GET /pipeline/automation` say `available: false`.
 - `run`, `GET /pipeline/runs` and `PUT /pipeline/automation` answer 503
@@ -278,6 +279,7 @@ poetry run pytest tests/unit/api tests/static/test_api_stays_light.py
 |---|---|
 | [`tests/contract/`](../../tests/contract) | The surface against [`openapi.json`](../../tests/contract/openapi.json), a committed fixture: a route added without updating it fails |
 | `tests/unit/api/` | Refusals, request guards, query bounds, the orchestrator client, the service catalogue |
+| `tests/contract/test_orchestrator_port.py` | The `Orchestrator` port against the Dagster adapter, a fake and `none`, and every GraphQL document against Dagster's own schema |
 | `tests/integration/api/` | Every route group over HTTP, against the database |
 | [`tests/static/test_api_stays_light.py`](../../tests/static/test_api_stays_light.py) | That the process loads no model, converter or inference library |
 | [`tests/static/test_api_vocabularies.py`](../../tests/static/test_api_vocabularies.py) | The filters against the values the database holds |

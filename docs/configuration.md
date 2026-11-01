@@ -171,6 +171,7 @@ component](architecture.md#swapping-a-component) says what each port is.
 | Setting | Default | Chooses |
 |---|---|---|
 | `OBJECT_STORE` | `s3` | the object store adapter; `s3` is the only one there is |
+| `ORCHESTRATOR` | `dagster` | what orders the stages: `dagster`, or `none` for a deployment whose stages run some other way |
 | `DATABASE_AUTH` | `url` | where a connection's password comes from; `url` is the one in `DATABASE_URL` |
 
 `S3_BUCKETS` names the bucket of each role, as `documents,parsed,models,export,archive`

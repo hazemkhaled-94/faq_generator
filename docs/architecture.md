@@ -222,6 +222,7 @@ today's adapter and an in-memory fake, so a new adapter passes the same suite.
 |---|---|---|---|---|
 | Object store | `ObjectStore` in `backend/blob_store/store.py` | `OBJECT_STORE` (`s3`) | `S3Store` over boto3, SeaweedFS | Blob Storage, one container per bucket |
 | Database connection | `Credential` in `backend/database/qa_generator/engine.py` | `DATABASE_AUTH` (`url`) | the password inside `DATABASE_URL` | Entra ID token as the password, asked on each connection |
+| Stage order | `Orchestrator` in `backend/api/orchestrator.py`; the queue stays in Postgres | `ORCHESTRATOR` (`dagster`) | Dagster over GraphQL, or `none` | Container Apps jobs, scaled on queue depth |
 | Models | `llm.client`, which alone imports litellm and instructor | `LLM_MODEL` and the per-stage models | litellm | Azure OpenAI, already reachable through an `azure/` model id |
 
 ## What keeps this page true

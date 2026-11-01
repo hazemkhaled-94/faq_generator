@@ -56,6 +56,8 @@ UNCONFIGURABLE = {
     # unaffected - so a Configuration panel offering to change it would be
     # offering to move a deployment's topology from a web page.
     "DAGSTER_URL",
+    # Which orchestrator adapter the api asks, `dagster` or `none`: topology, like the address.
+    "ORCHESTRATOR",
 }
 
 

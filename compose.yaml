@@ -513,6 +513,8 @@ services:
       # webserver did - and the webserver already depends on the api, so
       # requiring it both ways would be a cycle compose refuses to start.
       DAGSTER_URL: ${DAGSTER_URL:-http://dagster-webserver:3000}
+      # Which orchestrator the api asks: dagster, or none.
+      ORCHESTRATOR: ${ORCHESTRATOR}
       # The go-live profile, which the pipeline routes read: no orchestrator,
       # and a queue verb for a model stage names the host runner. The api
       # alone is told; a worker never reads it.
