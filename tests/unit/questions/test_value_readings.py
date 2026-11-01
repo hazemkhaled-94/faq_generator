@@ -78,6 +78,60 @@ def test_a_right_total_over_space_grouped_amounts_is_not_refused(
     assert adds_up(total, passages, language) is not False
 
 
+@pytest.mark.parametrize(
+    ("answer", "passages", "language"),
+    [
+        (
+            "15.211.030,51 EUR",
+            [
+                "Die Bilanzsumme der Sparte A beträgt 6.111.780,03 EUR.",
+                "Die Bilanzsumme der Sparte B beträgt 9.099.250,48 EUR.",
+            ],
+            "de",
+        ),
+        (
+            "USD 15,211,030.51",
+            [
+                "Segment A reported revenue of USD 6,111,780.03.",
+                "Segment B reported revenue of USD 9,099,250.48.",
+            ],
+            "en",
+        ),
+    ],
+)
+def test_a_right_total_of_millions_with_cents_adds_up(answer, passages, language):
+    """Float error past 1e-9 on a total in the millions is no wrong sum."""
+    assert adds_up(answer, passages, language) is True
+
+
+def test_a_wrong_total_of_millions_with_cents_still_does_not_add_up():
+    """The control: a total a cent off is still refused."""
+    assert (
+        adds_up("15.211.030,52 EUR", ["6.111.780,03 EUR", "9.099.250,48 EUR"], "de")
+        is False
+    )
+
+
+def test_a_total_in_a_language_no_configuration_names_is_not_misread():
+    """French groups by spaces and is left to the model; Greek reads as it did."""
+    assert (
+        adds_up(
+            "15 211 030,51 EUR",
+            ["Sparte A: 6 111 780,03 EUR", "Sparte B: 9 099 250,48 EUR"],
+            "fr",
+        )
+        is None
+    )
+    assert (
+        adds_up(
+            "15.211.030,52 €",
+            ["Filiale A: 6.111.780,03 €", "Filiale B: 9.099.250,48 €"],
+            "el",
+        )
+        is False
+    )
+
+
 def test_a_space_grouped_amount_is_one_number_to_relabelled():
     """An aggregation keyed with `EUR 100 000` holds one number."""
     kind = relabelled(QuestionType.AGGREGATION, AnswerForm.VALUE, "EUR 100 000", "en")

@@ -28,6 +28,7 @@ import logging
 import re
 from collections.abc import Callable, Mapping, Sequence
 from itertools import combinations, pairwise
+from math import isclose
 from typing import TYPE_CHECKING
 
 from database.qa_generator import (
@@ -2857,7 +2858,8 @@ def adds_up(
     # Stated outright is not an aggregation, but it is not wrong arithmetic
     # either; `relabelled` stores a lookup wearing this name as what it is.
     return any(
-        abs(sum(combination) - total) < 1e-9 and not _summed_years(combination, size)
+        isclose(sum(combination), total, rel_tol=1e-12, abs_tol=1e-9)
+        and not _summed_years(combination, size)
         for size in range(1, _TERM_CAP + 1)
         for combination in combinations(available, size)
     )
