@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import litellm
 import pytest
 from drivers import DIGEST_SHARE, Catalogue, Model, group, passage
 
@@ -19,7 +20,7 @@ from extraction.service import bridge
 from extraction.validation import FactChecker
 from llm import tally
 from llm.client import ModelUnavailable
-from stages.service import SpendCapReached
+from stages.service import STOP_AFTER, SpendCapReached
 
 pytestmark = pytest.mark.nlp
 
@@ -153,6 +154,63 @@ def test_a_group_the_model_will_not_read_does_not_stop_the_rest() -> None:
     catalog = Catalogue(support=pair(), delivery=pair(100, "Delivery", OTHER))
 
     assert run(catalog, Flaky(ANSWER)) == 1, "the second group still wrote"
+
+
+def _unreachable() -> ModelUnavailable:
+    """What the client raises when the deployment cannot be reached."""
+    try:
+        raise litellm.exceptions.APIConnectionError(
+            message="connection refused", llm_provider="azure", model="azure/x"
+        )
+    except litellm.exceptions.APIConnectionError as exc:
+        failure = ModelUnavailable(f"APIConnectionError: {exc}")
+        failure.__cause__ = exc
+        return failure
+
+
+class Down(Model):
+    """A deployment out of reach for every call."""
+
+    def answer(self, **kwargs):
+        """Records the ask and raises the error an unreachable deployment gives."""
+        self.asked.append(kwargs)
+        raise _unreachable()
+
+
+def test_a_model_outage_stops_the_pass_and_keeps_the_stored_bridges() -> None:
+    """STOP_AFTER unreachable links in a row stop it, as a drain stops; nothing was replaced."""
+    topics = {f"t{n}": pair(100 * n, f"Parent {n}") for n in range(STOP_AFTER + 3)}
+    catalog, model = Catalogue(**topics), Down(ANSWER)
+
+    with pytest.raises(SpendCapReached, match="could not be reached"):
+        run(catalog, model)
+
+    assert model.calls == STOP_AFTER
+    assert catalog.cleared == 0, "the bridges of a pass that wrote nothing stay"
+
+
+def test_an_outage_after_the_first_group_still_stops_the_pass() -> None:
+    """The count runs from the last answer, not from the start of the pass."""
+
+    class Dies(Model):
+        """Answers the first group and is then unreachable."""
+
+        def answer(self, **kwargs):
+            """Answers once, then raises."""
+            if not self.asked:
+                return super().answer(**kwargs)
+            self.asked.append(kwargs)
+            raise _unreachable()
+
+    topics = {f"t{n}": pair(100 * n, f"Parent {n}") for n in range(STOP_AFTER + 3)}
+    catalog, model = Catalogue(**topics), Dies(ANSWER)
+
+    with pytest.raises(SpendCapReached, match="could not be reached"):
+        run(catalog, model)
+
+    assert model.calls == 1 + STOP_AFTER
+    assert len(catalog.written) == 1, "what was written is kept"
+    assert catalog.cleared == 1
 
 
 def test_a_refused_bridge_is_stored_with_its_reason() -> None:

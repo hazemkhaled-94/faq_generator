@@ -37,7 +37,7 @@ from nlp.analysis import claim, is_currency, normalised, numbers
 from nlp.embedding import Embedder, cosine
 from settings.runs import run_id
 from stages import StageService
-from stages.service import STOP_AFTER, is_outage, stop_at_cap
+from stages.service import STOP_AFTER, SpendCapReached, is_outage, stop_at_cap
 from telemetry import tracer, working
 from telemetry.evaluations import Evaluations, Verdict, current_ids
 
@@ -477,9 +477,9 @@ def bridge(
     """Writes the bridge facts a corpus's topics offer.
 
     One model call per group. Every bridge in scope is deleted once the links
-    are dealt and before the first call, so a second run replaces what the
-    first wrote instead of adding to it, and one that dies reading the corpus
-    deletes nothing.
+    are dealt and the model has answered its first call, so a second run
+    replaces what the first wrote instead of adding to it, and one that dies
+    reading the corpus, or finds the model unreachable, deletes nothing.
 
     With `missing`, nothing is deleted and only the topics holding no bridge
     are read: what a whole-corpus run asks for, so a second one neither
@@ -502,8 +502,11 @@ def bridge(
     Raises:
         CitedBridges: If an accepted question cites a bridge in scope and
             `force` is not set. Nothing is deleted.
-        SpendCapReached: If SPEND_CAP was reached between two topics. The
-            facts written so far are kept, and the number is `kept`.
+        SpendCapReached: If SPEND_CAP was reached between two topics, or the
+            model could not be reached for STOP_AFTER links in a row. The
+            facts written so far are kept, and the number is `kept`. The
+            bridges of the earlier pass are deleted only once the model has
+            answered, so a pass that never got an answer deleted none.
     """
     # ponytail: counted and deleted in two transactions, so a question
     # accepted between them is not counted. Upgrade: count and delete in one
@@ -572,11 +575,12 @@ def bridge(
             kinds["term"],
         )
         offers.append((language, links))
-    # After the links are dealt, which is the long read of the whole corpus
-    # and the part that can run out of memory: a pass that dies there has
-    # deleted nothing.
-    if not missing:
-        log.info("replacing %d bridge fact(s)", catalog.clear_bridges(within))
+    # The old bridges go when the model first answers, after the links are
+    # dealt, which is the long read of the whole corpus and the part that can
+    # run out of memory: a pass that dies there, or finds the model out of
+    # reach, has deleted nothing.
+    cleared = missing
+    outages = 0
     for language, links in offers:
         for link in links:
             # Between topics, so what is written is kept, nothing is held, and
@@ -604,7 +608,21 @@ def bridge(
                         "link %s: a group failed: %s", [one.id for one in offered], exc
                     )
                     dropped += 1
+                    # As a drain stops: STOP_AFTER unreachable links in a row
+                    # are a deployment down, not groups the model would not read.
+                    outages = outages + 1 if is_outage(exc) else 0
+                    if outages >= STOP_AFTER:
+                        reason = (
+                            f"the model could not be reached for {STOP_AFTER} "
+                            "link(s) in a row; nothing more is asked of it"
+                        )
+                        log.error("%s", reason)
+                        raise SpendCapReached(reason, written) from exc
                     continue
+                outages = 0
+                if not cleared:
+                    log.info("replacing %d bridge fact(s)", catalog.clear_bridges(within))
+                    cleared = True
                 try:
                     written += catalog.add_bridges(
                         [
