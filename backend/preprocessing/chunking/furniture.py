@@ -274,8 +274,25 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             if key not in constant and key not in varying and _lettered(key)
         )
 
+    headings_on: dict[int, list[str]] = defaultdict(list)
+    for item in document.texts:
+        if item.label in _HEADINGS and item.prov:
+            headings_on[item.prov[0].page_no].append(item.text)
+
+    def headed_by_own(page: int, own: tuple[str, ...]) -> bool:
+        """Whether a page holds a heading that says each of its single-page fields."""
+        return all(
+            any(_names(heading, spelled[key]) for heading in headings_on[page])
+            for key in own
+        )
+
     def names_a_chapter(page: int, own: tuple[str, ...]) -> bool:
-        """Whether a page's single-page fields name a chapter of one page."""
+        """Whether a page's single-page fields name a chapter of one page.
+
+        Guide words on pages in a row each differ from the page beside, and
+        no heading says them. A run of one-page chapters differs the same
+        way, but each page holds the heading of its own chapter.
+        """
         if not any(
             shape(keys) in chaptered and any(key in own for key in keys)
             for keys in items_on[page]
@@ -285,6 +302,7 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             single(beside)
             and set(single(beside)) != set(own)
             and not any(key in varying for key in by_page.get(beside, {}))
+            and not (headed_by_own(page, own) and headed_by_own(beside, single(beside)))
             for beside in (page - 1, page + 1)
         )
 

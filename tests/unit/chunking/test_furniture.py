@@ -955,3 +955,75 @@ def test_a_chapter_of_one_page_after_the_first_still_names_itself() -> None:
     say(document, 5, "A fee table follows.")
 
     assert ("A fee table follows.", ["Annex"]) in trails(document)
+
+
+CHAPTERS = {
+    "de": [
+        "I - Allgemeine Bestimmungen",
+        "II - Verfahren",
+        "III - Spiele ohne Zuschauer",
+        "IV - Übernahme von Sanktionen",
+        "V - Schlussbestimmungen",
+    ],
+    "en": [
+        "I - General provisions",
+        "II - Procedure",
+        "III - Matches behind closed doors",
+        "IV - Recognition of sanctions",
+        "V - Final provisions",
+    ],
+    "fr": [
+        "I - Dispositions générales",
+        "II - Procédure",
+        "III - Matches à huis clos",
+        "IV - Reconnaissance des sanctions",
+        "V - Dispositions finales",
+    ],
+    "el": [
+        "I - Γενικές διατάξεις",
+        "II - Διαδικασία",
+        "III - Αγώνες κεκλεισμένων των θυρών",
+        "IV - Αναγνώριση κυρώσεων",
+        "V - Τελικές διατάξεις",
+    ],
+}
+
+
+def regulation(chapters: list[str], heading_chapters: bool) -> DoclingDocument:
+    """Two chapters of two pages, then three of one page, each page footed."""
+    document = paged(7)
+    for page, chapter in enumerate([0, 0, 1, 1, 2, 3, 4], 1):
+        foot(document, page, str(page))
+        foot(document, page, chapters[chapter])
+        if heading_chapters and page > 4 or page in (1, 3):
+            document.add_heading(text=chapters[chapter], level=1, prov=on(page, 40))
+        document.add_heading(text=f"Article {page}", level=2, prov=on(page, 60))
+        say(document, page, f"Body of article {page}.")
+    return document
+
+
+@pytest.mark.parametrize("language", sorted(CHAPTERS))
+def test_one_page_chapters_in_a_row_each_name_their_chapter(language: str) -> None:
+    """A one-page foot over its own chapter heading names the chapter."""
+    from preprocessing.chunking.furniture import furniture_of
+
+    chapters = CHAPTERS[language]
+    furniture = furniture_of(regulation(chapters, heading_chapters=True))
+
+    assert furniture.chapter(1) == (chapters[0],)
+    assert [furniture.chapter(page) for page in (5, 6, 7)] == [
+        (chapters[2],),
+        (chapters[3],),
+        (chapters[4],),
+    ]
+
+
+@pytest.mark.parametrize("language", sorted(CHAPTERS))
+def test_guide_words_on_consecutive_pages_still_name_no_chapter(language: str) -> None:
+    """The same feet with no heading that says them are a glossary's guide words."""
+    from preprocessing.chunking.furniture import furniture_of
+
+    chapters = CHAPTERS[language]
+    furniture = furniture_of(regulation(chapters, heading_chapters=False))
+
+    assert [furniture.chapter(page) for page in (5, 6, 7)] == [(), (), ()]

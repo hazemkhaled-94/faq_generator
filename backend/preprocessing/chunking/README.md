@@ -86,7 +86,10 @@ and `page_footer` items before the cut:
 - A page printing only single-page fields belongs to the chapter on both
   sides of it when both print the same one. Otherwise it names a one-page
   chapter only when its running item is laid out like those of multi-page
-  chapters, and else it is in no chapter.
+  chapters, and else it is in no chapter. Beside a page printing a different
+  single-page field it names one only when each of the two pages holds a
+  heading that says its own field, as a run of one-page chapters does; guide
+  words, which repeat an entry and are not set as a heading, name none.
 
 Fields are compared with whitespace removed and case folded. Heads that
 alternate between title and chapter name no chapters.
@@ -307,7 +310,7 @@ Unit tests stand in only for the database and the passage builder
   written beneath its caption, as a table's is.
 - A chapter is only as good as its running heads. Opening pages that print
   none belong to the chapter before. Heads that return out of order, differ on
-  every page, or sit beside guide words name no chapter, and their passages
+  every page, or sit beside guide words that no heading says name no chapter, and their passages
   keep the unprefixed trail. A head whose fields are parted only by single
   spaces (`Preisverzeichnis Kreditkarten Seite 4`) is one field and names no
   chapter.
