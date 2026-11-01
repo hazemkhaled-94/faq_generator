@@ -142,3 +142,57 @@ def test_a_space_grouped_amount_beside_an_iso_currency_is_one_figure(
     from nlp.analysis import figures
 
     assert figures(text, language) == value
+
+
+# ── The ordinals past twelve are composed from a table of their language ──
+
+
+@pytest.mark.parametrize(
+    ("language", "word", "value"),
+    [
+        ("en", "thirteenth", "13"),
+        ("en", "twentieth", "20"),
+        ("en", "hundredth", "100"),
+        ("de", "dreizehnte", "13"),
+        ("de", "dreizehnten", "13"),
+        ("de", "zwanzigste", "20"),
+        ("de", "hundertste", "100"),
+    ],
+)
+def test_the_ordinals_past_twelve_are_composed_for_german_and_english(
+    language: str, word: str, value: str
+) -> None:
+    """The two configured languages compose them as they always did."""
+    from nlp.analysis import _ORDINALS
+
+    assert _ORDINALS[language][word] == value
+
+
+def test_the_composed_ordinals_of_german_and_english_are_unchanged() -> None:
+    """Byte for byte what the base composed."""
+    import hashlib
+    import json
+
+    from nlp.analysis import _ordinals_past_twelve
+
+    digest = hashlib.sha256(
+        json.dumps(
+            {
+                code: sorted(_ordinals_past_twelve(code).items())
+                for code in ("de", "en")
+            },
+            ensure_ascii=False,
+        ).encode()
+    ).hexdigest()
+
+    assert digest == "9a9b4b8d7c4593fd9ad73e949561451eeacc946c320520ad22822bb07437c717"
+
+
+@pytest.mark.parametrize("language", ["fr", "pl", "el", "xx"])
+def test_a_language_with_no_entry_composes_no_ordinal_past_twelve(
+    language: str,
+) -> None:
+    """No German ending is given to a language that supplied none."""
+    from nlp.analysis import _ordinals_past_twelve
+
+    assert _ordinals_past_twelve(language) == {}

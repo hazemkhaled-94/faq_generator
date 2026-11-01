@@ -159,6 +159,7 @@ language's words in one set or pattern.
 | `REFERENCE_LABELS` | same | Words that label a reference by a number: no amount follows (`Section 3 100 customers`) | `Abschnitt`, `Section` |
 | `_NUMBER_WORDS` | same | `CARDINALS` and the ordinals, each as its digits. The dedup gate compares numbers by it | `zwei`, `second` |
 | `_ORDINALS` | same | The ordinals `_NUMBER_WORDS` holds. An English hyphenated ordinal (`twenty-first`) is read as its last word | `zweite`, `second` |
+| `_ORDINAL_FORMS` | same | How the ordinals from thirteenth on are composed from a cardinal and its value, each form a written one takes. A language with no row composes none | `dreizehnte`, `thirteenth` |
 | `ORDINAL_SUFFIX` | same | What follows the digits of an ordinal figure: `3rd`, a German `3.` | `st`, `nd`, `rd`, `th`, `.` |
 | `_CORRELATES` | same | Pronouns standing for an object or clause, not a noun | `es` |
 | `_PLACEHOLDER_GENDER` | same | The gender the placeholder pronoun before a clause carries, `None` where the pipeline marks none on it. A language with no row has no placeholder read: French `il` is masculine | `Neut` |

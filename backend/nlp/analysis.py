@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from itertools import pairwise, takewhile
@@ -989,27 +989,36 @@ def figures(text: str, language: str | None = None) -> list[float]:
     return found
 
 
-def _ordinals_past_twelve(language: str) -> dict[str, str]:
-    """The ordinals from thirteenth on, each as the digits it names, composed from the cardinals.
-
-    English puts `th` after the cardinal - `thirteenth`, `hundredth` - and
-    `ieth` for `twentieth`. German puts `t` after a cardinal under twenty and
-    `st` after any other, in every ending an ordinal takes. English compounds
-    (`twenty-first`) are tokens of their own words and are not read.
-    """
-    spelled = {
-        word: value for word, value in CARDINALS[language].items() if value >= 13
-    }
-    if language == "en":
-        return {
-            (word[:-1] + "ieth" if word.endswith("y") else word + "th"): str(value)
-            for word, value in spelled.items()
-            if "-" not in word
-        }
-    return {
-        f"{word}{'t' if value < 20 else 'st'}e{ending}": str(value)
-        for word, value in spelled.items()
+#: How a language composes the ordinals from thirteenth on out of a cardinal and
+#: its value, by ISO 639-1 code: every form a written one takes. English puts
+#: `th` after the cardinal - `thirteenth`, `hundredth` - and `ieth` for
+#: `twentieth`; its compounds (`twenty-first`) are tokens of their own words and
+#: are not read. German puts `t` after a cardinal under twenty and `st` after
+#: any other, in every ending an ordinal takes. A language with no row composes
+#: none: a newly configured one supplies its rule here.
+_ORDINAL_FORMS: dict[str, Callable[[str, int], tuple[str, ...]]] = {
+    "de": lambda word, value: tuple(
+        f"{word}{'t' if value < 20 else 'st'}e{ending}"
         for ending in ("", "n", "r", "s", "m")
+    ),
+    "en": lambda word, value: (
+        ()
+        if "-" in word
+        else (word[:-1] + "ieth" if word.endswith("y") else word + "th",)
+    ),
+}
+
+
+def _ordinals_past_twelve(language: str) -> dict[str, str]:
+    """The ordinals from thirteenth on, each as the digits it names, composed from the cardinals."""
+    forms = _ORDINAL_FORMS.get(language)
+    if forms is None:
+        return {}
+    return {
+        form: str(value)
+        for word, value in CARDINALS[language].items()
+        if value >= 13
+        for form in forms(word, value)
     }
 
 
@@ -2371,6 +2380,12 @@ def phrases(text: str, language: str | None) -> tuple[str, ...]:
     question opens with the word asking rather than with its subject.
     """
     document = _read(text, language)
+    try:
+        chunks = list(document.noun_chunks)
+    except NotImplementedError:
+        # spaCy has no syntax iterator for the language, and the gates reading
+        # phrases abstain.
+        return ()
     kept = []
     for chunk in chunks:
         content_words = [token for token in chunk if token.pos_ in _CONTENT]
@@ -2380,12 +2395,6 @@ def phrases(text: str, language: str | None) -> tuple[str, ...]:
         written = "".join(token.text_with_ws for token in words).strip()
         if written:
             kept.append((len(content_words), chunk.start, written))
-    try:
-        chunks = list(document.noun_chunks)
-    except NotImplementedError:
-        # spaCy has no syntax iterator for the language, and the gates reading
-        # phrases abstain.
-        return ()
     return tuple(
         written for _, _, written in sorted(kept, key=lambda one: (-one[0], one[1]))
     )
