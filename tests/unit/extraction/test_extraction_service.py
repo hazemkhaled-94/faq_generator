@@ -711,6 +711,15 @@ class _OneFact:
         """Records that the vector was written."""
         return len(vectors)
 
+    def unembedded_questions(self, limit: int, within=None) -> list:
+        """No question is waiting for a vector."""
+        del limit, within
+        return []
+
+    def embed_questions(self, vectors: list) -> int:
+        """Nothing to write."""
+        return len(vectors)
+
 
 # ── A readable passage the model found nothing in ──────────────────────────
 

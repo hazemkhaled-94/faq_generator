@@ -213,8 +213,13 @@ def for_statement(text: str) -> str:
     return text
 
 
+def for_question(text: str) -> str:
+    """A question's text, as the checker embeds a candidate: as written."""
+    return text
+
+
 def embed(catalog: FactCatalog, embedder: Embedder, within=None) -> int:
-    """Writes the vectors onto passages and facts already stored.
+    """Writes the vectors onto passages, facts and questions already stored.
 
     The replay for this gate, as `recap` is for the cap: it calls no served
     model, because a vector is read off a statement that is already written.
@@ -228,12 +233,13 @@ def embed(catalog: FactCatalog, embedder: Embedder, within=None) -> int:
         within: A condition narrowing which rows are read, or None.
 
     Returns:
-        How many rows were embedded, passages and facts together.
+        How many rows were embedded, passages, facts and questions together.
     """
     done = 0
     for read, write, prepare in (
         (catalog.unembedded_passages, catalog.embed_passages, for_passage),
         (catalog.unembedded, catalog.embed_facts, for_statement),
+        (catalog.unembedded_questions, catalog.embed_questions, for_question),
     ):
         while batch := read(_EMBED_BATCH, within):
             vectors = embedder.embed_all([prepare(text) for _, text in batch])
