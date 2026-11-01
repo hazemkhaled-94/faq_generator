@@ -526,6 +526,7 @@ services:
       # browser needs and the ports below are the only place both halves are
       # written down - grafana serves 3000 and is published on 3001. A
       # service left out simply gets no link.
+      SERVICE_PROBES: ${SERVICE_PROBES}
       SERVICE_URLS: >-
         api=http://localhost:${BACKEND_PORT}/docs,
         streamlit=http://localhost:${STREAMLIT_PORT},

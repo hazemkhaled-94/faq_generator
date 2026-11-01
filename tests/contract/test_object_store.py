@@ -218,3 +218,43 @@ def test_an_unknown_adapter_is_refused(monkeypatch) -> None:
 
     with pytest.raises(ValueError, match="OBJECT_STORE"):
         store.object_store()
+
+
+def test_a_backup_restored_into_another_store_gives_the_manifests_keys_and_digests(
+    monkeypatch, tmp_path
+) -> None:
+    """Backup and restore go through the port, so they work against any store."""
+    import hashlib
+
+    from archive import backup
+
+    source = FakeObjectStore(BUCKETS)
+    source.put(
+        "statements", "qa_a/ab", b"Kontoauszug", content_type="text/plain"
+    )
+    source.put("archive-eu", "qa_a/statements/ab@1", b"x", content_type="text/plain")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@db/qa_a")
+    monkeypatch.setattr(store, "object_store", lambda: source)
+    monkeypatch.setattr(backup, "_counts", dict)
+    monkeypatch.setattr(
+        backup,
+        "bucket_names",
+        lambda: {"documents": "statements", "archive": "archive-eu"},
+    )
+
+    manifest = backup.backup(tmp_path)
+
+    assert {(o["bucket"], o["key"]) for o in manifest["objects"]} == {
+        ("statements", "qa_a/ab"),
+        ("archive-eu", "qa_a/statements/ab@1"),
+    }
+    assert {o["sha256"] for o in manifest["objects"]} >= {
+        hashlib.sha256(b"Kontoauszug").hexdigest()
+    }
+
+    target = FakeObjectStore(BUCKETS)
+    monkeypatch.setattr(store, "object_store", lambda: target)
+    backup.restore(tmp_path, stack=True)
+
+    assert backup.verify(tmp_path, stack=True) == []
+    assert target.get("statements", "qa_a/ab") == b"Kontoauszug"

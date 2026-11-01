@@ -139,3 +139,49 @@ def test_every_catalogued_service_is_one_compose_runs() -> None:
     stray = {one.name for one in services.CATALOGUE} - set(_compose_services())
 
     assert not stray, sorted(stray)
+
+
+def test_two_configured_names_list_exactly_two(monkeypatch) -> None:
+    """The catalogue is data: a platform that has two services lists two."""
+    monkeypatch.setenv("SERVICE_PROBES", "api=api.internal:8000,worker=")
+
+    found = services.probes()
+
+    assert [(one.name, one.host, one.port) for one in found] == [
+        ("api", "api.internal", 8000),
+        ("worker", None, None),
+    ]
+    assert found[0].purpose == services.CATALOGUE[0].purpose
+
+
+def test_an_unset_setting_is_the_compose_stacks_own_list(monkeypatch) -> None:
+    """Nothing changes by default."""
+    monkeypatch.delenv("SERVICE_PROBES", raising=False)
+
+    assert services.probes() is services.CATALOGUE
+
+
+def test_a_probe_connects_to_the_configured_host(monkeypatch) -> None:
+    """The row's name is the page's; the address is the setting's."""
+    asked: list[tuple[str, int]] = []
+
+    def connect(address, timeout):
+        asked.append(address)
+        raise OSError("refused")
+
+    monkeypatch.setattr(services.socket, "create_connection", connect)
+    monkeypatch.setenv("SERVICE_PROBES", "api=api.internal:8000")
+
+    (state,) = services.snapshot()
+
+    assert asked == [("api.internal", 8000)]
+    assert state.ok is False and "api.internal:8000" in state.detail
+
+
+@pytest.mark.parametrize("raw", ["api=host", "api=host:x", "=host:80", "api=:80"])
+def test_a_malformed_entry_is_refused(raw: str, monkeypatch) -> None:
+    """Not skipped: a typo would hide a service from the page."""
+    monkeypatch.setenv("SERVICE_PROBES", raw)
+
+    with pytest.raises(ValueError, match="SERVICE_PROBES"):
+        services.probes()

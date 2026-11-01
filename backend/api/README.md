@@ -181,7 +181,9 @@ no `PATCH`: a person who disagrees sets `reviewed_verdict` in
 
 `/status` reports what the pipeline holds. `/services` reports what is up,
 which proves only that something accepted a TCP connection. A worker serves
-no port and is neither up nor down. Links come from `SERVICE_URLS`. The
+no port and is neither up nor down. Links come from `SERVICE_URLS`. What is probed comes from `SERVICE_PROBES`
+(`name=host:port` pairs, `name=` for a worker), whose shipped value is the
+compose stack's own list; unset, `api/services.py` supplies the same list. The
 database reads healthy on `/status` only at the code's migration head.
 
 `GET /openapi.json` serves the schema, and [`main.py`](main.py) serves

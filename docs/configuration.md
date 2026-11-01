@@ -65,6 +65,7 @@ export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
 | `PHOENIX_BASE_URL` | `PHOENIX_PORT` | the Makefile, and compose for the frontend's links |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`, `ARGILLA_API_URL` | `PHOENIX_GRPC_PORT`, `ARGILLA_PORT` | the Makefile |
 | `SERVICE_URLS` | every published port | compose, for the System health page |
+| `SERVICE_PROBES` | `deployment.env` | nothing: it is data, `name=host:port` pairs the System health page probes |
 | `SPACY_MODELS` | `NLP_MODELS` | the Makefile |
 
 ### The host and the container see different addresses
