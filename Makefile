@@ -751,9 +751,9 @@ LOG_FILES = { $(COMPOSE_CMD) exec -T api sh -c 'find /var/log/qa -type f -exec t
 # it until a restart or a rotation.
 logs-wipe:
 	@$(call CONFIRMED,logs-wipe: it deletes this database's log lines)
-	@$(LOADENV) && answer=$$($(COMPOSE_CMD) exec -T -e WIPE_DB="$(if $(filter 1,$(ALL_DATABASES)),,$$APP_DB_NAME)" elasticsearch sh -c 'if [ -z "$$WIPE_DB" ]; then \
+	@$(LOADENV) && $(RESOLVED_DB) && answer=$$($(COMPOSE_CMD) exec -T $(if $(filter 1,$(ALL_DATABASES)),-e WIPE_ALL=1,-e WIPE_DB="$$db") elasticsearch sh -c 'if [ -n "$$WIPE_ALL" ]; then \
 	  curl -sS --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:$$ELASTIC_PASSWORD" \
-	  -X DELETE "https://localhost:9200/_data_stream/qa-logs*"; else \
+	  -X DELETE "https://localhost:9200/_data_stream/qa-logs*"; elif [ -z "$$WIPE_DB" ]; then echo "REFUSED: no database to delete the log lines of" >&2; exit 1; else \
 	  curl -sS --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:$$ELASTIC_PASSWORD" \
 	  -X POST "https://localhost:9200/qa-logs*/_delete_by_query?conflicts=proceed&refresh=true" \
 	  -H "Content-Type: application/json" -d "{\"query\":{\"bool\":{\"should\":[{\"term\":{\"db\":\"$$WIPE_DB\"}},{\"term\":{\"db.keyword\":\"$$WIPE_DB\"}}],\"minimum_should_match\":1}}}"; fi' 2>&1); \

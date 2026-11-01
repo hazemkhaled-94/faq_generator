@@ -971,11 +971,11 @@ def test_an_exported_database_name_is_honoured_not_replaced(
 def test_the_log_wipe_deletes_by_database_unless_every_database_is_meant() -> None:
     """One data stream serves every database: a wipe deletes its own lines."""
     own = command("logs-wipe", "_data_stream")
-    assert '-e WIPE_DB="$APP_DB_NAME"' in own, own
+    assert '-e WIPE_DB="$db"' in own and "WIPE_ALL=1" not in own, own
     assert "_delete_by_query" in own and '\\"db\\":\\"$WIPE_DB' in own, own
 
     every = command("logs-wipe", "_data_stream", ALL_DATABASES="1")
-    assert '-e WIPE_DB=""' in every, every
+    assert "-e WIPE_ALL=1" in every and "-e WIPE_DB" not in every, every
 
 
 def test_the_shared_log_files_are_left_unless_every_database_is_meant() -> None:
@@ -1586,3 +1586,83 @@ def test_an_address_the_env_file_leaves_out_is_still_built_from_the_port(
     assert database.endswith("@localhost:5999/qa_generator"), done
 
 
+FAKE_COMPOSE = """#!/bin/bash
+args=("$@"); wipe=; every=; script=
+for ((i=0; i<${#args[@]}; i++)); do
+  case "${args[$i]}" in
+    -e) kv="${args[$((i+1))]}"
+        case "$kv" in WIPE_DB=*) wipe="${kv#WIPE_DB=}";; WIPE_ALL=*) every="${kv#WIPE_ALL=}";; esac ;;
+    -c) script="${args[$((i+1))]}" ;;
+  esac
+done
+WIPE_DB="$wipe" WIPE_ALL="$every" ELASTIC_PASSWORD=x PATH="$FAKE_BIN:$PATH" sh -c "$script"
+"""
+
+FAKE_CURL = """#!/bin/bash
+printf '%s\\n' "$*" >> "$CURL_LOG"
+echo '{"acknowledged":true}'
+"""
+
+
+def asked_of_logs_wipe(tmp_path: Path, *given: str, env_text: str = "") -> str:
+    """What curl was asked when logs-wipe runs against a compose and a curl that only record."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    for name, body in (("compose", FAKE_COMPOSE), ("curl", FAKE_CURL)):
+        (bin_dir / name).write_text(body)
+        (bin_dir / name).chmod(0o755)
+    env_file = tmp_path / "scratch.env"
+    env_file.write_text("APP_DB_PASSWORD=x\n" + env_text)
+    log = tmp_path / "curl.log"
+    log.unlink(missing_ok=True)
+    subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            "logs-wipe",
+            f"COMPOSE={bin_dir / 'compose'}",
+            f"ENV_FILE={env_file}",
+            *given,
+        ],
+        cwd=ROOT,
+        env={
+            "PATH": os.environ["PATH"],
+            "HOME": str(tmp_path),
+            "FAKE_BIN": str(bin_dir),
+            "CURL_LOG": str(log),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    return log.read_text() if log.exists() else ""
+
+
+def test_logs_wipe_deletes_the_lines_of_the_database_the_url_names(
+    tmp_path: Path,
+) -> None:
+    """The lines of the database DATABASE_URL names, not of APP_DB_NAME."""
+    asked = asked_of_logs_wipe(
+        tmp_path,
+        "APP_DB_NAME=",
+        "CONFIRM=ledger",
+        env_text="DATABASE_URL=postgresql+psycopg://u:p@pg.example.net/ledger\n",
+    )
+    assert "_delete_by_query" in asked and '"ledger"' in asked, asked
+    assert "_data_stream" not in asked, asked
+
+
+def test_logs_wipe_with_an_empty_database_name_asks_for_nothing(tmp_path: Path) -> None:
+    """It read an empty name as every database's stream."""
+    assert asked_of_logs_wipe(tmp_path, "APP_DB_NAME=") == ""
+    assert asked_of_logs_wipe(tmp_path, "APP_DB_NAME=", "CONFIRM=") == ""
+
+
+def test_logs_wipe_takes_every_stream_only_when_asked_to(tmp_path: Path) -> None:
+    """ALL_DATABASES=1 is the one way to the every-database stream."""
+    every = asked_of_logs_wipe(tmp_path, "CONFIRM=qa_generator", "ALL_DATABASES=1")
+    assert "-X DELETE" in every and "_data_stream/qa-logs*" in every, every
+    (tmp_path / "again").mkdir()
+    named = asked_of_logs_wipe(tmp_path / "again", "CONFIRM=qa_generator")
+    assert "_data_stream" not in named, named
