@@ -1996,14 +1996,33 @@ def _titled(title: str | None, language: str | None) -> frozenset[str]:
 #: code, as lemma or as written, alone or joined to the word before it (`oben
 #: genannt`): `such a card`, `eine solche Karte`, `the aforementioned card`.
 #: Before their noun only, so `Withdrawals above EUR 500` points nowhere. Not
-#: `_ANAPHORIC`, which the question side reads as a measurement that may
-#: over-read: `former customers` names no earlier mention. Nor a bare
-#: `genannt`, for the reason given there.
+#: `_ANAPHORIC` as a whole, which the question side reads as a measurement that
+#: may over-read: `former customers` names no earlier mention, so `former`
+#: points only as the head of its phrase, `The former is free`, see `_opens`.
+#: `latter` is no modifier of anything else. Nor a bare `genannt`, for the
+#: reason given there.
 _ANAPHORIC_MODIFIERS: dict[str, frozenset[str]] = {
     "de": frozenset(
-        {"solcher", "vorgenannt", "obengenannt", "vorstehend", "obig", "besagt"}
+        {
+            "solcher",
+            "vorgenannt",
+            "obengenannt",
+            "vorstehend",
+            "obig",
+            "besagt",
+            "letzterer",
+        }
     ),
-    "en": frozenset({"such", "aforementioned", "abovementioned", "above", "said"}),
+    "en": frozenset(
+        {
+            "such",
+            "aforementioned",
+            "abovementioned",
+            "above",
+            "said",
+            "latter",
+        }
+    ),
 }
 
 #: Modifiers that make a plural noun a list the passage gives after the
@@ -2044,6 +2063,14 @@ def _opens(token, named: frozenset[str] = frozenset()) -> bool:
         and "Dem" in token.morph.get("PronType", [])
         and not _sourced(token, named)
     ) or token.tag_ == "PROAV":
+        return True
+    # The word that points back, `The latter costs 5 EUR`, as the head of the
+    # opening noun phrase: no noun after it for it to modify.
+    if (
+        token.pos_ in _ANAPHORIC_POS | _NOMINAL
+        and token.lemma_.casefold() in _ANAPHORIC.get(language, ())
+        and not (token.head.pos_ in _NOMINAL and token.head.i > token.i)
+    ):
         return True
     # A preposition, or a word heading its object, modifies nothing, whatever
     # the tagger made its own head: `Above EUR 500`, `Following the update`.
@@ -2116,37 +2143,29 @@ def _references(
     )
 
 
-#: Lemmas that point at an earlier mention without any morphology saying so.
-#: Every tagset reads these as ordinary adjectives - `aforementioned` and
-#: `latter` are `ADJ/JJ`, `besagt` and `vorgenannt` likewise - so unlike the
-#: two readings below them there is no feature to test and a list is the only
-#: thing available. Kept short and kept here rather than in a setting: it can
-#: only ever ADD a pointer for the verdict to rule on, so a language whose
-#: triggers are missing loses recall on one measurement and nothing else.
+#: Lemmas that point at an earlier mention without any morphology saying so,
+#: by ISO 639-1 code. Every tagset reads these as ordinary adjectives -
+#: `aforementioned` and `latter` are `ADJ/JJ`, `besagt` and `vorgenannt`
+#: likewise - so unlike the two readings below them there is no feature to
+#: test and a list is the only thing available. Read by the question side,
+#: `pointing`, and by the fact check, `_opens`. Kept short and kept here
+#: rather than in a setting: it can only ever ADD a pointer for the verdict to
+#: rule on, so a language whose triggers are missing loses recall on one
+#: measurement and nothing else.
 #:
 #: Bare `genannt` was here and is deliberately gone. It points at an earlier
 #: mention in `die genannten Anforderungen` and at nothing in `die im
 #: Korrekturverzeichnis genannten Abschnitte`, which says inside the question
 #: where to look. The compounds that carry the pointing in the word itself stay.
 #:
-#: ponytail: German and English only, here and in `_ASKING`, so a third
-#: language loses recall on this measurement. Upgrade: a list per language,
-#: as a setting.
-_ANAPHORIC = frozenset(
-    {
-        "aforementioned",
-        "forementioned",
-        "former",
-        "latter",
-        "said",
-        "besagt",
-        "obig",
-        "obengenannt",
-        "vorgenannt",
-        "letzterer",
-        "ersterer",
-    }
-)
+#: A newly configured language supplies the words it has for the same
+#: things: "the former", "the latter", "the aforesaid".
+_ANAPHORIC: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {"besagt", "obig", "obengenannt", "vorgenannt", "letzterer", "ersterer"}
+    ),
+    "en": frozenset({"aforementioned", "forementioned", "former", "latter", "said"}),
+}
 
 #: Words a tagger reads as demonstrative that are ASKING rather than
 #: pointing. German `wessen` - "whose" - comes back PDS with
@@ -2232,7 +2251,8 @@ def pointing(text: str, language: str | None) -> tuple[str, ...]:
         if _interrogative(token) or token.lemma_.casefold() in _ASKING:
             continue
         if "Dem" in token.morph.get("PronType", []) or (
-            token.pos_ in _ANAPHORIC_POS and token.lemma_.casefold() in _ANAPHORIC
+            token.pos_ in _ANAPHORIC_POS
+            and token.lemma_.casefold() in _ANAPHORIC.get(token.doc.lang_, ())
         ):
             found.add(token.text.casefold())
         elif token.pos_ in _NOMINAL and (counted := _counted(token)):

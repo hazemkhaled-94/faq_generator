@@ -854,3 +854,66 @@ def test_a_title_changes_nothing_in_a_language_no_pipeline_is_configured_for(
     titled = claim(statement, language, title=title)
 
     assert titled.references == claim(statement, language).references
+
+
+# ── Words that point back, read as the question side reads them ──────────
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("en", "The latter costs 5 EUR a month."),
+        ("en", "The former is free of charge."),
+        ("en", "The latter card costs 5 EUR a month."),
+        ("de", "Letztere kosten 5 Euro im Monat."),
+        ("de", "Die letztere Karte kostet 5 Euro im Monat."),
+        ("de", "Der erstere ist kostenlos."),
+        ("de", "Die oben genannte Gebühr gilt für jedes Konto."),
+    ],
+)
+def test_a_word_pointing_back_leaves_a_reference(language: str, statement: str) -> None:
+    """The fact check reads the words the question side reads as the head of its phrase."""
+    from nlp.analysis import claim
+
+    assert claim(statement, language).references, statement
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("en", "The debit card is free, and the latter of the two cards costs 5 EUR."),
+        (
+            "de",
+            "Die Debitkarte ist kostenlos, die letztere der beiden Karten kostet 5 Euro.",
+        ),
+    ],
+)
+def test_a_pointing_word_inside_a_statement_naming_both_leaves_nothing(
+    language: str, statement: str
+) -> None:
+    """Only a word opening the statement, before its verb, points outside it."""
+    from nlp.analysis import claim
+
+    assert not claim(statement, language).references, statement
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("fr", "Le dernier coûte 5 euros par mois."),
+        ("fr", "Les frais mentionnés ci-dessus s'appliquent."),
+        ("pl", "Ten drugi kosztuje 5 euro miesięcznie."),
+        ("el", "Ο τελευταίος κοστίζει 5 ευρώ τον μήνα."),
+    ],
+)
+def test_a_language_with_no_row_in_the_pointing_table_reads_no_such_word(
+    language: str, statement: str
+) -> None:
+    """The table is keyed by language: a word of another one is never read as a pointer."""
+    from nlp.analysis import _ANAPHORIC, _opens, parse
+
+    assert language not in _ANAPHORIC
+    assert not any(_opens(token) for token in parse(statement, language)[:3])
