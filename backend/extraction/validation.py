@@ -454,10 +454,28 @@ def numbered(tokens: Sequence, at: int) -> list[str]:
     return found
 
 
+def _is_name(text: str, language: str | None) -> bool:
+    """Whether a word is a document's name in capitals: two letters or more, none lower case.
+
+    A currency code is written so too and names no document.
+    """
+    return (
+        text.isupper()
+        and sum(one.isalpha() for one in text) >= 2
+        and not is_currency(text, language)
+    )
+
+
 def _counts(tokens: Sequence, at: int) -> bool:
-    """Whether the number at `at` counts something after it: "3 other rules"."""
+    """Whether the number at `at` counts something after it: "3 other rules".
+
+    Not a document's name in capitals after it, "Ziffer 4 und 5 AGB": the
+    number is the one the label names.
+    """
     number = tokens[at]
     after = tokens[at + 1] if at + 1 < len(tokens) else None
+    if after is not None and _is_name(after.text, number.doc.lang_):
+        return False
     return (after is not None and after.pos_ in _COUNTED) or (
         number.head.i > number.i and number.head.pos_ in _COUNTED
     )

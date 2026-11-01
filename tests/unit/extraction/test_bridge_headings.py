@@ -435,6 +435,26 @@ def test_a_bridge_naming_an_abbreviated_heading_label_is_refused(
 
 
 @pytest.mark.parametrize(
+    ("language", "statement", "expected"),
+    [
+        ("de", "Ziffer 4 und 5 AGB regeln die Gebühr", True),
+        ("de", "Die Gebühr regeln Ziffer 4 und 5 AGB", True),
+        ("en", "Clause 4 and 5 GTC set the fee", True),
+        ("de", "Ziffer 4 und 3 Karten regeln die Gebühr", False),
+        ("en", "Clause 4 and 3 cards set the fee", False),
+        ("fr", "Voir article 4, 5 CGV pour les frais", True),
+        ("el", "Το άρθρο 4, 5 ΚΠΔ ορίζουν τη χρέωση", True),
+    ],
+)
+def test_a_number_before_a_name_in_capitals_is_a_section_not_a_count(
+    language, statement, expected
+) -> None:
+    """'Ziffer 4 und 5 AGB' names clause 5; '3 Karten' counts cards."""
+    word = {"de": "ziffer", "en": "clause", "fr": "article", "el": "άρθρο"}[language]
+    assert _names(_read(language, statement), word, "5", language) is expected
+
+
+@pytest.mark.parametrize(
     ("language", "statement", "word"),
     [
         ("de", "Die Gebühr steht in Art. 5", "art"),
