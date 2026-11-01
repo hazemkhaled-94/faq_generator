@@ -360,7 +360,9 @@ class TopicQueue(StageQueue):
             if session.scalar(select(query.where(_BEARING).exists())):
                 query = query.where(_BEARING)
             rows = session.execute(
-                query.order_by(Passage.id).execution_options(yield_per=_BATCH)
+                query.order_by(Passage.doc_sha256, Passage.ordinal).execution_options(
+                    yield_per=_BATCH
+                )
             )
             for row in rows:
                 yield PassageVocabulary(id=row.id, lemmas=list(row.lemmas or []))
