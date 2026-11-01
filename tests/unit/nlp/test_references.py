@@ -1095,3 +1095,69 @@ def test_a_newly_configured_language_supplies_its_row_and_nothing_else(
 
     assert analysis._clausal_correlate(_placeholder("fr", "Masc"))
     assert not analysis._clausal_correlate(_placeholder("fr", "Fem"))
+
+
+# ── What names the document ──────────────────────────────────────────────
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("en", "This section applies to all current accounts."),
+        ("en", "This clause applies to all current accounts."),
+        ("en", "This brochure applies to all current accounts."),
+        ("de", "Dieser Abschnitt gilt für alle Girokonten."),
+        ("de", "Diese Ziffer gilt für alle Girokonten."),
+        ("de", "Dieses Merkblatt gilt für alle Girokonten."),
+    ],
+)
+def test_a_part_of_a_document_or_its_genre_noun_points_like_any_noun(
+    language: str, statement: str
+) -> None:
+    """With no title naming it, 'this section' and 'this clause' are judged alike."""
+    from nlp.analysis import claim
+
+    assert claim(statement, language).references, statement
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement", "title"),
+    [
+        ("en", "This brochure applies to all current accounts.", "Account brochure"),
+        ("de", "Dieses Merkblatt gilt für alle Girokonten.", "Merkblatt zum Girokonto"),
+        ("en", "This policy applies to all current accounts.", "Privacy policy"),
+    ],
+)
+def test_a_demonstrative_naming_the_title_head_noun_still_names_the_document(
+    language: str, statement: str, title: str
+) -> None:
+    """The document's own title says what it is called."""
+    from nlp.analysis import claim
+
+    assert not claim(statement, language, title=title).references
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement", "title"),
+    [
+        ("fr", "Cette brochure s'applique à tous les comptes.", "Brochure du compte"),
+        (
+            "el",
+            "Αυτό το φυλλάδιο ισχύει για όλους τους λογαριασμούς.",
+            "Φυλλάδιο λογαριασμού",
+        ),
+    ],
+)
+def test_a_language_no_pipeline_is_configured_for_reads_no_source_noun_either(
+    language: str, statement: str, title: str
+) -> None:
+    """No table of nouns is consulted, so a title changes nothing there."""
+    from nlp.analysis import claim
+
+    assert (
+        claim(statement, language, title=title).references
+        == claim(statement, language).references
+    )

@@ -131,8 +131,8 @@ pipeline named `_sm` or without word vectors loads with a warning.
 A language missing from a list means that gate silently never fires for it.
 [`test_language_tables.py`](../../tests/static/test_language_tables.py) holds
 the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
-`_ATTRIBUTIONS`, `_AGENTS`, `_HOW_MANY`, `_ASKING` and `_SOURCE`, which hold
-every language's words in one set or pattern.
+`_ATTRIBUTIONS`, `_AGENTS`, `_HOW_MANY` and `_ASKING`, which hold every
+language's words in one set or pattern.
 
 | List | Where | What goes in it | Example |
 |---|---|---|---|
@@ -152,7 +152,6 @@ every language's words in one set or pattern.
 | `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said, read by the question side and, as the head of the phrase a fact opens with (`The latter costs 5 EUR`), by the fact check | `besagt`, `aforementioned`, `latter` |
 | `_OTHER` | same | The word for the rest of a set, as a lemma. As a subject with no noun of its own opening a statement (`The others are free`) it stands for a set named before. A language with no row reads none | `anderer`, `other` |
 | `_ASKING` | same | Words a tagger reads as demonstrative that ask rather than point | `wessen`, `whose` |
-| `_SOURCE` | same | Nouns naming the source document, so a demonstrative before one does not point. Title nouns are read from the parse, not listed | `Lehrplan`, `syllabus` |
 | `_SPELLING` | same | How the language writes a cardinal: nought to nineteen, the tens, hundred, thousand, and how they join. `CARDINALS` is built from it | `fünf`, `twenty` |
 | `CARDINALS` | same | Every cardinal `_SPELLING` spells, each as its value. The fact dedup gate and the question gates read it | `zwei`, `one` |
 | `DECIMAL_MARK` | same | The decimal mark. One such mark before three digits is a fraction, not thousands | `,`, `.` |
@@ -193,8 +192,8 @@ about, and `Bericht` is a thing a corpus is. Each list is matched as follows.
 
 - By lemma: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC`, `_OTHER`,
   `_ASKING`.
-- By lemma or the word as written: `_ATTRIBUTIONS`, `_SOURCE` and the two
-  modifier tables (also with an `_ADJECTIVE_ENDINGS` ending).
+- By lemma or the word as written: `_ATTRIBUTIONS` and the two modifier
+  tables (also with an `_ADJECTIVE_ENDINGS` ending).
 - By the word as written: `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
   `_EXCEPTIVE`, `_POLITE`, `_GENITIVE_DEMONSTRATIVES`,
   `_CLAUSE_DEMONSTRATIVES` and the two abbreviation tables.

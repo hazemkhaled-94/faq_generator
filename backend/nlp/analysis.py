@@ -1939,33 +1939,19 @@ def _resolved(token) -> bool:
     return any(_agrees(token, noun) for noun in earlier)
 
 
-#: Nouns naming the source document, as lemma or as written.
-_SOURCE = frozenset(
-    {
-        "syllabus",
-        "section",
-        "chapter",
-        "document",
-        "lehrplan",
-        "lehrplans",
-        "abschnitt",
-        "kapitel",
-        "dokument",
-    }
-)
-
-
 def _sourced(token, named: frozenset[str] = frozenset()) -> bool:
     """Whether a determiner's head or next word names the source document.
 
     `named` is what the document's own title calls it, `_titled`: a noun that
     is the last part of a longer one it names, `Bedingungen` of
-    `Geschäftsbedingungen`, names it as well.
+    `Geschäftsbedingungen`, names it as well. No noun is exempt by itself:
+    `This section` points like any other noun, since a reader cannot tell
+    which section.
     """
     nouns = [token.head] + ([token.nbor()] if token.i + 1 < len(token.doc) else [])
     for noun in nouns:
         forms = {noun.lemma_.casefold(), noun.text.casefold()}
-        if forms & (_SOURCE | named) or any(
+        if forms & named or any(
             len(one) >= len(form) + _COMPOUND_PART and one.endswith(form)
             for form in forms
             if form.isalpha()
