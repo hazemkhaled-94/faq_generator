@@ -25,7 +25,7 @@ import re
 from pydantic import BaseModel, Field
 
 from database.qa_generator import QuestionKind
-from llm.client import Client
+from llm.client import Model
 from llm.prompt import fill
 from nlp.analysis import asked
 from nlp.models import named
@@ -702,7 +702,7 @@ class _Cased(_Unanswered):
 class QuestionWriter:
     """Writes one question per sample of facts with a served model."""
 
-    def __init__(self, client: Client) -> None:
+    def __init__(self, client: Model) -> None:
         """Initialises the writer with the model it asks."""
         self._client = client
 

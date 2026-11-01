@@ -26,7 +26,7 @@ from dataclasses import replace
 
 from pydantic import BaseModel, Field
 
-from llm.client import Client, debug_info
+from llm.client import build_model, debug_info
 from llm.config import (
     Settings,
     _self_hosted,
@@ -108,7 +108,7 @@ def reachable(settings: Settings) -> None:
     )
     try:
         with quiet():
-            Client(once).answer(
+            build_model(once).answer(
                 system="You answer with a JSON object and nothing else.",
                 user="Set ok to true.",
                 shape=Reachable,

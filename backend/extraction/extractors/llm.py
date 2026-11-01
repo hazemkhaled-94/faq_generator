@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from extraction.extractors.base import ExtractionFailed, Extractor
 from extraction.models import CandidateFact, CheckedFact, PassageToExtract, Provenance
-from llm.client import Client, ModelUnavailable
+from llm.client import Model, ModelUnavailable
 from llm.prompt import fill
 from nlp.models import named
 
@@ -360,7 +360,7 @@ class LlmExtractor(Extractor):
     block_types: ClassVar[tuple[str, ...]] = ()
     method: ClassVar[str] = "llm"
 
-    def __init__(self, client: Client, cap: int | None = None) -> None:
+    def __init__(self, client: Model, cap: int | None = None) -> None:
         """Initialises the extractor with the model it asks.
 
         Args:

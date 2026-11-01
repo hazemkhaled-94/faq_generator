@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import re
 import time
 from collections.abc import Callable, Iterator
-from typing import Any, TypeVar
+from typing import Any, Protocol, TypeVar
 
 import instructor
 import litellm
@@ -225,17 +226,29 @@ def _waited(state: RetryCallState) -> float:
 #: `reasoning_content` - but plenty of open weights emit the tags inline,
 #: and then the answer is valid JSON with an essay in front of it.
 #:
-#: Matched non-greedily and per tag name, so two blocks in one answer are
-#: two matches rather than everything between the first and the last.
+#: Only at the start of the reply, where a model's reasoning is. A tag further
+#: in is the answer's own text: a hosted model quoting a document that
+#: mentions such a tag would otherwise have its answer cut.
+#:
+#: Matched non-greedily and per tag name, so two blocks in a row are two
+#: matches rather than everything between the first and the last.
 _REASONING = re.compile(
-    r"<(think|thinking|reasoning)\b[^>]*>.*?</\1\s*>", re.DOTALL | re.IGNORECASE
+    r"\A\s*<(think|thinking|reasoning)\b[^>]*>.*?</\1\s*>", re.DOTALL | re.IGNORECASE
 )
 
 #: An opening tag that never closed, which is a model cut off mid-thought.
 #: Everything after it is reasoning, so there is no answer in this response
 #: - stripping it to nothing is what makes the parser say so.
 _UNCLOSED = re.compile(
-    r"<(think|thinking|reasoning)\b[^>]*>.*\Z", re.DOTALL | re.IGNORECASE
+    r"\A\s*<(think|thinking|reasoning)\b[^>]*>.*\Z", re.DOTALL | re.IGNORECASE
+)
+
+#: A closing tag with no opening one, which is what a runtime leaves when it
+#: put the opening tag in its own template. Everything up to it is reasoning
+#: - unless the reply opens as an answer does, with a bracket, in which case
+#: the tag is part of what the answer says.
+_LONE_CLOSE = re.compile(
+    r"\A(?!\s*[\[{]).*?</(think|thinking|reasoning)\s*>", re.DOTALL | re.IGNORECASE
 )
 
 Shape = TypeVar("Shape", bound=BaseModel)
@@ -244,11 +257,15 @@ Shape = TypeVar("Shape", bound=BaseModel)
 def without_reasoning(text: str) -> str:
     """The answer with any inline reasoning taken out of it.
 
-    Returns the text unchanged when there is none, which is the common
-    case and every non-reasoning model: this only ever removes, so a
-    model that never thinks pays a regex miss and nothing else.
+    Reasoning is taken from the start of the reply only: closed blocks, a
+    block that never closed, or text up to a lone closing tag. Returns the
+    text unchanged when there is none, which is the common case and every
+    non-reasoning model: this only ever removes, so a model that never
+    thinks pays a regex miss and nothing else.
     """
-    return _UNCLOSED.sub("", _REASONING.sub("", text)).strip()
+    while (stripped := _REASONING.sub("", text, count=1)) != text:
+        text = stripped
+    return _UNCLOSED.sub("", _LONE_CLOSE.sub("", text, count=1)).strip()
 
 
 def answering(completion: Any, seen: Callable[[Any], None] | None = None) -> Any:
@@ -422,8 +439,53 @@ def mode(name: str) -> instructor.Mode:
     return instructor.Mode[named]
 
 
+class Model(Protocol):
+    """One served model, asked for answers in a declared shape.
+
+    What every stage holds, in place of a litellm client. An implementation
+    raises only `ModelRefused`, when the provider refused the prompt or its
+    answer for what it says, and `ModelUnavailable`, when it could not be
+    reached or did not return the shape. `LLM_CLIENT` names the adapter.
+    """
+
+    @property
+    def model(self) -> str:
+        """The model identifier, recorded on whatever the answer becomes."""
+        ...
+
+    @property
+    def temperature(self) -> float:
+        """The sampling temperature, recorded alongside the model."""
+        ...
+
+    def answer(
+        self,
+        *,
+        system: str,
+        user: str,
+        shape: type[Shape],
+        prompt_version: str | None = None,
+    ) -> Shape:
+        """Asks one question and parses the answer into `shape`."""
+        ...
+
+
+def build_model(settings: Settings) -> Model:
+    """The adapter LLM_CLIENT names, `litellm` unless told otherwise.
+
+    Raises:
+        ValueError: If it names none that exists.
+    """
+    adapter = os.environ.get("LLM_CLIENT", "litellm")
+    if adapter == "litellm":
+        return Client(settings)
+    raise ValueError(
+        f"LLM_CLIENT={adapter!r} names no adapter; the one there is is litellm"
+    )
+
+
 class Client:
-    """One served model, asked for answers in a declared shape."""
+    """The `Model` over litellm and instructor."""
 
     def __init__(self, settings: Settings) -> None:
         """Builds the client and the retry policy around one call."""

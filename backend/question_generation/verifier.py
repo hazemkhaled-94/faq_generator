@@ -27,7 +27,7 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 from confidence import Measurement
-from llm.client import Client
+from llm.client import Model
 
 #: Bumped whenever a prompt here changes what the round trip asks for.
 #: Version 1 is what these have always been; they had no version at all
@@ -639,7 +639,7 @@ class Part:
 class Verifier:
     """A second model, asked to get the answer back out of the passages."""
 
-    def __init__(self, client: Client) -> None:
+    def __init__(self, client: Model) -> None:
         """Initialises the verifier with the model it asks."""
         self._client = client
 

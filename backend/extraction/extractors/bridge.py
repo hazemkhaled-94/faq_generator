@@ -12,7 +12,7 @@ from database.qa_generator import FactKind
 from extraction.extractors.base import ExtractionFailed
 from extraction.links import Link
 from extraction.models import CandidateFact, Cited, PassageToExtract, Provenance
-from llm.client import Client, ModelUnavailable
+from llm.client import Model, ModelUnavailable
 from llm.prompt import fill
 from llm.spans import RELATIONS
 from nlp.models import named as in_language
@@ -193,7 +193,7 @@ class BridgeExtractor:
     and is not in the registry.
     """
 
-    def __init__(self, client: Client) -> None:
+    def __init__(self, client: Model) -> None:
         """Initialises the extractor with the model it asks."""
         self._client = client
 

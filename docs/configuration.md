@@ -172,6 +172,7 @@ component](architecture.md#swapping-a-component) says what each port is.
 |---|---|---|
 | `OBJECT_STORE` | `s3` | the object store adapter; `s3` is the only one there is |
 | `ORCHESTRATOR` | `dagster` | what orders the stages: `dagster`, or `none` for a deployment whose stages run some other way |
+| `LLM_CLIENT` | `litellm` | what asks the model; `litellm` is the only one there is, and reaches Azure OpenAI through an `azure/` model id |
 | `API_AUTH` | `token` | what guards the api's writes and settings reads; `token` is the shared secret `API_TOKEN` |
 | `DATABASE_AUTH` | `url` | where a connection's password comes from; `url` is the one in `DATABASE_URL` |
 

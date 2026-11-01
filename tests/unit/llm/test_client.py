@@ -783,12 +783,42 @@ def test_every_spelling_of_the_tag_is_taken_out(tag: str) -> None:
     assert answering(lambda **_: response(body))().choices[0].message.content == "{}"
 
 
-def test_two_blocks_are_two_matches() -> None:
+def test_two_leading_blocks_are_both_taken_out() -> None:
     """Non-greedy, or everything between the first and the last goes."""
-    body = '<think>one</think>{"a": 1}<think>two</think>'
+    body = '<think>one</think> <think>two</think>{"a": 1}'
 
     assert (
         answering(lambda **_: response(body))().choices[0].message.content == '{"a": 1}'
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ('thinking</think>{"a":1}', '{"a":1}'),
+        ('Let me see.\n</think>\n{"a":1}', '{"a":1}'),
+        # A closing tag with the answer already begun is the answer's own text.
+        ('{"key": "ends with </think> here"}', '{"key": "ends with </think> here"}'),
+        # An opening tag inside the answer, or after it, is left alone.
+        ('{"key": "the <think> tag"}', '{"key": "the <think> tag"}'),
+        ('{"a": 1}<think>two</think>', '{"a": 1}<think>two</think>'),
+        # The same in the languages of the corpus, and in two nobody configured.
+        ('Réflexion.</think>{"réponse": "Überweisung"}', '{"réponse": "Überweisung"}'),
+        (
+            '{"réponse": "Zaświadczenie <think> a"}',
+            '{"réponse": "Zaświadczenie <think> a"}',
+        ),
+        ('σκέψη</think>{"απάντηση": "Λογαριασμός"}', '{"απάντηση": "Λογαριασμός"}'),
+        (
+            '{"antwort": "Kontoauszug <reasoning>"}',
+            '{"antwort": "Kontoauszug <reasoning>"}',
+        ),
+    ],
+)
+def test_reasoning_is_taken_out_at_the_start_only(body: str, expected: str) -> None:
+    """The reply's start, or a lone closing tag before the answer; never the answer's own words."""
+    assert (
+        answering(lambda **_: response(body))().choices[0].message.content == expected
     )
 
 

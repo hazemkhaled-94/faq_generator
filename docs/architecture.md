@@ -224,7 +224,7 @@ today's adapter and an in-memory fake, so a new adapter passes the same suite.
 | Database connection | `Credential` in `backend/database/qa_generator/engine.py` | `DATABASE_AUTH` (`url`) | the password inside `DATABASE_URL` | Entra ID token as the password, asked on each connection |
 | Stage order | `Orchestrator` in `backend/api/orchestrator.py`; the queue stays in Postgres | `ORCHESTRATOR` (`dagster`) | Dagster over GraphQL, or `none` | Container Apps jobs, scaled on queue depth |
 | API authentication | `Authenticator` in `backend/api/main.py` | `API_AUTH` (`token`) | the shared secret `API_TOKEN` as `X-API-Token` | Entra ID, through the platform's authentication or JWT validation |
-| Models | `llm.client`, which alone imports litellm and instructor | `LLM_MODEL` and the per-stage models | litellm | Azure OpenAI, already reachable through an `azure/` model id |
+| Models | `Model` in `backend/llm/client.py`, which alone imports litellm and instructor | `LLM_CLIENT` (`litellm`); the model itself is `LLM_MODEL` and the per-stage models | `Client` over litellm and instructor | Azure OpenAI or Foundry deployments, already reachable through an `azure/` model id |
 
 ## What keeps this page true
 
