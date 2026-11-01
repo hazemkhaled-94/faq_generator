@@ -65,8 +65,6 @@ export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
 | `PHOENIX_BASE_URL` | `PHOENIX_PORT` | the Makefile, and compose for the frontend's links |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`, `ARGILLA_API_URL` | `PHOENIX_GRPC_PORT`, `ARGILLA_PORT` | the Makefile |
 | `SERVICE_URLS` | every published port | compose, for the System health page |
-| `GRAFANA_DB_HOST`, `GRAFANA_DB_SSLMODE`, `GRAFANA_ELASTICSEARCH_URL` | `deployment.env` | where Grafana's datasources point (`postgres:5432`, `disable`, `https://elasticsearch:9200` here), so a managed database or another log store is a setting |
-| `SERVICE_PROBES` | `deployment.env` | nothing: it is data, `name=host:port` pairs the System health page probes |
 | `SPACY_MODELS` | `NLP_MODELS` | the Makefile |
 
 ### The host and the container see different addresses
@@ -185,12 +183,20 @@ component](architecture.md#swapping-a-component) says what each port is.
 | `LLM_CLIENT` | `litellm` | what asks the model; `litellm` is the only one there is, and reaches Azure OpenAI through an `azure/` model id |
 | `API_AUTH` | `token` | what guards the api's writes and settings reads; `token` is the shared secret `API_TOKEN` |
 | `DATABASE_AUTH` | `url` | where a connection's password comes from; `url` is the one in `DATABASE_URL` |
+| `SERVICE_PROBES` | the compose stack's list | what the System health page probes, as `name=host:port` pairs (`name=` for a worker) |
+| `GRAFANA_DB_HOST`, `GRAFANA_DB_SSLMODE`, `GRAFANA_ELASTICSEARCH_URL` | `postgres:5432`, `disable`, `https://elasticsearch:9200` | where Grafana's datasources point, so a managed database or another log store is a setting |
+| `HF_HOME`, `HF_HUB_CACHE`, `DOCLING_ARTIFACTS_PATH` | the `models` volume | where the weights are read from, offline; an image carries none |
+| `BACKEND_URL` | the compose service name | where the page sends every request, with the token |
 
 `S3_BUCKETS` names the bucket of each role, as `documents,parsed,models,export,archive`
 or as `role=bucket` entries (`documents=acme-docs`) where a deployment names
 one differently. A role not named keeps its own name. The backend asks for each
 configured bucket by name and never lists the account's buckets, because a
 credential limited to one bucket is refused the listing.
+
+The images carry no source mount: `compose.yaml` starts each from its own files and
+the environment, and `make up` adds `compose.dev.yaml` (the source mounted read-only
+over the images) on the development profile only. Every service has a health check.
 
 TLS to the database is part of `DATABASE_URL`: add `?sslmode=verify-full&sslrootcert=/path`
 to it. The adapter is asked for a password each time the pool opens a connection,

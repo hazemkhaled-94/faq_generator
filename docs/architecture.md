@@ -233,7 +233,17 @@ The one module that imports each SDK, which `sdk-adapters` checks: `boto3` and `
 | Dashboards | configuration: the provisioned datasources read `GRAFANA_DB_HOST`, `GRAFANA_DB_SSLMODE` and `GRAFANA_ELASTICSEARCH_URL` | those three | Grafana over the compose stack's Postgres and Elasticsearch | Azure Managed Grafana; the log dashboards would be rewritten in KQL |
 | Review tool | `ReviewTool` in `review/service.py`; Redis is Argilla's own and has no code binding | `REVIEW_TOOL` (`argilla`) | `ArgillaTool` in `review/datasets.py`, from the host | none native: Argilla itself on Container Apps with Azure Cache for Redis |
 | Container images | no port: each image runs from its own files and the environment | none | three images; `compose.yaml` mounts no checkout path, `compose.dev.yaml` adds the source mounts on the development profile only | Azure Container Registry and Container Apps |
-| Models | `Model` in `backend/llm/client.py`, which alone imports litellm and instructor | `LLM_CLIENT` (`litellm`); the model itself is `LLM_MODEL` and the per-stage models | `Client` over litellm and instructor | Azure OpenAI or Foundry deployments, already reachable through an `azure/` model id |
+| Secrets and settings | `Source = Mapping[str, str]` in `backend/settings/env.py`: every reader takes the environment or a plain mapping | none: the platform injects the environment | `os.environ`, filled by compose's env files and the Makefile, under the stored overlay | Key Vault secrets referenced as Container Apps secrets |
+| Model weights | a path, not code: `HF_HOME`, `HF_HUB_CACHE`, `DOCLING_ARTIFACTS_PATH`; the encoders stay behind `Embedder` and `Entailment` | those paths | the `models` volume | an Azure Files share, or weights baked into an image in Azure Container Registry |
+| The page's API address | the HTTP API; no new port | `BACKEND_URL` | the compose service name | Container Apps internal ingress |
+| Backup and restore | `archive/backup.py` calls `ObjectStore`; the dump stays `pg_dump` | none | `pg_dump` and the object store copied through the port | PostgreSQL automated backups and point-in-time restore; Blob soft delete |
+| Models | `Model` in `backend/llm/client.py`, which alone imports litellm and instructor | `LLM_CLIENT` (`litellm`); the model itself is `LLM_MODEL` and the per-stage models; `LLM_BASE_URLS` gives a role an address of its own | `Client` over litellm and instructor | Azure OpenAI or Foundry deployments, already reachable through an `azure/` model id |
+
+What stays as it is: the stage queue is Postgres (`FOR UPDATE SKIP LOCKED`), because
+Postgres stays the database; `SPEND_LEDGER` is a host file, so a spend cap is per
+host; the pages have no login and the api's reads are open, so neither is exposed
+beyond loopback until an adapter that guards reads exists; and Grafana's log
+dashboards query Elasticsearch, so on Azure Monitor they would be rewritten in KQL.
 
 ## What keeps this page true
 
