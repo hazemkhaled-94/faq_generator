@@ -122,10 +122,11 @@ modules =
 
 
 # One vendor SDK, one adapter module. A `forbidden` contract with every first-party
-# module as a source and the adapter's own import ignored: indirect chains through the
+# module as a source and each adapter's own import ignored, so the ignore list is the
+# whole of what may import an SDK: indirect chains through the
 # adapter are the point, so they are allowed.
-[importlinter:contract:model-sdk]
-name = Only llm.client imports the model SDKs
+[importlinter:contract:sdk-adapters]
+name = Each vendor SDK is imported by its one adapter module
 type = forbidden
 source_modules =
     api
@@ -147,9 +148,13 @@ source_modules =
     telemetry
     topic_modelling
 forbidden_modules =
+    boto3
+    botocore
     litellm
     instructor
 allow_indirect_imports = True
 ignore_imports =
+    blob_store.s3.client -> boto3
+    blob_store.s3.client -> botocore
     llm.client -> litellm
     llm.client -> instructor

@@ -5,11 +5,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import ClassVar
 
+from blob_store import store
 from blob_store.s3.bucket import Bucket
-from blob_store.s3.client import s3_client
-
-#: How many keys one delete request carries. The S3 limit.
-_BATCH = 1000
+from blob_store.store import bucket_name
 
 
 class ArchiveBucket(Bucket):
@@ -22,7 +20,7 @@ class ArchiveBucket(Bucket):
     a second deletion of the same key keeps a second copy.
     """
 
-    name: ClassVar[str] = "archive"
+    name: ClassVar[str] = bucket_name("archive")
 
     @classmethod
     def key_for(cls, origin: str, key: str) -> str:
@@ -47,10 +45,10 @@ class ArchiveBucket(Bucket):
             Whether there was an object to move.
 
         Raises:
-            botocore.exceptions.ClientError: If the store answered with
-                anything other than "no such key".
+            Exception: Whatever the store raises for anything other than "no
+                such key".
         """
-        client = s3_client()
+        objects = store.object_store()
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
         target = self.scoped(f"{self.key_for(origin, key)}@{stamp}")
         # The database's own object is moved. A bare key from before keys were
@@ -60,18 +58,10 @@ class ArchiveBucket(Bucket):
         # on being served from it.
         own = key.startswith(f"topics/{self.database_name()}/")
         for source, move in ((self.scoped(key), True), (key, own)):
-            try:
-                client.copy_object(
-                    Bucket=self.name,
-                    Key=target,
-                    CopySource={"Bucket": origin, "Key": source},
-                )
-            except client.exceptions.ClientError as exc:
-                if not self._absent(exc):
-                    raise
+            if not objects.copy(origin, source, self.name, target):
                 continue
             if move:
-                client.delete_object(Bucket=origin, Key=source)
+                objects.delete(origin, source)
             return True
         return False
 
@@ -89,39 +79,22 @@ class ArchiveBucket(Bucket):
             Whether `origin` holds the object now.
 
         Raises:
-            botocore.exceptions.ClientError: If the store answered with
-                anything other than "no such key".
+            Exception: Whatever the store raises for anything other than "no
+                such key".
         """
-        client = s3_client()
-        try:
-            client.head_object(Bucket=origin, Key=self.scoped(key))
+        objects = store.object_store()
+        if objects.exists(origin, self.scoped(key)):
             return True
-        except client.exceptions.ClientError as exc:
-            if not self._absent(exc):
-                raise
         prefix = self.scoped(self.key_for(origin, key))
         copies = [
             entry
-            for page in client.get_paginator("list_objects_v2").paginate(
-                Bucket=self.name, Prefix=prefix
-            )
-            for entry in page.get("Contents", [])
-            if entry["Key"] == prefix or entry["Key"].startswith(f"{prefix}@")
+            for entry in objects.listed(self.name, prefix)
+            if entry.key == prefix or entry.key.startswith(f"{prefix}@")
         ]
         if not copies:
             return False
-        newest = max(copies, key=lambda entry: (entry["LastModified"], entry["Key"]))
-        try:
-            client.copy_object(
-                Bucket=origin,
-                Key=self.scoped(key),
-                CopySource={"Bucket": self.name, "Key": newest["Key"]},
-            )
-        except client.exceptions.ClientError as exc:
-            if self._absent(exc):
-                return False
-            raise
-        return True
+        newest = max(copies, key=lambda entry: (entry.modified, entry.key))
+        return objects.copy(self.name, newest.key, origin, self.scoped(key))
 
     def held(self, *, before: datetime | None = None) -> list[tuple[str, int]]:
         """Lists what the database's part of the archive holds, as (key, bytes).
@@ -133,12 +106,9 @@ class ArchiveBucket(Bucket):
         """
         prefix = self.scoped("")
         return [
-            (entry["Key"].removeprefix(prefix), entry["Size"])
-            for page in s3_client()
-            .get_paginator("list_objects_v2")
-            .paginate(Bucket=self.name, Prefix=prefix)
-            for entry in page.get("Contents", [])
-            if before is None or entry["LastModified"] < before
+            (entry.key.removeprefix(prefix), entry.size)
+            for entry in store.object_store().listed(self.name, prefix)
+            if before is None or entry.modified < before
         ]
 
     def purge(
@@ -164,24 +134,8 @@ class ArchiveBucket(Bucket):
             How many objects were deleted.
 
         Raises:
-            RuntimeError: If the store refused to delete any of them, which
-                it reports in the body of a successful answer.
+            RuntimeError: If the store refused to delete any of them.
         """
         keys = [key for key, _ in (self.held(before=before) if held is None else held)]
-        client = s3_client()
-        for start in range(0, len(keys), _BATCH):
-            answer = client.delete_objects(
-                Bucket=self.name,
-                Delete={
-                    "Objects": [
-                        {"Key": self.scoped(key)}
-                        for key in keys[start : start + _BATCH]
-                    ]
-                },
-            )
-            if errors := answer.get("Errors"):
-                raise RuntimeError(
-                    f"the store refused to delete {len(errors)} archived object(s), "
-                    f"first {errors[0].get('Key')}: {errors[0].get('Code')}"
-                )
+        store.object_store().delete_many(self.name, [self.scoped(key) for key in keys])
         return len(keys)

@@ -56,10 +56,10 @@ def test_a_failing_object_store_is_reported_without_its_endpoint(monkeypatch) ->
     """The store's address is the deployment's."""
     from api import status
 
-    def names() -> list[str]:
+    def unreachable():
         raise RuntimeError("endpoint http://seaweedfs-s3:8333 refused")
 
-    monkeypatch.setattr(status, "bucket_names", names)
+    monkeypatch.setattr(status.store, "object_store", unreachable)
 
     reported = status.StatusService._object_store()
 

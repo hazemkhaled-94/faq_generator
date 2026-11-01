@@ -118,7 +118,7 @@ flowchart TD
 |---|---|
 | `layers` | A stage sits above what it shares and below nothing but the api |
 | `stages-are-independent` | No backend service imports another |
-| `model-sdk` | Only llm.client imports the model SDKs |
+| `sdk-adapters` | Each vendor SDK is imported by its one adapter module |
 
 Two edges are allowed on purpose. `settings.changes` imports `llm.config` and
 every stage's `config` submodule, to call that service's own `Settings.load`.
@@ -208,6 +208,20 @@ Logs are deleted only by `make logs-retention` and `make logs-prune`.
 | Default pipeline behaviour | `configs/env/backend.env` |
 
 See [configuration.md](configuration.md).
+
+### Swapping a component
+
+Every infrastructure component the backend depends on is reached through one
+port, in the module that owns the concern. A different provider is one adapter
+module and one setting (see [Which adapter](configuration.md#which-adapter)),
+with no change to a caller. The contract `sdk-adapters` keeps each vendor SDK
+inside its adapter, and `tests/contract/` runs one suite per port against
+today's adapter and an in-memory fake, so a new adapter passes the same suite.
+
+| Component | Port | Setting (default) | Today's adapter | An Azure adapter would be |
+|---|---|---|---|---|
+| Object store | `ObjectStore` in `backend/blob_store/store.py` | `OBJECT_STORE` (`s3`) | `S3Store` over boto3, SeaweedFS | Blob Storage, one container per bucket |
+| Models | `llm.client`, which alone imports litellm and instructor | `LLM_MODEL` and the per-stage models | litellm | Azure OpenAI, already reachable through an `azure/` model id |
 
 ## What keeps this page true
 

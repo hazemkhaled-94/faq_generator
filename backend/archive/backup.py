@@ -29,17 +29,9 @@ from pathlib import Path
 from sqlalchemy import text
 
 import telemetry
-from blob_store.s3 import (
-    ArchiveBucket,
-    DocumentsBucket,
-    ExportBucket,
-    ModelsBucket,
-    ParsedBucket,
-    bucket_names,
-    rekey,
-    s3_client,
-)
-from blob_store.s3.bucket import Bucket
+from blob_store import store
+from blob_store.s3 import Bucket, rekey
+from blob_store.store import bucket_names
 from database.qa_generator import Base, engine
 
 log = logging.getLogger(__name__)
@@ -51,18 +43,6 @@ MANIFEST = "manifest.json"
 #: umask the operator's shell has.
 _PRIVATE = 0o077
 
-#: The buckets this project keeps, by the classes that own them.
-_NAMED = [
-    bucket.name
-    for bucket in (
-        DocumentsBucket,
-        ParsedBucket,
-        ModelsBucket,
-        ExportBucket,
-        ArchiveBucket,
-    )
-]
-
 
 def _sha256(data: bytes) -> str:
     """The hex digest of some bytes."""
@@ -70,9 +50,9 @@ def _sha256(data: bytes) -> str:
 
 
 def _buckets() -> list[str]:
-    """The five buckets of this project that the store holds."""
-    held = bucket_names()
-    return [one for one in _NAMED if one in held]
+    """The configured buckets the store holds, each asked of by its own name."""
+    objects = store.object_store()
+    return [one for one in bucket_names().values() if objects.has_bucket(one)]
 
 
 def _counts() -> dict[str, int]:
@@ -120,23 +100,24 @@ def backup(directory: Path) -> dict:
     Returns:
         The manifest.
     """
-    client = s3_client()
+    source = store.object_store()
     objects = []
     for bucket in _buckets():
-        for page in client.get_paginator("list_objects_v2").paginate(Bucket=bucket):
-            for held in page.get("Contents", []):
-                data = client.get_object(Bucket=bucket, Key=held["Key"])["Body"].read()
-                target = directory / "s3" / bucket / held["Key"]
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(data)
-                objects.append(
-                    {
-                        "bucket": bucket,
-                        "key": held["Key"],
-                        "bytes": len(data),
-                        "sha256": _sha256(data),
-                    }
-                )
+        for held in source.listed(bucket):
+            data = source.get(bucket, held.key)
+            if data is None:
+                continue
+            target = directory / "s3" / bucket / held.key
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            objects.append(
+                {
+                    "bucket": bucket,
+                    "key": held.key,
+                    "bytes": len(data),
+                    "sha256": _sha256(data),
+                }
+            )
     manifest = {
         "rows": _counts(),
         "objects": objects,
@@ -159,15 +140,16 @@ def restore(directory: Path, stack: bool = False) -> None:
         directory: A backup.
         stack: Put back every database's objects, not only this database's.
     """
-    client = s3_client()
+    target = store.object_store()
     owned = set() if stack else rekey.digests()
     for held in json.loads((directory / MANIFEST).read_text())["objects"]:
         if not _in_scope(held["bucket"], held["key"], stack, owned):
             continue
-        client.put_object(
-            Bucket=held["bucket"],
-            Key=held["key"],
-            Body=(directory / "s3" / held["bucket"] / held["key"]).read_bytes(),
+        target.put(
+            held["bucket"],
+            held["key"],
+            (directory / "s3" / held["bucket"] / held["key"]).read_bytes(),
+            content_type="application/octet-stream",
         )
 
 
@@ -186,16 +168,13 @@ def verify(directory: Path, stack: bool = False) -> list[str]:
         dump = directory / "db" / name
         if not dump.exists() or _sha256(dump.read_bytes()) != held["sha256"]:
             wrong.append(f"dump {name} differs from the manifest")
-    client = s3_client()
+    source = store.object_store()
     owned = set() if stack else rekey.digests()
     for held in manifest["objects"]:
         if not _in_scope(held["bucket"], held["key"], stack, owned):
             continue
-        try:
-            data = client.get_object(Bucket=held["bucket"], Key=held["key"])[
-                "Body"
-            ].read()
-        except client.exceptions.ClientError:
+        data = source.get(held["bucket"], held["key"])
+        if data is None:
             wrong.append(f"{held['bucket']}/{held['key']} is missing")
             continue
         if _sha256(data) != held["sha256"]:

@@ -101,6 +101,8 @@ x-store-env: &store-env
   S3_SECRET_KEY: ${S3_SECRET_KEY?add it to .env; .env.example names every secret}
   S3_REGION: ${S3_REGION}
   S3_ADDRESSING_STYLE: ${S3_ADDRESSING_STYLE}
+  S3_BUCKETS: ${S3_BUCKETS}
+  OBJECT_STORE: ${OBJECT_STORE}
 
 # Which model, and where it is served. Its mode, temperature, timeout and
 # attempt count are in backend.env; these stay here, because that is one

@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
+from blob_store import store
 from blob_store.s3 import (
     ArchiveBucket,
     Bucket,
@@ -13,7 +14,6 @@ from blob_store.s3 import (
     ExportBucket,
     ModelsBucket,
     ParsedBucket,
-    bucket_names,
 )
 from database.qa_generator import sessions
 from database.qa_generator.revision import applied, heads
@@ -112,7 +112,12 @@ class StatusService:
     def _object_store() -> Component:
         """Checks the object store and measures each required bucket."""
         try:
-            present = set(bucket_names())
+            objects = store.object_store()
+            present = {
+                bucket.name
+                for bucket in _REQUIRED_BUCKETS
+                if objects.has_bucket(bucket.name)
+            }
         except Exception as exc:  # noqa: BLE001
             log.error("object store unreachable: %s: %s", type(exc).__name__, exc)
             return Component(False, "Unreachable; see the api log.")

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import ClassVar
 
 from blob_store.s3.bucket import Bucket
+from blob_store.store import bucket_name
 
 
 class ParsedBucket(Bucket):
@@ -16,7 +17,7 @@ class ParsedBucket(Bucket):
     rather than parsing again.
     """
 
-    name: ClassVar[str] = "parsed"
+    name: ClassVar[str] = bucket_name("parsed")
 
     @classmethod
     def key_for(cls, sha256: str) -> str:

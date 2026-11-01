@@ -22,11 +22,12 @@ shell() { printf '%s\n' "$@" | weed shell -master="$MASTER"; }
 #   archive     Deleted objects.   Never expires: a TTL here would finish the
 #               deletion the archive exists to postpone.
 #
-# Adding a bucket: append its name to S3_BUCKETS in configs/env/deployment.env
-# and restart.
+# Renaming a bucket: write role=bucket in S3_BUCKETS in configs/env/deployment.env
+# (documents=acme-docs) and restart. The roles are the five above.
 
-for b in $(echo "${S3_BUCKETS}" | tr ',' ' '); do
-    shell "s3.bucket.create -name ${b}"
+# An entry is a bucket name, or role=bucket where the deployment renames the role.
+for entry in $(echo "${S3_BUCKETS}" | tr ',' ' '); do
+    shell "s3.bucket.create -name ${entry#*=}"
 done
 
 echo "buckets ready: ${S3_BUCKETS}"

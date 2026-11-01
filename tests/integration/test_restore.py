@@ -113,7 +113,7 @@ def rows(engine) -> dict[str, list[str]]:
 
 def objects() -> dict[str, dict[str, bytes]]:
     """Every object in every bucket, by key."""
-    from blob_store.s3 import s3_client
+    from blob_store.s3.client import s3_client
 
     client = s3_client()
     return {

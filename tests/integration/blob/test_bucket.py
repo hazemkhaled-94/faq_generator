@@ -22,7 +22,7 @@ def documents(buckets):
 
 def stored_metadata(bucket, key: str) -> dict[str, str]:
     """Reads back what `put` attached, as S3 holds it."""
-    from blob_store.s3 import s3_client
+    from blob_store.s3.client import s3_client
 
     head = s3_client().head_object(Bucket=bucket.name, Key=bucket.scoped(key))
     return {name: unquote(value) for name, value in head["Metadata"].items()}
@@ -100,9 +100,7 @@ def test_finding_an_object_that_is_not_there_answers_nothing(documents) -> None:
 
 def test_getting_an_object_that_is_not_there_raises(documents) -> None:
     """A caller that cannot proceed without it is told."""
-    from botocore.exceptions import ClientError
-
-    with pytest.raises(ClientError):
+    with pytest.raises(FileNotFoundError):
         documents.get(documents.key_for(digest("z"), "application/pdf"))
 
 
@@ -158,7 +156,7 @@ def test_the_count_is_answered_from_a_cache(documents) -> None:
 
 def test_the_fanout_key_is_where_the_object_lands(documents) -> None:
     """The directories are derived from the digest, never stored."""
-    from blob_store.s3 import s3_client
+    from blob_store.s3.client import s3_client
 
     sha = digest("c")
     key = documents.key_for(sha, "application/pdf")
@@ -183,8 +181,8 @@ def test_each_bucket_holds_its_own_objects(buckets) -> None:
     assert parsed.find(key) is None
 
 
-def test_the_gateway_lists_every_bucket_the_pipeline_uses(buckets) -> None:
-    """What the health check reads."""
-    from blob_store.s3 import bucket_names
+def test_the_gateway_has_every_bucket_the_pipeline_uses(buckets) -> None:
+    """What the health check reads: each configured name, asked of alone."""
+    from blob_store.store import bucket_names, object_store
 
-    assert {"documents", "parsed", "export"} <= set(bucket_names())
+    assert all(object_store().has_bucket(name) for name in bucket_names().values())

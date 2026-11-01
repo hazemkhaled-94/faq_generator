@@ -161,6 +161,23 @@ Plain `make docling-weights` fills the containers' volume, which the host does
 not read. With `DOCLING_ARTIFACTS_PATH` set, run `poetry run docling-tools
 models download -o <that folder>`.
 
+## Which adapter
+
+Each infrastructure component the backend reaches through a port has one
+setting that names the adapter. Today's is the default, so nothing changes
+until a deployment sets another. [Swapping a
+component](architecture.md#swapping-a-component) says what each port is.
+
+| Setting | Default | Chooses |
+|---|---|---|
+| `OBJECT_STORE` | `s3` | the object store adapter; `s3` is the only one there is |
+
+`S3_BUCKETS` names the bucket of each role, as `documents,parsed,models,export,archive`
+or as `role=bucket` entries (`documents=acme-docs`) where a deployment names
+one differently. A role not named keeps its own name. The backend asks for each
+configured bucket by name and never lists the account's buckets, because a
+credential limited to one bucket is refused the listing.
+
 ## Production settings
 
 The settings that [Production deployment](operations.md#production-deployment)

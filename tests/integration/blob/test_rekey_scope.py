@@ -13,7 +13,8 @@ def test_rekey_keeps_a_newer_object_the_database_wrote_since(
     engine, database, buckets
 ) -> None:
     """A re-parse done since the upgrade survives the one-off copy of the bare object."""
-    from blob_store.s3 import ParsedBucket, rekey, s3_client
+    from blob_store.s3 import ParsedBucket, rekey
+    from blob_store.s3.client import s3_client
 
     sha = digest("rekey-newer")
     key = ParsedBucket.key_for(sha)
@@ -74,7 +75,8 @@ def test_rekey_names_an_archived_document_by_its_archived_row(
     """A document deleted before the one-off copy still has its archived file copied."""
     from sqlalchemy import text
 
-    from blob_store.s3 import ArchiveBucket, DocumentsBucket, rekey, s3_client
+    from blob_store.s3 import ArchiveBucket, DocumentsBucket, rekey
+    from blob_store.s3.client import s3_client
 
     sha = digest("rekey-archived")
     with Session(engine) as session:

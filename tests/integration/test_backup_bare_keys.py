@@ -14,7 +14,8 @@ def test_a_restore_of_one_database_after_a_lost_store_reads_its_legacy_document(
 ) -> None:
     """After a lost store the restore brings the legacy document back and verifies it."""
     from archive import backup
-    from blob_store.s3 import DocumentsBucket, s3_client
+    from blob_store.s3 import DocumentsBucket
+    from blob_store.s3.client import s3_client
 
     sha = digest("legacy-bank-terms")
     key = DocumentsBucket.key_for(sha, "application/pdf")
@@ -45,7 +46,8 @@ def test_another_databases_legacy_object_is_left_alone(
 ) -> None:
     """A bare object no row of this database names is not this restore's to put back."""
     from archive import backup
-    from blob_store.s3 import DocumentsBucket, s3_client
+    from blob_store.s3 import DocumentsBucket
+    from blob_store.s3.client import s3_client
 
     theirs = DocumentsBucket.key_for(digest("someone-elses"), "application/pdf")
     s3_client().put_object(Bucket="documents", Key=theirs, Body=b"%PDF theirs")

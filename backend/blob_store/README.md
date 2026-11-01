@@ -1,7 +1,10 @@
 # Blob store
 
 Object storage over any S3 implementation, one module per bucket. It is the
-only package that builds an S3 client.
+only package that builds an S3 client. The rest of the backend reaches it
+through `ObjectStore` in [`store.py`](store.py), a port of `put`, `get`,
+`exists`, `delete`, `copy`, `listed`, `delete_many` and `has_bucket`, so a
+different store is one adapter beside `s3/client.py`.
 
 ## The five buckets
 
@@ -56,17 +59,19 @@ SeaweedFS server publishes a port.
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY` | The credential. Empty lets boto3 find one (an instance role, a profile) |
 | `S3_REGION` | `local` for a self-hosted gateway, the real region for AWS, `auto` for R2 |
 | `S3_ADDRESSING_STYLE` | `path` for a self-hosted gateway, `auto` for AWS |
-| `S3_BUCKETS` | The buckets [`configs/seaweedfs/bucket-init.sh`](../../configs/seaweedfs/bucket-init.sh) creates at first boot |
+| `S3_BUCKETS` | The bucket of each role, as names or `role=bucket` entries. [`configs/seaweedfs/bucket-init.sh`](../../configs/seaweedfs/bucket-init.sh) creates them at first boot |
+| `OBJECT_STORE` | Which adapter: `s3`, the only one there is |
 
 An empty value means the SDK's default. A setting not set at all raises, so
 a missing env file fails instead of addressing another account. This package
 creates no bucket: `bucket-init.sh` does on SeaweedFS, the provider's tooling
-elsewhere. `GET /status` reports which required buckets are missing.
+elsewhere. `GET /status` reports which required buckets are missing, asking for each
+configured name with a head request and never listing the account's buckets.
 
 ## Tests
 
 ```sh
-poetry run pytest tests/unit/blob_store tests/integration/blob
+poetry run pytest tests/unit/blob_store tests/contract/test_object_store.py tests/integration/blob
 ```
 
 [`test_keys.py`](../../tests/unit/blob_store/test_keys.py) covers keys,

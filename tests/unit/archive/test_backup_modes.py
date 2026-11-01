@@ -7,12 +7,12 @@ account on the host, whatever umask the operator's shell has.
 
 from __future__ import annotations
 
-import io
 import os
 import stat
 from pathlib import Path
 
 import pytest
+from fakes import FakeObjectStore
 
 from archive import backup
 
@@ -25,20 +25,6 @@ _HELD = {
     "parsed": {"qa_x/ab12.json": b"{}"},
     "export": {"topics/qa_x/de.html": "<p>Gebühren</p>".encode()},
 }
-
-
-class _Client:
-    """A stand-in S3 client holding _HELD."""
-
-    def get_paginator(self, _name: str):
-        class _Pages:
-            def paginate(self, Bucket: str):
-                return [{"Contents": [{"Key": key} for key in _HELD[Bucket]]}]
-
-        return _Pages()
-
-    def get_object(self, Bucket: str, Key: str):
-        return {"Body": io.BytesIO(_HELD[Bucket][Key])}
 
 
 @pytest.fixture
@@ -54,7 +40,7 @@ def test_every_file_and_folder_the_backup_writes_is_its_owners_alone(
 ) -> None:
     """The objects, the manifest and the folders, under a shell's 022."""
     monkeypatch.setattr(backup.telemetry, "configure", lambda *_: None)
-    monkeypatch.setattr(backup, "s3_client", _Client)
+    monkeypatch.setattr(backup.store, "object_store", lambda: FakeObjectStore(_HELD))
     monkeypatch.setattr(backup, "_buckets", lambda: list(_HELD))
     monkeypatch.setattr(backup, "_counts", lambda: {"documents": 2})
     target = tmp_path / "backup"
@@ -77,7 +63,7 @@ def test_a_folder_that_already_exists_is_closed_to_everyone_else(
 ) -> None:
     """The folder `make backup` made for the dumps is closed before the objects go in."""
     monkeypatch.setattr(backup.telemetry, "configure", lambda *_: None)
-    monkeypatch.setattr(backup, "s3_client", _Client)
+    monkeypatch.setattr(backup.store, "object_store", lambda: FakeObjectStore(_HELD))
     monkeypatch.setattr(backup, "_buckets", lambda: ["parsed"])
     monkeypatch.setattr(backup, "_counts", dict)
     target = tmp_path / "backup"

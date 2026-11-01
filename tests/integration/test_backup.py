@@ -33,7 +33,7 @@ def stored(engine, database, buckets):
 
 def empty(buckets_named=("documents", "parsed", "export")) -> None:
     """Deletes every object, as a lost store would."""
-    from blob_store.s3 import s3_client
+    from blob_store.s3.client import s3_client
 
     client = s3_client()
     for bucket in buckets_named:
@@ -74,7 +74,8 @@ def test_a_changed_object_dump_or_row_count_fails_the_verification(
 ) -> None:
     """Each of the three kinds of difference is named."""
     from archive import backup
-    from blob_store.s3 import DocumentsBucket, s3_client
+    from blob_store.s3 import DocumentsBucket
+    from blob_store.s3.client import s3_client
 
     (tmp_path / "db").mkdir()
     (tmp_path / "db" / "qa_generator.dump").write_bytes(b"PGDMP")

@@ -22,12 +22,12 @@ until an operator does, every bucket here grows until something replaces or
 purges an object. What bounds each one is in the table above and in the
 README beside this file, and it is a rewrite or a deletion in every case.
 
-Nothing outside this package builds an S3 client or knows the endpoint.
+Nothing outside this package builds an S3 client or knows the endpoint; the
+rest of the backend reaches the store through `blob_store.store.ObjectStore`.
 """
 
 from blob_store.s3.archive import ArchiveBucket
 from blob_store.s3.bucket import Bucket
-from blob_store.s3.client import bucket_names, s3_client
 from blob_store.s3.documents import DocumentsBucket
 from blob_store.s3.export import ExportBucket
 from blob_store.s3.models import ModelsBucket
@@ -40,6 +40,4 @@ __all__ = [
     "ExportBucket",
     "ModelsBucket",
     "ParsedBucket",
-    "bucket_names",
-    "s3_client",
 ]
