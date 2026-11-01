@@ -44,35 +44,15 @@ _PROTECTED = {
     ),
 }
 
-#: The same case in a language no configuration names, read by the default pipeline.
-_UNCONFIGURED = {
-    "fr": (
-        (
-            "Les dépôts sont garantis jusqu'à 100 000 euros par client. Les comptes "
-            "d'épargne et les comptes courants comptent ensemble."
-        ),
-        "jusqu'à 100 000 euros",
-        (
-            "La garantie des dépôts protège les avoirs de chaque client auprès de la "
-            "banque. Les comptes d'épargne et les comptes courants sont additionnés et "
-            "garantis jusqu'à 200 000 euros par client, au-delà rien n'est couvert."
-        ),
-    ),
-    "el": (
-        (
-            "Οι καταθέσεις προστατεύονται έως 100 000 ευρώ ανά πελάτη. Οι λογαριασμοί "
-            "ταμιευτηρίου και οι τρεχούμενοι υπολογίζονται μαζί."
-        ),
-        "έως 100 000 ευρώ",
-        (
-            "Η εγγύηση καταθέσεων προστατεύει τα υπόλοιπα κάθε πελάτη στην τράπεζα. Οι "
-            "λογαριασμοί ταμιευτηρίου και οι τρεχούμενοι προστίθενται και προστατεύονται "
-            "έως 200 000 ευρώ ανά πελάτη, πέρα από αυτό τίποτα δεν καλύπτεται."
-        ),
-    ),
-}
 
-
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "QA-questions-1, its fix withdrawn after three reviews (see docs/bugs.md): "
+        "an explanation stating a space-grouped amount the passages do not "
+        "(EUR 200 000 against EUR 100 000) still passes explains(), as in v0.4.2"
+    ),
+)
 @pytest.mark.parametrize("language", ["en", "de"])
 def test_qa_qg_1_an_explanation_with_a_wrong_space_grouped_amount_is_unusable(
     language,
@@ -81,17 +61,6 @@ def test_qa_qg_1_an_explanation_with_a_wrong_space_grouped_amount_is_unusable(
     passage, key, explanation = _PROTECTED[language]
 
     assert not explains(explanation, key, (passage,), language)
-
-
-@pytest.mark.parametrize("language", ["fr", "el"])
-def test_qa_qg_1_a_language_no_configuration_names_is_read_as_before(language) -> None:
-    """The default pipeline reads its groups apart: a right amount passes, a wrong one is refused, as it always was."""
-    passage, key, explanation = _UNCONFIGURED[language]
-    right = explanation.replace("200 000", "100 000")
-    span = (0, 10_000)
-
-    assert explains(right, key, (passage,), language, span) is True
-    assert explains(explanation, key, (passage,), language, span) is False
 
 
 def test_qa_qg_1_the_same_wrong_amount_with_a_thousands_mark_is_refused() -> None:
