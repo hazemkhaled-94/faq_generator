@@ -218,6 +218,8 @@ with no change to a caller. The contract `sdk-adapters` keeps each vendor SDK
 inside its adapter, and `tests/contract/` runs one suite per port against
 today's adapter and an in-memory fake, so a new adapter passes the same suite.
 
+The one module that imports each SDK, which `sdk-adapters` checks: `boto3` and `botocore` in `blob_store.s3.client`; `litellm` and `instructor` in `llm.client`; `phoenix` in `telemetry.evaluations`; `openinference` in `telemetry.traces`; `argilla` in `review.datasets`; `dagster` in `orchestration`; `sentence_transformers` in `nlp.embedding`; `transformers` and `torch` in `nlp.entailment` and `nlp.qa`; `docling` in `preprocessing.parsing.pipelines.pdf` (`docling_core`, the parsed-document format, is allowed anywhere). `create_engine` cannot be singled out by import-linter, so `tests/static/test_one_engine_builder.py` checks that only `database.qa_generator.engine` and `database/migrations/env.py` build an engine.
+
 | Component | Port | Setting (default) | Today's adapter | An Azure adapter would be |
 |---|---|---|---|---|
 | Object store | `ObjectStore` in `backend/blob_store/store.py` | `OBJECT_STORE` (`s3`) | `S3Store` over boto3, SeaweedFS | Blob Storage, one container per bucket |

@@ -155,6 +155,11 @@ forbidden_modules =
     phoenix
     openinference
     argilla
+    dagster
+    sentence_transformers
+    transformers
+    torch
+    docling
 allow_indirect_imports = True
 ignore_imports =
     blob_store.s3.client -> boto3
@@ -164,3 +169,11 @@ ignore_imports =
     telemetry.evaluations -> phoenix
     telemetry.traces -> openinference
     review.datasets -> argilla
+    orchestration -> dagster
+    orchestration.* -> dagster
+    nlp.embedding -> sentence_transformers
+    nlp.entailment -> transformers
+    nlp.entailment -> torch
+    nlp.qa -> transformers
+    nlp.qa -> torch
+    preprocessing.parsing.pipelines.pdf -> docling
