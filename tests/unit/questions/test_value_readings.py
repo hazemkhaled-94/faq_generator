@@ -12,9 +12,12 @@ from question_generation.gates import (
     _stated,
     adds_up,
     agrees,
+    counts_a_list,
     explains,
     fitting,
+    periods,
     relabelled,
+    structural,
 )
 
 pytestmark = pytest.mark.nlp
@@ -130,6 +133,178 @@ def test_a_total_in_a_language_no_configuration_names_is_not_misread():
         )
         is False
     )
+
+
+# N-023: a key that opens on a figure is a count of the cited facts only where the figure is a bare integer.
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "statements"),
+    [
+        (
+            "Wie hoch ist die Kontoführungsgebühr pro Jahr?",
+            "2.000 EUR",
+            "de",
+            [
+                "Die Kontoführungsgebühr beträgt 2.000 EUR pro Jahr.",
+                "Die Gebühr wird im Januar belastet.",
+            ],
+        ),
+        (
+            "Wie lange dauert die Bearbeitung eines Antrags?",
+            "2,5 Werktage",
+            "de",
+            [
+                "Die Bearbeitung eines Antrags dauert 2,5 Werktage.",
+                "Anträge werden nach Eingang bearbeitet.",
+            ],
+        ),
+        (
+            "Wie lange ist eine Rückgabe möglich?",
+            "2–3 Wochen",
+            "de",
+            [
+                "Die Rückgabe ist innerhalb von 2–3 Wochen möglich.",
+                "Die Ware muss unbenutzt sein.",
+            ],
+        ),
+        (
+            "How much is the annual account fee?",
+            "2,000 USD",
+            "en",
+            [
+                "The annual account fee is 2,000 USD.",
+                "The fee is charged every January.",
+            ],
+        ),
+        (
+            "How long does a refund take?",
+            "2.5 days",
+            "en",
+            [
+                "A refund takes 2.5 days on average.",
+                "Refunds are paid to the original card.",
+            ],
+        ),
+        (
+            "What is the interest rate on the savings account?",
+            "3.5%",
+            "en",
+            [
+                "The savings account pays 3.5% interest.",
+                "Interest is paid quarterly.",
+                "Rates may change monthly.",
+            ],
+        ),
+        # Unconfigured languages: inert today (no count reading), kept as the guard.
+        (
+            "Quel est le montant des frais annuels?",
+            "2.000 EUR",
+            "fr",
+            [
+                "Les frais annuels sont de 2.000 EUR.",
+                "Les frais sont prélevés en janvier.",
+            ],
+        ),
+        (
+            "Πόσο είναι το ετήσιο τέλος?",
+            "2.000 EUR",
+            "el",
+            ["Το ετήσιο τέλος είναι 2.000 EUR.", "Το τέλος χρεώνεται τον Ιανουάριο."],
+        ),
+    ],
+)
+def test_a_value_that_starts_with_a_small_digit_is_not_a_count_of_the_facts(
+    question, answer, language, statements
+):
+    """An amount, a decimal, a range or a percentage is a value, not a count of citations."""
+    refused, _ = structural(
+        question_text=question,
+        target_answer=answer,
+        answerable=True,
+        language=language,
+        statements=statements,
+    )
+    assert refused is None or "number of facts" not in refused[1], refused
+
+
+def test_a_bare_count_equal_to_the_cited_facts_is_still_refused():
+    """The control: the bare key 2 over two cited facts counts its own citations."""
+    refused, _ = structural(
+        question_text="Wie hoch ist die Kontoführungsgebühr pro Jahr?",
+        target_answer="2",
+        answerable=True,
+        language="de",
+        statements=[
+            "Die Gebühr beträgt jährlich 5 EUR.",
+            "Die Gebühr wird im Januar belastet.",
+        ],
+    )
+    assert refused is not None and "number of facts" in refused[1]
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "statement", "language"),
+    [
+        (
+            "Wie viele Tage dauert die Bearbeitung von Anträgen und Beschwerden insgesamt?",
+            "2,5 Tage",
+            "Die Bearbeitung von Anträgen und Beschwerden dauert jeweils 1,25 Tage.",
+            "de",
+        ),
+        (
+            "How many days does handling refunds and complaints take in total?",
+            "2.5 days",
+            "Handling refunds and complaints takes 1.25 days each.",
+            "en",
+        ),
+    ],
+)
+def test_a_decimal_total_is_not_a_count_of_listed_items(
+    question, answer, statement, language
+):
+    """The same leading-figure reading, in the lookup-or-sum check."""
+    assert counts_a_list(question, answer, [statement], language) is False
+
+
+def test_a_true_count_of_listed_items_still_is():
+    """The control: a bare 3 over a statement listing three things."""
+    assert counts_a_list(
+        "Wie viele Gebühren berechnet die Bank?",
+        "3",
+        [
+            (
+                "Die Bank berechnet eine Kontoführungsgebühr, eine Kartengebühr und "
+                "eine Gebühr für Auslandsüberweisungen."
+            )
+        ],
+        "de",
+    )
+
+
+# N-029: a grouped amount or a five-digit figure is no period.
+@pytest.mark.parametrize(
+    "answer, language",
+    [
+        ("Die Gebühr stieg von 1.900 EUR auf 2.050 EUR.", "de"),
+        ("Das Limit stieg von 18.500 EUR auf 20.000 EUR.", "de"),
+        ("The limit went from 12000 to 20000 units.", "en"),
+    ],
+)
+def test_two_amounts_are_not_two_periods(answer, language):
+    """German groups its thousands with a full stop, which is no day and month."""
+    assert periods(answer, language) is False
+
+
+@pytest.mark.parametrize(
+    "answer, language",
+    [
+        ("Von 2024 auf 2025 stieg die Gebühr von 5 auf 7 EUR.", "de"),
+        ("From 2024 to 2025 the fee rose from 5 to 7 EUR.", "en"),
+        ("Vom 01.03.2024 bis zum 15.04.2025 galt der Tarif.", "de"),
+    ],
+)
+def test_two_years_or_dates_are_two_periods(answer, language):
+    """The controls: years and dated days still count."""
+    assert periods(answer, language) is True
 
 
 def test_a_space_grouped_amount_is_one_number_to_relabelled():

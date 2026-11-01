@@ -419,9 +419,20 @@ def _count(word: str) -> int | None:
 
 
 def _leading(answer: str | None) -> str:
-    """An answer's first word, in lower case: where a count key says its count."""
-    leading = re.match(r"\s*(\w+)", answer or "")
-    return leading.group(1).lower() if leading else ""
+    """An answer's first word, in lower case: where a count key says its count.
+
+    A figure is read whole, by the one figure pattern: `2.000 EUR`, `2,5 Tage`,
+    `3.5%` and `2–3 Wochen` open on a figure that is no bare count, so they
+    have none.
+    """
+    text = (answer or "").lstrip()
+    figure = FIGURE.match(text)
+    if figure and (
+        not figure.group().isdecimal() or re.match(r"[–-]\s?\d", text[figure.end() :])
+    ):
+        return ""
+    leading = re.match(r"\w+", text)
+    return leading.group().lower() if leading else ""
 
 
 def _stated(count: int, statements: Sequence[str], language: str | None) -> bool:
@@ -2232,13 +2243,13 @@ def periods(answer: str, language: str | None) -> bool:
     already collects, narrowed to the ones that look like a year or a date:
     a count is a unit too and two counts are not two periods.
     """
-    found = [unit for unit in claim(answer, language).units if _DATED.search(unit)]
+    found = [unit for unit in claim(answer, language).units if _DATED.fullmatch(unit)]
     return len(found) >= 2
 
 
 #: A year, or a number that could be a day or a month beside one. What
 #: separates a period from a quantity in a list of units.
-_DATED = re.compile(r"(1[89]|20)\d{2}|^\d{1,2}[./]\d{1,2}")
+_DATED = re.compile(r"(?:1[89]|20)\d{2}|\d{1,2}[./]\d{1,2}(?:[./](?:\d{2}|\d{4}))?")
 
 
 def typed(
