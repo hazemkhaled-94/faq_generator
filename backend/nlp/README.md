@@ -162,6 +162,7 @@ language's words in one set or pattern.
 | `ORDINAL_SUFFIX` | same | What follows the digits of an ordinal figure: `3rd`, a German `3.` | `st`, `nd`, `rd`, `th`, `.` |
 | `_CORRELATES` | same | Pronouns standing for an object or clause, not a noun | `es` |
 | `_PLACEHOLDER_GENDER` | same | The gender the placeholder pronoun before a clause carries, `None` where the pipeline marks none on it. A language with no row has no placeholder read: French `il` is masculine | `Neut` |
+| `_COMPLEMENTIZERS` | same | The conjunctions, as lemmas, that open the clause a placeholder pronoun stands for, against the one that opens a condition. A language with no row accepts only an infinitive | `dass`, `ob` |
 | `_EXPLETIVE_RUNS` | same | Word runs whose pronoun is part of a fixed phrase and stands for nothing | `es sei denn` |
 | `_GENITIVE_DEMONSTRATIVES` | same | Demonstratives standing as the genitive of a noun (`die Bank und deren Lieferanten`). A language with no row reads none as resolved | `dessen`, `deren` |
 | `_CLAUSE_DEMONSTRATIVES` | same | Demonstratives that carry a clause or participle of their own (`except those related to the price cap`) | `those` |

@@ -1373,6 +1373,15 @@ _CONJUNCT = frozenset({"conj", "cj"})
 _PLACEHOLDER_GENDER: dict[str, str | None] = {"de": "Neut", "en": None}
 
 
+#: The conjunctions that open the clause a placeholder stands for, as lemmas by
+#: ISO 639-1 code: German `dass` and `ob`, against `wenn`, which opens a
+#: condition. A language with no row accepts only an infinitive there.
+_COMPLEMENTIZERS: dict[str, frozenset[str]] = {
+    "de": frozenset({"dass", "ob"}),
+    "en": frozenset(),
+}
+
+
 def _fixed_expletive(token) -> bool:
     """Whether a token opens one of its language's fixed expletive runs."""
     runs = _EXPLETIVE_RUNS.get(token.doc.lang_, ())
@@ -1416,15 +1425,32 @@ def _clausal_correlate(token) -> bool:
             and child.pos_ in {"VERB", "AUX", "ADJ", "ADV"}
         ]
         chain += frontier
-    # The clause hangs on a verb of the chain, or on the pronoun itself, as a
-    # German parse hangs "Es ist verboten, die PIN zu notieren".
     return any(
         child.i > token.i
         and child.dep_ in {"oc", "ccomp", "xcomp", "re", "csubj"}
         and any(
             t.tag_ in {"PTKZU", "TO"} or t.dep_ in _SUBORDINATOR for t in child.subtree
         )
-        for child in (c for one in [*chain, token] for c in one.children)
+        for child in (c for one in chain for c in one.children)
+    ) or any(
+        # Hung on the pronoun itself, as a German parse hangs "Es ist verboten,
+        # die PIN zu notieren": an infinitive, or a clause a complementizer
+        # opens. A condition, `Es ist kostenlos, wenn ...`, hangs there too and
+        # is not what the pronoun stands for.
+        child.i > token.i
+        and child.dep_ in {"oc", "ccomp", "xcomp", "re", "csubj"}
+        and (
+            (
+                "Inf" in child.morph.get("VerbForm", [])
+                and not any(t.dep_ in _SUBORDINATOR for t in child.subtree)
+            )
+            or any(
+                t.dep_ in _SUBORDINATOR
+                and t.lemma_.casefold() in _COMPLEMENTIZERS.get(token.doc.lang_, ())
+                for t in child.subtree
+            )
+        )
+        for child in token.children
     )
 
 

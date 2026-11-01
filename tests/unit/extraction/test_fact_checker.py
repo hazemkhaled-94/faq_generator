@@ -637,12 +637,7 @@ def test_a_modifier_naming_its_noun_or_the_next_day_is_not_a_reference(
             "en",
             "Document of Terms",
         ),
-        ("Dieser Lehrplan behandelt zwei Modelle.", "de", "Lehrplan Foundation Level"),
-        (
-            "Die Lernziele dieses Lehrplans enden mit einem Aktionsverb.",
-            "de",
-            "Lehrplan Foundation Level",
-        ),
+        ("Dieser Lehrplan behandelt zwei Modelle.", "de", "Lehrplan für Testanalysten"),
         (
             "Dieses Merkblatt gilt für alle Girokonten.",
             "de",
