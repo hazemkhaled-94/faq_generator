@@ -13,6 +13,7 @@ from spacy.pipeline import Lemmatizer
 from spacy.tokens import Doc, Span, Token
 
 from nlp.language import URL
+from nlp.markers import BULLET, ENUMERATION
 from nlp.models import Claim, Sentence
 from nlp.pipelines import pipeline
 from settings import optional
@@ -2487,7 +2488,7 @@ _CLOSING_ABBREVIATIONS: dict[str, frozenset[str]] = {
 
 #: An item's number alone at the start of its line: "2.", "b)", "(iv)", or
 #: one behind a bullet.
-_ENUMERATOR = re.compile(r"[-–•*]?\s*\(?(?:\d{1,3}|[a-zA-Z]|[ivxIVX]{1,4})[.)]")
+_ENUMERATOR = re.compile(rf"(?:{BULLET}\s*)?{ENUMERATION}")
 
 
 def _boundaries(document: Doc) -> list[int]:

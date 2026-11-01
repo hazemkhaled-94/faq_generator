@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from database.qa_generator import FactKind
+from nlp.markers import LIST_MARKER
 from nlp.models import Sentence
 
 if TYPE_CHECKING:
@@ -38,10 +39,10 @@ BULLET = "- "
 #: The fewest points an outline may hold.
 MIN_POINTS = 2
 
-#: A line the chunker renders as a list item: a bullet, or a number closed by
-#: a full stop or a bracket, then a space. Markdown's own markers, so a list
-#: reads alike in any language.
-_ITEM = re.compile(r"^[ \t]*(?:[-*+\u2022]|\d+[.)])[ \t]+\S", re.MULTILINE)
+#: A line the chunker renders as a list item: a bullet, or a number, a letter or
+#: a roman numeral closed by a full stop or a bracket, then a space. The marks
+#: are no language's words, so a list reads alike in any.
+_ITEM = re.compile(rf"^[ \t]*{LIST_MARKER}[ \t]+\S", re.MULTILINE)
 
 
 @dataclass(frozen=True)

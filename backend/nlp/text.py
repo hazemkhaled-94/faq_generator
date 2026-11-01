@@ -13,6 +13,7 @@ import unicodedata
 from collections.abc import Iterable, Sequence
 from functools import cache
 
+from nlp.markers import LIST_MARKER
 from nlp.pipelines import languages
 
 #: The words that complete a hanging hyphen, by ISO 639-1 code, as in "Zoll-
@@ -154,9 +155,8 @@ def _plain(text: str) -> str:
     return " ".join(text.translate(_FOLDED).casefold().split())
 
 
-#: A list item's marker at the start of a line: a dash or a bullet, or a
-#: number or a letter closed by a full stop or a bracket.
-_MARKER = re.compile(r"^\s*(?:[-–—•*·▪●◦]|\(?\d{1,3}[.)]|\(?[a-zA-Z][.)])\s+")
+#: A list item's marker at the start of a line.
+_MARKER = re.compile(rf"^\s*{LIST_MARKER}\s+")
 
 #: Where a quote stitched from lines, cells, sentences or passages joins two
 #: runs: a line break, an ellipsis, a cell bar, the [n] a passage was shown

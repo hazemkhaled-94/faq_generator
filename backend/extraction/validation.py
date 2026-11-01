@@ -36,6 +36,7 @@ from nlp.analysis import (
     vocabulary,
     written_in,
 )
+from nlp.markers import LIST_MARKER
 from nlp.models import Claim, Sentence
 from nlp.pipelines import name as pipeline_name
 from nlp.pipelines import pipeline
@@ -49,8 +50,9 @@ from settings import decimal
 _JOIN = "\n"
 
 
-#: A line that opens as a list item: a bullet, or a number and its mark.
-_LIST_LINE = re.compile(r"^\s*(?:[-\u2022*]|\d+[.)])\s", re.MULTILINE)
+#: A line that opens as a list item: a bullet, or a number, a letter or a
+#: roman numeral and its mark.
+_LIST_LINE = re.compile(rf"^\s*{LIST_MARKER}\s", re.MULTILINE)
 
 
 def _lines_of(sentence: Sentence) -> list[Sentence]:

@@ -91,6 +91,16 @@ gate must be, and `QA_ANSWER_CONFIDENCE` does the same for the extractive
 reader. [`embedding.py`](embedding.py) reads the checkpoint's own `1_Pooling`
 config instead of assuming mean pooling.
 
+### List markers
+
+[`markers.py`](markers.py) is the one pattern for what opens a line of a list:
+a dash or a bullet, or a number, a letter or a roman numeral closed by a full
+stop or a bracket (`3.`, `a)`, `(ii)`, `α)`). Every reader of a list builds on
+it: the sentence splitter, the quote check in `text.py`, and extraction's
+`PassageToExtract.items` and cited list lines. It holds no word of any
+language, so a newly configured language supplies nothing. It sits apart so
+that the api, which counts a passage's items, loads no pipeline.
+
 ### Mending a broken word
 
 [`text.py`](text.py) rejoins a word a converter broke across two lines at a
