@@ -7,6 +7,8 @@ stand-in for compose.
 from __future__ import annotations
 
 import os
+import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -1666,3 +1668,41 @@ def test_logs_wipe_takes_every_stream_only_when_asked_to(tmp_path: Path) -> None
     (tmp_path / "again").mkdir()
     named = asked_of_logs_wipe(tmp_path / "again", "CONFIRM=qa_generator")
     assert "_data_stream" not in named, named
+
+
+@pytest.mark.parametrize("written", [".env", "configs/env/provider.env"])
+@pytest.mark.parametrize("umask", ["022", "002"])
+def test_setup_writes_secrets_for_the_owner_alone(
+    tmp_path: Path, written: str, umask: str
+) -> None:
+    """Every password, the token and the provider's key were readable by every local account."""
+    for one in (
+        "Makefile",
+        ".env.example",
+        "configs/env/provider.env.example",
+        "configs/env/backend.env",
+        "configs/env/deployment.env",
+    ):
+        (tmp_path / one).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(ROOT / one, tmp_path / one)
+    done = subprocess.run(
+        ["bash", "-c", f"umask {umask} && make --no-print-directory setup"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+        env={"PATH": os.environ["PATH"], "HOME": str(tmp_path)},
+    )
+
+    assert done.returncode == 0, done.stderr
+    mode = stat.S_IMODE((tmp_path / written).stat().st_mode)
+    assert not mode & 0o077, f"make setup left {written} at {oct(mode)}"
+
+
+def test_doctor_warns_about_a_secrets_file_other_accounts_can_read() -> None:
+    """The check names the file and the fix."""
+    recipe = "\n".join(printed("doctor"))
+
+    assert "readable by other accounts" in recipe
+    assert "chmod 600" in recipe

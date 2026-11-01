@@ -420,9 +420,9 @@ ASSIGNED = grep -E '^[A-Z][A-Z0-9_]*=' "$(ENV_PATH)"
 # PHOENIX_ADMIN_SECRET requires of the deployment: 32 characters or more,
 # with a digit and a lower-case letter.
 setup:
-	@test -f "$(ENV_PATH)" || { cp .env.example "$(ENV_PATH)"; echo "wrote $(ENV_FILE)"; }
+	@test -f "$(ENV_PATH)" || { (umask 077; cp .env.example "$(ENV_PATH)"); echo "wrote $(ENV_FILE)"; }
 	@test -f configs/env/provider.env || { \
-	  cp configs/env/provider.env.example configs/env/provider.env; \
+	  (umask 077; cp configs/env/provider.env.example configs/env/provider.env); \
 	  echo "wrote configs/env/provider.env"; }
 	@for token in $$($(ASSIGNED) | grep -oE 'change_me_[a-z0-9_]*' | sort -u \
 	                 | awk '{ print length, $$0 }' | sort -rn | cut -d' ' -f2-); do \
@@ -462,6 +462,10 @@ doctor:
 	if ! test -f "$(ENV_PATH)"; then say MISSING "$(ENV_FILE) - run: make setup"; \
 	  echo; echo "Fix the above, then run make doctor again."; exit 1; fi; \
 	say ok "$(ENV_FILE)"; \
+	for secrets in "$(ENV_PATH)" configs/env/provider.env; do \
+	  if test -f "$$secrets" && test "$$(ls -ld "$$secrets" | cut -c5-10)" != "------"; then \
+	    say WARN "$$secrets is readable by other accounts: chmod 600 $$secrets"; fi; \
+	done; \
 	if test -f configs/env/deployment.env; then \
 	  say ok "configs/env/deployment.env"; \
 	  else say MISSING "configs/env/deployment.env - it is in git; git checkout it"; fail=1; fi; \
