@@ -77,3 +77,60 @@ def test_held_and_holders_read_a_quote_per_passage() -> None:
     ]
     assert holders("eine Jahresgebühr von 10 EUR", german) == {0}
     assert holders("24 Monate lang keine Zahlung", german) == {1}
+
+
+@pytest.mark.parametrize(
+    ("broken", "whole"),
+    [
+        # A capital or a digit after the hyphen is a compound the page broke at
+        # its own hyphen, which a join would corrupt.
+        ("Ein Online- Händler", "Ein Online-Händler"),
+        ("eine E- Mail", "eine E-Mail"),
+        ("a 14- 30 day window", "a 14-30 day window"),
+        ("a 2- year guarantee", "a 2-year guarantee"),
+        ("a non- EU account", "a non-EU account"),
+        ("dans les 14- 30 jours", "dans les 14-30 jours"),
+        ("εντός 14- 30 ημερών", "εντός 14-30 ημερών"),
+        # A lower-case continuation is a broken word, in any script with case.
+        ("une carte ban- caire", "une carte bancaire"),
+        ("ein prélè- vement", "ein prélèvement"),
+        ("opła- ta i zał- ącznik", "opłata i załącznik"),
+        ("the fran- çais", "the français"),
+        ("ο λογα- ριασμός", "ο λογαριασμός"),
+        # A slash or a comma after the hyphen closes a suspended hyphen.
+        ("für Bau- /Renovierungsarbeiten", "für Bau-/Renovierungsarbeiten"),
+        ("für Gas- , Strom- und Wasser", "für Gas-, Strom- und Wasser"),
+        ("pour les travaux- /rénovation", "pour les travaux-/rénovation"),
+        # A bracket after it opens a phrase, so the break stays.
+        ("la carte- (voir plus bas)", "la carte- (voir plus bas)"),
+    ],
+)
+def test_a_break_is_read_by_the_case_of_what_follows_in_any_language(
+    broken, whole
+) -> None:
+    """Letters are read by their Unicode class, so no language lists its own."""
+    from nlp.text import rejoined
+
+    assert rejoined(broken) == whole
+
+
+@pytest.mark.parametrize(
+    "kept",
+    [
+        "Kredit- und Debitkarten",
+        "Kredit- respektive Debitkarten",
+        "Kredit- ebenso wie Debitkarten",
+        "Kredit- oder auch Debitkarten",
+        "first- through third-year students",
+        "short- but not long-term loans",
+        "pre- as well as post-trial",
+        "small- to medium-sized firms",
+        "1- und 2-Zimmer-Wohnungen",
+        "from 1- to 3-year loans",
+    ],
+)
+def test_a_hanging_hyphen_before_a_coordinator_keeps_its_words_apart(kept) -> None:
+    """The coordinators of a configured language complete a hanging hyphen."""
+    from nlp.text import rejoined
+
+    assert rejoined(kept) == kept

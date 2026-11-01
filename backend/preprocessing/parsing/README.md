@@ -102,11 +102,14 @@ the table grid:
 - Compose to NFC and spell a Latin or Armenian ligature as its letters (`ﬀ`
   as `ff`). Superscripts, fractions and full-width forms stay.
 - Rejoin words the page broke across two lines, at a soft hyphen or at a
-  real hyphen between letters. The join is skipped before a word that
-  completes a hanging hyphen (`und`, `als`, `bis`, `vs.` and kin, `JOINING`
-  in [`nlp/text.py`](../../nlp/text.py)), as in `Zoll- und Steuerrecht`. A
-  compound keeps its hyphen where the document prints it whole elsewhere:
-  `third- party` becomes `third-party`.
+  real hyphen. The converter keeps a hyphen that ends a printed line, which
+  it would drop. A lower-case continuation is joined,
+  except before a word that completes a hanging hyphen (`und`, `als`,
+  `respektive`, `vs.` and kin, `JOINING` in [`nlp/text.py`](../../nlp/text.py)),
+  as in `Zoll- und Steuerrecht`. A capital or a digit after the hyphen closes
+  a compound broken at its own hyphen: `Online- Händler` is `Online-Händler`
+  and `14- 30` is `14-30`. A compound keeps its hyphen where the document
+  prints it whole elsewhere: `third- party` becomes `third-party`.
 - Drop control characters and format characters (zero-width marks, bidi
   marks and isolates). A zero-width joiner stays between letters of a script
   that spells words with one (`_JOINING_SCRIPTS`) and inside an emoji

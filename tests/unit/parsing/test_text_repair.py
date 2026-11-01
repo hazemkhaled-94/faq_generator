@@ -33,6 +33,7 @@ def test_a_discretionary_hyphen_joins_the_halves(broken: str, whole: str) -> Non
         ("ergän- zende", "ergänzende"),
         ("Institu- te", "Institute"),
         ("Nied- rig", "Niedrig"),
+        ("Anlage- Verwalter", "Anlage-Verwalter"),
     ],
 )
 def test_a_real_hyphen_at_a_line_break_joins(broken: str, whole: str) -> None:
@@ -49,7 +50,6 @@ def test_a_real_hyphen_at_a_line_break_joins(broken: str, whole: str) -> None:
         "Geschäftsfortführungs- sowie Notfallpläne",
         "pre- and post-trade",
         "Schaden- / Unfallversicherer",
-        "Anlage- Verwalter",
         "Krypto-Transaktionen",
         "sowohl Unit- als auch Systemtests",
         "weder Komponenten- noch Systemtests",

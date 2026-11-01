@@ -25,6 +25,8 @@ JOINING: dict[str, tuple[str, ...]] = {
         "bzw",
         "sowie",
         "beziehungsweise",
+        "respektive",
+        "ebenso",
         "als",
         "noch",
         "bis",
@@ -35,7 +37,7 @@ JOINING: dict[str, tuple[str, ...]] = {
         "statt",
         "wie",
     ),
-    "en": ("and", "or", "nor", "to", "vs", "versus"),
+    "en": ("and", "or", "nor", "to", "through", "but", "as", "vs", "versus"),
 }
 
 #: The words that cannot end a label, by ISO 639-1 code: articles,
@@ -62,26 +64,19 @@ _COMPOUND = re.compile(r"([^\W\d_]+)-(?=([^\W\d_]+))")
 _FIRST_HALF = re.compile(r"[^\W\d_]+$")
 _SECOND_HALF = re.compile(r"[^\W\d_]+")
 
+#: A hyphen after a letter or a digit, then the spaces of a line break, then
+#: what the line goes on with.
+_BREAK = re.compile(r"(?<=[^\W_])-\s+(?=\S)")
+_WORD = re.compile(r"\w+")
+
+#: What can only close a suspended hyphen, never open a phrase: "Gas-, Strom".
+_CLOSING = ",;)"
+
 
 @cache
-def _broken_word() -> re.Pattern[str]:
-    """A word the page broke across two lines with a real hyphen.
-
-    A hyphen after a letter and before a lower-case continuation, unless a
-    word in `JOINING` follows it. Read in every configured language at once,
-    because a document is parsed before any of its passages has a language.
-
-    ponytail: punctuation alone cannot separate a broken word from two
-    ratings written side by side in one cell ("Mittel- niedrig"). Telling
-    those apart needs a character language model or the geometry of the
-    cells either side.
-    """
-    words = sorted({word for code in languages() for word in JOINING.get(code, ())})
-    joined = rf"(?!(?:{'|'.join(words)})\b)" if words else ""
-    return re.compile(
-        rf"(?<=[A-Za-zÄÖÜäöüß])-\s+{joined}"
-        r"(?=[a-zäöüß])"
-    )
+def _joining() -> frozenset[str]:
+    """The words that complete a hanging hyphen in any configured language."""
+    return frozenset(word for code in languages() for word in JOINING.get(code, ()))
 
 
 def right_to_left(text: str) -> bool:
@@ -118,12 +113,17 @@ def printed(texts: Iterable[str]) -> frozenset[tuple[str, str]]:
 def rejoined(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
     """The text with every word broken at a line hyphen made whole again.
 
-    A word whose halves `whole` holds, one the document prints with its
-    hyphen elsewhere, keeps it: "third- party" is "third-party" where the
-    document prints that, and "thirdparty" only where it never does, since
-    a broken word and a compound broken at its own hyphen look alike.
-    Mending a string already mended changes nothing, so a join may mend the
-    whole of what it made.
+    What follows the hyphen says what the break was. A lower-case letter
+    continues a word, which is joined: "Kontofüh- rungsentgelt". A capital, a
+    digit, or any letter after a digit continues a compound broken at its own
+    hyphen, which keeps it: "Online- Händler" and "14- 30" are "Online-Händler"
+    and "14-30". A word in `JOINING` after the hyphen is a hanging hyphen,
+    "Zoll- und Steuerrecht", and the break is left as it is. A word whose
+    halves `whole` holds, one the document prints with its hyphen elsewhere,
+    keeps it: "third- party" is "third-party" where the document prints that,
+    and "thirdparty" only where it never does. A script without case is left
+    alone. Mending a string already mended changes nothing, so a join may mend
+    the whole of what it made.
 
     Args:
         text: The string to mend.
@@ -131,6 +131,22 @@ def rejoined(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
     """
 
     def mended(broken: re.Match[str]) -> str:
+        after = text[broken.end()]
+        word = _WORD.match(text, broken.end())
+        if word is not None and word[0] in _joining():
+            return broken[0]
+        # A slash set apart, "Schaden- / Unfall", is a hanging hyphen; one set
+        # against the next word is a compound broken at its own hyphen.
+        if after in _CLOSING or (
+            after == "/" and not text[broken.end() + 1 :][:1].isspace()
+        ):
+            return "-"
+        if not after.isalnum():
+            return broken[0]
+        if after.isdigit() or text[broken.start() - 1].isdigit() or after.isupper():
+            return "-"
+        if not after.islower():
+            return broken[0]
         first = _FIRST_HALF.search(text, 0, broken.start())
         second = _SECOND_HALF.match(text, broken.end())
         kept = (
@@ -140,7 +156,7 @@ def rejoined(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
         )
         return "-" if kept else ""
 
-    return _broken_word().sub(mended, text)
+    return _BREAK.sub(mended, text)
 
 
 #: Marks two readers print differently, folded before a quote is looked for.

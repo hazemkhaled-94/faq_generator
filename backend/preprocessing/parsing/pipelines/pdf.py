@@ -29,6 +29,15 @@ from docling.datamodel.pipeline_options import (
     TableStructureOptions,
 )
 from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.models.stages.page_assemble.page_assemble_model import (
+    PageAssembleModel,
+    PageAssembleOptions,
+)
+from docling.models.stages.reading_order.readingorder_model import (
+    ReadingOrderModel,
+    ReadingOrderOptions,
+)
+from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
 from docling_core.types.doc.base import BoundingBox
 from docling_core.types.doc.common.content_layer import ContentLayer
 from docling_core.types.doc.document import DoclingDocument
@@ -160,6 +169,51 @@ _EDGE = 0.5
 
 #: One unit of a string, as the converter spaced it.
 _TOKEN = re.compile(r"\S+")
+
+
+#: Stands for a hyphen that ends a line while the converter's own join runs,
+#: so that it does not drop it.
+_KEPT = "\ue000"
+
+
+class _Assembler(PageAssembleModel):
+    """Keeps the hyphen that ends a printed line, for `rejoined` to read.
+
+    The converter drops it whenever the next line starts with a letter or a
+    digit, so `Online-` over `Händler` is `OnlineHändler` and `14-` over `30`
+    is `1430`. Here the next line follows after a space.
+    """
+
+    def sanitize_text(self, lines: list[str]) -> str:
+        """Joins a cluster's lines, with `rejoined` left to close a broken word."""
+        marked = [line[:-1] + _KEPT if line.endswith("-") else line for line in lines]
+        return super().sanitize_text(marked).replace(_KEPT, "-")
+
+
+class _ReadingOrder(ReadingOrderModel):
+    """Keeps the hyphen at the end of a block the converter merges with the next."""
+
+    def _merge_elements(self, element, merged_elem, new_item, page_height):
+        """Merges a block into the item before it, keeping a closing hyphen."""
+        text, orig = new_item.text, new_item.orig
+        new_item.text = text[:-1] + _KEPT if text.endswith("-") else text
+        new_item.orig = orig[:-1] + _KEPT if orig.endswith("-") else orig
+        super()._merge_elements(element, merged_elem, new_item, page_height)
+        new_item.text = new_item.text.replace(_KEPT, "-")
+        new_item.orig = new_item.orig.replace(_KEPT, "-")
+
+
+class _Pipeline(StandardPdfPipeline):
+    """Docling's PDF pipeline with the two joins above in place of its own."""
+
+    def __init__(self, pipeline_options) -> None:
+        super().__init__(pipeline_options)
+        self.assemble_model = _Assembler(options=PageAssembleOptions())
+        self.reading_order_model = _ReadingOrder(
+            options=ReadingOrderOptions(
+                use_page_separators=pipeline_options.use_reading_order_separators
+            )
+        )
 
 
 class PdfPipeline(Pipeline):
@@ -307,6 +361,7 @@ class PdfPipeline(Pipeline):
                 allowed_formats=[InputFormat.PDF],
                 format_options={
                     InputFormat.PDF: PdfFormatOption(
+                        pipeline_cls=_Pipeline,
                         pipeline_options=options,
                         # No backend=: Docling's own reports the font style
                         # heading levels are ranked by and the word cells
