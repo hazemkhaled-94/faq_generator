@@ -18,12 +18,12 @@ datasources:
     uid: qa-phoenix
     type: grafana-postgresql-datasource
     access: proxy
-    url: postgres:5432
+    url: ${GRAFANA_DB_HOST}
     user: ${GRAFANA_DB_USER}
     database: ${PHOENIX_DB_NAME}
     editable: false
     jsonData:
-      sslmode: disable
+      sslmode: ${GRAFANA_DB_SSLMODE}
       postgresVersion: 1800
       timescaledb: false
     secureJsonData:

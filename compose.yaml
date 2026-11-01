@@ -998,6 +998,11 @@ services:
       APP_DB_NAME: ${APP_DB_NAME}
       PHOENIX_DB_NAME: ${PHOENIX_DB_NAME}
       GRAFANA_DB_USER: ${GRAFANA_DB_USER}
+      # Where the datasources point, so a managed database or another log
+      # store is a setting and not an edit of the provisioning files.
+      GRAFANA_DB_HOST: ${GRAFANA_DB_HOST}
+      GRAFANA_DB_SSLMODE: ${GRAFANA_DB_SSLMODE}
+      GRAFANA_ELASTICSEARCH_URL: ${GRAFANA_ELASTICSEARCH_URL}
       GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:?add it to .env; .env.example names every secret}
     volumes:
       - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro

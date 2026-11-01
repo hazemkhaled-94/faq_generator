@@ -227,6 +227,7 @@ today's adapter and an in-memory fake, so a new adapter passes the same suite.
 | Logs | the standard `logging.Handler`; `telemetry/logs.py` | `LOG_FORMAT` (`text`) and `LOG_DIR` | text on stdout, ECS JSON in a rotating file, Filebeat to Elasticsearch | JSON on stdout, collected by Azure Monitor |
 | Traces | OTLP, an open protocol, so the collector is whatever speaks it | `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_PROTOCOL` (`grpc`) | Phoenix over gRPC | Azure Monitor Application Insights over OTLP |
 | System health | `SERVICE_PROBES`, data read by `api/services.py` | `SERVICE_PROBES` (the compose stack's list) | a TCP probe of each compose host | Container Apps health state, and each managed service's own endpoint |
+| Dashboards | configuration: the provisioned datasources read `GRAFANA_DB_HOST`, `GRAFANA_DB_SSLMODE` and `GRAFANA_ELASTICSEARCH_URL` | those three | Grafana over the compose stack's Postgres and Elasticsearch | Azure Managed Grafana; the log dashboards would be rewritten in KQL |
 | Models | `Model` in `backend/llm/client.py`, which alone imports litellm and instructor | `LLM_CLIENT` (`litellm`); the model itself is `LLM_MODEL` and the per-stage models | `Client` over litellm and instructor | Azure OpenAI or Foundry deployments, already reachable through an `azure/` model id |
 
 ## What keeps this page true

@@ -65,6 +65,7 @@ export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
 | `PHOENIX_BASE_URL` | `PHOENIX_PORT` | the Makefile, and compose for the frontend's links |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`, `ARGILLA_API_URL` | `PHOENIX_GRPC_PORT`, `ARGILLA_PORT` | the Makefile |
 | `SERVICE_URLS` | every published port | compose, for the System health page |
+| `GRAFANA_DB_HOST`, `GRAFANA_DB_SSLMODE`, `GRAFANA_ELASTICSEARCH_URL` | `deployment.env` | where Grafana's datasources point (`postgres:5432`, `disable`, `https://elasticsearch:9200` here), so a managed database or another log store is a setting |
 | `SERVICE_PROBES` | `deployment.env` | nothing: it is data, `name=host:port` pairs the System health page probes |
 | `SPACY_MODELS` | `NLP_MODELS` | the Makefile |
 

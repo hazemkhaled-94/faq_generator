@@ -12,7 +12,7 @@ datasources:
     uid: qa-logs
     type: elasticsearch
     access: proxy
-    url: https://elasticsearch:9200
+    url: ${GRAFANA_ELASTICSEARCH_URL}
     isDefault: true
     # Edits in the UI would be silently reverted on restart, which is worse
     # than not offering them.
