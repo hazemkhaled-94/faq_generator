@@ -571,13 +571,13 @@ docling-weights:
 logs-dir:
 	@mkdir -p logs
 
-# Start every service, generating the certificates first if they are missing.
-# Refuses to start the stack while .env still holds a change_me_* assignment:
-# the api would take the placeholder as a secret that is printed in the repository.
+# Refuse to start the stack while .env still holds a change_me_ assignment: the
+# api would take the placeholder as a secret that is printed in the repository.
 placeholders:
 	@if $(ASSIGNED) | grep -q change_me_; then \
 	  echo "$(ENV_FILE) still holds a change_me_ value ($$($(ASSIGNED) | grep -c change_me_) assignment(s)): run make setup" >&2; exit 1; fi
 
+# Start every service, generating the certificates first if they are missing.
 up: placeholders certs logs-dir
 	@$(UP)
 	@$(MAKE) --no-print-directory grafana-grants
