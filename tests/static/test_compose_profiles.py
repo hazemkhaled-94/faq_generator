@@ -80,7 +80,9 @@ def _run(project: Path, line: str, compose_prints: str, **environment: str):
         ["bash", "-c", line],
         cwd=project,
         env={
-            **os.environ,
+            # The suite's own DATABASE_URL would stand in for the one the
+            # Makefile derives from the project's settings.
+            **{k: v for k, v in os.environ.items() if k != "DATABASE_URL"},
             "PATH": f"{project / 'bin'}:{os.environ['PATH']}",
             "COMPOSE": str(project / "bin/compose"),
             "LOG": str(project / "calls.log"),

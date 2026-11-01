@@ -74,9 +74,9 @@ def test_a_follow_up_is_read_in_its_conversation() -> None:
     assert user.endswith(
         "Q: What does a replacement card cost?\nA: 10 EUR\n"
         "Q: Can it be sent abroad?\nA: not in the material\n"
-        "Q: And an express one?"
+        "</material>\nQuestion: And an express one?"
     )
-    assert "Question:" not in user
+    assert '<material name="conversation">' in user
 
 
 def test_a_question_asked_cold_is_read_alone() -> None:
@@ -85,7 +85,9 @@ def test_a_question_asked_cold_is_read_alone() -> None:
 
     Verifier(client).read("What does a replacement card cost?", _PASSAGES)
 
-    assert client.asked[-1][1].endswith(
-        "[1] A replacement debit card costs 10 EUR.\n\n"
+    user = client.asked[-1][1]
+    assert user.endswith(
+        "[1] A replacement debit card costs 10 EUR.\n</material>\n\n"
         "Question: What does a replacement card cost?"
     )
+    assert "conversation" not in user

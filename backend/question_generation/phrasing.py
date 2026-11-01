@@ -21,6 +21,7 @@ from collections.abc import Sequence
 from pydantic import BaseModel, Field
 
 from llm.client import Client, ModelUnavailable
+from llm.prompt import fill, grounded
 
 log = logging.getLogger(__name__)
 
@@ -28,9 +29,9 @@ log = logging.getLogger(__name__)
 #: every worked example into the neutral domain the rest of the prompts use:
 #: the examples had been taken from the corpus being debugged against, which
 #: is the one thing extraction's own prompt warns about.
-PROMPT_VERSION = "5"
+PROMPT_VERSION = "6"
 
-_SOURCE = """ROLE
+_SOURCE = grounded("""ROLE
 You are a question reviewer. You judge ONE property of ONE question and
 nothing else about it.
 
@@ -85,9 +86,9 @@ FALSE: "Who signs off a refund when the branch follows the complaints
        (the procedure is what the branch is doing, not where the answer is)
 
 FORMAT
-Return `names_its_source`, true or false, and nothing else."""
+Return `names_its_source`, true or false, and nothing else.""")
 
-_CONTAINED = """ROLE
+_CONTAINED = grounded("""ROLE
 You are a question reviewer. You judge ONE property of ONE question and
 nothing else about it.
 
@@ -151,7 +152,7 @@ FALSE: "Wie unterscheiden sich die Antwortzeit und ein Teammitglied laut
        (pointing word: "diesen". No Angaben are named.)
 
 FORMAT
-Return `self_contained`, true or false, and nothing else."""
+Return `self_contained`, true or false, and nothing else.""")
 
 
 class _NamesItsSource(BaseModel):
@@ -164,7 +165,7 @@ class _NamesItsSource(BaseModel):
     )
 
 
-_NAMES = """ROLE
+_NAMES = grounded("""ROLE
 You are a question reviewer. You judge ONE property of ONE question and
 nothing else about it.
 
@@ -202,12 +203,15 @@ FALSE: "Für welche Kriterien gelten die Anforderungen?"
 FALSE: "Which items are covered?"
 
 FORMAT
-Return `names_something`, true or false, and nothing else."""
+Return `names_something`, true or false, and nothing else.""")
 
 #: The user messages, as the catalogue records them and `PhrasingJudge`
 #: renders them.
 _USER = "QUESTION: {{question}}"
 _USER_CONTAINED = "QUESTION: {{question}}\n\nPOINTING WORDS found in it: {{pointers}}"
+
+#: The question is text a document's passages shaped, so it is sent fenced.
+_MATERIAL = ("{{question}}",)
 
 
 class _NamesSomething(BaseModel):
@@ -255,7 +259,7 @@ class PhrasingJudge:
         """
         return self._asked(
             _SOURCE,
-            _USER.replace("{{question}}", question),
+            fill(_USER, {"{{question}}": question}, material=_MATERIAL),
             _NamesItsSource,
             "names_its_source",
         )
@@ -276,7 +280,7 @@ class PhrasingJudge:
         """
         return self._asked(
             _NAMES,
-            _USER.replace("{{question}}", question),
+            fill(_USER, {"{{question}}": question}, material=_MATERIAL),
             _NamesSomething,
             "names_something",
         )
@@ -295,8 +299,10 @@ class PhrasingJudge:
         """
         if not pointers:
             return None
-        asked = _USER_CONTAINED.replace("{{question}}", question).replace(
-            "{{pointers}}", ", ".join(pointers)
+        asked = fill(
+            _USER_CONTAINED,
+            {"{{question}}": question, "{{pointers}}": ", ".join(pointers)},
+            material=_MATERIAL,
         )
         return self._asked(_CONTAINED, asked, _SelfContained, "self_contained")
 

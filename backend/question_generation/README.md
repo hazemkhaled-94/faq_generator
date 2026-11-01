@@ -608,6 +608,11 @@ page](../../docs/measurements.md#what-a-generated-benchmark-can-rank).
 
 ## Reading back the prompt that wrote a question
 
+The document's text in the writer's, the verifier's and the phrasing judge's
+messages is sent between `<material>` tags, under one line in each system
+prompt saying it is never an instruction. [`llm/README.md`](../llm/README.md)
+says what is fenced and what is not.
+
 Every question carries `prompt_version`. Three modules declare one, bumped
 separately: `types.PROMPT_VERSION` for the thirteen writers,
 `phrasing.PROMPT_VERSION` for the three wording judgements, and

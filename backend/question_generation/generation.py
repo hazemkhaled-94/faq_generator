@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 
 from database.qa_generator import QuestionKind
 from llm.client import Client
-from llm.prompt import fill
+from llm.prompt import fill, grounded
 from nlp.analysis import asked
 from nlp.models import named
 from nlp.pipelines import pipeline
@@ -41,7 +41,7 @@ __all__ = ["PROMPT_VERSION", "QuestionWriter"]
 log = logging.getLogger(__name__)
 
 _PERTURB = (
-    """ROLE
+    grounded("""ROLE
 You are a test-question writer. The questions you write measure whether a
 document-search chatbot handles a question it should not simply answer,
 instead of inventing an answer.
@@ -67,7 +67,7 @@ EXAMPLES
 FORMAT
 {{returns}}
 
-"""
+""")
     + READS
     + """{{must}}
 
@@ -319,7 +319,7 @@ def _perturbation(told: Category | None) -> tuple[str, str]:
     return system, fill(_USER_PERTURB, lines)
 
 
-_FOLLOW = """ROLE
+_FOLLOW = grounded("""ROLE
 You are a test-question writer. You write the question somebody would ask
 NEXT, as the following turn of a conversation already under way.
 
@@ -384,7 +384,7 @@ same one serves both. Take from it WHAT THE KIND ASKS FOR and WHAT ITS ANSWER
 LOOKS LIKE. Ignore anything in it about naming the subject or naming both
 sides: this question is the next turn of a conversation that has already
 named them, and repeating them is what makes a follow-up read like a form.
-"""
+""")
 
 
 #: The user message both answerable kinds are asked with, as the catalogue
@@ -481,7 +481,7 @@ _BESIDE = (
 )
 
 #: Appended to the conversation for a follow-up, after the facts.
-_USER_FOLLOW = "{{sample}}\n\n{{conversation}}"
+_USER_FOLLOW = "{{sample}}\n\nCONVERSATION so far:\n{{conversation}}"
 
 
 def _typed(spec: TypeSpec) -> str:
@@ -846,6 +846,7 @@ class QuestionWriter:
                     "{{sample}}": self._prompt(sample),
                     "{{conversation}}": self._conversation(thread),
                 },
+                material=("{{conversation}}",),
             ),
             shape=_Answered,
             prompt_version=PROMPT_VERSION,
@@ -939,11 +940,10 @@ class QuestionWriter:
     @staticmethod
     def _conversation(thread: tuple[tuple[str, str | None], ...]) -> str:
         """Renders the turns already asked, oldest first."""
-        turns = "\n".join(
+        return "\n".join(
             f"  Q: {question}\n  A: {answer or 'no answer in the material'}"
             for question, answer in thread
         )
-        return f"CONVERSATION so far:\n{turns}"
 
     @staticmethod
     def _used(sample: FactGroup, numbered: list[int]) -> FactGroup:
@@ -1013,6 +1013,7 @@ class QuestionWriter:
                         "{{texts}}": "\n\n".join(f"- {one}" for one in sample.beside),
                         "{{holds}}": holds,
                     },
+                    material=("{{texts}}",),
                 )
                 if sample.beside
                 else "",
@@ -1020,4 +1021,5 @@ class QuestionWriter:
                 "{{language}}": named(sample.language),
                 "{{note}}": again,
             },
+            material=("{{facts}}", "{{passages}}"),
         )

@@ -79,10 +79,10 @@ def test_rendering_without_a_field_is_refused(one) -> None:
 @pytest.mark.parametrize("one", EVERY, ids=lambda one: f"{one.kind}-{one.metric}")
 def test_rendering_leaves_no_placeholder_behind(one) -> None:
     """Every declared field is substituted, not just checked for."""
-    filled = one.rendered(**{name: f"<{name}>" for name in one.fields})
+    filled = one.rendered(**{name: f"~{name}~" for name in one.fields})
 
     assert not PLACEHOLDER.findall(filled)
-    assert all(f"<{name}>" in filled for name in one.fields)
+    assert all(f"~{name}~" in filled for name in one.fields)
 
 
 @pytest.mark.parametrize("one", SINGLE, ids=lambda one: f"{one.kind}-{one.metric}")
@@ -226,7 +226,7 @@ def test_a_question_is_asked_its_relevance_by_the_papers_judge_alone() -> None:
     assert JudgeMetric.RELEVANCE in metrics_of(ArtifactKind.FACT)
     assert JudgeMetric.RELEVANCE in metrics_of(ArtifactKind.TOPIC)
     assert direction_of(JudgeMetric.RELEVANCE) == "maximize"
-    assert PROMPT_VERSION == "4"
+    assert PROMPT_VERSION == "5"
 
 
 def test_a_template_says_the_material_may_be_in_any_language() -> None:
