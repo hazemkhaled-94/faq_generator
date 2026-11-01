@@ -169,15 +169,6 @@ def test_no_pair_ever_holds_two_bridges(topics, history, wanted) -> None:
         assert len(pairs) == len(set(pairs)), (how, within, store.held)
 
 
-_TWICE = (
-    "QA-extraction-9: a pass for the missing, run twice, can add a bridge the first "
-    "run left out, when a topic's only pair rests on a bridge headed in another "
-    "topic; the first run counts the pair as held, the second finds the topic "
-    "missing one"
-)
-
-
-@pytest.mark.xfail(strict=False, reason=_TWICE)
 @given(
     topics=corpora(),
     history=PASSES,
@@ -226,7 +217,6 @@ def _placed(i: int, topic_names: str | None = None):
     )
 
 
-@pytest.mark.xfail(strict=True, reason=_TWICE)
 def test_a_pass_for_the_missing_run_twice_adds_nothing() -> None:
     """Two topics, one passage of the second naming a section of the first.
 

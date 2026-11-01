@@ -26,8 +26,9 @@ yield. Topics must be fitted first.
 A second bridge pass replaces the bridges in its scope, so it refuses, deleting
 nothing, while an accepted question cites one of them. `FORCE=1` replaces them
 anyway, and those questions are rejected as `source_changed` and kept.
-`MISSING=1` deletes nothing and reads only the topics holding no bridge yet;
-`make corpus` runs it that way. A pass narrowed by `TOPIC`, `SHA` or `PASSAGE`
+`MISSING=1` deletes nothing and reads only the topics holding no bridge yet,
+counting a topic as holding one where a bridge headed in another topic rests on
+one of its passages; `make corpus` runs it that way. A pass narrowed by `TOPIC`, `SHA` or `PASSAGE`
 clears only the bridges headed in the topics it reads again. The pass asks the
 model one question first, and deletes nothing if it does not answer. The earlier
 bridges are deleted when the model first answers a link. A model that cannot be

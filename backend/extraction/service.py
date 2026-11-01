@@ -553,6 +553,11 @@ def bridge(
     # What is left after the clear is what this pass must not repeat,
     # whichever side of a cross-topic pair heads it: the bridges that stay.
     held = catalog.bridged_pairs(within, replaced=not missing)
+    if missing:
+        # A topic holds a bridge too where one headed in another topic rests
+        # on one of its passages: its pair is held, so a second pass would
+        # bridge it with another.
+        done |= {topic_of[i] for pair in held for i in pair if i in topic_of}
     offers: list[tuple[str, list[Link]]] = []
     topic: object = object()  # none yet, so the first link reads the cap too
     for language in sorted({one.language or "" for one in partners}):
