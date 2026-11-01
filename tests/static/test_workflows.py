@@ -342,3 +342,56 @@ def test_the_gate_tolerates_the_stack_job_being_skipped_on_a_pull_request() -> N
 
     assert "stack" in gate["needs"]
     assert 'needs.stack.result }}" = "skipped"' in script
+
+
+def test_the_stack_job_runs_every_step_with_pipefail_and_starts_what_an_upload_needs() -> (
+    None
+):
+    """GitHub's `shell: bash` is `bash -eo pipefail`; the volume servers are what a PUT is placed on."""
+    job = loaded(ROOT / ".github/workflows/ci.yml")["jobs"]["stack"]
+    commands = " ".join(step.get("run", "") for step in job["steps"])
+
+    assert job["defaults"]["run"]["shell"] == "bash"
+    compose = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
+    first = next(one for one in commands.split("$DC up -d --wait")[1:2])
+    for service in ("seaweedfs-s3", "seaweedfs-volume", "seaweedfs-volume2"):
+        assert service in first, service
+    # Nothing depends on the volume servers, which is why they are named.
+    assert not any(
+        "seaweedfs-volume" in str(one.get("depends_on", "")) for one in compose.values()
+    )
+
+
+def test_the_materialize_step_passes_only_options_the_pinned_dagster_lists() -> None:
+    """`dagster asset materialize` has no -w: read its own help and hold the step to it."""
+    import shutil
+    import subprocess
+    import sys
+
+    dagster = shutil.which("dagster", path=str(Path(sys.executable).parent))
+    if dagster is None:
+        pytest.skip("dagster is not installed here")
+    help_text = subprocess.run(
+        [dagster, "asset", "materialize", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout
+    job = loaded(ROOT / ".github/workflows/ci.yml")["jobs"]["stack"]
+    step = next(
+        one["run"] for one in job["steps"] if "asset materialize" in one.get("run", "")
+    )
+
+    passed = re.findall(r"(?<=\s)(--?[A-Za-z][\w-]*)", step.split("materialize", 1)[1])
+    assert passed, step
+    for option in passed:
+        assert re.search(rf"(^|[\s,]){re.escape(option)}\b", help_text), (
+            option,
+            help_text,
+        )
+    # The module the workspace loads.
+    workspace = yaml.safe_load((ROOT / "configs/dagster/workspace.yaml").read_text())
+    assert (
+        f"-m {workspace['load_from'][0]['python_module']['module_name']}"
+        in " ".join(step.split())
+    )

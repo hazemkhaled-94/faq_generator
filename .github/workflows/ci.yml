@@ -161,12 +161,17 @@ jobs:
   # running Dagster. Two PDFs are then uploaded and parsed and chunked by a
   # Dagster run, which is what proves the path end to end. Only on a push to
   # main (the release push) and a manual run: it builds both images and starts
-  # eleven containers.
+  # twelve containers.
   stack:
     name: Stack without mounts
     needs: setup
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
+    # bash with -eo pipefail for every step, so a failing command before a pipe
+    # to tee fails the step.
+    defaults:
+      run:
+        shell: bash
     env:
       # Not named COMPOSE, which make reads as the engine to run.
       DC: docker compose --env-file configs/env/deployment.env --env-file .env
@@ -186,7 +191,9 @@ jobs:
       - name: Build the backend and orchestration images
         run: $DC build api dagster-webserver
       - name: Start the database and the object store
-        run: $DC up -d --wait postgres seaweedfs-s3
+        # The two volume servers are named because nothing depends on them, and
+        # the master's replication (001) needs both before a PUT can be placed.
+        run: $DC up -d --wait postgres seaweedfs-s3 seaweedfs-volume seaweedfs-volume2
       # From the host, against the published port, before any worker starts: a
       # worker that finds no tables fails its first claim.
       - name: Apply the schema
@@ -221,8 +228,7 @@ jobs:
       - name: Parse and chunk them through Dagster
         run: >-
           $DC exec -T dagster-webserver dagster asset materialize
-          --select parsed_documents,passages
-          -w /opt/dagster/dagster_home/workspace.yaml
+          -m orchestration --select parsed_documents,passages
         env:
           COMPOSE_PROFILES: orchestrated
       - name: Check both documents were parsed and chunked
