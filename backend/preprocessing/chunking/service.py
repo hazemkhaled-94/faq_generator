@@ -10,7 +10,7 @@ from docling_core.types.doc.document import DoclingDocument
 from opentelemetry.trace import Span
 
 from nlp.analysis import read
-from nlp.language import detect
+from nlp.language import passage_language
 from preprocessing.chunking.passages import NoPassages, PassageBuilder
 from preprocessing.chunking.repository import ChunkQueue, PassageCatalog
 from stages import StageService
@@ -52,7 +52,7 @@ def revocabulary(catalog: PassageCatalog, within=None) -> int:
     # it is in, and one batch is parsed per language. A table passage takes
     # its document's language, as in a chunking run.
     spoken = [
-        (passage_id, text, fallback if table else detect(text) or fallback)
+        (passage_id, text, fallback if table else passage_language(text, fallback))
         for passage_id, text, fallback, table in passages
     ]
     written = 0

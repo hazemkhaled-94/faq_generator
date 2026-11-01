@@ -35,7 +35,7 @@ from docling_core.types.doc.labels import DocItemLabel
 
 from database.qa_generator.passages import trail_of
 from nlp.analysis import read
-from nlp.language import detect, detect_surely
+from nlp.language import detect_surely, outside, passage_language
 from nlp.models import Sentence
 from nlp.text import right_to_left
 from nlp.windows import reserved
@@ -510,6 +510,16 @@ def lead_ins_kept(
     return kept
 
 
+#: What an item in a language `NLP_MODELS` does not name is read as, for a cut
+#: between it and its neighbours: it has no code, since it has no pipeline.
+_UNCONFIGURED = "und"
+
+
+def _reading(text: str) -> str | None:
+    """The language an item is surely in, a stand-in for one no pipeline names."""
+    return _UNCONFIGURED if outside(text) else detect_surely(text)
+
+
 def _one_language(chunks: list[DocChunk], document: DoclingDocument) -> list[DocChunk]:
     """Ends a chunk where its prose or list items change language.
 
@@ -517,7 +527,8 @@ def _one_language(chunks: list[DocChunk], document: DoclingDocument) -> list[Doc
     a passage is read as one language, so a bilingual page printing each
     paragraph or list item beside its translation would lose one language's
     vocabulary. An item too short to detect or not surely one language, and
-    any other item, stays with the run it follows.
+    any other item, stays with the run it follows. An item in a language
+    no pipeline is configured for is a run of its own.
 
     Args:
         chunks: What the chunker returned, in order.
@@ -531,9 +542,7 @@ def _one_language(chunks: list[DocChunk], document: DoclingDocument) -> list[Doc
     for chunk in chunks:
         items = chunk.meta.doc_items
         spoken = [
-            detect_surely(text)
-            if (text := _prose_text(item, document, _SPOKEN))
-            else None
+            _reading(text) if (text := _prose_text(item, document, _SPOKEN)) else None
             for item in items
         ]
         first = next((code for code in spoken if code), None)
@@ -771,7 +780,7 @@ class PassageBuilder:
             The same passages, each carrying its language, units and lemmas.
         """
         spoken = [
-            (index, language if p.table_cells else detect(p.text) or language)
+            (index, language if p.table_cells else passage_language(p.text, language))
             for index, p in enumerate(passages)
         ]
         parsed: dict[int, tuple] = {}

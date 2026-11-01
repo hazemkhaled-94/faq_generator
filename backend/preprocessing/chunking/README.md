@@ -142,8 +142,9 @@ the passage renders, on the page each is printed on.
 ### Step 4: Read the linguistic surface
 
 `_read` detects each passage's language on its own text and falls back to the
-document's language when the passage is too short. A chunk ends where its
-paragraphs or list items change language. A table passage takes the
+document's language when the passage is too short. A passage surely in a
+language `NLP_MODELS` does not name is labelled `None`. A chunk ends where its
+paragraphs or list items change language, a foreign one included. A table passage takes the
 document's language without detection.
 
 One spaCy batch per language then produces the numbered units a fact may cite
