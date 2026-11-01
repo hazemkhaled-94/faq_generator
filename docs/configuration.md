@@ -57,6 +57,10 @@ export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
 
 ## What is derived, and so written nowhere
 
+The Makefile builds each host address below only when `ENV_FILE` or the
+environment leaves it unset. Naming one there points a host command at a
+managed database, an object store or a collector.
+
 | Value | Built from | By |
 |---|---|---|
 | `DATABASE_URL` | `APP_DB_USER`, `APP_DB_PASSWORD`, `APP_DB_NAME`, `POSTGRES_PORT` | the Makefile (host), compose (containers) |

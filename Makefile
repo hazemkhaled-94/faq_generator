@@ -81,13 +81,16 @@ OVERRIDE = $(if $(GIVEN),&& export $(foreach given,$(GIVEN),$(given)='$(subst ',
 # exports every one of them.
 #
 # The addresses are localhost and a PUBLISHED port: a host command reaches a
-# service the way a browser would, not by the compose service name.
-DERIVED = DATABASE_URL=postgresql+psycopg://$$APP_DB_USER:$$APP_DB_PASSWORD@localhost:$$POSTGRES_PORT/$$APP_DB_NAME \
-          BACKEND_URL=http://localhost:$$BACKEND_PORT \
-          S3_ENDPOINT=http://localhost:$$S3_PORT \
-          PHOENIX_BASE_URL=http://localhost:$$PHOENIX_PORT \
-          OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:$$PHOENIX_GRPC_PORT \
-          ARGILLA_API_URL=http://localhost:$$ARGILLA_PORT
+# service the way a browser would, not by the compose service name. Each is
+# built only when ENV_FILE or the environment leaves it unset, so a host
+# command can be pointed at a managed database, an object store or a
+# collector by naming its address there.
+DERIVED = DATABASE_URL=$${DATABASE_URL:-postgresql+psycopg://$$APP_DB_USER:$$APP_DB_PASSWORD@localhost:$$POSTGRES_PORT/$$APP_DB_NAME} \
+          BACKEND_URL=$${BACKEND_URL:-http://localhost:$$BACKEND_PORT} \
+          S3_ENDPOINT=$${S3_ENDPOINT:-http://localhost:$$S3_PORT} \
+          PHOENIX_BASE_URL=$${PHOENIX_BASE_URL:-http://localhost:$$PHOENIX_PORT} \
+          OTEL_EXPORTER_OTLP_ENDPOINT=$${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:$$PHOENIX_GRPC_PORT} \
+          ARGILLA_API_URL=$${ARGILLA_API_URL:-http://localhost:$$ARGILLA_PORT}
 
 # The provider's credentials, for whichever host command calls a model.
 # Optional and absent for a plain Ollama, which needs none - hence the test

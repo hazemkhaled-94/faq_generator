@@ -1434,3 +1434,96 @@ def test_down_volumes_refuses_without_confirm_all_volumes() -> None:
         if "down -v" in one
     ]
     assert ran, "the command is still there once confirmed"
+
+
+#: The addresses the Makefile builds only when ENV_FILE and the environment leave them unset.
+HOST_ADDRESSES = (
+    "DATABASE_URL",
+    "BACKEND_URL",
+    "S3_ENDPOINT",
+    "PHOENIX_BASE_URL",
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "ARGILLA_API_URL",
+)
+
+
+@pytest.fixture(autouse=True)
+def no_ambient_host_address(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The suite's own DATABASE_URL would otherwise stand in for the one a target derives."""
+    for name in HOST_ADDRESSES:
+        monkeypatch.delenv(name, raising=False)
+
+
+def probe(
+    tmp_path: Path, recipe: str, *given: str, env_text: str = "", **environment: str
+):
+    """Runs `recipe` through the repository's own LOADENV and CONFIRMED, in a scratch makefile.
+
+    Nothing destructive runs: the recipe only echoes. ENV_FILE is a scratch file
+    that holds `env_text`, as an operator's secrets file would.
+    """
+    env_file = tmp_path / "scratch.env"
+    env_file.write_text("APP_DB_PASSWORD=x\n" + env_text)
+    scratch = tmp_path / "probe.mk"
+    scratch.write_text(f"include {ROOT}/Makefile\nprobe:\n\t@{recipe}\n")
+    inherited = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith("MAKE")
+        and name not in {"MFLAGS", "APP_DB_NAME", "CONFIRM"}
+    }
+    return subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            "-f",
+            str(scratch),
+            "probe",
+            f"ENV_FILE={env_file}",
+            *given,
+        ],
+        cwd=ROOT,
+        env={**inherited, **environment},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+
+
+REMOTE = {
+    "DATABASE_URL": "postgresql+psycopg://u:p@pg.example.net:5432/ledger?sslmode=require",
+    "S3_ENDPOINT": "https://s3.eu-central-1.example.net",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "https://otel.example.net:4317",
+    "PHOENIX_BASE_URL": "https://phoenix.example.net",
+    "BACKEND_URL": "https://api.example.net",
+    "ARGILLA_API_URL": "https://review.example.net",
+}
+
+
+@pytest.mark.parametrize("name", sorted(REMOTE))
+def test_a_host_command_keeps_the_address_the_env_file_names(
+    tmp_path: Path, name: str
+) -> None:
+    """The address was rebuilt from localhost after the env file was read, so no remote service was reachable."""
+    done = probe(
+        tmp_path, f'$(LOADENV) && echo "$${name}"', env_text=f"{name}={REMOTE[name]}\n"
+    )
+    assert done.stdout.strip() == REMOTE[name], done
+
+
+def test_an_address_the_env_file_leaves_out_is_still_built_from_the_port(
+    tmp_path: Path,
+) -> None:
+    """Only the addresses the env file names are kept."""
+    done = probe(
+        tmp_path,
+        '$(LOADENV) && echo "$$S3_ENDPOINT $$BACKEND_URL $$DATABASE_URL"',
+        env_text=f"S3_ENDPOINT={REMOTE['S3_ENDPOINT']}\nBACKEND_PORT=8123\nPOSTGRES_PORT=5999\n",
+    )
+    s3, backend, database = done.stdout.split()
+    assert s3 == REMOTE["S3_ENDPOINT"], done
+    assert backend == "http://localhost:8123", done
+    assert database.endswith("@localhost:5999/qa_generator"), done
+
+
