@@ -325,7 +325,7 @@ help:
 	  { reset() } \
 	' $(MAKEFILE_LIST)
 
-.PHONY: help setup doctor upgrade \
+.PHONY: help setup doctor upgrade placeholders \
         dev install install-python docling-weights up grafana-grants down down-volumes logs logs-frontend logs-api \
         logs-shipper logs-retention logs-prune logs-dir logs-orchestration \
         logs-wipe \
@@ -376,7 +376,7 @@ UPGRADE_FREE_GB ?= 20
 # start. Stops at the first step that fails, so a build that did not finish
 # never reaches the migration. The room is read in the engine's VM where it has
 # one (`podman machine`) and on the host otherwise.
-upgrade:
+upgrade: placeholders
 	@[ "$(UPGRADE_FREE_GB)" = 0 ] || { \
 	  free=$$($(CONTAINER) machine ssh -- df -BG --output=avail / 2>/dev/null | tail -1 | tr -dc 0-9); \
 	  [ -n "$$free" ] || free=$$(df -BG --output=avail /var/lib 2>/dev/null | tail -1 | tr -dc 0-9); \
@@ -572,7 +572,13 @@ logs-dir:
 	@mkdir -p logs
 
 # Start every service, generating the certificates first if they are missing.
-up: certs logs-dir
+# Refuses to start the stack while .env still holds a change_me_* assignment:
+# the api would take the placeholder as a secret that is printed in the repository.
+placeholders:
+	@if $(ASSIGNED) | grep -q change_me_; then \
+	  echo "$(ENV_FILE) still holds a change_me_ value ($$($(ASSIGNED) | grep -c change_me_) assignment(s)): run make setup" >&2; exit 1; fi
+
+up: placeholders certs logs-dir
 	@$(UP)
 	@$(MAKE) --no-print-directory grafana-grants
 	-@$(MAKE) --no-print-directory phoenix-retention

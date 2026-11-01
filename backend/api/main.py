@@ -7,8 +7,10 @@ routes/.
 from __future__ import annotations
 
 import hmac
+import logging
 import os
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, Protocol
 
 from fastapi import FastAPI, Request
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -21,6 +23,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from api import errors
 from api.routes import ROUTERS
 from settings.env import csv
+
+log = logging.getLogger(__name__)
 
 #: The methods whose `Origin` is not judged: they change nothing.
 _READS = frozenset({"GET", "HEAD", "OPTIONS"})
@@ -48,13 +52,80 @@ def _routed(scope: Scope) -> str:
     return path
 
 
-class SharedSecret:
-    """Refuses a write, and any read of the settings, that lacks the secret.
+class Authenticator(Protocol):
+    """Decides whether a request may go on.
 
-    `API_TOKEN` comes from `.env`, where `make setup` generates it, and the
-    frontend, the orchestrator and the make targets send it as `X-API-Token`.
+    One port for what guards the api: today a shared secret, behind an ingress
+    that signs users in a token's validation (Entra ID). `headers` are the
+    request's, lower-cased; `path` is the one routing reads.
+    """
+
+    def allows(self, headers: Mapping[str, str], method: str, path: str) -> bool:
+        """Whether the request carries what its method and path need."""
+        ...
+
+
+class TokenAuthenticator:
+    """One shared secret, `API_TOKEN`, as `X-API-Token` on writes and settings reads.
+
     Read per request, and closed when unset: an api with no secret is a
-    misconfiguration, not an open one.
+    misconfiguration, not an open one. So is the placeholder `.env.example`
+    ships, a value starting `change_me_`, which is printed in the repository.
+    """
+
+    #: What `make setup` replaces and `.env.example` ships.
+    PLACEHOLDER = "change_me_"
+
+    def __init__(self) -> None:
+        """Starts unwarned."""
+        self._warned = False
+
+    def _secret(self) -> bytes:
+        """The secret, or nothing when there is none worth having."""
+        secret = os.environ.get("API_TOKEN", "")
+        if secret.startswith(self.PLACEHOLDER):
+            if not self._warned:
+                self._warned = True
+                log.warning(
+                    "API_TOKEN is still the placeholder %s...; every write is "
+                    "refused until `make setup` or an edit of .env replaces it",
+                    self.PLACEHOLDER,
+                )
+            return b""
+        return secret.encode()
+
+    def allows(self, headers: Mapping[str, str], method: str, path: str) -> bool:
+        """Whether the secret came, where one is asked for."""
+        if not _guarded(method, path):
+            return True
+        secret = self._secret()
+        sent = headers.get("x-api-token", "").encode("latin-1")
+        return bool(secret) and hmac.compare_digest(sent, secret)
+
+
+def authenticator() -> Authenticator:
+    """The adapter API_AUTH names, `token` unless told otherwise.
+
+    Raises:
+        ValueError: If it names none that exists.
+    """
+    adapter = os.environ.get("API_AUTH", "token")
+    if adapter == "token":
+        return _TOKEN
+    raise ValueError(
+        f"API_AUTH={adapter!r} names no adapter; the one there is is token"
+    )
+
+
+#: One instance, so the placeholder is reported once per process.
+_TOKEN = TokenAuthenticator()
+
+
+class SharedSecret:
+    """Refuses a write, and any read of the settings, the authenticator does not allow.
+
+    The frontend, the orchestrator and the make targets send the token as
+    `X-API-Token`; see `TokenAuthenticator`, which is today's adapter.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -63,18 +134,17 @@ class SharedSecret:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Answers 401 `unauthorized`, or hands the request on."""
-        if scope["type"] == "http" and _guarded(scope["method"], _routed(scope)):
-            secret = os.environ.get("API_TOKEN", "").encode()
-            sent = Headers(scope=scope).get("x-api-token", "").encode("latin-1")
-            if not secret or not hmac.compare_digest(sent, secret):
-                refusal = errors.ApiError(
-                    401,
-                    "unauthorized",
-                    "send the deployment's API_TOKEN as X-API-Token",
-                )
-                answer = await errors.refused(Request(scope), refusal)
-                await answer(scope, receive, send)
-                return
+        if scope["type"] == "http" and not authenticator().allows(
+            Headers(scope=scope), scope["method"], _routed(scope)
+        ):
+            refusal = errors.ApiError(
+                401,
+                "unauthorized",
+                "send the deployment's API_TOKEN as X-API-Token",
+            )
+            answer = await errors.refused(Request(scope), refusal)
+            await answer(scope, receive, send)
+            return
         await self.app(scope, receive, send)
 
 

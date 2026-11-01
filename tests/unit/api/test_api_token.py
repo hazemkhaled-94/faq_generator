@@ -177,3 +177,48 @@ def test_a_settings_read_behind_a_root_path_needs_the_secret(root_path: str) -> 
         return {"service": service}
 
     assert _status(behind, "GET", f"{root_path}/settings/platform", root_path) == 401
+
+
+@pytest.mark.parametrize("method", WRITES)
+def test_the_placeholder_the_example_file_ships_opens_nothing(
+    guarded, monkeypatch, method: str, caplog
+) -> None:
+    """`change_me_api_token` is printed in the repository: it counts as no secret."""
+    monkeypatch.setenv("API_TOKEN", "change_me_api_token")
+
+    answered = guarded.request(
+        method, "/anything", headers={"x-api-token": "change_me_api_token"}
+    )
+
+    assert answered.status_code == 401
+    assert (
+        guarded.get(
+            "/settings/platform", headers={"x-api-token": "change_me_api_token"}
+        ).status_code
+        == 401
+    )
+
+
+def test_the_placeholder_is_reported_once_with_its_reason(monkeypatch, caplog) -> None:
+    """Said in the log, so an operator who sees every write refused knows why."""
+    from api.main import TokenAuthenticator
+
+    monkeypatch.setenv("API_TOKEN", "change_me_api_token")
+    token = TokenAuthenticator()
+
+    for _ in range(3):
+        assert not token.allows({"x-api-token": "change_me_api_token"}, "POST", "/x")
+
+    assert caplog.text.count("still the placeholder") == 1
+
+
+def test_a_value_that_merely_contains_the_placeholder_text_is_a_secret(
+    guarded, monkeypatch
+) -> None:
+    """Only the prefix `make setup` replaces counts."""
+    monkeypatch.setenv("API_TOKEN", "x-change_me_x")
+
+    assert (
+        guarded.post("/anything", headers={"x-api-token": "x-change_me_x"}).status_code
+        == 200
+    )

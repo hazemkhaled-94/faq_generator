@@ -1434,3 +1434,33 @@ def test_down_volumes_refuses_without_confirm_all_volumes() -> None:
         if "down -v" in one
     ]
     assert ran, "the command is still there once confirmed"
+
+
+def test_up_and_upgrade_refuse_a_placeholder_secret(tmp_path) -> None:
+    """`make up` and `make upgrade` start the stack, so they stop at a `change_me_` secret."""
+    for target in ("up", "upgrade"):
+        assert any(
+            "placeholders" in line or "change_me" in line for line in printed(target)
+        ), target
+
+    placeholder = tmp_path / "placeholder.env"
+    placeholder.write_text(
+        "# replace every change_me_* value\nAPI_TOKEN=change_me_api_token\n"
+    )
+    clean = tmp_path / "clean.env"
+    clean.write_text("# replace every change_me_* value\nAPI_TOKEN=9f3a\n")
+
+    def run(env: Path) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["make", "--no-print-directory", "placeholders", f"ENV_FILE={env}"],
+            check=False,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+    refused, allowed = run(placeholder), run(clean)
+
+    assert refused.returncode != 0
+    assert "change_me_" in refused.stderr and "make setup" in refused.stderr
+    assert allowed.returncode == 0, allowed.stderr
