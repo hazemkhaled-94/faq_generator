@@ -1378,8 +1378,17 @@ class QuestionGenerationService(StageService):
                 # Answerable roots only: an unanswerable one has no thread.
                 if checked.answerable:
                     if spread(roots, self._settings.followup_share):
+                        # The root's cited facts, not its whole sample: a thread
+                        # stays on the material its root rests on.
+                        cited = FactGroup(
+                            tuple(
+                                one
+                                for one in sample.facts
+                                if one.id in checked.fact_ids
+                            )
+                        )
                         thread += self._followups(
-                            deal.widen(sample),
+                            deal.widen(cited),
                             plan,
                             checked,
                             accepted,

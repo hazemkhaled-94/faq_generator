@@ -487,8 +487,9 @@ A follow-up may lean on the conversation (*"And for an urgent one?"*), so it
 skips `unanchored` and the verifier is shown the conversation.
 A follow-up is stored `needs_both` only where its root was dealt `needs_both`.
 `asks_nothing_new` and `off_thread` hold the thread together. Only an accepted,
-answerable root is followed. A thread stops at the first follow-up a gate
-refuses. Each follow-up costs a writer call and a verifier call.
+answerable root is followed, from the facts the root cited widened with unspent
+facts of those passages, not from the root's whole dealt sample. A thread stops
+at the first follow-up a gate refuses. Each follow-up costs a writer call and a verifier call.
 
 ## Coverage
 

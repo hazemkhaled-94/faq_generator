@@ -655,6 +655,37 @@ def test_a_follow_up_is_written_from_the_same_sample_as_its_root() -> None:
             }
 
 
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_a_follow_up_is_dealt_only_from_the_passages_its_root_cited(language) -> None:
+    """A root citing one passage of a sample of several is followed on that passage.
+
+    The follow-up was written from the root's whole dealt sample, so a thread
+    that began on one document drifted to the others the sample held.
+    """
+    facts = [
+        source(n, document="ab"[n % 2], passage_id=n, language=language)
+        for n in range(12)
+    ]
+    offered: list[FactGroup] = []
+
+    class Narrow(StubWriter):
+        def write(self, group, plan):
+            return super().write(FactGroup(group.facts[:1]), plan)
+
+        def follow_up(self, group, thread, plan, root_facts=(), parent_passages=()):
+            offered.append(group)
+            return super().follow_up(group, thread, plan, root_facts, parent_passages)
+
+    service, _ = build(topic(language=language), facts, writer=Narrow())
+
+    service.process_next()
+
+    assert offered, "no follow-up was written"
+    for group in offered:
+        assert len({fact.passages[0].id for fact in group.facts}) == 1
+        assert len({fact.passages[0].doc_sha256 for fact in group.facts}) == 1
+
+
 def test_a_follow_up_is_shown_what_was_already_asked() -> None:
     """Without the thread it is a fresh question, not a follow-up."""
     seen: list = []
