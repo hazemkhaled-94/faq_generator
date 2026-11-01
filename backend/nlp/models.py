@@ -6,6 +6,7 @@ sentence should not load a pipeline to get it.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 
@@ -58,8 +59,22 @@ def named(language: str | None) -> str:
     Falls back to the code itself, which is the honest thing for a language
     `NLP_MODELS` has gained and this has not: an ISO 639-1 code is still an
     instruction a model can follow, where a wrong name is not. A language of
-    None falls back to nothing, and the caller leaves the sentence out.
+    None falls back to nothing: a template then drops its language sentence,
+    through `with_language`.
     """
     if not language:
         return ""
     return _NAMED.get(language.lower(), language)
+
+
+#: The sentence a prompt template ends in to name the language, with the blank
+#: lines before it.
+_LANGUAGE_SENTENCE = re.compile(r"\n*Write [^\n.]*\{\{language\}\}\.")
+
+
+def with_language(template: str, language: str | None) -> str:
+    """The template, without its `Write ... in {{language}}.` sentence for no language.
+
+    Told to write in an empty name, a model reads a sentence ending `in .`.
+    """
+    return template if language else _LANGUAGE_SENTENCE.sub("", template)

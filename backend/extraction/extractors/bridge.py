@@ -16,6 +16,7 @@ from llm.client import Client, ModelUnavailable
 from llm.prompt import fill
 from llm.spans import RELATIONS
 from nlp.models import named as in_language
+from nlp.models import with_language
 
 #: What the model may answer as the relation: none, or one of the table's.
 _NAMES = ("none", *RELATIONS)
@@ -293,7 +294,7 @@ class BridgeExtractor:
                 + (f"\n  facts:{listed}" if held else "")
             )
         return fill(
-            _USER,
+            with_language(_USER, offered[0].language),
             {
                 "{{excerpts}}": "\n\n".join(blocks),
                 "{{link}}": _linked(link),

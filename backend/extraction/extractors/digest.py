@@ -12,7 +12,7 @@ from extraction.extractors.base import ExtractionFailed, Extractor
 from extraction.models import BULLET, CandidateFact, PassageToExtract, Provenance
 from llm.client import Client, ModelUnavailable
 from llm.prompt import fill
-from nlp.models import named
+from nlp.models import named, with_language
 
 #: Recorded on every summary and outline drawn with the prompt below. 4 asks
 #: what the excerpt establishes, about its subject, where 3 asked what it is
@@ -185,7 +185,7 @@ class DigestExtractor(Extractor):
             else ""
         )
         return fill(
-            _USER,
+            with_language(_USER, passage.language),
             {
                 "{{context}}": heading,
                 "{{excerpt}}": passage.text,
