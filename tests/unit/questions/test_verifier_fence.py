@@ -130,3 +130,19 @@ def test_the_passages_and_the_thread_are_rendered_in_one_place_each() -> None:
 
     assert source.count("enumerate(passages, 1)") == 1
     assert source.count("or 'not in the material'}") == 1
+
+
+@pytest.mark.parametrize("name", sorted(PLANTED))
+def test_two_questions_naming_a_placeholder_of_the_pair_message_are_sent_as_written(
+    name: str,
+) -> None:
+    """`same_answer` fills in one pass too: a question naming `{{second}}` is not spliced."""
+    client = Client()
+
+    Verifier(client).same_answer(
+        (PLANTED[name] + " {{second}}", "A"), ("Second question?", "B")
+    )
+
+    user = client.asked[-1][1]
+    assert "{{second}}" in user
+    assert user.count("Second question?") == 1

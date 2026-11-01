@@ -793,11 +793,14 @@ class Verifier:
         """
         got = self._client.answer(
             system=_SAME,
-            user=(
-                _USER_SAME.replace("{{first}}", first[0])
-                .replace("{{first_answer}}", first[1] or "not in the material")
-                .replace("{{second}}", second[0])
-                .replace("{{second_answer}}", second[1] or "not in the material")
+            user=fill(
+                _USER_SAME,
+                {
+                    "{{first}}": first[0],
+                    "{{first_answer}}": first[1] or "not in the material",
+                    "{{second}}": second[0],
+                    "{{second_answer}}": second[1] or "not in the material",
+                },
             ),
             shape=_Same,
             prompt_version=PROMPT_VERSION,
