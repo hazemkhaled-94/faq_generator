@@ -1161,3 +1161,91 @@ def test_a_language_no_pipeline_is_configured_for_reads_no_source_noun_either(
         claim(statement, language, title=title).references
         == claim(statement, language).references
     )
+
+
+# ── The reader a polite Sie opens a statement for ────────────────────────
+
+_ADDRESSED = {
+    "de": "Bitte geben Sie Ihre IBAN an. Die Karte ist kostenlos. {statement}",
+}
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Sie gilt drei Jahre.",
+        "Sie wird monatlich abgebucht.",
+        "Sie dauert zwei Werktage.",
+    ],
+)
+def test_an_opening_sie_with_a_singular_verb_is_the_feminine_third_person(
+    statement: str,
+) -> None:
+    """Polite Sie takes a plural verb: 'Sie gilt' stands for 'die Karte' and dangles."""
+    from drivers import Checker, passage
+
+    text = _ADDRESSED["de"].format(statement=statement)
+    judged = Checker(passage(text, language="de")).atomic(statement, 2)
+
+    assert not judged.validated
+    assert judged.rejection_code == "unresolved_reference"
+
+
+@pytest.mark.nlp
+def test_the_english_twin_of_a_dangling_sie_is_refused_too() -> None:
+    """Control: the same shape in English."""
+    from drivers import Checker, passage
+
+    text = "Please enter your IBAN. The card is free. It is valid for three years."
+    judged = Checker(passage(text, language="en")).atomic(
+        "It is valid for three years.", 2
+    )
+
+    assert judged.rejection_code == "unresolved_reference"
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("text", "statement", "cites"),
+    [
+        (
+            "Bitte geben Sie Ihre IBAN an. Sie erhalten eine Bestätigung per E-Mail.",
+            "Sie erhalten eine Bestätigung per E-Mail.",
+            1,
+        ),
+        (
+            "Bei kostenlosen Diensten haben Sie das Recht zu erfahren, wie Ihre Daten "
+            "verwendet werden. Sie sollten auch die Vertragsdauer kennen.",
+            "Sie sollten die Vertragsdauer kennen.",
+            1,
+        ),
+        (
+            "Bei kostenlosen Diensten haben Sie das Recht zu erfahren, wie Ihr Konto "
+            "geführt wird. Sie sollten auch die Vertragsdauer kennen.",
+            "Sie sollten die Vertragsdauer kennen.",
+            1,
+        ),
+    ],
+)
+def test_a_polite_sie_stays_polite_whatever_number_a_clause_before_it_holds(
+    text: str, statement: str, cites: int
+) -> None:
+    """The reader addressed in the sentence before is the reader, embedded plural or not."""
+    from drivers import Checker, passage
+
+    judged = Checker(passage(text, language="de")).atomic(statement, cites)
+
+    assert judged.validated, (judged.rejection_code, judged.validation_error)
+
+
+@pytest.mark.nlp
+def test_a_third_person_plural_after_a_plural_subject_is_still_a_reference() -> None:
+    """The rival reading the rule exists for: 'Händler werben Kunden. Sie erhalten ...'."""
+    from drivers import Checker, passage
+
+    judged = Checker(
+        passage("Händler werben Kunden. Sie erhalten Rabatte.", language="de")
+    ).atomic("Sie erhalten Rabatte.", 1)
+
+    assert not judged.validated

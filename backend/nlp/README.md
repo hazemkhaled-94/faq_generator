@@ -171,6 +171,7 @@ language's words in one set or pattern.
 | `_CATAPHORIC_MODIFIERS` | same | Modifiers making a plural noun a list given after the statement. On a singular noun or one a figure counts, they mean the next one (`the following 12 months`) | `folgend`, `following` |
 | `_ADJECTIVE_ENDINGS` | same | Endings an adjective takes, so a modifier above still matches (`Besagter Kunde`) | `-er`, `-en` |
 | `_POLITE` | same | Forms of polite address, read with their capital, since the tagger calls `Sie` third person plural | `Sie`, `Ihre` |
+| `_POLITE_NUMBER` | same | The number a polite form takes with its verb: an opening `Sie` with a singular verb is the feminine third person. Empty where the language has no polite form | `Plur` |
 | `_SINGULAR_THEY` | same | Pronouns standing for one person as well as several | `their` |
 | `_EXCEPTIVE` | same | Word runs opening an exception or condition with no subordinator in the parse. List the language's full closed class of proviso conjunctions | `es sei denn`, `provided` |
 | `_DISJUNCTIVE` | same | Coordinators that offer alternatives, with the first half of a correlative pair. A conjunct one joins is no claim | `oder`, `entweder`, `or`, `either` |

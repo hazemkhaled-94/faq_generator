@@ -1530,24 +1530,36 @@ _POLITE: dict[str, frozenset[str]] = {
 }
 
 
+#: The grammatical number a polite form takes with its verb, by ISO 639-1 code:
+#: German `Sie können` is plural however many it addresses, so `Sie gilt` is the
+#: feminine singular third person. Empty for a language with no polite form,
+#: English. A newly configured language with one supplies its number.
+_POLITE_NUMBER: dict[str, str] = {"de": "Plur", "en": ""}
+
+
 def _polite(token, passages: Sequence[str] = ()) -> bool:
     """Whether a pronoun is the polite form of address, which names the reader.
 
     The capitalised form is the signal, so one inside a statement is polite.
     One opening a statement is capitalised either way, and `Sie werden
     geliefert` cannot be told from the third person plural, so it is polite
-    only where the statement also holds a capitalised polite form after it,
+    only where the pronoun or its verb carries the number the polite form
+    takes, and the statement also holds a capitalised polite form after it,
     `Sie können Ihre Karte sperren`, or one of the passages it was drawn from
     holds one inside a sentence, `Bitte geben Sie Ihre IBAN an`, and opens no
     sentence on the form after one whose subject is plural, which the form
     may be the third person of: "Händler werben Kunden. Sie erhalten ...".
-    Otherwise it stays a reference.
+    A singular, `Sie gilt drei Jahre`, is the feminine third person. Otherwise
+    it stays a reference.
     """
     forms = _POLITE.get(token.doc.lang_, frozenset())
     if token.text not in forms:
         return False
     if any(not one.is_punct for one in token.doc[: token.i]):
         return True
+    numbers = {*token.morph.get("Number"), *token.head.morph.get("Number")}
+    if numbers and _POLITE_NUMBER[token.doc.lang_] not in numbers:
+        return False
     if any(one.text in forms for one in token.doc[token.i + 1 :]):
         return True
     return any(
@@ -1558,7 +1570,14 @@ def _polite(token, passages: Sequence[str] = ()) -> bool:
 
 
 def _addresses(document: Doc, forms: frozenset[str], form: str) -> bool:
-    """Whether a passage addresses its reader, and only its reader, as `form`."""
+    """Whether a passage addresses its reader, and only its reader, as `form`.
+
+    Where a sentence opening on `form` follows one whose own subject, the
+    subject of its root clause, is plural, `form` may be the third person
+    plural: "Händler werben Kunden. Sie erhalten ...". A sentence that holds
+    a polite form itself says its subject is the reader, and a plural noun
+    inside one of its clauses says nothing.
+    """
     inside = any(
         one.text in forms
         and any(not before.is_punct for before in document[one.sent.start : one.i])
@@ -1566,9 +1585,11 @@ def _addresses(document: Doc, forms: frozenset[str], form: str) -> bool:
     )
     rival = any(
         next((one.text for one in after if not one.is_punct), None) == form
+        and not any(one.text in forms for one in before)
         and any(
             one.dep_ in _SUBJECTS
             and one.pos_ in _NOMINAL
+            and one.head.i == before.root.i
             and "Plur" in one.morph.get("Number", [])
             for one in before
         )
