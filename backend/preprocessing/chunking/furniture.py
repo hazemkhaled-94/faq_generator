@@ -481,7 +481,7 @@ def tidied(
     debris |= {reference for reference, level in restated if level is None}
     promoted = [(reference, level) for reference, level in restated if level]
     debris |= {reference for reference, _ in promoted}
-    joins = _continued(document, debris, language)
+    joins = _continued(document, debris, language) + _split_headings(document, debris)
     starts = _chapter_starts(document, furniture, debris)
     if not debris and not starts and not joins:
         return document, {}
@@ -523,6 +523,13 @@ def tidied(
         tidy.insert_title(sibling=_resolved(reference, tidy), text=text, after=False)
     return tidy, titles
 
+
+#: How far apart, in points, two boxes' tops are and still one line; how far
+#: a heading's fragment may be from the one before, in line heights, across
+#: a justified line; and how far below, in line heights, its next line is.
+_SAME_LINE = 1.0
+_SPLIT_GAP = 8.0
+_WRAPPED = 1.6
 
 #: How many other pages must print their running items where a paragraph sits
 #: for it to be one, and how near, in points, its left edge and top must be.
@@ -845,6 +852,45 @@ def _continued(
         and _broken(first.prov[-1], second.prov[0], right_to_left(first.text))
         and (_opens_lower(second.text) or _resumed(first, second, language))
     ]
+
+
+def _split_headings(
+    document: DoclingDocument, skipped: set[str]
+) -> list[tuple[str, str]]:
+    """The pairs of section headers the converter cut one heading into.
+
+    A justified heading comes out as several headers of one level, side by
+    side on one line, and siblings replace one another in the trail. Two are
+    one heading when they sit on one page, level and all, and the second is
+    on the first's line, starting right of it no further than `_SPLIT_GAP`
+    line heights (a justified line's spaces, not the gutter between two
+    columns' headings), or on the line right below it, starting left of it:
+    the heading wrapped.
+    """
+    headings = [
+        item
+        for item, _ in document.iterate_items()
+        if isinstance(item, SectionHeaderItem)
+        and item.content_layer == ContentLayer.BODY
+        and item.self_ref not in skipped
+        and item.prov
+    ]
+    return [
+        (first.self_ref, second.self_ref)
+        for first, second in pairwise(headings)
+        if first.level == second.level and _one_heading(first.prov[-1], second.prov[0])
+    ]
+
+
+def _one_heading(first: ProvenanceItem, second: ProvenanceItem) -> bool:
+    """Whether the second box continues the first's heading, on its line or the next."""
+    if first.page_no != second.page_no:
+        return False
+    height = abs(first.bbox.t - first.bbox.b)
+    down = abs(first.bbox.t - second.bbox.t)
+    if down <= _SAME_LINE:
+        return 0 <= second.bbox.l - first.bbox.r <= _SPLIT_GAP * height
+    return down <= _WRAPPED * height and second.bbox.l < first.bbox.l
 
 
 def _opens_lower(text: str) -> bool:
