@@ -100,7 +100,12 @@ def compose(*args: str) -> subprocess.CompletedProcess:
 @pytest.fixture(scope="module")
 def resolved() -> dict:
     """The compose file with every variable substituted, as the engine sees it."""
-    answered = compose("--profile", "*", "config", "--format", "json")
+    # Both files, as the development profile starts them: the mount tests below
+    # read what compose.dev.yaml adds over the images.
+    answered = compose(
+        *("-f", "compose.yaml", "-f", "compose.dev.yaml"),
+        *("--profile", "*", "config", "--format", "json"),
+    )
     if answered.returncode != 0:
         pytest.skip(f"compose could not resolve the file: {answered.stderr[-600:]}")
     return json.loads(answered.stdout)

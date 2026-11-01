@@ -27,12 +27,8 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
 DOCKERFILE = ROOT / "backend/api/Dockerfile"
-COMPOSE = ROOT / "compose.yaml"
-
-#: Copied into no image on purpose: compose mounts it read-only into the
-#: api and the workers, and the archive CLI is run through that mount
-#: rather than baked in. Named here so the exception is a decision.
-MOUNTED_ONLY = {"archive"}
+#: The mounts are the development override's: compose.yaml alone mounts none.
+COMPOSE = ROOT / "compose.dev.yaml"
 
 
 def _first_party() -> set[str]:
@@ -90,7 +86,7 @@ def test_there_is_something_to_check() -> None:
     assert len(_mounted()) > 10, sorted(_mounted())
 
 
-@pytest.mark.parametrize("name", sorted(_first_party() - MOUNTED_ONLY))
+@pytest.mark.parametrize("name", sorted(_first_party()))
 def test_the_image_carries_every_backend_module(name: str) -> None:
     """A module the image does not hold is an import error at start-up."""
     assert name in _copied(), (
@@ -103,7 +99,7 @@ def test_the_image_carries_every_backend_module(name: str) -> None:
 def test_compose_mounts_every_backend_module(name: str) -> None:
     """Otherwise an edit to it needs a rebuild and every sibling does not."""
     assert name in _mounted(), (
-        f"backend/{name} is importable but compose.yaml mounts no such path, "
+        f"backend/{name} is importable but compose.dev.yaml mounts no such path, "
         f"so editing it does nothing until the image is rebuilt."
     )
 

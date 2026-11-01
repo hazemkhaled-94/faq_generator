@@ -109,7 +109,7 @@ use it.
 | `make dev` | `make install` first (needs the network), then certificates, every service, the schema and the grants. Use `make up` for an installed stack |
 | `make install-python` | Dependencies and the spaCy pipelines `NLP_MODELS` names, on the host alone. What CI's setup runs |
 | `make docling-weights` | Download Docling's weights into the `models` volume that parse-worker reads. `HOST=1` fetches them into the host's Hugging Face cache instead, which `make doctor`, the hosted preflight and a host drain read |
-| `make up` | Refuse a `change_me_` value in `.env` (`make placeholders` is that check), start services, then grant Grafana's reader the five Phoenix tables its run dashboard queries. On a slow first boot it fails after 150 seconds with the stack up: run `make grafana-grants` again |
+| `make up` | Refuse a `change_me_` value in `.env` (`make placeholders` is that check), start services (on the development profile with `compose.dev.yaml`, which mounts this checkout's source over the images; with `HOST_RUNNER=1`, `compose.yaml` alone), then grant Grafana's reader the five Phoenix tables its run dashboard queries. On a slow first boot it fails after 150 seconds with the stack up: run `make grafana-grants` again |
 | `make grafana-grants` | Those grants alone. Safe to repeat |
 | `make down` | Stop services, keep data, and remove dangling images |
 | `make down-volumes CONFIRM=all-volumes` | Stop services and **delete all data**: every database's volumes on the stack |

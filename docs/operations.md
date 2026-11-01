@@ -494,7 +494,9 @@ From a fresh clone:
 
 Each image bakes the hash of the lock it installed (`requirements.lock` for
 the backend and page, `requirements.txt` for Dagster). Every container
-compares it at start with the checkout's own. After a lock changed, a
+compares it at start with the checkout's own where the development override
+mounts it, and with the image's own copy where nothing is mounted (the go-live
+profile), which passes by construction. After a lock changed, a
 container logs `run compose build, then make up`, waits ten minutes and exits.
 Rebuild, then `make up`:
 

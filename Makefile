@@ -276,10 +276,15 @@ export COMPOSE_PROFILES ?= *
 # profile names, and the profiles `.env`'s COMPOSE_PROFILES asks for (review,
 # logs, tools) - never local-models or orchestrated, which that profile does
 # not run.
+#
+# The development profile also names compose.dev.yaml, which bind-mounts this
+# checkout's source over the images so an edit is live. The go-live profile
+# starts compose.yaml alone: the images as they were built, with no mount.
 UP = $(LOADENV) && if $(GO_LIVE); then \
        profiles=$$(printf %s "$$COMPOSE_PROFILES" | tr , '\n' | grep -vxE '\*|local-models|orchestrated' | paste -sd, -); \
-     else profiles='*'; fi; \
-     COMPOSE_PROFILES="$$profiles" $(COMPOSE_CMD) up -d
+       files=; \
+     else profiles='*'; files='-f compose.yaml -f compose.dev.yaml'; fi; \
+     COMPOSE_PROFILES="$$profiles" $(COMPOSE_CMD) $$files up -d
 
 # ── Help ───────────────────────────────────────────────────────────────────
 

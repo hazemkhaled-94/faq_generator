@@ -11,6 +11,7 @@
 !backend/
 !frontend/
 !orchestration/
+!configs/dagster/
 !telemetry/
 !pyproject.toml
 

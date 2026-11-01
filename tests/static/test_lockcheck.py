@@ -141,7 +141,15 @@ def test_each_dockerfile_bakes_the_hash_and_starts_through_the_check(
 
 
 def _services() -> dict:
-    return yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
+    """compose.yaml with the development override's mounts added, as `make up` starts it."""
+    services = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
+    over = yaml.safe_load((ROOT / "compose.dev.yaml").read_text())["services"]
+    for name, extra in over.items():
+        services[name] = {
+            **services[name],
+            "volumes": [*services[name].get("volumes", []), *extra.get("volumes", [])],
+        }
+    return services
 
 
 def _image_of(service: dict) -> str:
@@ -165,7 +173,11 @@ def test_the_scan_finds_the_containers_of_our_images() -> None:
 def test_every_container_of_our_images_sees_the_checkouts_lock_read_only(
     name: str,
 ) -> None:
-    """The mount the check reads, which none may drop."""
+    """The mount the check reads, which none may drop from the development override.
+
+    Run bare, as the go-live profile does, the lock the check reads is the
+    image's own copy and the check passes by construction.
+    """
     service = _services()[name]
     image = _image_of(service)
     _, target, _ = IMAGES[image]
