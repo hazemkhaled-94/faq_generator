@@ -323,3 +323,62 @@ def test_a_golden_set_is_uploaded_under_this_databases_name(monkeypatch) -> None
 
     assert made["name"] == "extraction-golden__qa_shop"
     assert experiments.stored(experiments.PHRASING) == "phrasing-golden__qa_shop"
+
+
+def test_the_phrasing_measure_is_served_where_the_pipeline_serves_the_phrasing_role(
+    monkeypatch,
+) -> None:
+    """LLM_BASE_URLS names an address for a role; the measure asks the model as the stage does."""
+    from types import SimpleNamespace
+
+    import llm.client
+    import llm.config as llm_config
+    import question_generation.config as questions_config
+    from evaluation.config import Settings
+    from question_generation import phrasing
+
+    shared = llm_config.Settings(
+        model="azure/gpt-4.1",
+        base_url="https://main.example/",
+        structured_mode="JSON_SCHEMA",
+        temperature=0.0,
+        timeout_seconds=30.0,
+        max_attempts=1,
+        num_ctx=None,
+        reasoning_effort=None,
+        base_urls={"phrasing": "https://phrasing.example/"},
+    )
+    monkeypatch.setattr(
+        llm_config.Settings, "load", classmethod(lambda cls, source=None: shared)
+    )
+    monkeypatch.setattr(
+        questions_config.Settings,
+        "load",
+        classmethod(
+            lambda cls, source=None: SimpleNamespace(
+                model=None,
+                verifier_model="azure/gpt-4.1",
+                phrasing_model="azure/gpt-5.4",
+            )
+        ),
+    )
+    asked: list = []
+    monkeypatch.setattr(
+        llm.client, "build_model", lambda settings: asked.append(settings)
+    )
+    monkeypatch.setattr(phrasing, "PhrasingJudge", lambda model: model)
+    monkeypatch.setattr(experiments, "_phrasing_task", lambda judge: judge)
+    ran: dict = {}
+    monkeypatch.setattr(
+        experiments,
+        "_store",
+        lambda settings: SimpleNamespace(
+            run_experiment=lambda *a: ran.setdefault("args", a) and "url"
+        ),
+    )
+
+    experiments._phrasing(Settings("http://phoenix.invalid", "", None))
+
+    (settings,) = asked
+    assert settings.model == "azure/gpt-5.4"
+    assert settings.base_url == "https://phrasing.example/"

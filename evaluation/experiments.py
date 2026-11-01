@@ -353,11 +353,13 @@ def _phrasing(settings: Settings) -> str:
     from llm.client import build_model
     from llm.config import Settings as ModelSettings
     from question_generation.config import Settings as QuestionSettings
+    from question_generation.factory import models
     from question_generation.phrasing import PROMPT_VERSION, PhrasingJudge
 
     model = ModelSettings.load()
     questions = QuestionSettings.load()
-    asked = model.overridden(questions.phrasing_model or questions.verifier_model)
+    # As the stage resolves it, so the role's own address is the one asked.
+    _, _, asked = models(questions, model)
     log.info("scoring %s against %s", PHRASING, asked.model)
 
     url = _store(settings).run_experiment(
