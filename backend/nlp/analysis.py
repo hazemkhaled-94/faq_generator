@@ -976,10 +976,12 @@ def _counts(document: Doc, end: int, language: str | None) -> bool:
 #: figure wherever it stands: a digit and exactly three digits take it, a
 #: possessive (`90's`) never does.
 FIGURE = re.compile(
-    _SPACED.pattern + r"|(?<![\w.,'’])\d{1,3}(?:['’]\d{3})+(?:[.,]\d+)?(?![\w])"
+    r"(?:(?<!\S)[-−])?(?:"
+    + _SPACED.pattern
+    + r"|(?<![\w.,'’])\d{1,3}(?:['’]\d{3})+(?:[.,]\d+)?(?![\w])"
     r"|(?<![\w.,])\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?(?![\w])"
     r"|(?<![\w.,])\d+(?![\w]|[.,]\d)"
-    r"|(?<![\w.,])\d{4,}[.,]\d+(?![\w]|[.,]\d)"
+    r"|(?<![\w.,])\d{4,}[.,]\d+(?![\w]|[.,]\d))"
 )
 
 
@@ -994,18 +996,24 @@ def figures(text: str, language: str | None = None) -> list[float]:
     and English the reverse. A language with no row there, or none given,
     reads either lone mark as thousands. A number that resolves to neither
     is left out rather than guessed at.
+
+    A hyphen or minus sign that opens the number's token or follows a space
+    is its sign: `-0.5` is negative, `5-7` is two numbers, and a bullet's
+    `- 5` is five.
     """
     mark = DECIMAL_MARK.get((language or "").strip().lower())
     found: list[float] = []
     for match in FIGURE.finditer(text):
         raw = match.group().replace("'", "").replace("’", "")
+        sign = -1.0 if raw[:1] in ("-", "−") else 1.0
+        raw = raw.lstrip("-−")
         if any(char.isspace() for char in raw):
-            if _amount(text, match.start(), match.end(), language):
+            start = match.end() - len(match.group().lstrip("-−"))
+            if _amount(text, start, match.end(), language):
                 raw = "".join(raw.split())
             else:
-                found += [
-                    one for part in raw.split() for one in figures(part, language)
-                ]
+                parts = [one for part in raw.split() for one in figures(part, language)]
+                found += [sign * parts[0], *parts[1:]] if parts else []
                 continue
         head, separator, tail = (
             raw.rpartition(",") if "," in raw[-4:] else raw.rpartition(".")
@@ -1021,9 +1029,9 @@ def figures(text: str, language: str | None = None) -> list[float]:
             if not head or (
                 len(tail) == 3 and whole.strip("0") and not decimal and not plain
             ):
-                found.append(float(raw.replace(".", "").replace(",", "")))
+                found.append(sign * float(raw.replace(".", "").replace(",", "")))
             else:
-                found.append(float(f"{whole}.{tail}"))
+                found.append(sign * float(f"{whole}.{tail}"))
         except ValueError:
             continue
     return found
@@ -1091,7 +1099,9 @@ _NUMBER_WORDS: dict[str, dict[str, str]] = {
 #: A run of digits, with the decimal or thousands marks inside it. Read off a
 #: token rather than off `like_num`, so a figure glued to its unit - `45m` -
 #: or written as a time - `08:00` - is still a number.
-_DIGITS = re.compile(r"\d+(?:['’]\d{3}(?!\d))*(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)*")
+_DIGITS = re.compile(
+    r"(?:(?<!\S)[-−])?\d+(?:['’]\d{3}(?!\d))*(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)*"
+)
 
 #: The zeros a run of digits opens with, which are no part of its value.
 _PADDING = re.compile(r"^0+(?=\d)")
@@ -1315,6 +1325,10 @@ def _opens_line(token: Token) -> bool:
     )
 
 
+#: A figure written with its sign: `-0.5`, `−5`.
+_SIGNED = re.compile(r"[-−]\d")
+
+
 def written_in(
     unit: str,
     statement: str,
@@ -1352,11 +1366,18 @@ def written_in(
             word.endswith(end) and word[: -len(end)] in known for end in endings
         )
 
-    parts = {part for form in known if "-" in form for part in form.split("-") if part}
-    joined = {form.replace("-", "") for form in known}
+    hyphenated = {form for form in known if not _SIGNED.match(form)}
+    parts = {
+        part for form in hyphenated if "-" in form for part in form.split("-") if part
+    }
+    joined = {form.replace("-", "") for form in hyphenated}
     for word in {unit} | {_bare(token.text).casefold() for token in own}:
         word = word.rstrip("-")
-        if word in known or word in parts or word.replace("-", "") in joined:
+        # A minus before a figure is its sign, never a hyphen a text layer dropped.
+        signed = _SIGNED.match(word) is not None
+        if word in known or (
+            not signed and (word in parts or word.replace("-", "") in joined)
+        ):
             return True
         if numeric:
             continue

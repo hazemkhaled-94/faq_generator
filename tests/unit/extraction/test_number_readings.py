@@ -349,3 +349,85 @@ def test_a_german_amount_closing_a_sentence_restated_with_a_mark_validates():
         "Die Gebühr beträgt EUR 2.500."
     )
     assert f.validated, f"refused {f.rejection_code}: {f.validation_error}"
+
+
+@pytest.mark.parametrize(
+    ("lang", "negative", "positive"),
+    [
+        (
+            "en",
+            "The savings account pays an interest rate of -0.5 % a year.",
+            "The savings account pays an interest rate of 0.5 % a year.",
+        ),
+        (
+            "de",
+            "Das Sparkonto hat einen Zinssatz von -0,5 % pro Jahr.",
+            "Das Sparkonto hat einen Zinssatz von 0,5 % pro Jahr.",
+        ),
+        (
+            "de",
+            "Die Temperatur liegt bei −5 °C.",
+            "Die Temperatur liegt bei 5 °C.",
+        ),
+        (
+            "fr",
+            "Le compte a un taux de -0,5 % par an.",
+            "Le compte a un taux de 0,5 % par an.",
+        ),
+        (
+            "el",
+            "Ο λογαριασμός έχει επιτόκιο -0,5 % ετησίως.",
+            "Ο λογαριασμός έχει επιτόκιο 0,5 % ετησίως.",
+        ),
+    ],
+)
+def test_opposite_signs_are_different_numbers_for_the_dedup_gate(
+    lang, negative, positive
+):
+    """A statement with the sign flipped is another claim, never a twin."""
+    from extraction.service import _counted_alike
+
+    assert not _counted_alike(negative, positive, lang)
+    assert _counted_alike(negative, negative, lang)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "fact"),
+    [
+        (
+            "en",
+            "The account pays an interest rate of -0.5 % a year.",
+            "The account pays an interest rate of 0.5 % a year.",
+        ),
+        (
+            "en",
+            "The account pays an interest rate of 0.5 % a year.",
+            "The account pays an interest rate of -0.5 % a year.",
+        ),
+        (
+            "de",
+            "Das Konto hat einen Zinssatz von -0,5 % pro Jahr.",
+            "Das Konto hat einen Zinssatz von 0,5 % pro Jahr.",
+        ),
+        (
+            "de",
+            "Das Konto hat einen Zinssatz von 0,5 % pro Jahr.",
+            "Das Konto hat einen Zinssatz von -0,5 % pro Jahr.",
+        ),
+    ],
+)
+def test_a_flipped_sign_is_refused(lang, text, fact):
+    """The sign is part of the figure the passage states."""
+    must_refuse(lang, text, fact)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text"),
+    [
+        ("en", "The account pays an interest rate of -0.5 % a year."),
+        ("de", "Das Konto hat einen Zinssatz von -0,5 % pro Jahr."),
+    ],
+)
+def test_a_statement_keeping_its_sign_validates(lang, text):
+    """The restated figure is the cited one."""
+    must_validate(lang, text)

@@ -282,3 +282,52 @@ def test_a_space_grouped_count_reads_as_its_ungrouped_spelling(
 
     assert numbers(grouped, language) == numbers(plain, language)
     assert numerals(grouped, language) == numerals(plain, language)
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "value"),
+    [
+        ("The account pays -0.5 % a year.", "en", ("-0.5",)),
+        ("Das Konto hat einen Zinssatz von -0,5 % pro Jahr.", "de", ("-0.5",)),
+        ("Die Temperatur liegt bei −5 °C.", "de", ("-5",)),
+        ("The loss is (-12) EUR.", "en", ("-12",)),
+        ("Le compte a un taux de -0,5 % par an.", "fr", ("-0.5",)),
+        ("Ο λογαριασμός έχει επιτόκιο -0,5 % ετησίως.", "el", ("-0.5",)),
+        ("The account pays 0.5 % a year.", "en", ("0.5",)),
+    ],
+)
+def test_a_minus_before_a_figure_is_its_sign(text, language, value) -> None:
+    """A hyphen or minus sign that opens a token or follows a space is part of the number."""
+    from nlp.analysis import numbers
+
+    assert numbers(text, language) == value
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "value"),
+    [
+        ("Delivery takes 5-7 days.", "en", ("5", "7")),
+        ("Die Lieferung dauert 5-7 Tage.", "de", ("5", "7")),
+        ("- 5 EUR per month", "en", ("5",)),
+        ("- 5 EUR pro Monat", "de", ("5",)),
+        ("Livraison en 5-7 jours.", "fr", ("5", "7")),
+        ("Παράδοση σε 5-7 ημέρες.", "el", ("5", "7")),
+    ],
+)
+def test_a_dash_between_digits_or_before_a_space_is_no_sign(
+    text, language, value
+) -> None:
+    """A range and a bullet carry no minus: no number read is negative, each digit still is read."""
+    from nlp.analysis import numbers
+
+    read = numbers(text, language)
+    assert not [one for one in read if one.startswith("-") and one != "-"]
+    assert set(value) <= set(read)
+
+
+def test_figures_keep_the_sign_a_number_has() -> None:
+    """`figures` reads a signed number as negative, a range as two positive ones."""
+    from nlp.analysis import figures
+
+    assert figures("a rate of -0.5 % and 5-7 days", "en") == [-0.5, 5.0, 7.0]
+    assert figures("ein Zins von −0,5 % und 1.234,5", "de") == [-0.5, 1234.5]
