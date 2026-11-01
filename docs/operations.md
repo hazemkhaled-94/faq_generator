@@ -780,7 +780,7 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
 | C-366 | Every role model on one endpoint, `LLM_BASE_URL`. A split across Azure resources needs a gateway that routes by model id | An address per role (deferred) |
 | C-106 | Ingest only documents the corpus owner authored or controls: document text reaches every prompt as it is, so a planted instruction is read as one | Fencing the material (tried in v0.5.2 and withdrawn: fenced extraction narrowed 10 of 60 facts against 7 unfenced, over the bar of 9) |
 | C-114 | Load bulk corpora with `make ingest DIR=`. The Upload page refuses more than 20 files or 200 MB, but Streamlit uploads every picked file into its 1 GB process first, so a large selection can kill it | A check before the upload, which Streamlit cannot make |
-| C-054 | After a deletion through the pages or the API, run `make extract-dedup`: no extraction worker runs on this profile. `make delete` and `make delete-derived` run it themselves | A replay by the host runner |
+| C-054 | After a deletion through the pages or the API, the next `make corpus` or `make corpus-hosted` replays the dedup before the bridge pass. Run `make extract-dedup` at once if the refusals are wanted sooner. `make delete` and `make delete-derived` run it themselves | |
 | C-066 | Export a large corpus with `make questions-export` on the host, never through the pages: the API builds the workbook in its 512 MB (it failed past about 13,000 questions in v0.5.1) | The streaming export, deferred to v0.5.3 |
 | C-029 | Report the difficulty band as retrieval spread, never as hardness, and leave `QUESTIONS_RELEASE_DIFFICULTY` unset | A grading of how hard a question is to answer, not built |
 | C-031 | Leave distant-from-document out of per-category reports: most of its released rows use the document's words | A per-question word-distance reading (deferred) |
@@ -1448,8 +1448,9 @@ passage. After a deletion, `make extract-dedup` (run by `make delete` and
 re-capping only the passages of what it gave back. Every deletion ends with a
 line saying how many duplicate refusals lost their twin. The extraction worker
 gives them back when its queue is empty. Where no extraction worker runs, as
-on the production profile, run `make extract-dedup` after a deletion through
-the pages or the API.
+on the production profile, the next `make corpus` or `make corpus-hosted`
+replays it before the bridge pass; run `make extract-dedup` after a deletion
+through the pages or the API to have it at once.
 
 Both steps refuse beside a running `extract-worker`, and `make delete` asks
 before it deletes, so a refusal leaves the document in place. If the replay

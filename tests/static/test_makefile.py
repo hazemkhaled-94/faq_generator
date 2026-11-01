@@ -215,6 +215,23 @@ def test_the_topics_are_fitted_after_extraction_and_before_a_bridge_needs_them()
     assert digests < fit < bridge
 
 
+def test_the_corpus_replays_the_dedup_before_a_bridge_or_a_question_needs_the_facts() -> (
+    None
+):
+    """A document deleted through the API or the page leaves refusals only the replay frees."""
+    lines = printed("corpus")
+    dedup = [at for at, line in enumerate(lines) if "extraction.run --dedup" in line]
+    bridged = next(
+        at for at, line in enumerate(lines) if "extraction.run --bridge" in line
+    )
+    questions = next(
+        at for at, line in enumerate(lines) if "question_generation.run" in line
+    )
+
+    assert dedup, "the corpus never replays the dedup"
+    assert dedup[0] < bridged < questions
+
+
 def test_the_corpus_writes_the_bridges_its_topics_are_missing() -> None:
     """After the topics are known and before a question is written from them.
 

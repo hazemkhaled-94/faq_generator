@@ -2366,6 +2366,12 @@ all:
 # One `$(MAKE)` per line rather than a prerequisite list: prerequisites are
 # ordered only while nothing runs in parallel, and this order is the point.
 #
+# The dedup replay after the digests, so a refusal whose twin went with a
+# document deleted through the API or the pages is given back before a bridge
+# or a question reads the facts: no extraction worker runs on this profile to
+# do it. It touches only the refusals that point at no twin, and asks nothing
+# of a served model.
+#
 # The judge last, and unconditionally: `assessment.run` reads
 # ASSESSMENT_ENABLED itself, says so and exits 0 when it is off. A `case`
 # on the flag here would be a second reader of it, and the two would
@@ -2379,6 +2385,7 @@ corpus:
 	$(MAKE) chunk-start $(CORPUS_PINS)     && $(MAKE) chunk $(CORPUS_PINS)
 	$(MAKE) extract-start $(CORPUS_PINS)   && $(MAKE) extract $(CORPUS_PINS)
 	$(MAKE) extract-digests $(CORPUS_PINS)
+	$(MAKE) extract-dedup $(CORPUS_PINS)
 	$(MAKE) topics-discover ENSURE=1 $(CORPUS_PINS)
 	$(MAKE) topics-status $(CORPUS_PINS)
 	$(MAKE) extract-bridge MISSING=1 $(CORPUS_PINS)

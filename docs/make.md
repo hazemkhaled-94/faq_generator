@@ -34,7 +34,7 @@ container may call only Ollama: `doctor` fails when `OLLAMA_CONTAINER_URL` or
 | Target | Does |
 |---|---|
 | `make all` | Bring the stack up, wait for Dagster to list the corpus job, and launch it. The container workers drain every stage but the topic fit, which Fit all on the Topics page asks for |
-| `make corpus` | Drain every stage on the host in order, stopping at the first drain that exits non-zero (3 a failed row, 75 a drain that stopped itself). Waits for `parse-worker` and `chunk-worker` to empty their queues, and refuses beside `extract-worker`, `topic-worker`, `question-worker` and `assess-worker`: stop those first |
+| `make corpus` | Drain every stage on the host in order (the dedup replay runs after the digests, so a deletion through the API or the pages is replayed), stopping at the first drain that exits non-zero (3 a failed row, 75 a drain that stopped itself). Waits for `parse-worker` and `chunk-worker` to empty their queues, and refuses beside `extract-worker`, `topic-worker`, `question-worker` and `assess-worker`: stop those first |
 | `make corpus-hosted` | `make corpus` on the host, detached and supervised. Needs `HOST_RUNNER=1`. See [Production host](operations.md#production-host) |
 | `make corpus-preflight` | What a hosted run proves before it starts: `HOST_RUNNER=1`, no model worker or Dagster up, the split, the database password and the Hugging Face cache |
 | `make corpus-database` | Print the database a corpus run acts on: `APP_DB_NAME` given or exported, else the files' |
