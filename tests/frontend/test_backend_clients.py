@@ -221,3 +221,28 @@ def test_deleting_every_topic_is_sent_confirmed() -> None:
     CatalogApi("http://api", session).delete_topics()  # type: ignore[arg-type]
 
     assert session.params == [{"confirm": "true"}]
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        "upload_api",
+        "health_api",
+        "catalog_api",
+        "lineage_api",
+        "settings_api",
+        "pipeline_api",
+    ],
+)
+def test_every_client_sends_to_backend_url_with_the_token(factory, monkeypatch) -> None:
+    """The HTTP API is the seam: an ingress address changes BACKEND_URL and nothing else."""
+    from lib import backend, config
+
+    monkeypatch.setattr(config, "BACKEND_URL", "https://api.example.invalid/base")
+    monkeypatch.setenv("API_TOKEN", "s3cret")
+    backend._session.clear()
+    client = getattr(backend, factory)()
+
+    assert client._base_url == "https://api.example.invalid/base"
+    assert client._session.headers["X-API-Token"] == "s3cret"
+    backend._session.clear()
