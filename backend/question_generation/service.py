@@ -1153,10 +1153,7 @@ class QuestionGenerationService(StageService):
                     },
                 )
             except Exception as exc:
-                self._fail(
-                    topic.id, f"{type(exc).__name__}: {exc}", current, is_outage(exc)
-                )
-                log.exception("failed topic %d", topic.id)
+                self._crashed(topic.id, exc, current, is_outage(exc))
         return topic.id
 
     def _topic(self, topic: TopicToCover, current: Span) -> list[list[CheckedQuestion]]:

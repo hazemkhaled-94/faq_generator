@@ -228,9 +228,9 @@ def test_any_other_error_fails_the_row_and_the_drain_goes_on() -> None:
     _service(queue, Broken()).drain()
 
     assert not queue.recorded
-    assert [why for _, why in queue.failed] == [
-        "ValueError: the answer was not JSON"
-    ] * 2
+    stored = [why for _, why in queue.failed]
+    assert all(why.startswith("ValueError (") for why in stored), stored
+    assert not any("not JSON" in why for why in stored), "the log holds the text"
 
 
 def test_every_metric_becomes_an_annotation_named_the_way_phoenix_names_it(

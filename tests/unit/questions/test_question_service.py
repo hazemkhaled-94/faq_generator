@@ -365,7 +365,7 @@ def test_a_model_that_will_not_answer_fails_the_topic(caplog) -> None:
     assert len(queue.failed) == 1
     key, error = queue.failed[0]
     assert key == 7
-    assert "did not answer" in error
+    assert error.startswith("ModelUnavailable ("), error
 
 
 class RefusesOnCalls(StubWriter):
@@ -467,7 +467,7 @@ def test_a_provider_that_refuses_everything_still_fails_the_topic() -> None:
 
     assert queue.stored == []
     assert len(queue.failed) == 1
-    assert "ContentPolicyViolationError" in queue.failed[0][1]
+    assert queue.failed[0][1].startswith("ModelRefused ("), queue.failed[0][1]
 
 
 def test_a_failure_names_the_kind_of_error_it_was() -> None:
@@ -478,7 +478,7 @@ def test_a_failure_names_the_kind_of_error_it_was() -> None:
 
     service.process_next()
 
-    assert queue.failed[0][1].startswith("RuntimeError:")
+    assert queue.failed[0][1].startswith("RuntimeError (")
 
 
 def test_a_drain_works_the_queue_until_it_is_empty() -> None:

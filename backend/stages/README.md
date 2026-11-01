@@ -125,6 +125,13 @@ Topic modelling builds its parser from its own actions. It has no `start`,
 | 3 | A row failed and the drain went on past it (`--retry` returns it). Or the start was refused before anything was claimed: a split the production profile cannot run, a stored row the catalogue refuses, or a model that does not answer |
 | 75 | The drain stopped itself, left what it held in the queue, and wants starting again |
 
+A row that fails on an error the stage did not expect stores the exception's
+type and a trace id, such as `OSError (the log holds the rest, trace ...)`, and
+not its text: the row is served by an open GET, and a driver's text names the
+database's host and role or the object store's endpoint. The full traceback is
+in the log under that trace id. A failure the stage names itself, such as an
+unreadable document, stores its own sentence.
+
 A drain stops itself, and exits 75, in three cases:
 
 - The model could not be reached for five rows in a row (`STOP_AFTER`). The
