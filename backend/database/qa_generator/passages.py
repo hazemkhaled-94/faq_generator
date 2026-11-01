@@ -12,6 +12,7 @@ from sqlalchemy import (
     BigInteger,
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -180,6 +181,16 @@ class Passage(Base):
         "gate, and a second worker loading two gigabytes to write one column is "
         "the cost this avoids. NULL until a passage has been through extraction "
         "under a deployment that embeds.",
+    )
+    nearest_foreign_cosine: Mapped[float | None] = mapped_column(
+        Float,
+        comment="The exact cosine between this passage and the closest "
+        "embedded passage of another document in the same language. "
+        "Written when the passage is embedded, and raised when a later "
+        "document's passage is closer, so the furniture filter reads a "
+        "column instead of probing for a twin per candidate. NULL while "
+        "the passage has no embedding or no other document holds its "
+        "language.",
     )
     page_from: Mapped[int | None] = mapped_column(
         Integer, comment="Page the passage starts on."

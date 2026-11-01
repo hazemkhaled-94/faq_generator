@@ -98,6 +98,9 @@ bridge fact is offered alone.
 - A passage that is the corpus's own furniture (a copyright notice, contents
   page or revision table) is never offered. It has a twin above
   `QUESTIONS_BOILERPLATE_COSINE` in another document of its own language. The
+  twin's cosine is `passages.nearest_foreign_cosine`, written exactly when a
+  passage is embedded and raised when a later document's passage is closer, so
+  the filter is a comparison on the row and not a probe per candidate. The
   reading abstains for a language held by one document and for a passage with
   no embedding, and `0` turns it off.
 - `QUESTIONS_PARTY_DENSITY` catches acknowledgements: the share of a passage's

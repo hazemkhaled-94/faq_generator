@@ -292,7 +292,13 @@ make extract-retry PASSAGE=<id>        # narrow any of them but extract to one p
 make extract-rerun SHA=<sha256>        # or to one document
 ```
 
-`extract-embed` does not apply the dedup gate.
+`extract-embed` does not apply the dedup gate. It also writes
+`passages.nearest_foreign_cosine` for the passages it embeds: the exact cosine
+to the closest embedded passage of another document in the same language, and
+the same value raised on the older passages a new document's passages are
+closer to. The questions stage reads it to leave out a corpus's own furniture.
+Deleting a document does not lower it: clear `passages.embedding` and run
+`extract-embed` again to recompute.
 
 A passage read again keeps a fact with the same kind, method, statement and
 citations, along with its id, embedding and questions. A fact the new reading

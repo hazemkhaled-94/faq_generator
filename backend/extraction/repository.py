@@ -1493,8 +1493,60 @@ class FactCatalog(Repository):
             ]
 
     def embed_passages(self, vectors: list[tuple[int, list[float]]]) -> int:
-        """Writes a vector onto each of the given passages."""
-        return self._embed(_PASSAGES, vectors)
+        """Writes a vector onto each of the given passages, and their furniture score."""
+        written = self._embed(_PASSAGES, vectors)
+        self.score_foreign([row for row, _ in vectors])
+        return written
+
+    def score_foreign(self, passage_ids: list[int]) -> None:
+        """Writes `nearest_foreign_cosine` for passages just embedded, and raises others'.
+
+        The exact maximum cosine to any embedded passage of another document
+        in the same language, so the furniture filter reads a column. The
+        passages given get their own score from every other passage; every
+        older passage of the same language that one of them is closer to than
+        it was to anything gets that cosine. Both read the same pairs, so a
+        document added later raises the scores its twins already hold.
+        """
+        if not passage_ids:
+            return
+        ids = bindparam("ids", type_=ARRAY(BigInteger))
+        with self._session.begin() as session:
+            session.execute(
+                text(
+                    """
+                    UPDATE passages p SET nearest_foreign_cosine = (
+                        SELECT max(1 - (q.embedding <=> p.embedding))
+                        FROM passages q
+                        WHERE q.doc_sha256 <> p.doc_sha256
+                          AND q.language = p.language
+                          AND q.embedding IS NOT NULL
+                    )
+                    WHERE p.id = ANY(:ids) AND p.embedding IS NOT NULL
+                    """
+                ).bindparams(ids),
+                {"ids": passage_ids},
+            )
+            session.execute(
+                text(
+                    """
+                    UPDATE passages q SET nearest_foreign_cosine = closest.best
+                    FROM (
+                        SELECT o.id, max(1 - (o.embedding <=> n.embedding)) AS best
+                        FROM passages n
+                        JOIN passages o ON o.doc_sha256 <> n.doc_sha256
+                                       AND o.language = n.language
+                        WHERE n.id = ANY(:ids) AND n.embedding IS NOT NULL
+                          AND o.embedding IS NOT NULL
+                        GROUP BY o.id
+                    ) AS closest
+                    WHERE q.id = closest.id
+                      AND (q.nearest_foreign_cosine IS NULL
+                           OR closest.best > q.nearest_foreign_cosine)
+                    """
+                ).bindparams(ids),
+                {"ids": passage_ids},
+            )
 
     def _embed(self, table: Table, vectors: list[tuple[int, list[float]]]) -> int:
         """Writes a vector onto each of the given rows of one table."""

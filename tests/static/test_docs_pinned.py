@@ -762,8 +762,8 @@ def test_the_boilerplate_twin_is_of_the_same_language() -> None:
     readme = _read("backend/question_generation/README.md")
     flat = _flat(readme)
 
-    assert "twin.language == Passage.language" in _function(
-        "backend/question_generation/queue.py", "repeated_across_documents"
+    assert "q.language = p.language" in _function(
+        "backend/extraction/repository.py", "score_foreign"
     )
     assert "of its own language" in _help("QUESTIONS_BOILERPLATE_COSINE")
     assert "in another document of its own language" in flat
@@ -781,8 +781,11 @@ def test_boilerplate_names_its_abstentions() -> None:
     )
     said = _help("QUESTIONS_BOILERPLATE_COSINE")
 
-    assert "twin.doc_sha256 != Passage.doc_sha256" in predicate
-    assert "Passage.embedding.is_not(None)" in predicate
+    scoring = _function("backend/extraction/repository.py", "score_foreign")
+
+    assert "q.doc_sha256 <> p.doc_sha256" in scoring
+    assert "q.embedding IS NOT NULL" in scoring
+    assert "Passage.nearest_foreign_cosine.is_not(None)" in predicate
     assert "a language held by one document" in said
     assert "a passage with no embedding" in said
 

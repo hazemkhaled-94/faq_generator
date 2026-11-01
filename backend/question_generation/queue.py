@@ -11,8 +11,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
+from sqlalchemy import and_, func, insert, select
 from sqlalchemy import false as sa_false
-from sqlalchemy import func, insert, select
 from sqlalchemy.orm import InstrumentedAttribute, aliased
 
 from confidence import confidence, scored
@@ -111,31 +111,22 @@ def repeated_across_documents(threshold: float):
     copyright notice; a translation is subject matter, and reading it as
     furniture took whole subjects out of both languages.
 
+    Read from `passages.nearest_foreign_cosine`, the exact cosine to the
+    nearest passage of another document of the same language, which
+    extraction writes when a passage is embedded and raises when a later
+    document's passage is closer. So the filter is a comparison on the row
+    and not a nearest-neighbour probe per candidate.
+
     Three ways this abstains, all of them correct rather than missing:
     a corpus of one document has no other document to repeat into, a
-    passage with no embedding cannot be compared, and a threshold of 0
-    turns the reading off.
-
-    ponytail: one k-NN probe per candidate passage, which is what pgvector
-    can do without a stored score. Linear in the corpus; past roughly 100k
-    passages this wants the nearest-foreign-neighbour distance materialised
-    on `passages` at chunk time, and this predicate reading that column
-    instead.
+    passage with no embedding cannot be compared (both leave the column
+    NULL), and a threshold of 0 turns the reading off.
     """
     if threshold <= 0:
         return sa_false()
-    twin = aliased(Passage)
-    return (
-        select(twin.id)
-        .where(
-            twin.doc_sha256 != Passage.doc_sha256,
-            twin.language == Passage.language,
-            twin.embedding.is_not(None),
-            Passage.embedding.is_not(None),
-            (1 - twin.embedding.cosine_distance(Passage.embedding)) >= threshold,
-        )
-        .limit(1)
-        .exists()
+    return and_(
+        Passage.nearest_foreign_cosine.is_not(None),
+        Passage.nearest_foreign_cosine >= threshold,
     )
 
 
