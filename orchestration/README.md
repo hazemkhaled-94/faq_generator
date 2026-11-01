@@ -96,6 +96,17 @@ backend), because it needs no torch, spaCy or model. It has no
 `DATABASE_URL` and no object store credentials, and
 `tests/smoke/test_compose.py` pins that.
 
+## Who may reach the UI
+
+The webserver runs through [`serve.py`](serve.py), which puts a host check
+(`localhost`, `127.0.0.1` and `dagster-webserver`) and a same-origin check in
+front of Dagster's application. Dagster reads a GraphQL query from the URL of a
+GET, and from a POST whose body is not JSON, without looking at who sent it, so
+a page the operator had open could launch a run or stop one. `serve.py` refuses
+GraphQL over GET, and refuses a write that the browser marks cross-site or
+same-site, or that carries an `Origin` other than the host it went to. The UI's
+own requests and the API's calls by service name still run.
+
 ## Running it
 
 ```bash
@@ -132,6 +143,7 @@ poetry run pytest tests/unit/orchestration
 | [`test_definitions.py`](../tests/unit/orchestration/test_definitions.py) | The code location: the assets, the job without the fit, the stopped triggers, the one-run cap and the clearing of a dead run |
 | [`test_assets.py`](../tests/unit/orchestration/test_assets.py) | What the asset and check bodies report, against a stand-in backend |
 | [`test_orchestration_client.py`](../tests/unit/orchestration/test_orchestration_client.py) | The stage routes as the orchestrator reads them, and the run id it carries |
+| [`test_serve.py`](../tests/unit/orchestration/test_serve.py) | The UI refusing a cross-site read or write and a foreign host, and still answering its own page and the API |
 | [`test_sensor.py`](../tests/unit/orchestration/test_sensor.py) | When a run is requested, and what `progress` records |
 | [`tests/smoke/test_compose.py`](../tests/smoke/test_compose.py) | That the orchestrator holds no credential for the application tables |
 
