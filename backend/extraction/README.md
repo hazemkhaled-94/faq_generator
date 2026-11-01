@@ -127,7 +127,9 @@ and a proper noun is lemmatised. A fact may rest on the sentences it cites, the
 passage's heading trail and the document's title. A name or number found only
 in an uncited sentence is an addition. So is a figure only the rest of the
 passage states, when the cited sentences state another of its kind: "costs EUR
-2" for a cited "costs EUR 5". `not_bridging` also refuses a statement naming the numbered
+2" for a cited "costs EUR 5". So is a figure the cited sentences give only
+beside another currency, share or period: "12 % for 5 months" for a cited "5 %
+for 12 months". `not_bridging` also refuses a statement naming the numbered
 heading of a cited passage ("Section 7"), because that is a claim about the
 document.
 

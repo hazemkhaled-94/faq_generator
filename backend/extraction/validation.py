@@ -781,7 +781,7 @@ def _kind_of(tokens: Sequence, at: int, language: str | None) -> str | None:
     token = tokens[at]
     if any(one.isdigit() for one in token.text) and (
         attached := re.sub(
-            r"[\d.,:/\s()+\-−±\u00bc-\u00be\u2150-\u215e]+", "", token.text
+            r"[\d.,:/\s()+\-−±'’\u00bc-\u00be\u2150-\u215e]+", "", token.text
         )
     ):
         return _named_kind(attached, language) or attached.casefold()
@@ -845,7 +845,10 @@ def _swapped(
     the passage supports: "costs EUR 2" for a cited "costs EUR 5". Maps each
     such figure as the statement writes it to the one the evidence writes. A
     cited figure the statement writes too is kept, not swapped out:
-    "EUR 4.95 for orders under EUR 50" keeps the 4.95.
+    "EUR 4.95 for orders under EUR 50" keeps the 4.95. A figure whose digits
+    the cited text gives only beside another named kind (a currency, a share,
+    a period) is a swap too: two figures traded between their kinds, "12 %
+    for 5 months" for a cited "5 % for 12 months".
     """
     elsewhere = numerals(passage.text, language)
     swaps: dict[str, str] = {}
@@ -864,6 +867,16 @@ def _swapped(
                 continue
             swaps[unit] = written
             break
+    for unit, digits, _, kind in said:
+        if unit in swaps or kind not in _VALUE_KINDS or not digits <= cited:
+            continue
+        if own is None:
+            own = _figure_tokens(evidence, language)
+        there = [
+            (written, near) for written, theirs, _, near in own if theirs == digits
+        ]
+        if there and all(near in _VALUE_KINDS - {kind} for _, near in there):
+            swaps[unit] = there[0][0]
     return swaps
 
 

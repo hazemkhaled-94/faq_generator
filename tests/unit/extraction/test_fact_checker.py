@@ -2390,3 +2390,90 @@ def test_a_count_missing_its_thousands_is_not_supported(
     judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
 
     assert not judged.validated, (judged.units_added,)
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "en",
+            "The promotional rate is 5 % for 12 months.",
+            "The promotional rate is 12 % for 5 months.",
+        ),
+        (
+            "de",
+            "Der Aktionszins beträgt 5 % für 12 Monate.",
+            "Der Aktionszins beträgt 12 % für 5 Monate.",
+        ),
+        (
+            "en",
+            "Returns are accepted within 30 days for a fee of 14 EUR.",
+            "Returns are accepted within 14 days for a fee of 30 EUR.",
+        ),
+        (
+            "de",
+            "Rücksendungen sind innerhalb von 30 Tagen für 14 Euro möglich.",
+            "Rücksendungen sind innerhalb von 14 Tagen für 30 Euro möglich.",
+        ),
+    ],
+)
+def test_two_figures_traded_between_their_kinds_are_refused(
+    language, evidence, statement
+) -> None:
+    """Each figure is cited, but under the other's kind: the statement says another thing."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "en",
+            "The promotional rate is 5 % for 12 months.",
+            "For 12 months the promotional rate is 5 %.",
+        ),
+        (
+            "de",
+            "Der Aktionszins beträgt 5 % für 12 Monate.",
+            "Für 12 Monate beträgt der Aktionszins 5 %.",
+        ),
+        (
+            "en",
+            "Returns are accepted within 30 days for a fee of 14 EUR.",
+            "A fee of 14 EUR applies to returns within 30 days.",
+        ),
+    ],
+)
+def test_figures_keeping_their_kinds_in_another_order_are_validated(
+    language, evidence, statement
+) -> None:
+    """Moving a figure within the sentence is no swap."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "fr",
+            "Le taux promotionnel est de 5 % pendant 12 mois.",
+            "Le taux promotionnel est de 12 % pendant 5 mois.",
+        ),
+        (
+            "el",
+            "Το επιτόκιο είναι 5 % για 12 μήνες.",
+            "Το επιτόκιο είναι 12 % για 5 μήνες.",
+        ),
+    ],
+)
+def test_a_language_no_pipeline_is_configured_for_never_reaches_the_swap_guard(
+    language, evidence, statement
+) -> None:
+    """Such a statement is refused at parse, before any figure is compared."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code != Rejection.UNSUPPORTED_ADDITION
