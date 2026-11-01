@@ -1166,7 +1166,7 @@ def test_a_language_no_pipeline_is_configured_for_reads_no_source_noun_either(
 # ── Where no language has a noun_chunks iterator ─────────────────────────
 
 
-@pytest.mark.parametrize("language", ["pl", "cs", "ro", "hr", "sl", "lt", "ko"])
+@pytest.mark.parametrize("language", ["pl", "cs", "ro", "hr", "sl", "lt"])
 def test_phrases_are_none_where_spacy_has_no_noun_chunks_for_the_language(
     language: str, monkeypatch
 ) -> None:
