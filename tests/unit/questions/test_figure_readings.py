@@ -308,3 +308,31 @@ def test_a_repeated_list_after_a_linking_adverb_names_nothing(
 ):
     """The key's own items, behind the same adverb, are named by nobody."""
     assert not unnamed(recovery, key, language, question)
+
+
+@pytest.mark.parametrize(
+    ("language", "recovered", "target"),
+    [
+        ("de", "mindestens 8 000 Zuschauer", "8000 Zuschauer"),
+        ("en", "at least 2 300 m²", "2,300 m²"),
+        ("en", "serves 12 000 customers", "12000 customers"),
+    ],
+)
+def test_a_space_grouped_count_agrees_with_its_other_spelling(
+    language, recovered, target
+) -> None:
+    """The verifier's recovery and the key may group their thousands differently."""
+    assert agrees(recovered, target, language)
+
+
+@pytest.mark.parametrize(
+    ("language", "recovered", "target"),
+    [
+        ("de", "mindestens 8 000 Zuschauer", "8 Zuschauer"),
+        ("en", "at least 12 000 customers", "12 customers"),
+        ("en", "at least 2 300 m²", "300 m²"),
+    ],
+)
+def test_a_count_missing_a_group_does_not_agree(language, recovered, target) -> None:
+    """A key that drops a group of a space-grouped count is another count."""
+    assert not agrees(recovered, target, language)

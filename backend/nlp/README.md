@@ -145,7 +145,7 @@ the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
 | `_SPELLING` | same | How the language writes a cardinal: nought to nineteen, the tens, hundred, thousand, and how they join. `CARDINALS` is built from it | `fünf`, `twenty` |
 | `CARDINALS` | same | Every cardinal `_SPELLING` spells, each as its value. The fact dedup gate and the question gates read it | `zwei`, `one` |
 | `DECIMAL_MARK` | same | The decimal mark. One such mark before three digits is a fraction, not thousands | `,`, `.` |
-| `AMOUNT_WORDS` | same | Currency codes and names beside which a space-grouped number is one figure (`5 000 Euro`). One group only: `1 000 000 EUR` stays three figures | `EUR`, `Euro`, `pound` |
+| `AMOUNT_WORDS` | same | Currency codes and names beside which a space-grouped number is one figure (`5 000 Euro`). One group only: `1 000 000 EUR` stays three figures. A group before a word that is no stop word is one figure too (`8 000 Zuschauer`), where the language has its own pipeline | `EUR`, `Euro`, `pound` |
 | `REFERENCE_LABELS` | same | Words that label a reference by a number: no amount follows (`Section 3 100 customers`) | `Abschnitt`, `Section` |
 | `_NUMBER_WORDS` | same | `CARDINALS` and the ordinals, each as its digits. The dedup gate compares numbers by it | `zwei`, `second` |
 | `_ORDINALS` | same | The ordinals `_NUMBER_WORDS` holds. An English hyphenated ordinal (`twenty-first`) is read as its last word | `zweite`, `second` |

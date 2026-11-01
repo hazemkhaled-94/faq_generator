@@ -2327,3 +2327,66 @@ def test_a_language_no_pipeline_is_configured_for_is_refused_at_parse_not_read(
     judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
 
     assert judged.rejection_code == Rejection.ASSERTS_NOTHING
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "de",
+            "Das Stadion muss mindestens 8 000 Zuschauer fassen.",
+            "Das Stadion muss mindestens 8000 Zuschauer fassen.",
+        ),
+        (
+            "de",
+            "Die Beleuchtungsstärke muss mindestens 1 250 lx betragen.",
+            "Die Beleuchtungsstärke muss mindestens 1.250 lx betragen.",
+        ),
+        (
+            "en",
+            "The media area must have at least 2 300 m² of floor space.",
+            "The media area must have at least 2,300 m² of floor space.",
+        ),
+        (
+            "en",
+            "The bank serves 12 000 customers.",
+            "The bank serves 12,000 customers.",
+        ),
+    ],
+)
+def test_a_count_in_its_other_spelling_is_supported(
+    language, evidence, statement
+) -> None:
+    """A space-grouped count is one figure, so its other spelling adds nothing."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "en",
+            "The bank serves 12 000 customers.",
+            "The bank serves 12 customers.",
+        ),
+        (
+            "de",
+            "Die Bank hat 12 000 Kundinnen und Kunden.",
+            "Die Bank hat 12 Kundinnen und Kunden.",
+        ),
+        (
+            "de",
+            "Das Stadion muss mindestens 8 000 Zuschauer fassen.",
+            "Das Stadion muss mindestens 8 Zuschauer fassen.",
+        ),
+    ],
+)
+def test_a_count_missing_its_thousands_is_not_supported(
+    language, evidence, statement
+) -> None:
+    """Dropping a group of a space-grouped count changes the count."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert not judged.validated, (judged.units_added,)

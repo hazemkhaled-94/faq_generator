@@ -216,3 +216,69 @@ def test_a_grouped_and_an_ungrouped_amount_are_one_number(
 
     assert numbers(grouped, language) == numbers(plain, language)
     assert numerals(grouped, language) == numerals(plain, language)
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "value"),
+    [
+        ("Das Stadion muss mindestens 8 000 Zuschauer fassen.", "de", [8000.0]),
+        ("Die Bank hat 12 000 Kundinnen und Kunden.", "de", [12000.0]),
+        ("The bank serves 12 000 customers.", "en", [12000.0]),
+        ("The bank serves 12 000 customers.", "en", [12000.0]),
+        ("The hall measures 2 300 m² in total.", "en", [2300.0]),
+        # An unconfigured language is read by the default pipeline's tags, which
+        # tell nothing about its words: the groups stay apart, as before.
+        ("La banque compte 8 000 clients.", "fr", [8.0, 0.0]),
+        ("Η τράπεζα έχει 8 000 πελάτες.", "el", [8.0, 0.0]),
+    ],
+)
+def test_a_space_grouped_count_before_a_noun_is_one_figure(
+    text, language, value
+) -> None:
+    """A group of three digits after a head and before a unit or noun is thousands."""
+    from nlp.analysis import figures
+
+    assert figures(text, language) == value
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "value"),
+    [
+        ("Zeile 12 345 678.", "de", [12.0, 345.0, 678.0]),
+        ("Rufen Sie 030 123 456 an.", "de", [30.0, 123.0, 456.0]),
+        ("Call 100 000 for help", "en", [100.0, 0.0]),
+        ("Under Section 3 100 customers were refunded.", "en", [3.0, 100.0]),
+        ("The row reads 12 345 678 in total.", "en", [12.0, 345.0, 678.0]),
+    ],
+)
+def test_a_table_row_a_phone_number_and_a_reference_stay_separate_figures(
+    text, language, value
+) -> None:
+    """No unit or noun follows a single group, or a label stands before it."""
+    from nlp.analysis import figures
+
+    assert figures(text, language) == value
+
+
+@pytest.mark.parametrize(
+    ("language", "grouped", "plain"),
+    [
+        ("de", "Mindestens 8 000 Zuschauer.", "Mindestens 8000 Zuschauer."),
+        ("de", "Mindestens 1 250 lx.", "Mindestens 1.250 lx."),
+        ("en", "At least 2 300 m².", "At least 2,300 m²."),
+        ("en", "The bank serves 12 000 customers.", "The bank serves 12000 customers."),
+        (
+            "en",
+            "The bank serves 12\u00a0000 customers.",
+            "The bank serves 12000 customers.",
+        ),
+    ],
+)
+def test_a_space_grouped_count_reads_as_its_ungrouped_spelling(
+    language, grouped, plain
+) -> None:
+    """The dedup numbers and the fact check's numerals agree across spellings."""
+    from nlp.analysis import numbers, numerals
+
+    assert numbers(grouped, language) == numbers(plain, language)
+    assert numerals(grouped, language) == numerals(plain, language)

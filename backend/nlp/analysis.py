@@ -75,7 +75,7 @@ def _grouped(document: Doc, language: str | None) -> Doc:
     """
     spans = []
     for found in _SPACED.finditer(document.text):
-        if _amount(document.text, found.start(), found.end(), language):
+        if _amount(document.text, found.start(), found.end(), language, document):
             span = document.char_span(
                 found.start(), found.end(), alignment_mode="expand"
             )
@@ -913,21 +913,56 @@ def _beside(found: re.Match[str] | None, keep_case: bool = False) -> str:
 _CURRENCY_AFTER = re.compile(r"\s?(?:[.,][-–—]+\s?)?([^\W\d_]+|[^\w\s])")
 
 
-def _amount(text: str, start: int, end: int, language: str | None) -> bool:
-    """Whether a space-grouped run is an amount: a currency word or sign beside it, no label before.
+def _amount(
+    text: str, start: int, end: int, language: str | None, document: Doc | None = None
+) -> bool:
+    """Whether a space-grouped run is one figure: a currency word or sign beside it, or a unit or noun after it, no label before.
 
     A text that is the run alone is one, as a unit read back out of an amount.
+    A word after the run that is no stop word makes it a count (`8 000
+    Zuschauer`), as the language's own pipeline reads it: another language's
+    pipeline reads nothing reliably, so there only a currency counts. `document` is the unmerged parse of `text` where `_grouped` asks;
+    a reader of the text alone is told what the parse merged.
     """
     if not text[:start].strip() and not text[end:].strip(" ."):
         return True
     code = (language or "").strip().lower()
     before = _beside(re.search(r"(\S+)\s?$", text[:start]))
-    return before not in REFERENCE_LABELS.get(code, ()) and any(
+    if before in REFERENCE_LABELS.get(code, ()):
+        return False
+    if any(
         is_currency(word, language)
         for word in (
             _beside(re.search(r"(\S+)\s?$", text[:start]), keep_case=True),
             _beside(_CURRENCY_AFTER.match(text[end:]), keep_case=True),
         )
+    ):
+        return True
+    if not _WORD_AFTER.match(text[end:]):
+        return False
+    if document is None:
+        merged = _read(text, language).char_span(start, end, alignment_mode="expand")
+        return merged is not None and len(merged) == 1
+    return _counts(document, end, language)
+
+
+#: What follows a figure when a word does: its letters, after one space.
+_WORD_AFTER = re.compile(r"\s?[^\W\d_]")
+
+
+def _counts(document: Doc, end: int, language: str | None) -> bool:
+    """Whether a word that is no stop word follows the run, in the language's own pipeline.
+
+    A unit or noun, and not the `for` of `Call 100 000 for help`. Read off the
+    word's own entry, not off its tag, which moves with the words around it:
+    `lx` was a noun in one sentence and a preposition in the next.
+    """
+    code = (language or "").strip().lower()
+    if code and document.lang_ != code:
+        return False
+    following = next((token for token in document if token.idx >= end), None)
+    return (
+        following is not None and following.text[:1].isalpha() and not following.is_stop
     )
 
 
@@ -1056,7 +1091,7 @@ _NUMBER_WORDS: dict[str, dict[str, str]] = {
 #: A run of digits, with the decimal or thousands marks inside it. Read off a
 #: token rather than off `like_num`, so a figure glued to its unit - `45m` -
 #: or written as a time - `08:00` - is still a number.
-_DIGITS = re.compile(r"\d+(?:['’]\d{3}(?!\d))*(?: \d{3})*(?:[.,]\d+)*")
+_DIGITS = re.compile(r"\d+(?:['’]\d{3}(?!\d))*(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)*")
 
 #: The zeros a run of digits opens with, which are no part of its value.
 _PADDING = re.compile(r"^0+(?=\d)")

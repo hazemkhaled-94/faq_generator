@@ -119,12 +119,13 @@ A statement the deterministic reader composed faces only `copied`.
 
 `unsupported_addition` compares numbers and proper nouns only. A number is read
 in any spelling (`1st` and `1 st`, `two` and `2`, `CHF 1'250.50` and
-`CHF 1250.50`: an apostrophe between a digit and three digits groups thousands),
-and a proper noun is lemmatised. A fact may rest on the sentences it cites, the passage's heading
-trail and the document's title. A name or number found only in an uncited
-sentence is an addition. So is a figure only the rest of the passage states,
-when the cited sentences state another of its kind: "costs EUR 2" for a cited
-"costs EUR 5". `not_bridging` also refuses a statement naming the numbered
+`CHF 1250.50`, `8 000 Zuschauer` and `8000 Zuschauer`: an apostrophe between a
+digit and three digits groups thousands, and so does a space before a noun),
+and a proper noun is lemmatised. A fact may rest on the sentences it cites, the
+passage's heading trail and the document's title. A name or number found only
+in an uncited sentence is an addition. So is a figure only the rest of the
+passage states, when the cited sentences state another of its kind: "costs EUR
+2" for a cited "costs EUR 5". `not_bridging` also refuses a statement naming the numbered
 heading of a cited passage ("Section 7"), because that is a claim about the
 document.
 
