@@ -1412,6 +1412,48 @@ def _clausal_correlate(token) -> bool:
     )
 
 
+#: The word that names the rest of a set in each language, as a lemma: "the
+#: others", "die anderen". Nominalised, it is a subject with no noun of its own
+#: that stands for what an earlier sentence listed. A newly configured language
+#: supplies its word; a language with no row reads none.
+_OTHER: dict[str, frozenset[str]] = {
+    "de": frozenset({"anderer"}),
+    "en": frozenset({"other"}),
+}
+
+
+def _quantifies(token) -> bool:
+    """Whether a token is the whole subject a statement opens with, standing for a set named before.
+
+    "Both cost 5 EUR a month", "The others are free of charge": nothing but a
+    determiner comes before it and its verb comes right after, so it has no
+    noun of its own. A pronoun counts that is neither personal, interrogative
+    nor relative and not singular, nor a neuter that carries no number
+    (`Nichts`), so a person-generic "Anyone may open an account" or "Jeder kann
+    ..." names nobody earlier. `who` in "Customers who hold a card" is a
+    question word to the tagger. Read off the
+    morphology, but for the word for the other, which a tagger reads as any of
+    three parts of speech.
+    """
+    if token.dep_ not in _SUBJECTS or token.i + 1 != token.head.i:
+        return False
+    if any(not (one.is_punct or one.pos_ == "DET") for one in token.doc[: token.i]):
+        return False
+    if token.lemma_.casefold() in _OTHER.get(token.doc.lang_, ()):
+        return True
+    kinds = set(token.morph.get("PronType"))
+    return (
+        token.pos_ == "PRON"
+        # A pronoun's lemma is lower case; a noun the tagger took for one, as
+        # `Zeitschinden` is, keeps its capital.
+        and token.lemma_.islower()
+        and not _interrogative(token)
+        and not kinds & {"Prs", "Rel", "Dem"}
+        and "Sing" not in token.morph.get("Number")
+        and "Neut" not in token.morph.get("Gender")
+    )
+
+
 def _refers(token, passages: Sequence[str] = ()) -> bool:
     """Reports whether a pronoun points at something outside the statement.
 
@@ -1422,6 +1464,8 @@ def _refers(token, passages: Sequence[str] = ()) -> bool:
     further on, "It is easy to close the account". Nor does a polite form,
     read against the passages the statement was drawn from.
     """
+    if _quantifies(token):
+        return True
     if token.pos_ != "PRON" or token.dep_ in _EXPLETIVE:
         return False
     if "Yes" in token.morph.get("Reflex"):

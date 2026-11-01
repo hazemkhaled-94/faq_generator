@@ -917,3 +917,83 @@ def test_a_language_with_no_row_in_the_pointing_table_reads_no_such_word(
 
     assert language not in _ANAPHORIC
     assert not any(_opens(token) for token in parse(statement, language)[:3])
+
+
+# ── A pronoun with no noun of its own opening the statement ──────────────
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("en", "Both cost 5 EUR a month."),
+        ("en", "The others are free of charge."),
+        ("en", "Some require a deposit."),
+        ("de", "Beide kosten 5 Euro im Monat."),
+        ("de", "Die anderen sind kostenlos."),
+        ("de", "Alle zahlen 5 Euro im Monat."),
+    ],
+)
+def test_a_bare_quantifier_as_the_subject_is_a_reference(
+    language: str, statement: str
+) -> None:
+    """Both, the others, some: stand for something the statement never named."""
+    from nlp.analysis import claim
+
+    assert claim(statement, language).references, statement
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("en", "Anyone may open an account."),
+        ("en", "Everyone must sign the form."),
+        ("en", "Nobody may withdraw more than 500 EUR."),
+        ("de", "Jeder kann ein Konto eröffnen."),
+        ("de", "Jeder Kunde kann ein Konto eröffnen."),
+        ("de", "Man darf höchstens 500 Euro abheben."),
+        ("de", "Niemand darf mehr abheben."),
+        ("en", "Both cards cost 5 EUR a month."),
+        ("de", "Beide Karten kosten 5 Euro im Monat."),
+    ],
+)
+def test_a_person_generic_subject_or_one_with_its_noun_is_no_reference(
+    language: str, statement: str
+) -> None:
+    """A singular generic person names nobody earlier, and a quantifier with a noun has one."""
+    from nlp.analysis import claim
+
+    assert not claim(statement, language).references, statement
+
+
+def _quantifier(language: str, lemma: str, pos: str, morph: str):
+    """A subject made by hand, in a language no pipeline here reads."""
+    import spacy
+    from spacy.tokens import Doc
+
+    return Doc(
+        spacy.blank(language).vocab,
+        words=[lemma, "x", "y", "."],
+        lemmas=[lemma, "x", "y", "."],
+        heads=[1, 1, 1, 1],
+        deps=["nsubj", "ROOT", "obj", "punct"],
+        pos=[pos, "VERB", "NOUN", "PUNCT"],
+        morphs=[morph, "", "", ""],
+    )[0]
+
+
+@pytest.mark.nlp
+def test_the_reading_is_by_morphology_so_a_language_not_configured_reads_the_same() -> (
+    None
+):
+    """A plural total pronoun is a reference in French and Greek as in German; its 'other' word is in no table."""
+    from nlp.analysis import _refers
+
+    assert _refers(_quantifier("fr", "tous", "PRON", "Number=Plur|PronType=Tot"))
+    assert _refers(_quantifier("el", "όλοι", "PRON", "Number=Plur|PronType=Tot"))
+    assert not _refers(_quantifier("fr", "chacun", "PRON", "Number=Sing|PronType=Ind"))
+    # 'les autres' is a noun to the tagger and French has no row in the table of
+    # nominalised 'other': inert.
+    assert not _refers(_quantifier("fr", "autre", "NOUN", "Number=Plur"))
+    assert not _refers(_quantifier("el", "άλλος", "NOUN", "Number=Plur"))
