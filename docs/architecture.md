@@ -118,6 +118,7 @@ flowchart TD
 |---|---|
 | `layers` | A stage sits above what it shares and below nothing but the api |
 | `stages-are-independent` | No backend service imports another |
+| `model-sdk` | Only llm.client imports the model SDKs |
 
 Two edges are allowed on purpose. `settings.changes` imports `llm.config` and
 every stage's `config` submodule, to call that service's own `Settings.load`.

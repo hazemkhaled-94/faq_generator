@@ -26,17 +26,23 @@ root_packages =
     assessment
     blob_store
     database
+    evaluation
     extraction
     ingestion
     llm
     nlp
+    orchestration
     preprocessing
     question_generation
+    review
     settings
     stages
     telemetry
     topic_modelling
-include_external_packages = False
+# True so that a vendor SDK can be named in the contracts at the end of this
+# file: each is imported by one adapter module, which is what lets another
+# provider replace it without touching a caller.
+include_external_packages = True
 
 
 [importlinter:contract:layers]
@@ -113,3 +119,37 @@ modules =
     preprocessing.parsing
     question_generation
     topic_modelling
+
+
+# One vendor SDK, one adapter module. A `forbidden` contract with every first-party
+# module as a source and the adapter's own import ignored: indirect chains through the
+# adapter are the point, so they are allowed.
+[importlinter:contract:model-sdk]
+name = Only llm.client imports the model SDKs
+type = forbidden
+source_modules =
+    api
+    archive
+    assessment
+    blob_store
+    database
+    evaluation
+    extraction
+    ingestion
+    llm
+    nlp
+    orchestration
+    preprocessing
+    question_generation
+    review
+    settings
+    stages
+    telemetry
+    topic_modelling
+forbidden_modules =
+    litellm
+    instructor
+allow_indirect_imports = True
+ignore_imports =
+    llm.client -> litellm
+    llm.client -> instructor

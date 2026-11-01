@@ -61,6 +61,27 @@ _REJECTED = (
 )
 
 
+def cannot_reason(model: str) -> bool:
+    """Whether litellm knows a hosted model and knows it does not reason.
+
+    Such a model refuses `reasoning_effort` outright, as gpt-4.1 and gpt-4o
+    do. A model litellm does not know, a deployment of its own name among
+    them, may reason, so it is not read as one that cannot.
+    """
+    known = litellm.model_cost.get(model) or litellm.model_cost.get(
+        model.split("/", 1)[-1]
+    )
+    return known is not None and not known.get("supports_reasoning")
+
+
+def debug_info(show: bool | None = None) -> bool:
+    """Reads litellm's debug-info switch and sets it when given, returning what it was."""
+    was = not litellm.suppress_debug_info
+    if show is not None:
+        litellm.suppress_debug_info = not show
+    return was
+
+
 def _causes(failure: BaseException) -> Iterator[BaseException]:
     """The failure and every exception behind it, nearest first."""
     seen: set[int] = set()

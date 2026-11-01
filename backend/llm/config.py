@@ -146,21 +146,6 @@ def _self_hosted(model: str) -> bool:
     return _provider(model).startswith("ollama")
 
 
-def _cannot_reason(model: str) -> bool:
-    """Whether litellm knows a hosted model and knows it does not reason.
-
-    Such a model refuses `reasoning_effort` outright, as gpt-4.1 and gpt-4o
-    do. A model litellm does not know, a deployment of its own name among
-    them, may reason, so it is not read as one that cannot.
-    """
-    import litellm
-
-    known = litellm.model_cost.get(model) or litellm.model_cost.get(
-        model.split("/", 1)[-1]
-    )
-    return known is not None and not known.get("supports_reasoning")
-
-
 #: The port an Ollama runtime listens on unless told otherwise.
 _OLLAMA_PORT = 11434
 
@@ -331,8 +316,12 @@ class Settings:
         """
         if not self.reasoning_effort:
             return None
-        if not _self_hosted(self.model) and _cannot_reason(self.model):
-            return None
+        if not _self_hosted(self.model):
+            # Deferred: llm.client is the one module that imports litellm.
+            from llm.client import cannot_reason
+
+            if cannot_reason(self.model):
+                return None
         return self.reasoning_effort
 
     @classmethod

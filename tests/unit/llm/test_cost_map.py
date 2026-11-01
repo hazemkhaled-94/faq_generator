@@ -25,8 +25,8 @@ def refuse(*args, **kwargs):
     raise OSError("network blocked")
 socket.socket.connect = refuse
 socket.create_connection = refuse
-import llm.config as config
-print(config._cannot_reason("azure/gpt-4.1"), config._cannot_reason("azure/gpt-5.6-sol"), len(attempts))
+import llm.client as client
+print(client.cannot_reason("azure/gpt-4.1"), client.cannot_reason("azure/gpt-5.6-sol"), len(attempts))
 """
 
 
