@@ -20,11 +20,11 @@ not use.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from evaluation import cases
 from evaluation.config import Settings
 from telemetry import pipeline
+from telemetry.evaluations import TraceStore, trace_store
 
 log = logging.getLogger(__name__)
 
@@ -40,18 +40,9 @@ def stored(name: str) -> str:
     return pipeline.scoped(name)
 
 
-def _client(settings: Settings):
-    """The Phoenix client.
-
-    Imported here rather than at module scope so `--help` and the tests
-    that read the case counts do not need the package installed.
-    """
-    from phoenix.client import Client
-
-    return Client(
-        base_url=settings.base_url,
-        headers={"Authorization": f"Bearer {settings.api_key}"},
-    )
+def _store(settings: Settings) -> TraceStore:
+    """The trace store, at the address the settings name."""
+    return trace_store(settings.base_url)
 
 
 def _examples(name: str) -> tuple[list[dict], list[dict]]:
@@ -112,18 +103,16 @@ def upload(name: str, settings: Settings) -> str:
         The dataset's id.
     """
     inputs, outputs = _examples(name)
-    dataset = _client(settings).datasets.create_dataset(
-        name=stored(name),
-        inputs=inputs,
-        outputs=outputs,
-        dataset_description=(
-            "The cases this pipeline is supposed to get right, from "
-            "evaluation/cases.py. Several are here because they caught "
-            "something."
-        ),
+    dataset = _store(settings).create_dataset(
+        stored(name),
+        inputs,
+        outputs,
+        "The cases this pipeline is supposed to get right, from "
+        "evaluation/cases.py. Several are here because they caught "
+        "something.",
     )
     log.info("%s: %d example(s) in Phoenix", name, len(inputs))
-    return dataset.id
+    return dataset
 
 
 def _passage(text: str, language: str):
@@ -331,27 +320,20 @@ def run(name: str, settings: Settings) -> str:
     model, _ = models(extraction, shared)
     log.info("scoring %s against %s", name, model.model)
 
-    client = _client(settings)
-    dataset = client.datasets.get_dataset(dataset=stored(name))
-    experiment = client.experiments.run_experiment(
-        dataset=dataset,
-        task=_extraction_task(
+    url = _store(settings).run_experiment(
+        stored(name),
+        _extraction_task(
             build_reader(shared, extraction), FactChecker(extraction.digest_share)
         ),
-        evaluators={"recall": _recall, "precision": _precision},
-        experiment_name=settings.run_name or f"extraction-{model.model}",
-        experiment_description=(
-            f"{model.model} at temperature {model.temperature}, scored by "
-            f"the pipeline's own checker."
-        ),
-        experiment_metadata={
+        {"recall": _recall, "precision": _precision},
+        settings.run_name or f"extraction-{model.model}",
+        f"{model.model} at temperature {model.temperature}, scored by "
+        f"the pipeline's own checker.",
+        {
             "model": model.model,
             "temperature": model.temperature,
             "structured_mode": model.structured_mode,
         },
-    )
-    url = client.experiments.get_experiment_url(
-        dataset_id=dataset.id, experiment_id=_id_of(experiment)
     )
     log.info("%s: recorded at %s", name, url)
     return url
@@ -368,7 +350,7 @@ def _phrasing(settings: Settings) -> str:
     pipeline actually asks, so swapping a 31B for a 12B and re-running
     this is the measurement that decides it.
     """
-    from llm.client import Client as ModelClient
+    from llm.client import build_model
     from llm.config import Settings as ModelSettings
     from question_generation.config import Settings as QuestionSettings
     from question_generation.phrasing import PROMPT_VERSION, PhrasingJudge
@@ -378,12 +360,10 @@ def _phrasing(settings: Settings) -> str:
     asked = model.overridden(questions.phrasing_model or questions.verifier_model)
     log.info("scoring %s against %s", PHRASING, asked.model)
 
-    client = _client(settings)
-    dataset = client.datasets.get_dataset(dataset=stored(PHRASING))
-    experiment = client.experiments.run_experiment(
-        dataset=dataset,
-        task=_phrasing_task(PhrasingJudge(ModelClient(asked))),
-        evaluators={
+    url = _store(settings).run_experiment(
+        stored(PHRASING),
+        _phrasing_task(PhrasingJudge(build_model(asked))),
+        {
             "names_its_source": _judged("names_its_source"),
             "self_contained": _judged("self_contained"),
             # Both floors, so neither score is read without the number it
@@ -392,13 +372,11 @@ def _phrasing(settings: Settings) -> str:
             "self_contained_floor": _constant("self_contained"),
             "answered": _answered,
         },
-        experiment_name=settings.run_name or f"phrasing-{asked.model}",
-        experiment_description=(
-            f"{asked.model} at temperature {asked.temperature}, on the "
-            f"residue the rules do not settle. Prompt version "
-            f"{PROMPT_VERSION}."
-        ),
-        experiment_metadata={
+        settings.run_name or f"phrasing-{asked.model}",
+        f"{asked.model} at temperature {asked.temperature}, on the "
+        f"residue the rules do not settle. Prompt version "
+        f"{PROMPT_VERSION}.",
+        {
             "model": asked.model,
             "temperature": asked.temperature,
             "prompt_version": PROMPT_VERSION,
@@ -406,15 +384,5 @@ def _phrasing(settings: Settings) -> str:
             "self_contained_floor": _majority("self_contained"),
         },
     )
-    url = client.experiments.get_experiment_url(
-        dataset_id=dataset.id, experiment_id=_id_of(experiment)
-    )
     log.info("%s: recorded at %s", PHRASING, url)
     return url
-
-
-def _id_of(experiment: Any) -> str:
-    """The experiment's id, however the client hands it back."""
-    if isinstance(experiment, dict):
-        return experiment.get("id") or experiment["experiment_id"]
-    return getattr(experiment, "id", None) or experiment.experiment_id

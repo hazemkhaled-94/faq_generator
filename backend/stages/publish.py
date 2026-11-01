@@ -54,7 +54,7 @@ from typing import TYPE_CHECKING, Any
 
 from llm.config import Settings as ModelSettings
 from stages.prompts import Composed, stored
-from telemetry.evaluations import ENDPOINT, client
+from telemetry.evaluations import ENDPOINT, TraceStoreUnavailable, trace_store
 
 if TYPE_CHECKING:
     from database.qa_generator import Prompt
@@ -250,17 +250,7 @@ def publish(service: str, composed: Iterable[Composed], model: ModelSettings) ->
             service,
         )
         return 0
-    connected = client(base_url)
-    if connected is None:
-        log.info(
-            "arize-phoenix-client is not installed, so %s's prompts are in the "
-            "table and not in Phoenix. `make prompts-publish` sends them.",
-            service,
-        )
-        return 0
-
-    from phoenix.client.types import PromptVersion
-
+    store = trace_store(base_url)
     sent, refused = 0, 0
     for row in rows:
         # Resolved per row, because a prompt may name a model of its own.
@@ -281,35 +271,30 @@ def publish(service: str, composed: Iterable[Composed], model: ModelSettings) ->
         if (shape := _response_format(row)) is not None:
             call["response_format"] = shape
         try:
-            connected.prompts.create(
-                name=named(service, row.name),
+            store.publish_prompt(
+                named(service, row.name),
                 # Nothing that goes stale. Phoenix sets this when it CREATES
                 # the prompt and ignores it on every version after, so a
                 # version or a digest written here is frozen at whichever
                 # one was published first and then quietly wrong.
-                prompt_description=(
-                    f"{service}: {row.name}. Composed in the source and "
-                    f"recorded by the stage that sends it; an edit here "
-                    f"reaches nothing."
-                ),
-                version=PromptVersion.from_openai(
-                    call,  # type: ignore[arg-type] - a plain dict of the same keys
-                    # What DOES move, on the version, which is written fresh
-                    # every publish: the version it came from, its digest,
-                    # and the parameters Phoenix has no field for.
-                    description=(
-                        f"PROMPT_VERSION {row.version} ({row.digest}). "
-                        f"Also sent: {also}."
-                    ),
-                    # MUSTACHE, so the `{{name}}` in a user template reads as
-                    # the variable it is. Safe for the system half: perturb's
-                    # `{{asks}}` and follow's `{{type}}` are filled in before
-                    # sending and are variables here too, and the single
-                    # braces in bridge's worked example are not a substitution.
-                    template_format="MUSTACHE",
-                    model_provider=named_provider,  # type: ignore[arg-type]
-                ),
+                f"{service}: {row.name}. Composed in the source and "
+                f"recorded by the stage that sends it; an edit here "
+                f"reaches nothing.",
+                call,
+                # What DOES move, on the version, which is written fresh
+                # every publish: the version it came from, its digest,
+                # and the parameters Phoenix has no field for.
+                f"PROMPT_VERSION {row.version} ({row.digest}). Also sent: {also}.",
+                named_provider,
             )
+        except TraceStoreUnavailable:
+            log.info(
+                "there is no trace client for %s, so its prompts are in the "
+                "table and not in the trace store. `make prompts-publish` "
+                "sends them.",
+                service,
+            )
+            return sent
         except Exception as exc:  # noqa: BLE001 - one bad prompt is not the rest
             # The first in full and the rest counted. A Phoenix that is down
             # refuses every prompt, and a stage would otherwise open its log

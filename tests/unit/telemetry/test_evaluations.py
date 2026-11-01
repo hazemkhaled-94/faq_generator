@@ -103,7 +103,7 @@ def test_a_host_command_signs_in_with_the_name_it_has(monkeypatch) -> None:
 
     monkeypatch.setattr("phoenix.client.Client", _Client)
 
-    Evaluations(BASE)._connect()
+    Evaluations(BASE)._connect()._sdk()
 
     assert signed["headers"] == {"Authorization": "Bearer a-secret"}
 
@@ -147,13 +147,12 @@ class _Phoenix:
         """Down, and posted nothing."""
         self.up = False
         self.posted: list[int] = []
-        self.spans = self
 
-    def log_span_annotations(self, span_annotations) -> None:
+    def annotate(self, annotations) -> None:
         """Takes the batch, or refuses it."""
         if not self.up:
             raise ConnectionError("connection refused")
-        self.posted.append(len(span_annotations))
+        self.posted.append(len(annotations))
 
 
 @pytest.fixture

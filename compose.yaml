@@ -88,6 +88,7 @@ x-service-env: &service-env
 x-phoenix-env: &phoenix-env
   OTEL_EXPORTER_OTLP_HEADERS: authorization=Bearer ${PHOENIX_ADMIN_SECRET:?add it to .env; .env.example names every secret}
   PHOENIX_API_KEY: ${PHOENIX_ADMIN_SECRET:?add it to .env; .env.example names every secret}
+  TRACE_STORE: ${TRACE_STORE}
 
 # Object store readers and writers.
 x-store-env: &store-env

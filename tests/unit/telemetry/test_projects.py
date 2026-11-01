@@ -13,6 +13,12 @@ import dataclasses
 import pytest
 
 from telemetry import pipeline, projects
+from telemetry.evaluations import PhoenixStore
+
+
+def store(client) -> PhoenixStore:
+    """The Phoenix adapter over a stand-in for its REST session."""
+    return PhoenixStore(session=client)
 
 
 class Answer:
@@ -140,7 +146,9 @@ def test_pruning_nothing_deletes_nothing() -> None:
 
     client = _Client()
 
-    assert projects.prune(client, [project("7-assessment-demo", ["assess"])]) == 0
+    assert (
+        projects.prune(store(client), [project("7-assessment-demo", ["assess"])]) == 0
+    )
     assert client.deleted == []
 
 
@@ -167,7 +175,7 @@ def test_pruning_takes_each_spent_project_once() -> None:
     client = _Client()
     held = [project("7-parsing-a", [projects.CALL]), project("7-parsing-b", [])]
 
-    assert projects.prune(client, held) == 2
+    assert projects.prune(store(client), held) == 2
     assert client.deleted == ["/v1/projects/7-parsing-a", "/v1/projects/7-parsing-b"]
 
 
@@ -200,11 +208,11 @@ def test_purging_takes_the_projects_that_hold_work_too() -> None:
     held = [project("spent", [projects.CALL]), project("worked", ["extract"])]
 
     pruning = _Client()
-    assert projects.prune(pruning, held) == 1
+    assert projects.prune(store(pruning), held) == 1
     assert pruning.deleted == ["/v1/projects/spent"], "pruning leaves the run"
 
     purging = _Client()
-    assert projects.prune(purging, held, everything=True) == 2
+    assert projects.prune(store(purging), held, everything=True) == 2
     assert purging.deleted == ["/v1/projects/spent", "/v1/projects/worked"]
 
 
@@ -252,13 +260,13 @@ def test_purging_takes_the_golden_datasets_too() -> None:
 
     client = _Client()
 
-    assert projects.purge_datasets(client, every_database=True) == 2
+    assert projects.purge_datasets(store(client), every_database=True) == 2
     assert client.deleted == ["/v1/datasets/d1", "/v1/datasets/d2"]
 
 
 def test_purging_an_empty_phoenix_deletes_nothing() -> None:
     """A wipe run twice is not an error."""
-    assert projects.prune(None, [], everything=True) == 0
+    assert projects.prune(store(None), [], everything=True) == 0
 
 
 @pytest.mark.parametrize("action", ["--list", "--prune", "--purge"])
@@ -365,7 +373,7 @@ def test_a_purge_spares_default_too() -> None:
     held = [project("default", ["extract"]), project("worked", ["extract"])]
 
     purging = _Client()
-    assert projects.prune(purging, held, everything=True) == 1
+    assert projects.prune(store(purging), held, everything=True) == 1
     assert purging.deleted == ["/v1/projects/worked"]
 
 
@@ -378,8 +386,6 @@ def test_a_purge_spares_default_too() -> None:
 )
 def test_the_command_line_flag_picks_what_is_deleted(monkeypatch, flag, taken) -> None:
     """--prune takes the spent projects only; --purge takes the runs too."""
-    import contextlib
-
     import telemetry
 
     class _Answer:
@@ -401,7 +407,7 @@ def test_the_command_line_flag_picks_what_is_deleted(monkeypatch, flag, taken) -
 
     client = _Client()
     monkeypatch.setattr(telemetry, "configure", lambda *_: None)
-    monkeypatch.setattr(projects, "_client", lambda: contextlib.nullcontext(client))
+    monkeypatch.setattr(projects, "_client", lambda: client)
     found = [project("spent", [projects.CALL]), project("worked", ["extract"])]
     monkeypatch.setattr(projects, "held", lambda _: found)
 
@@ -459,7 +465,7 @@ def test_a_dataset_purge_in_one_database_takes_only_its_own_datasets(
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/qa_bank")
     client = _Datasets()
 
-    assert projects.purge_datasets(client) == 1
+    assert projects.purge_datasets(store(client)) == 1
     assert client.deleted == ["d1"]
 
 
@@ -469,7 +475,7 @@ def test_a_dataset_purge_of_every_database_takes_them_all(monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/qa_bank")
     client = _Datasets()
 
-    assert projects.purge_datasets(client, every_database=True) == 3
+    assert projects.purge_datasets(store(client), every_database=True) == 3
     assert client.deleted == ["d1", "d2", "d3"]
 
 
@@ -478,27 +484,12 @@ def test_the_dataset_flag_reads_all_databases(monkeypatch) -> None:
     monkeypatch.delenv("APP_DB_NAME", raising=False)
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/qa_bank")
     client = _Datasets()
-    monkeypatch.setattr(projects, "_client", lambda: _Context(client))
+    monkeypatch.setattr(projects, "_client", lambda: client)
 
     projects.main(["--purge-datasets"])
     assert client.deleted == ["d1"]
     projects.main(["--purge-datasets", "--all-databases"])
     assert client.deleted == ["d1", "d1", "d2", "d3"]
-
-
-class _Context:
-    """A client as a context manager."""
-
-    def __init__(self, client) -> None:
-        """Holds the client."""
-        self.client = client
-
-    def __enter__(self):
-        """The client."""
-        return self.client
-
-    def __exit__(self, *exc) -> None:
-        """Nothing to close."""
 
 
 # ── Retention ──────────────────────────────────────────────────────────────

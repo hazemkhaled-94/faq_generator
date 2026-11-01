@@ -219,6 +219,7 @@ where compose set it and `PHOENIX_ADMIN_SECRET` where `.env` did.
 | Setting | Where | What it does |
 | --- | --- | --- |
 | `LOG_LEVEL` | `configs/env/deployment.env` | Every service, the frontend included |
+| `TRACE_STORE` | `configs/env/deployment.env` | `phoenix`, or `none` where traces are kept elsewhere: annotations, prompt publishing, project and dataset clean-up and retention are then skipped |
 | `LOG_FORMAT` | `configs/env/deployment.env` | `text` (a person) or `json` (a collector) on stdout; the JSON is the file's, one object per line |
 | `LOG_DIR` | `configs/env/deployment.env`, set over in `compose.yaml` | Where the JSON file goes. Unset means no file, and stdout only |
 | `OTEL_CONTAINER_ENDPOINT` | `configs/env/deployment.env` | Trace collector, as the containers reach it |

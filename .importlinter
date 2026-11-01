@@ -152,9 +152,13 @@ forbidden_modules =
     botocore
     litellm
     instructor
+    phoenix
+    openinference
 allow_indirect_imports = True
 ignore_imports =
     blob_store.s3.client -> boto3
     blob_store.s3.client -> botocore
     llm.client -> litellm
     llm.client -> instructor
+    telemetry.evaluations -> phoenix
+    telemetry.traces -> openinference

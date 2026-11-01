@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from evaluation import cases, experiments
+from telemetry.evaluations import PhoenixStore
 
 
 def test_recall_is_what_was_found_over_what_is_there() -> None:
@@ -276,7 +277,9 @@ def test_the_extraction_experiment_scores_the_reader_production_builds(
         config.Settings, "load", classmethod(lambda cls, source=None: extraction)
     )
     phoenix = _Phoenix()
-    monkeypatch.setattr(experiments, "_client", lambda settings: phoenix)
+    monkeypatch.setattr(
+        experiments, "_store", lambda settings: PhoenixStore(sdk=phoenix)
+    )
     built: list = []
     monkeypatch.setattr(
         experiments,
@@ -312,7 +315,9 @@ def test_a_golden_set_is_uploaded_under_this_databases_name(monkeypatch) -> None
 
     client = Client()
     client.datasets = client
-    monkeypatch.setattr(experiments, "_client", lambda settings: client)
+    monkeypatch.setattr(
+        experiments, "_store", lambda settings: PhoenixStore(sdk=client)
+    )
 
     experiments.upload(experiments.EXTRACTION, Settings.__new__(Settings))
 

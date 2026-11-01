@@ -229,9 +229,7 @@ def test_a_backup_restored_into_another_store_gives_the_manifests_keys_and_diges
     from archive import backup
 
     source = FakeObjectStore(BUCKETS)
-    source.put(
-        "statements", "qa_a/ab", b"Kontoauszug", content_type="text/plain"
-    )
+    source.put("statements", "qa_a/ab", b"Kontoauszug", content_type="text/plain")
     source.put("archive-eu", "qa_a/statements/ab@1", b"x", content_type="text/plain")
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@db/qa_a")
     monkeypatch.setattr(store, "object_store", lambda: source)
