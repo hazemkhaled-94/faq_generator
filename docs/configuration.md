@@ -53,7 +53,14 @@ missing port. Export `COMPOSE_ENV_FILES` for it. It cannot be set inside
 
 ```bash
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+export COMPOSE_FILE=compose.yaml:compose.dev.yaml   # the development stack only; leave it out with HOST_RUNNER=1
 ```
+
+The second line matters on a development stack. `make up` starts it with
+`compose.dev.yaml`, which mounts the checkout's source over the images; a compose
+command that names `compose.yaml` alone sees every first-party service's
+configuration changed and recreates them without the mounts. Name both files, as
+above, or use the make targets. The go-live profile starts `compose.yaml` alone.
 
 ## What is derived, and so written nowhere
 

@@ -75,6 +75,7 @@ runs at most two drains, the number its duplicate lock was measured with
 
 ```bash
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+export COMPOSE_FILE=compose.yaml:compose.dev.yaml   # the development stack only; leave it out with HOST_RUNNER=1
 podman compose up -d --scale extract-worker=2
 ```
 

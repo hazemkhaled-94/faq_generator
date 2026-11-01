@@ -117,6 +117,7 @@ it uses. Logs, dashboards, review, Adminer and Dagster are optional, and the
 ```bash
 make certs logs-dir
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+export COMPOSE_FILE=compose.yaml:compose.dev.yaml   # the development stack only; leave it out with HOST_RUNNER=1
 podman compose up -d api phoenix seaweedfs-volume seaweedfs-volume2
 make schema
 ```
@@ -181,6 +182,7 @@ a deployment runs no more ([Production deployment](#production-deployment)).
 
 ```bash
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+export COMPOSE_FILE=compose.yaml:compose.dev.yaml   # the development stack only; leave it out with HOST_RUNNER=1
 podman compose up -d --scale extract-worker=2
 ```
 
@@ -301,6 +303,7 @@ the first boot of an empty volume. On an existing volume, run it:
 
 ```bash
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+export COMPOSE_FILE=compose.yaml:compose.dev.yaml   # the development stack only; leave it out with HOST_RUNNER=1
 podman compose exec postgres bash /docker-entrypoint-initdb.d/init.sh
 ```
 

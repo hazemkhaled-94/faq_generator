@@ -166,3 +166,27 @@ def test_the_health_checks_that_need_a_shell_have_one() -> None:
     phoenix = BASE["phoenix"]["healthcheck"]["test"]
     assert phoenix[0] == "CMD" and phoenix[1].startswith("/")
     assert "--strict.perms=false" in BASE["filebeat"]["healthcheck"]["test"][1]
+
+
+def test_every_bare_compose_recipe_for_the_development_stack_names_the_override() -> (
+    None
+):
+    """A compose command that names compose.yaml alone recreates the first-party containers unmounted."""
+    for page in (
+        "docs/operations.md",
+        "docs/architecture.md",
+        "backend/stages/README.md",
+        "docs/configuration.md",
+    ):
+        text = (ROOT / page).read_text()
+        for block in re.findall(r"```bash\n(.*?)```", text, re.DOTALL):
+            if "COMPOSE_ENV_FILES" in block and re.search(
+                r"compose (up|exec)\b", block
+            ):
+                assert "COMPOSE_FILE=compose.yaml:compose.dev.yaml" in block, (
+                    page,
+                    block,
+                )
+    assert (
+        "COMPOSE_FILE=compose.yaml:compose.dev.yaml" in (ROOT / "Makefile").read_text()
+    )

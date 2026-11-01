@@ -463,6 +463,8 @@ doctor:
 	  else say MISSING "configs/env/deployment.env - it is in git; git checkout it"; fail=1; fi; \
 	say "-" "compose reads both: make passes them, a bare podman compose needs"; \
 	say "" "  export COMPOSE_ENV_FILES=configs/env/deployment.env,$(ENV_FILE)"; \
+	say "" "  export COMPOSE_FILE=compose.yaml:compose.dev.yaml   (development stack only: without it a bare"; \
+	say "" "  compose command recreates the first-party containers without their source mounts)"; \
 	if $(ASSIGNED) | grep -q change_me; then \
 	  say FAIL "$$($(ASSIGNED) | grep -c change_me) placeholder password(s) left - run: make setup"; fail=1; \
 	  else say ok "no placeholder passwords"; fi; \
