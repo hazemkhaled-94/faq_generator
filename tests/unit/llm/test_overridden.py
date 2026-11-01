@@ -301,3 +301,119 @@ def test_a_hosted_override_is_sent_no_window_and_no_effort() -> None:
 
     assert hosted.window is None
     assert hosted.thinking is None
+
+
+# ── One address per role ──────────────────────────────────────────────────
+
+
+def split(**overrides) -> Settings:
+    """Settings for a deployment whose roles are served from two Azure resources."""
+    return shared(
+        model="azure/gpt-4.1",
+        base_url="https://main.example/",
+        base_urls={
+            "writer": "https://writer.example/",
+            "extraction": "https://reader.example/",
+        },
+        **overrides,
+    )
+
+
+def test_a_role_with_an_address_of_its_own_is_sent_there() -> None:
+    """The writer's resource is not the verifier's."""
+    assert (
+        split().overridden("azure/gpt-5.6-sol", "writer").base_url
+        == "https://writer.example/"
+    )
+    assert (
+        split().overridden("azure/gpt-5.4", "extraction").base_url
+        == "https://reader.example/"
+    )
+
+
+def test_a_role_left_out_keeps_the_shared_address() -> None:
+    """Nothing changes by default: a mapping that names two roles leaves the rest."""
+    assert (
+        split().overridden("azure/gpt-4o", "judge").base_url == "https://main.example/"
+    )
+    assert split().overridden("azure/gpt-4o").base_url == "https://main.example/"
+
+
+def test_a_role_address_applies_even_when_no_model_is_named() -> None:
+    """The role follows the shared model and is still served where it is told."""
+    assert split().overridden(None, "writer").base_url == "https://writer.example/"
+    assert split().overridden(None, "writer").model == "azure/gpt-4.1"
+
+
+def test_a_role_address_wins_over_the_address_that_follows_the_provider() -> None:
+    """An operator naming an address for a role means it, across providers too."""
+    local = shared(
+        base_urls={"writer": "https://writer.example/"},
+        ollama_base_url="http://served:11434",
+    )
+
+    assert (
+        local.overridden("azure/gpt-4.1", "writer").base_url
+        == "https://writer.example/"
+    )
+
+
+def test_no_mapping_is_the_behaviour_there_always_was() -> None:
+    """The default is empty."""
+    assert shared().base_urls == {}
+    assert (
+        shared().overridden("ollama/other", "writer").base_url == "http://served:11434"
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (None, {}),
+        ("", {}),
+        ("writer=https://a.example/", {"writer": "https://a.example/"}),
+        (
+            " writer = https://a.example/v1?x=1 , extraction=https://b.example ",
+            {"writer": "https://a.example/v1?x=1", "extraction": "https://b.example"},
+        ),
+    ],
+)
+def test_llm_base_urls_is_read_as_role_equals_address(raw, expected) -> None:
+    """The address may carry `=` and `:`; only the first `=` splits."""
+    source = {
+        "LLM_MODEL": "azure/gpt-4.1",
+        "LLM_STRUCTURED_MODE": "JSON_SCHEMA",
+        "LLM_TEMPERATURE": "0",
+        "LLM_TIMEOUT_SECONDS": "30",
+        "LLM_MAX_ATTEMPTS": "2",
+    }
+    if raw is not None:
+        source["LLM_BASE_URLS"] = raw
+
+    assert Settings.load(source).base_urls == expected
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "writer",
+        "=https://a.example",
+        "writer=",
+        "Fragen=https://a.example",
+        "roles=https://a",
+    ],
+)
+def test_a_malformed_or_unknown_role_is_refused_naming_the_roles(raw) -> None:
+    """A typo would send a role to the shared address in silence."""
+    source = {
+        "LLM_MODEL": "azure/gpt-4.1",
+        "LLM_STRUCTURED_MODE": "JSON_SCHEMA",
+        "LLM_TEMPERATURE": "0",
+        "LLM_TIMEOUT_SECONDS": "30",
+        "LLM_MAX_ATTEMPTS": "2",
+        "LLM_BASE_URLS": raw,
+    }
+
+    with pytest.raises(ValueError, match="LLM_BASE_URLS") as refused:
+        Settings.load(source)
+    assert "verifier" in str(refused.value)

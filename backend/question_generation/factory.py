@@ -30,9 +30,9 @@ def models(
     LLM_MODEL when absent. QUESTIONS_PHRASING_MODEL names the third and is
     the verifier's when absent.
     """
-    writer = shared.overridden(settings.model)
-    verifier = shared.overridden(settings.verifier_model)
-    return writer, verifier, verifier.overridden(settings.phrasing_model)
+    writer = shared.overridden(settings.model, "writer")
+    verifier = shared.overridden(settings.verifier_model, "verifier")
+    return writer, verifier, verifier.overridden(settings.phrasing_model, "phrasing")
 
 
 def build_service(

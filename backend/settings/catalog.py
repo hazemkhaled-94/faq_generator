@@ -850,6 +850,17 @@ SETTINGS: tuple[Setting, ...] = (
         "provider's own default is.",
     ),
     Setting(
+        name="LLM_BASE_URLS",
+        service="platform",
+        kind="text",
+        optional=True,
+        fixed=True,
+        help="An address of its own for a role, as `role=address` entries "
+        "separated by commas, over the roles writer, verifier, phrasing, "
+        "extraction, digest, topics and judge. A role left out is served "
+        "from LLM_BASE_URL. For a split across several Azure resources.",
+    ),
+    Setting(
         name="OLLAMA_BASE_URL",
         service="platform",
         kind="text",

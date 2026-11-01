@@ -26,10 +26,10 @@ def models(
     EXTRACTION_DIGEST_MODEL names the digest reader and is the reader when
     absent.
     """
-    reading = shared.overridden(settings.model)
+    reading = shared.overridden(settings.model, "extraction")
     if not settings.digest_model:
         return reading, reading
-    return reading, shared.overridden(settings.digest_model)
+    return reading, shared.overridden(settings.digest_model, "digest")
 
 
 def build_reader(model: ModelSettings, settings: Settings) -> LlmExtractor:
@@ -119,4 +119,4 @@ def build_bridge(
         The extractor the bridge pass calls once per group.
     """
     settings = settings or Settings.load()
-    return BridgeExtractor(build_model(model.overridden(settings.model)))
+    return BridgeExtractor(build_model(model.overridden(settings.model, "extraction")))

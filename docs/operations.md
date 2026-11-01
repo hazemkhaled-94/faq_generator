@@ -693,7 +693,7 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
   `azure/gpt-5.4`, digests and judge `azure/gpt-4o`, verifier and topic naming
   `azure/gpt-4.1`.
 - With `HOST_RUNNER=1`, a drain and `make doctor` refuse a role that resolves
-  to an Ollama model (C-006, C-013). Every role uses one endpoint (C-366).
+  to an Ollama model (C-006, C-013). Every role uses `LLM_BASE_URL` unless `LLM_BASE_URLS` names its own (C-366).
 
 ### Settings
 
@@ -777,7 +777,7 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
 | C-026 | At most two `extract-worker` replicas, or two extraction drains, a database: `--scale extract-worker=2` | Measuring three or more drains on a copy |
 | C-082 | At most two model drains a database on the current Azure quota (six lost 3 of 10 topics to rate limits) | A larger quota, measured first |
 | C-085 | Every published port stays on 127.0.0.1 and one operator uses the host: `API_TOKEN` is shared and the pages have no login | A login on the pages and the API |
-| C-366 | Every role model on one endpoint, `LLM_BASE_URL`. A split across Azure resources needs a gateway that routes by model id | An address per role (deferred) |
+| C-366 | A split across Azure resources names an address per role in `LLM_BASE_URLS`; every role left out is on `LLM_BASE_URL`, and credentials are one set per provider | One credential per resource |
 | C-106 | Ingest only documents the corpus owner authored or controls: document text reaches every prompt as it is, so a planted instruction is read as one | Fencing the material (tried in v0.5.2 and withdrawn: fenced extraction narrowed 10 of 60 facts against 7 unfenced, over the bar of 9) |
 | C-114 | Load bulk corpora with `make ingest DIR=`. The Upload page refuses more than 20 files or 200 MB, but Streamlit uploads every picked file into its 1 GB process first, so a large selection can kill it | A check before the upload, which Streamlit cannot make |
 | C-054 | After a deletion through the pages or the API, run `make extract-dedup`: no extraction worker runs on this profile. `make delete` and `make delete-derived` run it themselves | A replay by the host runner |

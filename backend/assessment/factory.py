@@ -30,7 +30,7 @@ def judge_model(settings: Settings, shared: ModelSettings) -> ModelSettings:
     """
     if not settings.judge_model:
         raise ValueError(UNNAMED)
-    return shared.overridden(settings.judge_model)
+    return shared.overridden(settings.judge_model, "judge")
 
 
 def build_service(

@@ -186,6 +186,7 @@ def test_the_example_is_the_only_file_holding_a_secret() -> None:
         # than a credential, kept beside the credential that reaches it.
         "LLM_MODEL",
         "LLM_BASE_URL",
+        "LLM_BASE_URLS",
         "LLM_CONTAINER_MODEL",
         "OLLAMA_BASE_URL",
         "OLLAMA_CONTAINER_URL",

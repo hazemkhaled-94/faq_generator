@@ -163,6 +163,7 @@ last run's latency and spend.
 |---|---|---|
 | `LLM_MODEL` | `.env` | LiteLLM model id. The prefix picks the provider |
 | `LLM_BASE_URL` | `.env` | Where that model is served. Leave out for a hosted model |
+| `LLM_BASE_URLS` | `.env` | An address for one role, as `role=address` over writer, verifier, phrasing, extraction, digest, topics and judge. A role left out is served from `LLM_BASE_URL` |
 | `LLM_STRUCTURED_MODE` | `backend.env` | How a typed answer is requested |
 | `LLM_TEMPERATURE` | `backend.env` | Sampling temperature |
 | `LLM_TIMEOUT_SECONDS` | `backend.env` | How long one call may take |

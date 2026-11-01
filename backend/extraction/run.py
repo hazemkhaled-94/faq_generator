@@ -76,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
         """Builds the service, naming the model it will call."""
         model, settings, version = configured()
         # The effective model, which EXTRACTION_MODEL may have replaced.
-        calling = model.overridden(settings.model)
+        calling = model.overridden(settings.model, "extraction")
         log.info("extracting with %s at %s", calling.model, calling.base_url)
         return build_service(model, settings, version, digests)
 
@@ -96,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
         def ready() -> tuple[ModelSettings, Settings, str]:
             """The settings, and the reader proved, before a bridge is deleted."""
             model, settings, version = configured()
-            before_work(model.overridden(settings.model))
+            before_work(model.overridden(settings.model, "extraction"))
             return model, settings, version
 
         model, settings, version = proved(ready, "no bridge was deleted")

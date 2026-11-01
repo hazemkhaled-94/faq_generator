@@ -48,7 +48,7 @@ class _Loaded:
     def load(self, _source=None):
         """The settings, read from nothing."""
         return SimpleNamespace(
-            **{"overridden": lambda model: model, **self._attributes}
+            **{"overridden": lambda model, role=None: model, **self._attributes}
         )
 
 

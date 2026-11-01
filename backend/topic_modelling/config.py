@@ -66,7 +66,7 @@ class Settings:
             # the topics is worth a different one from reading the passages.
             # Absent keeps the shared one.
             model=llm.config.Settings.load(source).overridden(
-                optional("TOPIC_MODEL", source)
+                optional("TOPIC_MODEL", source), "topics"
             )
             if optional("LLM_MODEL", source)
             else None,

@@ -113,9 +113,12 @@ ships the model split:
   model that does not reason is sent no effort.
 - An assessment build warns when the judge is the writer's or verifier's
   model.
-- The split has one address: every role model is reached through
-  `LLM_BASE_URL`. A split across several Azure resources needs a gateway that
-  routes by model id.
+- The split has one address: every role model is reached through `LLM_BASE_URL`
+  unless `LLM_BASE_URLS` names an address for that role
+  (`writer=https://...,judge=https://...`, over writer, verifier, phrasing,
+  extraction, digest, topics and judge). A role left out keeps the shared
+  address, and the phrasing role follows the verifier. A gateway that routes by
+  model id still works with one address. Credentials stay one set per provider.
 
 Every drain logs `split: writer=... effort=...` before it claims a row. With
 `HOST_RUNNER=1`, a drain and `make doctor` refuse a role that resolves to an
@@ -173,6 +176,7 @@ component](architecture.md#swapping-a-component) says what each port is.
 | Setting | Default | Chooses |
 |---|---|---|
 | `OBJECT_STORE` | `s3` | the object store adapter; `s3` is the only one there is |
+| `LLM_BASE_URLS` | unset | an address for one role, so a split can span several Azure resources; `LLM_BASE_URL` serves the roles left out |
 | `ORCHESTRATOR` | `dagster` | what orders the stages: `dagster`, or `none` for a deployment whose stages run some other way |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | how spans are sent to `OTEL_EXPORTER_OTLP_ENDPOINT`: `grpc`, or `http/protobuf` for a collector behind an HTTPS ingress |
 | `REVIEW_TOOL` | `argilla` | where a person reviews what the models decided; `argilla` is the only one there is |
