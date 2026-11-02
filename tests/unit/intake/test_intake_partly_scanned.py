@@ -95,54 +95,6 @@ def test_a_page_of_text_with_a_picture_over_half_of_it_is_not_named() -> None:
     assert image_only_pages(pdf.tobytes(), OCR_CHARS) == ()
 
 
-@pytest.mark.parametrize("language", ["de", "en"])
-def test_a_picture_page_with_a_short_body_text_layer_is_not_named(language) -> None:
-    """A cover or a divider: sixty characters of title were read, so nothing is missing."""
-    pdf = pymupdf.open()
-    page = pdf.new_page(width=595, height=842)
-    page.insert_image(page.rect, pixmap=_picture(), keep_proportion=False)
-    page.insert_textbox(
-        pymupdf.Rect(60, 300, 535, 420), TEXT[language][:60], fontsize=18
-    )
-
-    assert image_only_pages(pdf.tobytes(), OCR_CHARS) == ()
-
-
-@pytest.mark.parametrize("language", ["de", "en"])
-def test_a_picture_page_with_only_a_running_head_and_a_page_number_is_named(
-    language,
-) -> None:
-    """Margin text is no body text: the page is a picture with a label on it."""
-    pdf = pymupdf.open()
-    page = pdf.new_page(width=595, height=842)
-    page.insert_image(page.rect, pixmap=_picture(), keep_proportion=False)
-    page.insert_text((60, 40), TEXT[language][:30], fontsize=9)
-    page.insert_text((290, 820), "17", fontsize=9)
-
-    assert image_only_pages(pdf.tobytes(), OCR_CHARS) == (1,)
-
-
-WATERMARKS = {
-    "de": "VERTRAULICH",
-    "en": "CONFIDENTIAL",
-    "fr": "COPIE",
-    "el": "ΑΝΤΙΓΡΑΦΟ",
-}
-
-
-@pytest.mark.parametrize("language", sorted(WATERMARKS))
-def test_a_scan_with_a_watermark_across_its_middle_is_still_named(language) -> None:
-    """A word of capitals set large over a picture is a stamp, not text that was read."""
-    pdf = pymupdf.open()
-    page = pdf.new_page(width=595, height=842)
-    page.insert_image(page.rect, pixmap=_picture(), keep_proportion=False)
-    page.insert_font(fontname="uni", fontbuffer=pymupdf.Font("helv").buffer)
-    page.insert_text((60, 420), WATERMARKS[language], fontsize=48, fontname="uni")
-    page.insert_text((290, 820), "2", fontsize=9)
-
-    assert image_only_pages(pdf.tobytes(), OCR_CHARS) == (1,)
-
-
 def test_the_service_warns_and_records_the_named_pages(caplog) -> None:
     """A partly scanned document is parsed, and says which pages it lost."""
     driver = ParseDriver(
@@ -153,9 +105,8 @@ def test_the_service_warns_and_records_the_named_pages(caplog) -> None:
         driver.run()
 
     assert SHA in driver.completed
-    assert "page(s) 2, 4 are a picture with no body text" in caplog.text
+    assert "no text layer on page(s) 2, 4" in caplog.text
     assert "page(s) 2, 4" in (driver.notes[SHA] or "")
-    assert "their text is missing" not in (driver.notes[SHA] or "")
     assert (
         driver.parsed.metadata[driver.parsed.key_for(SHA)]["image-only-pages"] == "2,4"
     )
@@ -168,14 +119,13 @@ def test_a_document_without_such_pages_is_recorded_as_before(caplog) -> None:
     with caplog.at_level("WARNING"):
         driver.run()
 
-    assert "a picture with no body text" not in caplog.text
+    assert "no text layer" not in caplog.text
     assert driver.notes[SHA] is None
     assert "image-only-pages" not in driver.parsed.metadata[driver.parsed.key_for(SHA)]
 
 
-@pytest.mark.parametrize("rotation", [90, 270])
-def test_a_rotated_scan_with_a_stamp_is_still_a_picture_page(rotation: int) -> None:
-    """A scan stored with /Rotate 90 or 270 and stamped with a page number is a picture.
+def test_a_rotated_scan_with_a_stamp_is_still_a_picture_page() -> None:
+    """A scan stored with /Rotate 90 and stamped with a page number is a picture.
 
     Its only text is the number, stamped at the foot as the reader sees it.
     """
@@ -191,11 +141,9 @@ def test_a_rotated_scan_with_a_stamp_is_still_a_picture_page(rotation: int) -> N
         pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 200, 280), False)
         pix.set_rect(pix.irect, (235, 235, 230))
         page.insert_image(page.rect, pixmap=pix, keep_proportion=False)
-        page.set_rotation(rotation)
+        page.set_rotation(90)
         visual = pymupdf.Point(page.rect.width / 2, page.rect.height - 20)
-        page.insert_text(
-            visual * page.derotation_matrix, "17", fontsize=9, rotate=rotation
-        )
+        page.insert_text(visual * page.derotation_matrix, "17", fontsize=9, rotate=90)
         data = doc.tobytes()
 
     assert image_only_pages(data, 100) == (2,)

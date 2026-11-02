@@ -667,14 +667,6 @@ def _softened(text: str) -> str:
 #: The share of a page a picture must cover for the page to count as a scan.
 _SCAN_COVER = 0.5
 
-#: The share of a page's height that is its top and its bottom margin, where
-#: a running head, a foot and a page number are set.
-_MARGIN = 0.1
-
-#: The words a page's body holds for it to be read text and not a stamp: a
-#: watermark across a scan is one or two words set large.
-_BODY_WORDS = 3
-
 
 def _union_area(rects: list[pymupdf.Rect]) -> float:
     """Returns the area covered by rectangles, overlaps counted once."""
@@ -706,45 +698,35 @@ def _covered(page: pymupdf.Page) -> float:
 
 
 def image_only_pages(data: bytes, characters: int = 0) -> tuple[int, ...]:
-    """Names the pages that are a picture and carry no body text.
+    """Names the pages that are a picture and carry next to no text layer.
 
     A document's mean characters per page hides one scanned page among
     digital ones, and OCR is not enabled, so such a page converts to nothing
-    but a stamp a merge tool put on it, `Seite 2 von 3`. Three words or more
-    outside the top and bottom margins are body text: a running head or a page
-    number is a stamp, and so is a watermark of a word or two, while a cover's
-    title or a divider's line was read, and the page lost nothing.
+    but a stamp a merge tool put on it, `Seite 2 von 3`.
 
     Args:
         data: The raw PDF bytes.
-        characters: The most characters a page may hold in all and still be a
-            stamp, PARSING_OCR_CHAR_THRESHOLD: the least a text page has.
+        characters: The most characters a page may hold and still be named,
+            PARSING_OCR_CHAR_THRESHOLD: the least a text page has.
 
     Returns:
-        The 1-based numbers of the pages with no body text and pictures
+        The 1-based numbers of the pages with that little text and pictures
         covering most of the page.
     """
     pages: list[int] = []
     with pymupdf.open(stream=data, filetype="pdf") as document:
         for number in range(1, document.page_count + 1):
             page = document[number - 1]
-            characters_here = 0
-            body_words = 0
-            for word in cast(list, page.get_text("words")):
-                # Words come in the unrotated page's space and the page's rect
-                # in the rotated one, so a scan stored on its side is put right.
-                shown = pymupdf.Rect(word[:4]) * page.rotation_matrix
-                if (
-                    _MARGIN * page.rect.height <= shown.y0
-                    and shown.y1 <= (1 - _MARGIN) * page.rect.height
-                ):
-                    body_words += 1
-                characters_here += len(word[4])
-            # Words in the body are text that was read, which a cover's title and a
-            # divider's line are; a stamp, a watermark or a page number is not.
-            if characters_here > characters or body_words >= _BODY_WORDS:
+            if len(str(page.get_text()).strip()) > characters:
                 continue
-            if _covered(page) >= _SCAN_COVER:
+            area = abs(page.rect)
+            covered = _union_area(
+                [
+                    pymupdf.Rect(info["bbox"]) & page.rect
+                    for info in page.get_image_info()
+                ]
+            )
+            if area and covered / area >= _SCAN_COVER:
                 pages.append(number)
     return tuple(pages)
 

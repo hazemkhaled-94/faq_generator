@@ -42,18 +42,12 @@ A document is scanned when `char_count / page_count` is below
 `PARSING_OCR_CHAR_THRESHOLD`, or when it has no counts. OCR is not
 implemented, so a scanned document is refused here.
 
-A digital PDF page with a picture over at least half of it and no body text is
-image-only. Body text is three words or more outside the top and bottom tenth
-of the page, read as the reader sees it, so a page stored on its side is read
-right. A page holds at most `PARSING_OCR_CHAR_THRESHOLD` characters in all
-(a merge tool's `Seite 2 von 3` stamp included), and a watermark of a word or
-two across the picture is a stamp too, while a cover's title or a divider's line
-is body text and the page was read. The cut at three words and at the tenth
-moves the named pages of the football set when it moves by a fifth: a cover
-whose title sits near the margin is the page that changes. The document is parsed for its text pages,
-and the page is named, as a picture with no body text, in a warning, in the
-`image-only-pages` metadata and in `documents.parse_error`, which the
-documents page, the API and `make parse-status` show. A re-parse clears it.
+A digital PDF page with at most `PARSING_OCR_CHAR_THRESHOLD` characters
+(a merge tool's `Seite 2 von 3` stamp included) and a picture over at least
+half of it is image-only. The document is parsed for its text pages, and the
+page is named in a warning, in the `image-only-pages` metadata and in
+`documents.parse_error`, which the documents page, the API and
+`make parse-status` show. A re-parse clears it.
 
 ### Step 3: Convert
 
@@ -234,7 +228,7 @@ Settings are read from the environment and can be overridden as
 
 | Setting | What it does |
 |---|---|
-| `PARSING_OCR_CHAR_THRESHOLD` | Characters per page below which a document is scanned and refused. Also the most text a picture page may hold in its top and bottom margins and still be image-only |
+| `PARSING_OCR_CHAR_THRESHOLD` | Characters per page below which a document is scanned and refused. Also the most text an image-only page may hold |
 | `PARSING_MIN_CONFIDENCE` | Lowest low score a conversion may carry, in [0, 1]: Docling's, averaged over the pages (Step 7) |
 | `PARSING_TABLE_MODE` | TableFormer mode, `fast` or `accurate`. Any other value is refused when the pipeline is built |
 | `PARSING_HEADING_HIERARCHY` | Whether the converter rebuilds the heading tree. On also turns on `generate_parsed_pages` |
