@@ -117,7 +117,8 @@ kind calls for run, and the first failure wins:
 
 A statement the deterministic reader composed faces only `copied`.
 
-`unsupported_addition` compares numbers and proper nouns only. A number is read
+`unsupported_addition` compares numbers, proper nouns and the month and weekday
+names a language's `CALENDAR_NAMES` lists. A number is read
 in any spelling (`1st` and `1 st`, `two` and `2`, `CHF 1'250.50` and
 `CHF 1250.50`, `8 000 Zuschauer` and `8000 Zuschauer`: an apostrophe between a
 digit and three digits groups thousands, and so does a space before a noun),

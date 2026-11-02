@@ -2573,3 +2573,87 @@ def test_a_year_in_a_language_no_pipeline_is_configured_for_is_refused_at_parse(
     judged = Checker(passage(text, language=language)).atomic(statement, 0)
 
     assert not judged.validated
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Die neuen Preise gelten ab dem 1. Januar 2026.",
+            "Die neuen Preise gelten ab dem 1. Februar 2026.",
+        ),
+        (
+            "de",
+            "Der Antrag muss bis zum 31. März eingereicht werden.",
+            "Der Antrag muss bis zum 31. Mai eingereicht werden.",
+        ),
+        (
+            "de",
+            "Die Filiale ist montags von 9 bis 18 Uhr geöffnet.",
+            "Die Filiale ist dienstags von 9 bis 18 Uhr geöffnet.",
+        ),
+        (
+            "de",
+            "Die Abrechnung erfolgt am Montag.",
+            "Die Abrechnung erfolgt am Freitag.",
+        ),
+        (
+            "en",
+            "The new prices apply from 1 January 2026.",
+            "The new prices apply from 1 February 2026.",
+        ),
+        (
+            "en",
+            "The branch is open on Mondays from 9 am to 6 pm.",
+            "The branch is open on Tuesdays from 9 am to 6 pm.",
+        ),
+    ],
+)
+def test_a_fact_moving_a_date_to_another_month_or_weekday_is_refused(
+    language, text, statement
+) -> None:
+    """A month or a weekday is a name a writer reports, whatever the tagger calls it."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Die neuen Preise gelten ab dem 1. Januar 2026.",
+            "Die neuen Preise gelten ab dem 1. Januar 2026.",
+        ),
+        (
+            "de",
+            "Die Filiale ist montags von 9 bis 18 Uhr geöffnet.",
+            "Die Filiale ist am Montag von 9 bis 18 Uhr geöffnet.",
+        ),
+        (
+            "de",
+            "Die Filiale ist am Montag von 9 bis 18 Uhr geöffnet.",
+            "Die Filiale ist montags von 9 bis 18 Uhr geöffnet.",
+        ),
+        (
+            "en",
+            "The new prices apply from 1 January 2026.",
+            "The new prices apply from 1 January 2026.",
+        ),
+    ],
+)
+def test_a_faithful_date_restatement_is_validated(language, text, statement) -> None:
+    """The same month or weekday, in whichever of its forms, is no addition."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+def test_a_german_month_is_a_unit_whatever_the_tagger_calls_it() -> None:
+    """German tags `Mai` as a common noun; its row in the calendar table makes it a unit."""
+    from nlp.analysis import claim
+
+    assert "mai" in claim("Der Bericht vom Mai ist fertig.", "de").units
+    assert "montag" in claim("Die Filiale ist montags geöffnet.", "de").units

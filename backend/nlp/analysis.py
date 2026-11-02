@@ -607,14 +607,49 @@ def ordinal(token: Token) -> str | None:
     return _ORDINALS.get(language, {}).get(text)
 
 
-def _units(span: Doc | Span) -> tuple[str, ...]:
+#: The names of the months and of the days of the week, by ISO 639-1 code,
+#: each as the one form it is folded to: German tags them as common nouns
+#: (`Januar`, `montags`), so a writer's choice of one is no proper noun to
+#: `_units`, and a fact moving a date to another month or day looks the same.
+#: A language missing here reads them by their tags. A newly configured
+#: language supplies its months and weekdays, with the adverbial and
+#: inflected forms it writes, each mapped to its base form, all lower case.
+_DE_MONTHS = (
+    "januar februar märz april mai juni juli august september oktober november dezember"
+)
+_DE_WEEKDAYS = "montag dienstag mittwoch donnerstag freitag samstag sonntag"
+CALENDAR_NAMES: dict[str, dict[str, str]] = {
+    "de": {
+        **{name: name for name in (_DE_MONTHS + " " + _DE_WEEKDAYS).split()},
+        "jänner": "januar",
+        "sonnabend": "samstag",
+        **{f"{day}s": day for day in _DE_WEEKDAYS.split()},
+    },
+}
+
+
+def _folded(token: Token, language: str | None) -> str | None:
+    """The form a month or weekday name is folded to, or None for any other token."""
+    names = CALENDAR_NAMES.get((language or token.doc.lang_).strip().lower(), {})
+    return next(
+        (
+            names[form]
+            for form in (token.lower_, token.lemma_.casefold())
+            if form in names
+        ),
+        None,
+    )
+
+
+def _units(span: Doc | Span, language: str | None = None) -> tuple[str, ...]:
     """Collects the values a statement may not introduce on its own.
 
-    Numbers and proper nouns only. Both are things a writer reports rather
-    than chooses, so one appearing in a statement and nowhere in the sentence
-    it cites was invented.
+    Numbers and proper nouns only, and the months and weekdays a language's
+    `CALENDAR_NAMES` lists, which its tagger may call common nouns. All are
+    things a writer reports rather than chooses, so one appearing in a
+    statement and nowhere in the sentence it cites was invented.
 
-    Three things are deliberately left out. Common nouns, because a statement
+    Three things are deliberately left out. Other common nouns, because a statement
     is supposed to name its subject in its own words. Verbs, because the
     statement is written rather than quoted, so its predicate is the model's
     to choose - "Die Digitalisierung schreitet fort" drawn from
@@ -636,6 +671,8 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
         if is_number(token):
             # An ordinal keeps what marks it, so `3.` is not the count 3.
             found.add((token.text if ordinal(token) else _bare(token.text)).casefold())
+        elif name := _folded(token, language):
+            found.add(name)
         elif token.pos_ == "PROPN":
             if (
                 capitalising
@@ -2645,7 +2682,7 @@ def vocabulary(text: str, language: str | None) -> frozenset[str]:
         for variant in (form, _bare(form))
         # An ordinal figure, `3.`, is no bare 3 as well.
         if variant and not (variant != form and ordinal(token))
-    )
+    ) | {name for token in document if (name := _folded(token, language))}
 
 
 def content(text: str, language: str | None) -> frozenset[str]:
@@ -2759,7 +2796,7 @@ def claim(
     document = _read(text, language)
     return Claim(
         predicates=_predicates(document) or int(_untagged_claim(document)),
-        units=_units(document),
+        units=_units(document, language),
         references=_references(document, passages, title),
         verbs=_verbs(document),
         figures=_figures(document),
