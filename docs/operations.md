@@ -752,6 +752,11 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
   (C-103), applied by `make up`: read its output, because a failure is printed
   and the stack starts anyway.
 - The release draw takes 10.6 s at 21,750 accepted questions (C-089).
+- The nightly's Model quality job is skipped until the repository owner sets
+  the variable `LLM_MODEL` and the secrets `AZURE_API_KEY`, `AZURE_API_BASE`
+  and `AZURE_API_VERSION` in the GitHub repository settings. Until then the
+  run shows it skipped, not green; once set, a model that does not answer
+  fails it.
 
 ### Before the first production release
 

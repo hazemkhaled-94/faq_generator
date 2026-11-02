@@ -309,6 +309,24 @@ def test_the_weights_job_caches_docling_by_its_version_and_keeps_a_failed_conver
     assert steps.index(refresh[0]) < steps.index(kept[0])
 
 
+def test_the_model_quality_job_runs_only_for_a_named_model_with_its_provider_secrets() -> (
+    None
+):
+    """Unset, it shows skipped rather than green; set, the step can authenticate.
+
+    A job that runs with no model skips all of its tests and reports success,
+    which reads as a quality measure that has been taken. The condition is on
+    the job, so the run says skipped, and the provider's credentials reach the
+    step from secrets, so a named model that does not answer fails.
+    """
+    job = loaded(ROOT / ".github/workflows/nightly.yml")["jobs"]["evaluate"]
+    (step,) = [one for one in job["steps"] if "pytest -m eval" in one.get("run", "")]
+
+    assert "vars.LLM_MODEL" in str(job.get("if", ""))
+    for name in ("AZURE_API_KEY", "AZURE_API_BASE", "AZURE_API_VERSION"):
+        assert f"secrets.{name}" in step["env"][name], name
+
+
 def test_a_mutation_run_that_cannot_start_fails_the_nightly() -> None:
     """The step that runs mutants is not allowed to fail quietly.
 

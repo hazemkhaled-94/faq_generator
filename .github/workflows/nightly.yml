@@ -163,11 +163,14 @@ jobs:
       - run: make test-perf
         continue-on-error: true
 
-  # Skips itself while LLM_MODEL is unset; a named model that does not answer
-  # fails it.
+  # Skips itself while LLM_MODEL is unset, so the run shows skipped and not a
+  # success that measured nothing; a named model that does not answer fails
+  # it. Setting the repository variable LLM_MODEL and the three AZURE_*
+  # secrets is the repository owner's step (docs/operations.md).
   evaluate:
     name: Model quality
     needs: setup
+    if: ${{ vars.LLM_MODEL != '' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -176,4 +179,7 @@ jobs:
         env:
           LLM_MODEL: ${{ vars.LLM_MODEL }}
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
+          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
+          AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
         run: poetry run pytest -m eval -s

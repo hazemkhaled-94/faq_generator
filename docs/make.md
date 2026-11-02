@@ -518,6 +518,12 @@ backend, configs, docs and `compose.yaml`. `make mutation` links `src` to
 A mutation run that cannot start fails the nightly; surviving mutants are
 listed in its summary and do not.
 
+The nightly's Model quality job runs only when the repository variable
+`LLM_MODEL` is set, and shows as skipped otherwise. To turn it on, set that
+variable (for example `azure/<deployment>`) and the secrets `AZURE_API_KEY`,
+`AZURE_API_BASE` and `AZURE_API_VERSION` in the repository's settings. A named
+model that does not answer fails the job.
+
 ## Cost
 ```bash
 make estimate                             # before a run: time, calls and USD of the rows still to do
