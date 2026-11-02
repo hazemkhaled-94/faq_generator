@@ -2013,11 +2013,16 @@ def test_the_url_is_split_as_sqlalchemy_splits_it_and_the_password_is_never_prin
     assert secret not in refused.stdout + refused.stderr
 
 
-@pytest.mark.parametrize("key", ["dbname", "host", "hostaddr", "port", "service"])
+@pytest.mark.parametrize(
+    "key", ["dbname", "host", "hostaddr", "port", "service", "db%6Eame", "ho%73t"]
+)
 def test_a_url_naming_its_database_or_host_in_the_query_is_refused(
     tmp_path: Path, key: str
 ) -> None:
-    """The query overrides the path, so the guard would read one database and the engine another."""
+    """The query overrides the path, so the guard would read one database and the engine another.
+
+    Percent-encoded, the key is one the engine decodes and the guard does not.
+    """
     url = f"postgresql+psycopg://u:p@localhost:5432/qa_scratch?{key}=qa_generator"
     done = probe(
         tmp_path,
@@ -2027,7 +2032,7 @@ def test_a_url_naming_its_database_or_host_in_the_query_is_refused(
         env_text=f"DATABASE_URL={url}\n",
     )
 
-    assert done.returncode == 2 and "in the query" in done.stderr, done
+    assert done.returncode == 2 and "REFUSED" in done.stderr, done
     assert "went-on" not in done.stdout
 
 
@@ -2079,3 +2084,26 @@ def test_a_failed_settings_load_stops_the_recipe_line(tmp_path: Path) -> None:
     assert done.returncode != 0, done
     assert "ran" not in done.stdout, done
     assert "APP_DB_NAME=" not in done.stderr, done
+
+
+def test_a_percent_encoded_database_name_is_refused_and_a_password_escape_is_not(
+    tmp_path: Path,
+) -> None:
+    """The engine decodes the name and the guard reads it raw; a password's escapes are the password's."""
+    encoded = probe(
+        tmp_path,
+        GUARDED,
+        "APP_DB_NAME=qa%5Fscratch",
+        "CONFIRM=qa%5Fscratch",
+        env_text="DATABASE_URL=postgresql+psycopg://u:p@localhost:5432/qa%5Fscratch\n",
+    )
+    assert encoded.returncode == 2 and "unencoded" in encoded.stderr, encoded
+
+    escaped = probe(
+        tmp_path,
+        GUARDED,
+        "APP_DB_NAME=qa_scratch",
+        "CONFIRM=qa_scratch",
+        env_text="DATABASE_URL=postgresql+psycopg://u:p%40ss@localhost:5432/qa_scratch\n",
+    )
+    assert "went-on" in escaped.stdout, escaped

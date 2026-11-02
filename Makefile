@@ -210,6 +210,8 @@ RESOLVED_DB = re='$(URL_PARTS)' && { [[ "$$DATABASE_URL" =~ $$re ]] || true; } &
 AGREED = $(RESOLVED_DB) && \
          { ! [[ "$$query" =~ [?\&](dbname|host|hostaddr|port|service)= ]] || \
          { echo "REFUSED: DATABASE_URL names its database, host or port in the query (dbname, host, hostaddr, port or service), which overrides the path: write it in the path and the authority" >&2; exit 2; }; } && \
+         { ! [[ "$$query" =~ [?\&][^=\&]*% || "$$db" == *%* ]] || \
+         { echo "REFUSED: DATABASE_URL percent-encodes its database name or a query key, which the guard reads raw and the engine decodes: write the database name and the query keys unencoded" >&2; exit 2; }; } && \
          { [ "$$db" = "$$APP_DB_NAME" ] || \
          { echo "REFUSED: DATABASE_URL names $$db but APP_DB_NAME is $$APP_DB_NAME; set APP_DB_NAME=$$db" >&2; exit 2; }; }
 
