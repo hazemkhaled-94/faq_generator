@@ -979,9 +979,10 @@ def _amount(
     """Whether a space-grouped run is one figure: a currency word or sign beside it, or a unit or noun after it, no label before.
 
     A text that is the run alone is one, as a unit read back out of an amount.
-    A word after the run that is no stop word makes it a count (`8 000
-    Zuschauer`), as the language's own pipeline reads it: another language's
-    pipeline reads nothing reliably, so there only a currency counts. `document` is the unmerged parse of `text` where `_grouped` asks;
+    A noun, name or unit after the run that is no stop word makes it a count
+    (`8 000 Kundinnen`), as the language's own pipeline reads it: another
+    language's pipeline reads nothing reliably, so there only a currency
+    counts. `document` is the unmerged parse of `text` where `_grouped` asks;
     a reader of the text alone is told what the parse merged.
     """
     if not text[:start].strip() and not text[end:].strip(" ."):
@@ -1010,19 +1011,32 @@ def _amount(
 _WORD_AFTER = re.compile(r"\s?[^\W\d_]")
 
 
-def _counts(document: Doc, end: int, language: str | None) -> bool:
-    """Whether a word that is no stop word follows the run, in the language's own pipeline.
+#: The open classes that follow a figure without being what it counts.
+_MODIFYING = frozenset({"ADJ", "ADV", "VERB", "AUX"})
 
-    A unit or noun, and not the `for` of `Call 100 000 for help`. Read off the
-    word's own entry, not off its tag, which moves with the words around it:
-    `lx` was a noun in one sentence and a preposition in the next.
+
+def _counts(document: Doc, end: int, language: str | None) -> bool:
+    """Whether a noun, name or unit that is no stop word follows the run, in the language's own pipeline.
+
+    Never an adjective, an adverb or a verb: `Es sind 1 000 fällig` reads two
+    figures. Not the `for` of `Call 100 000 for help` either. A stop word is
+    read off the word's own entry, and the open classes off its tag, because a
+    unit the tagger has no noun for (a symbol such as `lm`) is tagged a
+    preposition in one sentence and a noun in the next, and must merge in both.
+
+    shortcut: a label the language has no `REFERENCE_LABELS` entry for does
+    not stop a flattened table row `Tarif 5 100 Minuten` reading as 5100;
+    supply the label, or read the row by its table cells.
     """
     code = (language or "").strip().lower()
     if code and document.lang_ != code:
         return False
     following = next((token for token in document if token.idx >= end), None)
     return (
-        following is not None and following.text[:1].isalpha() and not following.is_stop
+        following is not None
+        and following.text[:1].isalpha()
+        and not following.is_stop
+        and following.pos_ not in _MODIFYING
     )
 
 

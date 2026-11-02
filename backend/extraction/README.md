@@ -122,7 +122,7 @@ names a language's `CALENDAR_NAMES` lists, and currencies, each folded to its IS
 code whether written as a code, a sign or a name (`5 EUR`, `5 €` and `5 Euro`
 are one amount; `5 USD` is another). A number is read
 in any spelling (`1st` and `1 st`, `two` and `2`, `CHF 1'250.50` and
-`CHF 1250.50`, `8 000 Zuschauer` and `8000 Zuschauer`: an apostrophe between a
+`CHF 1250.50`, `8 000 Kundinnen` and `8000 Kundinnen`: an apostrophe between a
 digit and three digits groups thousands, and so does a space before a noun),
 keeps its sign (`-0.5` is not `0.5`; a dash between digits, `5-7`, is no sign),
 reads a vulgar fraction as its value (`2½` is `2.5`),

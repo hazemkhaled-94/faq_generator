@@ -221,11 +221,11 @@ def test_a_grouped_and_an_ungrouped_amount_are_one_number(
 @pytest.mark.parametrize(
     ("text", "language", "value"),
     [
-        ("Das Stadion muss mindestens 8 000 Zuschauer fassen.", "de", [8000.0]),
+        ("Die Filiale betreut mindestens 8 000 Kundinnen.", "de", [8000.0]),
         ("Die Bank hat 12 000 Kundinnen und Kunden.", "de", [12000.0]),
         ("The bank serves 12 000 customers.", "en", [12000.0]),
-        ("The bank serves 12 000 customers.", "en", [12000.0]),
-        ("The hall measures 2 300 m² in total.", "en", [2300.0]),
+        ("The bank serves 12\u00a0000 customers.", "en", [12000.0]),
+        ("The warehouse measures 2 300 m² in total.", "en", [2300.0]),
         # An unconfigured language is read by the default pipeline's tags, which
         # tell nothing about its words: the groups stay apart, as before.
         ("La banque compte 8 000 clients.", "fr", [8.0, 0.0]),
@@ -245,6 +245,11 @@ def test_a_space_grouped_count_before_a_noun_is_one_figure(
     ("text", "language", "value"),
     [
         ("Zeile 12 345 678.", "de", [12.0, 345.0, 678.0]),
+        ("Es sind 1 000 fällig.", "de", [1.0, 0.0]),
+        ("Die Rate wird 5 120 jährlich gezahlt.", "de", [5.0, 120.0]),
+        ("The plan costs 5 120 yearly.", "en", [5.0, 120.0]),
+        ("Les frais sont 5 120 annuels.", "fr", [5.0, 120.0]),
+        ("Τα τέλη είναι 5 120 ετήσια.", "el", [5.0, 120.0]),
         ("Rufen Sie 030 123 456 an.", "de", [30.0, 123.0, 456.0]),
         ("Call 100 000 for help", "en", [100.0, 0.0]),
         ("Under Section 3 100 customers were refunded.", "en", [3.0, 100.0]),
@@ -263,8 +268,8 @@ def test_a_table_row_a_phone_number_and_a_reference_stay_separate_figures(
 @pytest.mark.parametrize(
     ("language", "grouped", "plain"),
     [
-        ("de", "Mindestens 8 000 Zuschauer.", "Mindestens 8000 Zuschauer."),
-        ("de", "Mindestens 1 250 lx.", "Mindestens 1.250 lx."),
+        ("de", "Mindestens 8 000 Kundinnen.", "Mindestens 8000 Kundinnen."),
+        ("de", "Mindestens 1 250 lm.", "Mindestens 1.250 lm."),
         ("en", "At least 2 300 m².", "At least 2,300 m²."),
         ("en", "The bank serves 12 000 customers.", "The bank serves 12000 customers."),
         (
