@@ -446,3 +446,48 @@ def test_the_full_stop_of_an_abbreviated_label_word_is_read_in_any_language(
 ) -> None:
     """The label is learned from the heading as text, so no language's table is consulted."""
     assert _names(_read(language, statement), word, "5", language) is True
+
+
+@pytest.mark.parametrize(
+    ("language", "statement", "path", "texts"),
+    [
+        (
+            "en",
+            "A transfer abroad costs a 2 EUR fee.",
+            "Annex > A.2",
+            ("A transfer abroad costs a 2 EUR fee.", "A card is free of charge."),
+        ),
+        (
+            "de",
+            "Die 2 Karten kosten 5 Euro im Monat.",
+            "Anhang > Die 2",
+            ("Zwei Karten kosten 5 Euro im Monat.", "Eine Karte ist kostenlos."),
+        ),
+        (
+            "fr",
+            "Les 2 cartes coûtent 5 euros par mois.",
+            "Annexe > Les 2",
+            ("Deux cartes coûtent 5 euros par mois.", "Une carte est gratuite."),
+        ),
+        (
+            "el",
+            "Οι 2 κάρτες κοστίζουν 5 ευρώ τον μήνα.",
+            "Παράρτημα > Οι 2",
+            ("Δύο κάρτες κοστίζουν 5 ευρώ τον μήνα.", "Μια κάρτα είναι δωρεάν."),
+        ),
+    ],
+)
+def test_a_bridge_with_a_closed_class_word_before_a_number_is_not_refused_as_a_location(
+    language, statement, path, texts
+) -> None:
+    """The article of `a 2 EUR fee` is no label word, whatever the heading `A.2` spells."""
+    under = passage(
+        texts[0], language=language, section_path=path, id=1, doc_sha256="d"
+    )
+    other = passage(
+        texts[1], language=language, section_path="Other > Part", id=2, doc_sha256="d"
+    )
+
+    judged = Checker().bridge(statement, [under, other])
+
+    assert judged.rejection_code != Rejection.NOT_BRIDGING, judged.validation_error

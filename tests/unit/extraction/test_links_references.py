@@ -338,7 +338,24 @@ def test_a_heading_numbered_with_an_abbreviated_word_is_a_label(language, text, 
         (f"Passage {i}.", f"Terms > {path}", "d") for i, path in enumerate(paths)
     ]
     reached = references(language, rows)
-    assert len(reached) == 1 and reached[0][0] == 1
+    assert reached == [(1, 4)], "to the heading it names, the third of three"
+
+
+@pytest.mark.parametrize(
+    "language,text,heading",
+    [
+        ("en", "A transfer abroad costs a 2 EUR fee.", "Annex > A.2"),
+        ("de", "Die 2 Karten kosten 5 Euro im Monat.", "Anhang > Die 2"),
+    ],
+)
+def test_a_closed_class_word_before_a_number_is_no_label_word(language, text, heading):
+    """A heading `A.2` or `Die 2` teaches no word, and `a 2 EUR fee` names no section.
+
+    French and Greek have no pipeline here: the default one tags their articles
+    as names, which no closed-class rule can see, so they are not asserted.
+    """
+    rows = [(text, "Terms > Intro", "d"), ("A passage.", heading, "d")]
+    assert references(language, rows) == []
 
 
 @pytest.mark.parametrize(

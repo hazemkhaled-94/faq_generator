@@ -359,6 +359,10 @@ _INFLECTIONS: dict[str, tuple[str, ...]] = {
 }
 
 
+#: What a tagger calls the words of the closed classes, in any language.
+_FUNCTION_WORDS = frozenset({"DET", "PRON", "ADP", "CCONJ", "SCONJ", "AUX", "PART"})
+
+
 def label_word(
     tokens: Sequence, at: int, words: Collection[str], language: str | None
 ) -> str | None:
@@ -369,6 +373,10 @@ def label_word(
     lemma as written). An inflection is an ending of the language's table.
     """
     token = tokens[at]
+    # A word of a closed class is no label: `a` of an annex `A.2` is the
+    # article, `Die` of a heading `Die 2` the German one.
+    if token.pos_ in _FUNCTION_WORDS:
+        return None
     # An abbreviation's full stop is no part of the word: 'Art.' is `art`.
     forms = {token.text.casefold().rstrip("."), token.lemma_.casefold().rstrip(".")}
     if found := next((w for w in words if w in forms), None):
