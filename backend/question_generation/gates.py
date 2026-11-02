@@ -428,7 +428,8 @@ def _leading(answer: str | None) -> str:
     text = (answer or "").lstrip()
     figure = FIGURE.match(text)
     if figure and (
-        not figure.group().isdecimal() or re.match(r"\s?[–-]\s?\d", text[figure.end() :])
+        not figure.group().isdecimal()
+        or re.match(r"\s?[–-]\s?\d", text[figure.end() :])
     ):
         return ""
     leading = re.match(r"\w+", text)
@@ -979,6 +980,14 @@ def _adposition(token) -> bool:
     return token.pos_ == "ADP" or any(child.pos_ == "ADP" for child in token.children)
 
 
+#: The symbols of a measure that may be written against its figure (`24h`,
+#: `5kg`): the international ones, which no language spells its own way. A
+#: letter that is no symbol, `3b` or `4a`, numbers a part of a document.
+_UNIT_SYMBOLS = frozenset(
+    {"h", "min", "s", "kg", "g", "mg", "m", "cm", "mm", "km", "l", "ml"}
+    | {"kb", "mb", "gb", "tb", "kw", "kwh"}
+)
+
 #: How a figure hangs off the noun it counts, in the English and German pipelines.
 _COUNTS_A_NOUN = frozenset({"nummod", "nk"})
 
@@ -986,17 +995,26 @@ _COUNTS_A_NOUN = frozenset({"nummod", "nk"})
 def _numbers_a_document(token, following) -> bool:
     """Whether a digit token numbers the document noun before it.
 
-    Not where a unit sticks to it (`24h`), a range runs on from it (`3-5`), or
-    it counts a noun that comes after it (`Standard 2 plan`): that is a
-    service level, a size or a tariff, and the document word is its name.
+    Not where a unit sticks to it (`24h`), a range runs on from it into a
+    noun (`3-5 days`), or it counts a noun that comes after it (`Standard 2
+    plan`): that is a service level, a size or a tariff, and the document
+    word is its name. A part number, `29119-4` or `3b`, is an identifier.
     """
-    if re.search(r"\d[^\W\d_]", token.text):
+    glued = re.search(r"\d([^\W\d_]+)", token.text)
+    if glued and glued[1].casefold() in _UNIT_SYMBOLS:
         return False
-    if len(following) > 1 and following[0].text in "-–" and is_number(following[1]):
+    if (
+        len(following) > 2
+        and following[0].text in "-–"
+        and is_number(following[1])
+        and following[2].pos_ in ("NOUN", "PROPN")
+        # A tagger reads the verb after `29119-4` as a noun, and it heads the clause.
+        and following[2].dep_ != "ROOT"
+    ):
         return False
     return not (
         token.dep_ in _COUNTS_A_NOUN
-        and token.head.i > token.i
+        and token.head.i == token.i + 1
         and token.head.pos_ in ("NOUN", "PROPN")
     )
 

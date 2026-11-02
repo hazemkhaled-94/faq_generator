@@ -62,6 +62,11 @@ def test_a_service_level_named_standard_is_not_a_cited_document(question, langua
         ("Was verlangt die Richtlinie 2019/1937 von einer Bank?", "de"),
         ("What does Regulation 2016/679 require of a shop?", "en"),
         ("Was fordert die Norm 20246 von einem Review?", "de"),
+        ("Was regelt die Richtlinie 3b für Banken?", "de"),
+        ("Was regelt das Rundschreiben 4a zur Meldung?", "de"),
+        ("What does Regulation 2a require?", "en"),
+        ("Was beschreibt die Norm 29119-4?", "de"),
+        ("What does Standard 29119-4 describe?", "en"),
         ("What does Directive 2011/83/EU require of online traders?", "en"),
     ],
 )
