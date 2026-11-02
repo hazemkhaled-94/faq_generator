@@ -372,6 +372,8 @@ def test_a_true_count_of_listed_items_still_is():
         ("Die Gebühr stieg von 1.900 EUR auf 2.050 EUR.", "de"),
         ("Das Limit stieg von 18.500 EUR auf 20.000 EUR.", "de"),
         ("The limit went from 12000 to 20000 units.", "en"),
+        ("Les frais sont passés de 1 900 EUR à 2 050 EUR.", "fr"),
+        ("Οι χρεώσεις αυξήθηκαν από 1 900 EUR σε 2 050 EUR.", "el"),
     ],
 )
 def test_two_amounts_are_not_two_periods(answer, language):
@@ -388,6 +390,10 @@ def test_two_amounts_are_not_two_periods(answer, language):
         ("Der Tarif galt von 03/2024 bis 05/2025.", "de"),
         ("The rate applied from 03/2024 to 05/2025.", "en"),
         ("FY2023 and FY2024", "en"),
+        ("The rate for 2023/24 and 2024/25.", "en"),
+        ("Der Satz für 2023/24 und 2024/25.", "de"),
+        ("De 2024 à 2025 les frais ont augmenté.", "fr"),
+        ("Από το 2024 στο 2025 αυξήθηκαν οι χρεώσεις.", "el"),
     ],
 )
 def test_two_years_or_dates_are_two_periods(answer, language):

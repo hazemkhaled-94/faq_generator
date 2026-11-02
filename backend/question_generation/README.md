@@ -298,7 +298,7 @@ step, and the free half of `leaks_source` runs in it too.
 
 | Gate | Rejects a question that | Costs |
 |---|---|---|
-| `malformed` | is not a question, carries no target answer when it claims one, is surely in the wrong language (a question merely naming a product of the other language is not), is one of its own facts handed back, or answers with the number of facts it cites (a bare integer: an amount, a decimal or a range is a value; a whole percentage still reads as a count) | nothing |
+| `malformed` | is not a question, carries no target answer when it claims one, is in the wrong language where a detector is sure of it (a question merely naming a product of the other language is not, and one in a language no configuration names is refused only where the all-language reading is at least 0.7), is one of its own facts handed back, or answers with the number of facts it cites (a bare integer: an amount, a decimal or a range is a value; a whole percentage still reads as a count) | nothing |
 | `compound` | asks two things | nothing |
 | `answer_too_short` | is scored against an answer below its form's floor | nothing |
 | `answer_too_long` | answers past its form's ceiling | nothing |
@@ -628,7 +628,9 @@ separately: `types.PROMPT_VERSION` for the thirteen writers,
 `verifier.PROMPT_VERSION` for the verifier's reads.
 
 The worked examples in the writers' and the phrasing judge's prompts come from
-subjects neither calibration corpus covers (libraries, permits, leases).
+subjects that are not a question either calibration corpus answers (libraries,
+permits, leases); a few compound-writer examples still share a banking or
+shopping subject with the shop corpus.
 `tests/static/test_prompts_name_no_domain.py` lists the words of the football and
 shop corpora and of the testing syllabi, in German and English, and fails a
 prompt that carries one.

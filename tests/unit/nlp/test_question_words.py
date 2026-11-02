@@ -66,6 +66,14 @@ _CASES = [
         [1, 1, 1, 2, 1],
         ["PronType=Int", "", "VerbForm=Inf", "", ""],
     ),
+    (
+        "el",
+        ["Ποιος", "πρέπει", "να", "καταθέσει", "την", "αίτηση", "?"],
+        ["PRON", "VERB", "PART", "VERB", "DET", "NOUN", "PUNCT"],
+        ["nsubj", "ROOT", "mark", "xcomp", "det", "obj", "punct"],
+        [1, 1, 3, 1, 5, 3, 1],
+        ["PronType=Int", "VerbForm=Fin", "", "VerbForm=Fin", "", "", ""],
+    ),
 ]
 
 
@@ -77,7 +85,11 @@ _CASES = [
 def test_a_one_verb_question_asks_one_thing(lang, words, tags, deps, heads, morphs):
     """A modal verb is no question word in any tagset, and the question word still is."""
     doc = _question(lang, words, tags, deps, heads, morphs)
-    verbs = [t.text for t in doc if t.tag_ in {"MD", "VMFIN", "WW|pv|tgw|ev", "WINIEN"}]
+    verbs = [
+        t.text
+        for t in doc
+        if t.tag_ in {"MD", "VMFIN", "WW|pv|tgw|ev", "WINIEN", "VERB"}
+    ]
 
     assert not any(_interrogative(t) for t in doc if t.text in verbs), verbs
     assert [t.text for t in doc if _asking(t)] == [words[0]]
