@@ -127,3 +127,22 @@ def test_an_api_that_cannot_be_reached_is_a_warning(monkeypatch, caplog) -> None
 
     assert code == 0
     assert "did not serve its settings" in caplog.text
+
+
+def test_an_api_that_accepts_and_then_hangs_fails_the_check(
+    monkeypatch, caplog
+) -> None:
+    """It was reached: only an api nothing connects to is a warning."""
+    monkeypatch.setenv("BACKEND_URL", "http://api:8000")
+    monkeypatch.setattr(drift.telemetry, "configure", lambda *_, **__: None)
+
+    def get(*args: object, **kwargs: object) -> None:
+        raise drift.requests.ReadTimeout("no answer")
+
+    monkeypatch.setattr(drift.requests, "get", get)
+
+    with caplog.at_level("ERROR"):
+        code = drift.main([])
+
+    assert code != 0
+    assert "did not serve its settings" in caplog.text
