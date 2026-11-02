@@ -29,15 +29,6 @@ from docling.datamodel.pipeline_options import (
     TableStructureOptions,
 )
 from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.models.stages.page_assemble.page_assemble_model import (
-    PageAssembleModel,
-    PageAssembleOptions,
-)
-from docling.models.stages.reading_order.readingorder_model import (
-    ReadingOrderModel,
-    ReadingOrderOptions,
-)
-from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
 from docling_core.types.doc.base import BoundingBox
 from docling_core.types.doc.common.content_layer import ContentLayer
 from docling_core.types.doc.document import DoclingDocument
@@ -47,8 +38,7 @@ from docling_core.types.doc.items.table.table_data import TableCell
 from docling_core.types.doc.items.text import SectionHeaderItem, TitleItem
 from docling_core.types.doc.labels import DocItemLabel
 
-from nlp.language import outside
-from nlp.text import latin, printed, rejoined, unfinished
+from nlp.text import printed, rejoined, unfinished
 from preprocessing.parsing.models import Conversion, SourceDocument
 from preprocessing.parsing.pipelines.base import ConversionFailed, Pipeline
 
@@ -170,76 +160,6 @@ _EDGE = 0.5
 
 #: One unit of a string, as the converter spaced it.
 _TOKEN = re.compile(r"\S+")
-
-
-#: Stands for a hyphen that ends a line while the converter's own join runs,
-#: so that it does not drop it.
-_KEPT = "\ufdd0"
-
-
-def _hyphen_read(line: str, text: str, following: str) -> bool:
-    """Whether the repair reads the hyphen ending a line, as it ends in `text`.
-
-    A hyphen after a Latin letter or a digit, in a text a pipeline is
-    configured for, or one between two figures, a range, in any text. Anywhere
-    else the repair leaves a break as it is, so the converter's own join closes
-    the word, as it does without this module.
-    """
-    if not (line.endswith("-") and len(line) > 1):
-        return False
-    before = line[-2]
-    if before.isdigit() and following[:1].isdigit():
-        return True
-    return (before.isdigit() or latin(before)) and not outside(text)
-
-
-class _Assembler(PageAssembleModel):
-    """Keeps the hyphen that ends a printed line, for `rejoined` to read.
-
-    The converter drops it whenever the next line starts with a letter or a
-    digit, so `Online-` over `Händler` is `OnlineHändler` and `14-` over `30`
-    is `1430`. Here the next line follows after a space, in a text the repair
-    reads; in a Greek or Cyrillic one, or one in a language no pipeline names,
-    the converter joins as it did.
-    """
-
-    def sanitize_text(self, lines: list[str]) -> str:
-        """Joins a cluster's lines, with `rejoined` left to close a broken word."""
-        text = " ".join(lines) if any(line.endswith("-") for line in lines) else ""
-        marked = [
-            line[:-1] + _KEPT if _hyphen_read(line, text, after) else line
-            for line, after in zip(lines, [*lines[1:], ""], strict=True)
-        ]
-        return super().sanitize_text(marked).replace(_KEPT, "-")
-
-
-class _ReadingOrder(ReadingOrderModel):
-    """Keeps the hyphen at the end of a block the converter merges with the next."""
-
-    def _merge_elements(self, element, merged_elem, new_item, page_height):
-        """Merges a block into the item before it, keeping a closing hyphen."""
-        text, orig = new_item.text, new_item.orig
-        joined = f"{text} {merged_elem.text}"
-        if _hyphen_read(text, joined, merged_elem.text.lstrip()):
-            new_item.text = text[:-1] + _KEPT
-        if _hyphen_read(orig, joined, merged_elem.text.lstrip()):
-            new_item.orig = orig[:-1] + _KEPT
-        super()._merge_elements(element, merged_elem, new_item, page_height)
-        new_item.text = new_item.text.replace(_KEPT, "-")
-        new_item.orig = new_item.orig.replace(_KEPT, "-")
-
-
-class _Pipeline(StandardPdfPipeline):
-    """Docling's PDF pipeline with the two joins above in place of its own."""
-
-    def __init__(self, pipeline_options) -> None:
-        super().__init__(pipeline_options)
-        self.assemble_model = _Assembler(options=PageAssembleOptions())
-        self.reading_order_model = _ReadingOrder(
-            options=ReadingOrderOptions(
-                use_page_separators=pipeline_options.use_reading_order_separators
-            )
-        )
 
 
 class PdfPipeline(Pipeline):
@@ -392,7 +312,6 @@ class PdfPipeline(Pipeline):
                 allowed_formats=[InputFormat.PDF],
                 format_options={
                     InputFormat.PDF: PdfFormatOption(
-                        pipeline_cls=_Pipeline,
                         pipeline_options=options,
                         # No backend=: Docling's own reports the font style
                         # heading levels are ranked by and the word cells

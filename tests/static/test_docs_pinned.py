@@ -609,7 +609,7 @@ def test_nlp_readme_lists_every_word_table() -> None:
     """Adding a language means editing every per-language table and language set.
 
     So the nlp README's 'Adding a language' section names each one the code
-    holds.
+    holds, the hyphen rejoin's letters included.
     """
     (value,) = re.findall(
         r"^NLP_MODELS=(.*)$", _read("configs/env/backend.env"), re.MULTILINE
@@ -651,9 +651,11 @@ def test_nlp_readme_lists_every_word_table() -> None:
             ):
                 coded.add(target.id)
     section = _section(_read("backend/nlp/README.md"), "## Adding a language")
+    text = _read("backend/nlp/text.py")
 
     assert {"JOINING", "_DIVISIONS"} <= keyed
-    wanted = keyed | coded
+    assert "def _broken_word(" in text and "[A-Za-zÄÖÜäöüß]" in text
+    wanted = keyed | coded | {"_broken_word"}
     missing = sorted(name for name in wanted if f"`{name}`" not in section)
     assert not missing, f"'Adding a language' does not name {missing}"
 
