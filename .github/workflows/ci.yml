@@ -222,27 +222,40 @@ jobs:
             curl -fsS -H "X-API-Token: $token" -F "file=@$pdf" "http://127.0.0.1:$port/documents"
             echo
           done
-      # Dagster's own run of the first two assets: each posts its stage's start
-      # to the api and waits for the worker to drain the queue, so this goes
-      # through Dagster, the api, the queue, the worker and the object store.
-      - name: Parse and chunk them through Dagster
-        run: >-
-          $DC exec -T dagster-webserver dagster asset materialize
-          -m orchestration --select parsed_documents,passages
-        env:
-          COMPOSE_PROFILES: orchestrated
-      - name: Check both documents were parsed and chunked
+      # Launched the way the pages launch it: the api's own route asks the
+      # Orchestrator port, which asks Dagster for the `corpus` job. The api
+      # refuses a run under HOST_RUNNER=1, which `make setup` copies from
+      # .env.example, so this stack runs as the development profile does.
+      - name: Launch the corpus job through the api
         run: |
+          sed -i 's/^HOST_RUNNER=.*/HOST_RUNNER=0/' .env
+          COMPOSE_PROFILES=orchestrated $DC up -d --wait api
+          token=$(sed -n 's/^API_TOKEN=//p' .env)
           port=$(sed -n 's/^BACKEND_PORT=//p' configs/env/deployment.env)
-          curl -fsS "http://127.0.0.1:$port/pipeline" | python3 -c '
-          import json, sys
-          stages = {one["stage"]: one["rows"] for one in json.load(sys.stdin)["stages"]}
-          print(stages)
-          for stage, done in (("parsing", "parsed"), ("chunking", "chunked")):
-              rows = stages[stage]
-              assert rows.get(done, 0) == 2, (stage, rows)
-              assert not rows.get("failed", 0), (stage, rows)
-          '
+          curl -fsS -X POST -H "X-API-Token: $token" "http://127.0.0.1:$port/pipeline/run"
+      # Parsing and chunking are done by the workers this stack has. The job goes
+      # on to extraction, which has none here, so the run is stopped once both
+      # documents are chunked.
+      - name: Wait for both documents to be parsed and chunked
+        run: |
+          token=$(sed -n 's/^API_TOKEN=//p' .env)
+          port=$(sed -n 's/^BACKEND_PORT=//p' configs/env/deployment.env)
+          python3 - "$port" <<'PY'
+          import json, sys, time, urllib.request
+          url = f"http://127.0.0.1:{sys.argv[1]}/pipeline"
+          deadline = time.monotonic() + 900
+          while True:
+              state = json.load(urllib.request.urlopen(url, timeout=10))
+              stages = {one["stage"]: one["rows"] for one in state["stages"]}
+              failed = {name: rows for name, rows in stages.items() if rows.get("failed")}
+              assert not failed, failed
+              if stages["parsing"].get("parsed") == 2 and stages["chunking"].get("chunked") == 2:
+                  print(stages)
+                  break
+              assert time.monotonic() < deadline, ("not done in 15 minutes", stages)
+              time.sleep(10)
+          PY
+          curl -fsS -X POST -H "X-API-Token: $token" "http://127.0.0.1:$port/pipeline/stop"
       - name: What the containers said
         if: failure()
         run: |
