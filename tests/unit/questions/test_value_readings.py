@@ -256,6 +256,58 @@ def test_a_value_that_starts_with_a_small_digit_is_not_a_count_of_the_facts(
     assert refused is None or "number of facts" not in refused[1], refused
 
 
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "statements"),
+    [
+        (
+            "Wie lange ist eine Rückgabe möglich?",
+            "2 – 3 Wochen",
+            "de",
+            [
+                "Die Rückgabe ist innerhalb von 2 – 3 Wochen möglich.",
+                "Die Ware muss unbenutzt sein.",
+            ],
+        ),
+        (
+            "How long does a refund take?",
+            "2 - 3 weeks",
+            "en",
+            [
+                "A refund takes 2 - 3 weeks on average.",
+                "Refunds are paid to the original card.",
+            ],
+        ),
+        (
+            "Combien de temps dure un remboursement?",
+            "2 – 3 semaines",
+            "fr",
+            [
+                "Un remboursement prend 2 – 3 semaines.",
+                "Il est versé sur la carte d'origine.",
+            ],
+        ),
+        (
+            "Πόσο διαρκεί η επιστροφή χρημάτων;",
+            "2 – 3 εβδομάδες",
+            "el",
+            ["Η επιστροφή διαρκεί 2 – 3 εβδομάδες.", "Καταβάλλεται στην αρχική κάρτα."],
+        ),
+    ],
+)
+def test_a_range_written_with_spaces_is_not_a_count_of_the_facts(
+    question, answer, language, statements
+):
+    """The dash may stand apart from both figures."""
+    refused, _ = structural(
+        question_text=question,
+        target_answer=answer,
+        answerable=True,
+        language=language,
+        statements=statements,
+    )
+    assert refused is None or "number of facts" not in refused[1], refused
+
+
 def test_a_bare_count_equal_to_the_cited_facts_is_still_refused():
     """The control: the bare key 2 over two cited facts counts its own citations."""
     refused, _ = structural(

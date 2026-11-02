@@ -428,7 +428,7 @@ def _leading(answer: str | None) -> str:
     text = (answer or "").lstrip()
     figure = FIGURE.match(text)
     if figure and (
-        not figure.group().isdecimal() or re.match(r"[–-]\s?\d", text[figure.end() :])
+        not figure.group().isdecimal() or re.match(r"\s?[–-]\s?\d", text[figure.end() :])
     ):
         return ""
     leading = re.match(r"\w+", text)
