@@ -683,25 +683,35 @@ def _calendar(token: Token, language: str | None) -> str | None:
     )
 
 
-def _currency(token: Token, language: str | None) -> str | None:
-    """The lower-case ISO code a currency token is folded to, or None for any other token.
+def _currency(token: Token, language: str | None) -> tuple[str, tuple[str, ...]] | None:
+    """A currency token as the way it is written and the ISO codes it may be read as, or None.
 
-    A code, a sign and one of the language's `CURRENCY_NAMES` fold to the same
-    code, whatever the tagger calls the token.
+    A code is itself, a sign or one of the language's `CURRENCY_NAMES` is the
+    codes it stands for, whatever the tagger calls the token: `$` is any dollar,
+    `¥` yen or yuan.
     """
     bare = token.text.strip(".,;:()")
     if bare in ISO_4217:
-        return bare.lower()
+        return bare.casefold(), (bare,)
     if len(bare) == 1 and unicodedata.category(bare) == "Sc":
-        return _SIGN_CODES.get(bare, bare).lower()
+        return bare, _SIGN_READINGS.get(bare, (bare,))
     names = CURRENCY_NAMES.get((language or token.doc.lang_).strip().lower(), {})
     return next(
         (
-            names[form].lower()
+            (form, names[form])
             for form in (token.lower_, token.lemma_.casefold())
             if form in names
         ),
         None,
+    )
+
+
+def currencies_named(text: str, language: str | None) -> tuple[frozenset[str], ...]:
+    """The currencies a text names, each as the codes it may be read as."""
+    return tuple(
+        frozenset(found[1])
+        for token in _read(text, language)
+        if (found := _currency(token, language))
     )
 
 
@@ -884,26 +894,38 @@ CARDINALS: dict[str, dict[str, int]] = {
 DECIMAL_MARK: dict[str, str] = {"de": ",", "en": "."}
 
 #: The names each language gives its currencies, by ISO 639-1 code, as lower
-#: case, each with the ISO 4217 code it names. The fact check folds a name, a
-#: code and a sign to that code, so `5 Euro`, `5 EUR` and `5 €` are one
-#: amount and `5 USD` is another. A language missing here has no names to
-#: fold: its codes and signs still are. A newly configured language
-#: supplies the names it writes, plurals included.
-CURRENCY_NAMES: dict[str, dict[str, str]] = {
-    "de": {"euro": "EUR", "dollar": "USD", "pfund": "GBP", "franken": "CHF"},
+#: case, each with the ISO 4217 codes it may mean, the commonest first: `Dollar`
+#: is a dozen currencies, `Euro` one. The fact check judges a currency only
+#: against a currency the cited text names, and accepts any reading, so `5 Euro`,
+#: `5 EUR` and `5 €` are one amount, `5 USD` is another and `$50` may be `CAD
+#: 50`. A language missing here has no names: its codes and signs still are
+#: read. A newly configured language supplies the names it writes, plurals
+#: included.
+CURRENCY_NAMES: dict[str, dict[str, tuple[str, ...]]] = {
+    "de": {
+        "euro": ("EUR",),
+        "dollar": ("USD", "CAD", "AUD", "NZD", "HKD", "SGD"),
+        "pfund": ("GBP",),
+        "franken": ("CHF",),
+    },
     "en": {
-        "euro": "EUR",
-        "euros": "EUR",
-        "dollar": "USD",
-        "dollars": "USD",
-        "pound": "GBP",
-        "pounds": "GBP",
+        "euro": ("EUR",),
+        "euros": ("EUR",),
+        "dollar": ("USD", "CAD", "AUD", "NZD", "HKD", "SGD"),
+        "dollars": ("USD", "CAD", "AUD", "NZD", "HKD", "SGD"),
+        "pound": ("GBP",),
+        "pounds": ("GBP",),
     },
 }
 
-#: The code each of the commonest currency signs stands for. A sign missing
-#: here is its own form.
-_SIGN_CODES = {"€": "EUR", "$": "USD", "£": "GBP", "¥": "JPY"}
+#: The codes each of the commonest currency signs may mean. A sign missing
+#: here is its own code.
+_SIGN_READINGS: dict[str, tuple[str, ...]] = {
+    "€": ("EUR",),
+    "$": ("USD", "CAD", "AUD", "NZD", "HKD", "SGD"),
+    "£": ("GBP",),
+    "¥": ("JPY", "CNY"),
+}
 
 #: The words that mark an amount of money, by ISO 639-1 code, as lower case:
 #: codes and names. A number grouped by a space - `5 000 Euro`,
@@ -921,7 +943,7 @@ _SIGN_CODES = {"€": "EUR", "$": "USD", "£": "GBP", "¥": "JPY"}
 #: yearly 120) is read as 5120. Upgrade: read a longer run where a currency
 #: stands beside each of its numbers, and a row by its table cells.
 AMOUNT_WORDS: dict[str, frozenset[str]] = {
-    language: frozenset(names) | {code.lower() for code in names.values()}
+    language: frozenset(names) | {codes[0].lower() for codes in names.values()}
     for language, names in CURRENCY_NAMES.items()
 }
 
@@ -2757,7 +2779,7 @@ def vocabulary(text: str, language: str | None) -> frozenset[str]:
         for variant in (form, _bare(form))
         # An ordinal figure, `3.`, is no bare 3 as well.
         if variant and not (variant != form and ordinal(token))
-    ) | {name for token in document if (name := _currency(token, language))}
+    )
 
 
 def folds(text: str, language: str | None) -> frozenset[str]:
@@ -2895,7 +2917,9 @@ def claim(
             sorted({one for token in document if (one := _calendar(token, language))})
         ),
         currencies=tuple(
-            sorted({one for token in document if (one := _currency(token, language))})
+            dict.fromkeys(
+                found for token in document if (found := _currency(token, language))
+            )
         ),
         references=_references(document, passages, title),
         verbs=_verbs(document),

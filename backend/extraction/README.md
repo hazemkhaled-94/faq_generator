@@ -117,10 +117,13 @@ kind calls for run, and the first failure wins:
 
 A statement the deterministic reader composed faces only `copied`.
 
-`unsupported_addition` compares numbers, proper nouns, the month and weekday
-names a language's `CALENDAR_NAMES` lists, and currencies, each folded to its ISO
-code whether written as a code, a sign or a name (`5 EUR`, `5 €` and `5 Euro`
-are one amount; `5 USD` is another). An abbreviation in the cited text (`Mo.`,
+`unsupported_addition` compares numbers, proper nouns and the month and weekday
+names a language's `CALENDAR_NAMES` lists. A currency is judged as a swap only: a
+statement's currency is refused when the cited text names a currency and none of
+the codes the statement's may be read as (`$` is any dollar, `¥` yen or yuan) is
+among its codes (`5 EUR`, `5 €` and `5 Euro` are one amount; `5 USD` is another). A
+cited text that names no currency judges none, so `5 pounds` of a weight is left
+to the units check. An abbreviation in the cited text (`Mo.`,
 `Dez.`) supports the full name; the statement's own are never read. A number is read
 in any spelling (`1st` and `1 st`, `two` and `2`, `CHF 1'250.50` and
 `CHF 1250.50`, `8 000 Kundinnen` and `8000 Kundinnen`: an apostrophe between a

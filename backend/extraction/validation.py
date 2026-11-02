@@ -27,6 +27,7 @@ from extraction.models import (
 from nlp.analysis import (
     as_noun,
     claim,
+    currencies_named,
     folds,
     is_currency,
     normalised,
@@ -174,7 +175,7 @@ class Judged:
             for unit in self.claim.asserted
             if unit not in self.evidence_vocabulary and unit not in self.supported
         )
-        return added + tuple(unit for unit, _ in self.swaps if unit not in added)
+        return tuple(dict.fromkeys(added + tuple(unit for unit, _ in self.swaps)))
 
 
 def _copied(judged: Judged) -> Failure | None:
@@ -566,6 +567,9 @@ class FactChecker:
         said = claim(
             statement, anchor.language, tuple(passage.text for passage, _ in rested)
         )
+        bridge_swaps, bridge_matched = _currency_swaps(
+            said, _JOIN.join(texts), anchor.language
+        )
         judged = Judged(
             statement=statement,
             evidence=_JOIN.join(texts),
@@ -584,7 +588,8 @@ class FactChecker:
                 numbers,
                 anchor.language,
                 statement,
-            ),
+            )
+            | bridge_matched,
             citations=tuple(one for _, one in rested),
             labels=tuple(
                 segment
@@ -594,6 +599,7 @@ class FactChecker:
             ),
             language=anchor.language,
             claims=2 if candidate.relation in _TWO_SIDED else 1,
+            swaps=tuple(bridge_swaps.items()),
         )
         return self._verdict(anchor, candidate, judged, WRITTEN, provenance)
 
@@ -667,10 +673,11 @@ class FactChecker:
         known, numbers = _carried(evidence, passage)
         known |= numbers
         supported = _supported_units(units, known, numbers, language, statement)
-        swaps: dict[str, str] = {}
+        swaps, matched = _currency_swaps(said, evidence, language)
+        supported |= matched
         if candidate.kind == FactKind.ATOMIC:
             alone = known | supported
-            swaps = _swapped(statement, evidence, numbers, passage, language)
+            swaps |= _swapped(statement, evidence, numbers, passage, language)
             known |= _evidence_vocabulary(passage.text, language)
             numbers |= numerals(passage.text, language)
             known |= numbers
@@ -688,7 +695,7 @@ class FactChecker:
             }
             known -= numbered
             supported = _supported_units(units, known, numbers, language, statement)
-            supported -= numbered
+            supported = (supported | matched) - numbered
         return Judged(
             statement=statement,
             evidence=evidence,
@@ -963,6 +970,33 @@ def _swapped(
         if there and all(one and not one & nouns for _, one in there):
             swaps[unit] = there[0][0]
     return swaps
+
+
+def _currency_swaps(
+    said: Claim, evidence: str, language: str | None
+) -> tuple[dict[str, str], frozenset[str]]:
+    """Judges the currencies a statement names against the cited text's: the swaps and the matches.
+
+    Judged only as a swap: when the cited text names a currency and none of
+    the codes a statement's currency may be read as is among the codes of any
+    of them, it is a swap, `5 USD` for a cited `5 EUR`, `$5` for `€5`, mapped as
+    the statement writes it to the first one the evidence names. When one
+    is, it is matched, so a code the tagger called a proper noun is no
+    addition: `$50` for a cited `CAD 50`, `5 EUR` for `5 Euro`. A cited text
+    that names no currency judges nothing, and a name like `pounds`, which also
+    weighs, is left to the units check.
+    """
+    named = currencies_named(evidence, language)
+    if not said.currencies or not named:
+        return {}, frozenset()
+    cited = "/".join(sorted(named[0]))
+    swaps, matched = {}, set()
+    for written, readings in said.currencies:
+        if any(set(readings) & one for one in named):
+            matched.add(written)
+        else:
+            swaps[written] = cited
+    return swaps, frozenset(matched)
 
 
 def _numbers_part_of(unit: str, section_path: str | None) -> bool:

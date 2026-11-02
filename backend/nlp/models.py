@@ -37,11 +37,11 @@ class Claim:
     #: score, a figure glued to its unit - `08:00`, `2.5x`. Apart from
     #: `units` because only the checks for an invented value read them.
     figures: tuple[str, ...] = ()
-    #: The currencies the statement names, each folded to its lower-case ISO
-    #: code whether written as the code, a sign or a name. Apart from `units`
-    #: because only the fact check compares them: a question's key and its
-    #: recovery are not asked for the currency.
-    currencies: tuple[str, ...] = ()
+    #: The currencies the statement names, each as the way it is written and
+    #: the ISO codes it may be read as. Apart from `units` because only the
+    #: fact check compares them: a question's key and its recovery are not
+    #: asked for the currency.
+    currencies: tuple[tuple[str, tuple[str, ...]], ...] = ()
     #: The months and weekdays the statement names, each folded to its base
     #: form. Apart from `units` for the reason `currencies` is: only the fact
     #: check compares them.
@@ -49,8 +49,8 @@ class Claim:
 
     @property
     def asserted(self) -> tuple[str, ...]:
-        """Everything the fact check asks the cited text for: units, figures, currencies, dates."""
-        return self.units + self.figures + self.currencies + self.calendar
+        """What the fact check asks the cited text for by its words: units, figures and dates."""
+        return self.units + self.figures + self.calendar
 
 
 #: What each configured language is called, for a prompt that has to name it.

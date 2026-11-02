@@ -2835,11 +2835,11 @@ def test_the_same_currency_in_another_spelling_is_validated(
 @pytest.mark.parametrize(
     ("language", "text", "unit"),
     [
-        ("fr", "La redevance est de 5 $ par mois.", "usd"),
-        ("fr", "La redevance est de 5 € par mois.", "eur"),
-        ("el", "Η χρέωση είναι 5 $ τον μήνα.", "usd"),
-        ("el", "Η χρέωση είναι 5 € τον μήνα.", "eur"),
-        ("fr", "La redevance est de 5 CHF par mois.", "chf"),
+        ("fr", "La redevance est de 5 $ par mois.", "USD"),
+        ("fr", "La redevance est de 5 € par mois.", "EUR"),
+        ("el", "Η χρέωση είναι 5 $ τον μήνα.", "USD"),
+        ("el", "Η χρέωση είναι 5 € τον μήνα.", "EUR"),
+        ("fr", "La redevance est de 5 CHF par mois.", "CHF"),
     ],
 )
 def test_a_sign_or_code_reads_the_same_in_a_language_without_a_currency_row(
@@ -2848,7 +2848,7 @@ def test_a_sign_or_code_reads_the_same_in_a_language_without_a_currency_row(
     """Signs and ISO codes are no language's words; only the names need a row."""
     from nlp.analysis import claim
 
-    assert unit in claim(text, language).currencies
+    assert any(unit in readings for _, readings in claim(text, language).currencies)
 
 
 @pytest.mark.parametrize(
@@ -3063,3 +3063,74 @@ def test_a_unit_in_a_language_no_pipeline_is_configured_for_is_refused_at_parse(
     judged = Checker(passage(text, language=language)).atomic(statement, 0)
 
     assert judged.rejection_code == Rejection.ASSERTS_NOTHING
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "The parcel weighs at most 5 lb.",
+            "The parcel weighs at most 5 pounds.",
+        ),
+        (
+            "de",
+            "Eine Packung enthält 500 g Kaffee.",
+            "Eine Packung enthält ein Pfund Kaffee.",
+        ),
+        ("en", "The annual fee is CAD 50.", "The annual fee is $50."),
+        ("de", "Die Jahresgebühr beträgt CAD 50.", "Die Jahresgebühr beträgt 50 $."),
+        ("en", "The annual fee is AUD 50.", "The annual fee is 50 dollars."),
+        (
+            "de",
+            "Die Jahresgebühr beträgt AUD 50.",
+            "Die Jahresgebühr beträgt 50 Dollar.",
+        ),
+        ("en", "The fee is CNY 100.", "The fee is ¥100."),
+        ("de", "Die Gebühr beträgt CNY 100.", "Die Gebühr beträgt 100 ¥."),
+    ],
+)
+def test_a_name_or_sign_that_the_cited_currency_may_be_read_as_is_no_addition(
+    language, text, statement
+) -> None:
+    """A weight named like a currency, a dollar or yen sign over another dollar or yuan code."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        ("en", "The fee is EUR 5.", "The fee is 5 pounds."),
+        ("de", "Die Gebühr beträgt 5 Euro.", "Die Gebühr beträgt 5 Pfund."),
+        ("en", "The fee is CAD 50.", "The fee is €50."),
+        ("de", "Die Gebühr beträgt CAD 50.", "Die Gebühr beträgt 50 CHF."),
+        ("en", "The fee is CNY 100.", "The fee is $100."),
+        ("de", "Die Gebühr beträgt CNY 100.", "Die Gebühr beträgt 100 JPY."),
+    ],
+)
+def test_a_currency_no_reading_of_which_the_cited_currency_has_is_refused(
+    language, text, statement
+) -> None:
+    """Judged against a cited currency, an ambiguous name or sign must still match one of its readings."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+def test_a_refused_currency_is_listed_once() -> None:
+    """The unit and the currency check name the same code; the fact stores it once."""
+    judged = Checker(passage("The fee is 5 EUR.", language="en")).atomic(
+        "The fee is 5 CHF.", 0
+    )
+
+    assert not judged.validated
+    assert list(judged.units_added) == list(dict.fromkeys(judged.units_added))
+
+
+def test_a_currency_the_question_gates_read_is_no_vocabulary_fold() -> None:
+    """The fold is the fact check's: the gates' vocabulary stays the words and lemmas."""
+    from nlp.analysis import vocabulary
+
+    assert "eur" not in vocabulary("The fee is €5.", "en")
