@@ -3396,3 +3396,37 @@ def test_an_ordinary_word_spelled_like_an_abbreviation_supports_no_day(
     judged = Checker(passage(text, language=language)).atomic(statement, 0)
 
     assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Kartenzahlungen sind ab 1000 möglich. Seit 2024 gilt das für alle Karten.",
+            "Kartenzahlungen ab 1000 gelten für alle Karten.",
+        ),
+        (
+            "en",
+            "Card payments are possible from 1000. Since 2024 this applies to all cards.",
+            "Card payments from 1000 apply to all cards.",
+        ),
+        (
+            "de",
+            "Überweisungen bis 2500 sind kostenlos. Seit 2023 gilt das auch online.",
+            "Überweisungen bis 2500 sind auch online kostenlos.",
+        ),
+        (
+            "en",
+            "Transfers until 2500 are free. Since 2023 this also applies online.",
+            "Transfers until 2500 are also free online.",
+        ),
+    ],
+)
+def test_a_limit_after_a_preposition_that_also_sets_limits_is_no_year(
+    language, text, statement
+) -> None:
+    """From, until, ab and bis introduce an amount as often as a year."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 1)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)

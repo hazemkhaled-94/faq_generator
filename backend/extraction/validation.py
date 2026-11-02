@@ -832,12 +832,13 @@ _CLOCK = re.compile(r"\d{1,2}:\d{2}")
 #: or amount is no year.
 _YEAR = re.compile(r"\d{4}")
 
-#: The prepositions a language puts before a year, by ISO 639-1 code, as lower
-#: case. A newly configured language supplies its own, or reads a year only
-#: after a month name.
+#: The words a language puts before a year and before no amount, by ISO 639-1
+#: code, as lower case: `ab 1000` and `from 1000` set a limit as often as a year
+#: begins, so only `since` and `in` introduce one. A newly configured language
+#: supplies its own, or reads a year only after a month name.
 _YEAR_WORDS: dict[str, frozenset[str]] = {
-    "de": frozenset({"seit", "im", "ab", "bis", "vor", "nach"}),
-    "en": frozenset({"since", "in", "from", "until", "by", "before", "after"}),
+    "de": frozenset({"seit", "im", "jahr"}),
+    "en": frozenset({"since", "in"}),
 }
 
 
