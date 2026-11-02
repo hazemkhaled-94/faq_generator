@@ -444,21 +444,34 @@ def test_a_question_surely_in_another_language_is_still_refused(
 
 
 @pytest.mark.parametrize(
-    ("question", "answer"),
+    ("question", "answer", "written"),
     [
         (
             "Quel est le montant des frais annuels de la carte bancaire Gold?",
             "5 EUR par an",
+            "fr",
         ),
-        ("Πόσο κοστίζει η ετήσια κάρτα Gold της τράπεζας;", "5 EUR το χρόνο"),
+        (
+            "Πόσο κοστίζει η ετήσια κάρτα Gold της τράπεζας για κάθε πελάτη?",
+            "5 EUR το χρόνο",
+            "el",
+        ),
+        (
+            "Ile wynoszą roczne opłaty za kartę bankową Gold dla każdego klienta?",
+            "5 EUR rocznie",
+            "pl",
+        ),
     ],
 )
-def test_a_language_no_configuration_names_raises_nothing(question, answer):
-    """The detector reads only the configured languages, so it cannot say what these are."""
+def test_a_question_in_a_language_no_configuration_names_is_refused(
+    question, answer, written
+):
+    """A language neither pick can name is found out, as a French question under German facts was."""
     failed, _ = structural(
         question_text=question, target_answer=answer, answerable=True, language="de"
     )
-    assert failed is None or "it is written in" not in failed[1] or "en" in failed[1]
+    assert failed is not None
+    assert f"it is written in {written} and its facts are in de" in failed[1]
 
 
 def test_a_space_grouped_amount_is_one_number_to_relabelled():

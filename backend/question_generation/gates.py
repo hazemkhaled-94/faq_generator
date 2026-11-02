@@ -55,7 +55,7 @@ from nlp.analysis import (
     phrases,
     vocabulary,
 )
-from nlp.language import detect_surely
+from nlp.language import detect_surely, document_language
 from nlp.pipelines import pipeline
 from question_generation.models import Neighbour
 
@@ -797,7 +797,12 @@ def structural(
     # most questions are shorter than that. A detector that cannot tell is
     # not evidence of the wrong language, and neither is a pick that merely
     # tips: a product named in the other language does that.
-    written = detect_surely(f"{asked} {target_answer or ''}".strip())
+    said = f"{asked} {target_answer or ''}".strip()
+    # A language no configuration names is found out over every language
+    # there is: a French or Polish question under German facts. Else only a
+    # sure pick between the configured ones counts.
+    surely = document_language(said)
+    written = surely[0] if surely else detect_surely(said)
     if language and written and written != language:
         return (
             QuestionRejection.MALFORMED,
