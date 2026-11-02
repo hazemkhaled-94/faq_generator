@@ -451,9 +451,6 @@ topic over to the matching new topic.
 
 - Rerunning extraction leaves the bridges to `make extract-bridge`.
 - Rerunning questions writes only about facts no accepted question rests on.
-  It deals the facts a gate that needs no model refused in a draft of the topic's own last time after the others, and
-  plans its slots from the topic and the number of questions it holds, so it does
-  not repeat the first run's plan.
   `make questions-reverify` re-checks with the gates that need no model.
 - `make questions-rejudge` asks again about every accepted unanswerable
   question whose `settles` verdict came from another verifier prompt version,

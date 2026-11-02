@@ -65,9 +65,8 @@ To opt in, list it beside the three default categorizations:
 ]
 ```
 
-The deal draws no random number: a first run of a topic is dealt the topic's
-categories, and a rerun those of the topic and the number of questions it
-holds.
+The deal draws no random number, so a rerun of a topic is dealt the same
+categories.
 
 ### Step 2: Deal the facts
 

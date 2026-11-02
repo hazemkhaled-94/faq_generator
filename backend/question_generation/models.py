@@ -189,9 +189,6 @@ class TopicToCover:
     language: str | None
     label: str | None
     include_in_coverage: bool
-    #: How many questions the topic already holds, accepted or not. Zero on a
-    #: first run; a rerun is dealt another plan by it.
-    asked: int = 0
 
 
 @dataclass(frozen=True)
@@ -261,9 +258,6 @@ class SourceFact:
     #: whether the material states a REASON, which a statement condensed
     #: from them may have dropped. Empty where none was carried.
     evidence: str = ""
-    #: Whether some draft written from it was refused by one of the codes in
-    #: `queue._REFUSED_BY`. It is dealt after the facts with none.
-    refused: bool = False
 
     @property
     def anchor(self) -> SourcePassage:

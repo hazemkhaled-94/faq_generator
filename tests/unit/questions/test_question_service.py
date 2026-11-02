@@ -23,13 +23,8 @@ from database.qa_generator import (
     Status,
 )
 from llm.client import ModelUnavailable
-from question_generation.config import (
-    DEFAULT_CATEGORIZATIONS,
-    Settings,
-    categorizations,
-)
+from question_generation.config import Settings
 from question_generation.models import CheckedQuestion, FactGroup, TopicToCover
-from question_generation.planning import plans
 from question_generation.queue import QuestionQueue
 from question_generation.service import QuestionGenerationService
 from stages.queue import StageQueue
@@ -689,77 +684,6 @@ def test_a_follow_up_is_dealt_only_from_the_passages_its_root_cited(language) ->
     for group in offered:
         assert len({fact.passages[0].id for fact in group.facts}) == 1
         assert len({fact.passages[0].doc_sha256 for fact in group.facts}) == 1
-
-
-@pytest.mark.parametrize("language", ["de", "en"])
-def test_a_rerun_deals_the_facts_no_gate_refused_before_the_ones_a_gate_did(
-    language,
-) -> None:
-    """A fact whose last draft a deterministic gate refused is dealt after the rest."""
-    facts = [
-        replace(source(n, passage_id=n, language=language), refused=n < 4)
-        for n in range(12)
-    ]
-    dealt: list[FactGroup] = []
-
-    class Recording(StubWriter):
-        def write(self, group, plan):
-            dealt.append(group)
-            return super().write(group, plan)
-
-    service, _ = build(
-        topic(language=language),
-        facts,
-        writer=Recording(),
-        settings=replace(SETTINGS, per_topic=4, followup_share=0.0),
-    )
-
-    service.process_next()
-
-    assert dealt, "nothing was written"
-    assert not any(fact.refused for fact in dealt[0].facts)
-    assert not any(fact.refused for group in dealt for fact in group.facts)
-
-
-@pytest.mark.parametrize("language", ["de", "en"])
-def test_a_rerun_is_dealt_another_plan_and_a_first_run_the_same_one(language) -> None:
-    """The plan is seeded with the topic and what it already holds."""
-    facts = [source(n, passage_id=n, language=language) for n in range(12)]
-    ONE_TYPE = {
-        "type_mix": {QuestionType.FACTOID: 1},
-        "per_topic": 8,
-        "followup_share": 0.0,
-        "categorizations": categorizations(DEFAULT_CATEGORIZATIONS),
-    }
-
-    def plans_of(asked):
-        writer = StubWriter()
-        service, _ = build(
-            topic(language=language, asked=asked),
-            facts,
-            writer=writer,
-            settings=replace(SETTINGS, **ONE_TYPE),
-        )
-        service.process_next()
-        return [(one.answerable, one.band, one.categories) for one in writer.plans]
-
-    first = plans_of(0)
-    assert (
-        first
-        == [
-            (one.answerable, one.band, one.categories)
-            for one in plans(
-                wanted=8,
-                types=ONE_TYPE["type_mix"],
-                bands=SETTINGS.difficulty_mix,
-                unanswerable_share=SETTINGS.unanswerable_share,
-                kinds=SETTINGS.kind_mix,
-                categorizations=ONE_TYPE["categorizations"],
-                seed="7",
-            )
-        ][: len(first)]
-    )
-    assert plans_of(5) != first
 
 
 def test_a_follow_up_is_shown_what_was_already_asked() -> None:
