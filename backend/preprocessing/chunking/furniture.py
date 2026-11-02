@@ -990,14 +990,13 @@ def _chapter_starts(
     for index, (node, page) in enumerate(blocks):
         label = furniture.chapter(page)
         if label and label != current:
-            opening = next(
-                (
-                    later
-                    for later, there in blocks[index:]
-                    if there == page and _heads(later, label, document)
-                ),
-                node,
-            )
+            # Blocks come in page order, so the page ends where the run does.
+            opening, at = node, index
+            while at < len(blocks) and blocks[at][1] == page:
+                if _heads(blocks[at][0], label, document):
+                    opening = blocks[at][0]
+                    break
+                at += 1
             found.append((opening.self_ref, label))
         current = label
     return found
