@@ -625,6 +625,8 @@ CALENDAR_NAMES: dict[str, dict[str, str]] = {
         "sonnabend": "samstag",
         **{f"{day}s": day for day in _DE_WEEKDAYS.split()},
     },
+    # English tags its months and weekdays as proper nouns, which `_units` reads.
+    "en": {},
 }
 
 
