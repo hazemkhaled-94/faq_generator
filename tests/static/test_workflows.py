@@ -344,6 +344,9 @@ def test_a_mutation_run_that_cannot_start_fails_the_nightly() -> None:
     assert "continue-on-error" not in run
     assert "timeout" in run["run"]
     assert 'exit "$status"' in run["run"]
+    # Out of time passes only after a mutant was checked.
+    assert "not checked" in run["run"]
+    assert "::error::no mutant was checked" in run["run"]
     assert summary["if"] == "always()"
     assert summary["run"].index("ln -sfn backend src") < summary["run"].index(
         "mutmut results"

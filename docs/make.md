@@ -139,6 +139,7 @@ and reads yellow until they age out; set them once (use `docker compose` where
 that is your engine):
 
 ```bash
+export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
 podman compose exec -T elasticsearch sh -c 'curl -sS \
   --cacert /usr/share/elasticsearch/config/certs/ca.crt \
   -u "elastic:$ELASTIC_PASSWORD" --request PUT "https://localhost:9200/qa-logs*/_settings" \
@@ -535,7 +536,8 @@ backend, configs, docs and `compose.yaml`. `make mutation` links `src` to
 `backend` for the run, because mutmut names a function after its file's path.
 A mutation run that cannot start fails the nightly; surviving mutants are
 listed in its summary and do not. The run is boxed at 270 minutes: out of time
-it ends as a pass with a warning, and the summary lists what it covered. The
+it ends as a pass with a warning if it checked a mutant, and fails if it did
+not, and the summary lists what it covered. The
 full run is not yet timed (`planning.py` alone, 253 mutants, ran at 5.3 a
 second).
 

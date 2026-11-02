@@ -90,8 +90,17 @@ jobs:
           status=0
           timeout 270m make mutation || status=$?
           if [ "$status" -eq 124 ]; then
-            echo "::warning::mutation ran out of time; the summary lists what it covered"
-            exit 0
+            # Out of time passes only if it got to a mutant: a harness that hung
+            # before its first one has run none, and fails.
+            ln -sfn backend src
+            checked=$(poetry run mutmut results --all true | grep -vc ': not checked$' || true)
+            rm -f src
+            if [ "${checked:-0}" -gt 0 ]; then
+              echo "::warning::mutation ran out of time after $checked mutants; the summary lists what it covered"
+              exit 0
+            fi
+            echo "::error::no mutant was checked in 270 minutes"
+            exit 1
           fi
           exit "$status"
       # The link `make mutation` removes is what mutmut finds its files through.
