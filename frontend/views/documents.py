@@ -60,7 +60,7 @@ _STEPS = (
     explain.Step(
         "Dispatch on the media type",
         "The pipeline that owns the format ingestion detected from the "
-        "leading bytes. A type nothing handles fails here, naming the types "
+        "first kilobyte. A type nothing handles fails here, naming the types "
         "that are handled.",
         ("pipelines/__init__.py",),
         (),

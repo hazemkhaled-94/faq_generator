@@ -31,9 +31,19 @@ def test_an_unrecognised_or_empty_upload_has_no_type() -> None:
     assert UploadedFile("short.pdf", b"%PD").media_type is None
 
 
-def test_the_magic_prefix_must_lead() -> None:
-    """A signature further in is not a signature."""
-    assert UploadedFile("padded.pdf", b"\x00\x00%PDF-1.7").media_type is None
+def test_the_signature_may_follow_a_few_leading_bytes() -> None:
+    """A byte order mark or a newline a gateway put first is not a different file."""
+    for lead in (b"\x00\x00", b"\xef\xbb\xbf", b"\r\n"):
+        found = UploadedFile("padded.pdf", lead + b"%PDF-1.7").media_type
+        assert found == "application/pdf", lead
+
+
+def test_a_signature_past_the_first_kilobyte_is_not_a_signature() -> None:
+    """The readers look no further, and neither does the detection."""
+    assert UploadedFile("late.pdf", b"\x00" * 1024 + b"%PDF-1.7").media_type is None
+    assert UploadedFile("edge.pdf", b"\x00" * 1019 + b"%PDF-").media_type == (
+        "application/pdf"
+    )
 
 
 def test_every_detectable_type_is_one_the_allowlist_may_name() -> None:
