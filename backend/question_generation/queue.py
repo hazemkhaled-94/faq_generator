@@ -11,8 +11,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
+from sqlalchemy import any_, func, insert, literal, select
 from sqlalchemy import false as sa_false
-from sqlalchemy import func, insert, select
 from sqlalchemy.orm import InstrumentedAttribute, aliased
 
 from confidence import confidence, scored
@@ -81,11 +81,29 @@ _ALREADY_ASKED = (
 )
 
 
+def _borrows(question_id, topic_id):
+    """Whether a question cites a fact whose passage another topic dominates.
+
+    A multi-topic question another topic wrote from this topic's bridge
+    passage is that topic's: it is not a question this topic has asked, and a
+    draft of it refused says nothing of the bridge fact's next draft here.
+    """
+    cited = aliased(QuestionFact)
+    at = aliased(FactPassage)
+    other = DOMINANT.alias("other")
+    return (
+        select(cited.question_id)
+        .join(at, (at.fact_id == cited.fact_id) & (at.position == 0))
+        .join(other, other.c.passage_id == at.passage_id)
+        .where(cited.question_id == question_id, other.c.topic_id != topic_id)
+        .exists()
+    )
+
+
 #: The codes of the gates that run without a model and read the draft's own
 #: wording, not the slot's type: the same fact is likely to be refused by one
 #: again. A type or form gate is left out, as a fact refused as one kind of
-#: question may answer another, and so is `leaks_source`, which the phrasing
-#: judge, a model, also gives.
+#: question may answer another.
 _REFUSED_BY = (
     QuestionRejection.MALFORMED,
     QuestionRejection.COMPOUND,
@@ -94,16 +112,29 @@ _REFUSED_BY = (
     QuestionRejection.OFF_TOPIC,
 )
 
-#: A fact some draft written from it was refused by one of those codes. A
-#: rerun deals it after the facts with none, so the same refusals are not paid
-#: for again.
+#: A fact some draft of its own topic written from it was refused by one of
+#: those codes, or by `leaks_source` where the phrasing judge, a model, did
+#: not give it: quoting the title of the source needs no model and recurs on
+#: the same fact. A rerun deals it after the facts with none, so the same
+#: refusals are not paid for again.
+_OWN = DOMINANT.alias("own")
 _ALREADY_REFUSED = (
     select(QuestionFact.fact_id)
     .join(Question, Question.id == QuestionFact.question_id)
+    .join(
+        FactPassage,
+        (FactPassage.fact_id == QuestionFact.fact_id) & (FactPassage.position == 0),
+    )
+    .join(_OWN, _OWN.c.passage_id == FactPassage.passage_id)
     .where(
         QuestionFact.fact_id == Fact.id,
         Question.status == QuestionStatus.REJECTED,
-        Question.rejected_reason.in_(_REFUSED_BY),
+        Question.rejected_reason.in_(_REFUSED_BY)
+        | (
+            (Question.rejected_reason == QuestionRejection.LEAKS_SOURCE)
+            & ~(literal("phrasing") == any_(Question.gates_ran))
+        ),
+        ~_borrows(Question.id, _OWN.c.topic_id),
     )
     .exists()
 )
@@ -438,7 +469,10 @@ class QuestionQueue(RowQueue):
                     & (FactPassage.position == 0),
                 )
                 .join(DOMINANT, DOMINANT.c.passage_id == FactPassage.passage_id)
-                .where(DOMINANT.c.topic_id == claimed.id)
+                .where(
+                    DOMINANT.c.topic_id == claimed.id,
+                    ~_borrows(QuestionFact.question_id, claimed.id),
+                )
             )
         return TopicToCover(
             id=claimed.id,
