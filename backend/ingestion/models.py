@@ -7,8 +7,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
 
-#: Leading bytes that identify a media type.
+#: Bytes that identify a media type, and how far into a file they may sit:
+#: a PDF reader accepts its header anywhere in the first kilobyte, so a byte
+#: order mark or a newline a gateway put first does not make a file unknown.
 _MAGIC = {b"%PDF-": "application/pdf"}
+_WINDOW = 1024
 
 #: Every media type this build can detect.
 DETECTABLE = frozenset(_MAGIC.values())
@@ -38,12 +41,12 @@ class UploadedFile:
 
     @cached_property
     def media_type(self) -> str | None:
-        """Media type detected from the leading bytes, or None if unrecognised."""
+        """Media type detected from the first kilobyte, or None if unrecognised."""
         return next(
             (
                 mime
                 for signature, mime in _MAGIC.items()
-                if self.data.startswith(signature)
+                if signature in self.data[:_WINDOW]
             ),
             None,
         )

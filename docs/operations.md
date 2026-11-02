@@ -789,7 +789,6 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
 | C-083 | OCR stays off | A measured OCR pass on the production corpus |
 | C-140 | Before production, measure text nested in pictures on the shop calibration database (`qa_cal_shop`): banners and infographics may carry statements that reach no passage | A filter that tells a statement from a diagram label (the v0.5.2 clause filter was withdrawn) |
 | C-266 | Before production, measure on the shop calibration database the questions drawn from imprint, hotline and contact passages | A passage gate on contact shapes (deferred) |
-| C-186 | Before ingest, check the refusal count of a first batch: a PDF whose header follows a few leading bytes is refused as unknown type | Reading the signature within the first kilobyte (deferred) |
 | C-278 | Before ingest, compare the widest table rows with the chunk's token budget (`EMBEDDING_MAX_TOKENS` less the embedder's own tokens): a longer row is cut mid-cell. Ship the fix first if any exceeds it | Keeping a row whole in one passage (deferred) |
 | C-295 | Choose the embedding model before production and change it only through a migration and a full re-embed: editing `backend.env` would mix two models' vectors | A guard that refuses vectors of another model |
 | C-419 | Check any tracked-change export before ingest: only a drawn horizontal strike is read as struck-through | A strike reading for tracked changes (deferred) |

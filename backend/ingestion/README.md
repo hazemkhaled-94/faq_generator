@@ -33,7 +33,7 @@ The checks run cheapest first, and nothing is written until all pass.
 | Order | Check | Refusal |
 |---|---|---|
 | 1 | `size_bytes > MAX_FILE_SIZE_MB` | `too_large`, with both figures |
-| 2 | The leading bytes are not in `ALLOWED_MIME_TYPES` | `unsupported_type`, naming what was detected |
+| 2 | No signature of `ALLOWED_MIME_TYPES` is in the first kilobyte (a PDF header after a byte order mark or a newline counts) | `unsupported_type`, naming what was detected |
 | 3 | The digest is already in `documents` | `duplicate_bytes` |
 | 4 | The PDF does not open, is password protected, has more than `PARSING_MAX_PAGES` pages or is not read within `PARSING_TIMEOUT_SECONDS` | `unsupported_type`, with the reader's reason, or the count and the setting |
 
@@ -101,7 +101,7 @@ stored override. Tuning lives in
 |---|---|
 | `MAX_FILE_SIZE_MB` | Largest accepted upload, at most 150. Keep it equal to `server.maxUploadSize` in `frontend/.streamlit/config.toml` |
 | `PARSING_MAX_PAGES`, `PARSING_TIMEOUT_SECONDS` | The parse stage's settings, read here too (0 pages: no cap; timeout 1800 s as shipped). The Upload page gives up after 60 s and reports a timeout, while the api keeps reading and stores the PDF if it finishes |
-| `ALLOWED_MIME_TYPES` | Comma-separated. May name only types this build detects from leading bytes. Any other value stops the service at start-up |
+| `ALLOWED_MIME_TYPES` | Comma-separated. May name only types this build detects from the first kilobyte. Any other value stops the service at start-up |
 
 The `pipeline-version` in object metadata is the `version` in
 `pyproject.toml`.

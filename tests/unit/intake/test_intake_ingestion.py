@@ -50,6 +50,24 @@ def test_an_accepted_upload_writes_the_object_and_the_row() -> None:
     assert driver.outcomes == [Outcome.STORED]
 
 
+@pytest.mark.parametrize(
+    "lead", [b"\xef\xbb\xbf", b"\r\n", b"\x00\x00", b" " * 1000], ids=repr
+)
+def test_a_pdf_after_a_few_leading_bytes_is_detected_and_stored(lead: bytes) -> None:
+    """A gateway or a document system may put a byte order mark or a newline first.
+
+    The readers accept the header anywhere in the first kilobyte, so the
+    detection does too.
+    """
+    driver = IngestDriver()
+
+    result = driver.upload("report.pdf", lead + PDF)
+
+    assert result.outcome == Outcome.STORED
+    key = driver.store.key_for(result.sha256, "application/pdf")
+    assert driver.store.objects[key] == lead + PDF
+
+
 def test_the_stored_object_carries_the_bytes_and_the_detected_type() -> None:
     """Not the declared type, and not the extension."""
     driver = IngestDriver()
@@ -176,7 +194,7 @@ def test_a_refusal_on_the_declared_size_writes_only_the_event() -> None:
         (NOT_A_PDF, "unknown"),
         (b"", "unknown"),
         (b"%PD", "unknown"),
-        (b"\x00\x00%PDF-1.7", "unknown"),
+        (b"\x00" * 1024 + PDF, "unknown"),
     ],
 )
 def test_something_no_magic_number_claims_is_refused(
