@@ -681,15 +681,6 @@ CALENDAR_ABBREVIATIONS: dict[str, dict[str, str]] = {
 }
 
 
-#: The words a language says a minus sign with, by ISO 639-1 code, as lower
-#: case: `minus 5 °C` and `negativ 0,5 %` state `-5` and `-0,5`. A newly
-#: configured language supplies its own, or reads a spoken sign as no sign.
-_SIGN_WORDS: dict[str, frozenset[str]] = {
-    "de": frozenset({"minus", "negativ"}),
-    "en": frozenset({"minus", "negative"}),
-}
-
-
 def _calendar(token: Token, language: str | None) -> str | None:
     """The form a month or weekday name is folded to, or None for any other token."""
     code = (language or token.doc.lang_).strip().lower()
@@ -703,22 +694,6 @@ def _calendar(token: Token, language: str | None) -> str | None:
             if form in names
         ),
         None,
-    )
-
-
-def _spoken_signs(document: Doc, language: str | None) -> tuple[tuple[str, str], ...]:
-    """The figures a sign word stands before, each as written and as signed: `5` and `-5` for `minus 5`."""
-    code = (language or document.lang_).strip().lower()
-    words = _SIGN_WORDS.get(code, ())
-    return tuple(
-        dict.fromkeys(
-            (plain, "-" + plain)
-            for token in document
-            if token.i
-            and is_number(token)
-            and document[token.i - 1].lower_ in words
-            and not (plain := _bare(token.text).casefold()).startswith(("-", "−"))
-        )
     )
 
 
@@ -1043,7 +1018,7 @@ def _amount(
     counts. `document` is the unmerged parse of `text` where `_grouped` asks;
     a reader of the text alone is told what the parse merged.
     """
-    if not text[:start].rstrip("-−").strip() and not text[end:].strip(" ."):
+    if not text[:start].strip() and not text[end:].strip(" ."):
         return True
     code = (language or "").strip().lower()
     before = _beside(re.search(r"(\S+)\s?$", text[:start]))
@@ -1118,12 +1093,10 @@ def _counts(document: Doc, end: int, language: str | None) -> bool:
 #: figure wherever it stands: a digit and exactly three digits take it, a
 #: possessive (`90's`) never does.
 FIGURE = re.compile(
-    r"(?:(?<![^\s(])[-−])?(?:"
-    + _SPACED.pattern
-    + r"|(?<![\w.,'’])\d{1,3}(?:['’]\d{3})+(?:[.,]\d+)?(?![\w])"
+    _SPACED.pattern + r"|(?<![\w.,'’])\d{1,3}(?:['’]\d{3})+(?:[.,]\d+)?(?![\w])"
     r"|(?<![\w.,])\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?(?![\w])"
     r"|(?<![\w.,])\d+(?![\w]|[.,]\d)"
-    r"|(?<![\w.,])\d{4,}[.,]\d+(?![\w]|[.,]\d))"
+    r"|(?<![\w.,])\d{4,}[.,]\d+(?![\w]|[.,]\d)"
 )
 
 
@@ -1138,10 +1111,6 @@ def figures(text: str, language: str | None = None) -> list[float]:
     and English the reverse. A language with no row there, or none given,
     reads either lone mark as thousands. A number that resolves to neither
     is left out rather than guessed at.
-
-    A hyphen or minus sign that opens the number's token or follows a space
-    is its sign: `-0.5` is negative, `5-7` is two numbers, and a bullet's
-    `- 5` is five.
     """
     mark = DECIMAL_MARK.get((language or "").strip().lower())
     fractions, spans = _fractions(text)
@@ -1150,15 +1119,13 @@ def figures(text: str, language: str | None = None) -> list[float]:
     found: list[float] = []
     for match in FIGURE.finditer(text):
         raw = match.group().replace("'", "").replace("’", "")
-        sign = -1.0 if raw[:1] in ("-", "−") else 1.0
-        raw = raw.lstrip("-−")
         if any(char.isspace() for char in raw):
-            start = match.end() - len(match.group().lstrip("-−"))
-            if _amount(text, start, match.end(), language):
+            if _amount(text, match.start(), match.end(), language):
                 raw = "".join(raw.split())
             else:
-                parts = [one for part in raw.split() for one in figures(part, language)]
-                found += [sign * parts[0], *parts[1:]] if parts else []
+                found += [
+                    one for part in raw.split() for one in figures(part, language)
+                ]
                 continue
         head, separator, tail = (
             raw.rpartition(",") if "," in raw[-4:] else raw.rpartition(".")
@@ -1174,9 +1141,9 @@ def figures(text: str, language: str | None = None) -> list[float]:
             if not head or (
                 len(tail) == 3 and whole.strip("0") and not decimal and not plain
             ):
-                found.append(sign * float(raw.replace(".", "").replace(",", "")))
+                found.append(float(raw.replace(".", "").replace(",", "")))
             else:
-                found.append(sign * float(f"{whole}.{tail}"))
+                found.append(float(f"{whole}.{tail}"))
         except ValueError:
             continue
     return found + [float(one) for one in fractions]
@@ -1244,9 +1211,7 @@ _NUMBER_WORDS: dict[str, dict[str, str]] = {
 #: A run of digits, with the decimal or thousands marks inside it. Read off a
 #: token rather than off `like_num`, so a figure glued to its unit - `45m` -
 #: or written as a time - `08:00` - is still a number.
-_DIGITS = re.compile(
-    r"(?:(?<!\S)[-−])?\d+(?:['’]\d{3}(?!\d))*(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)*"
-)
+_DIGITS = re.compile(r"\d+(?:['’]\d{3}(?!\d))*(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)*")
 
 #: A vulgar fraction, with the digits it follows: `2½`, `¾`. Unicode names the
 #: set and each value, so no language is read here.
@@ -1275,10 +1240,7 @@ def spaced_runs(text: str) -> frozenset[str]:
     both write the same way is one figure in both, whichever way each tagger
     read the word after it.
     """
-    return frozenset(
-        ("-" if text[: found.start()].endswith(("-", "−")) else "") + found.group()
-        for found in _SPACED.finditer(text)
-    )
+    return frozenset(found.group() for found in _SPACED.finditer(text))
 
 
 def fraction_value(token: str) -> float | None:
@@ -1462,9 +1424,6 @@ def numerals(text: str, language: str | None) -> frozenset[str]:
             found.update(
                 _PADDING.sub("", _value(one, document.lang_)) for one in digits
             )
-    # A sign said in words signs the figure too, beside the figure unsigned,
-    # since `minus` also subtracts.
-    found.update(signed for _, signed in _spoken_signs(document, language))
     return frozenset(
         found | {one for one in _spoken(document).values() if one and one.isdigit()}
     )
@@ -1524,10 +1483,6 @@ def _opens_line(token: Token) -> bool:
     )
 
 
-#: A figure written with its sign: `-0.5`, `−5`.
-_SIGNED = re.compile(r"[-−]\d")
-
-
 def written_in(
     unit: str,
     statement: str,
@@ -1565,18 +1520,11 @@ def written_in(
             word.endswith(end) and word[: -len(end)] in known for end in endings
         )
 
-    hyphenated = {form for form in known if not _SIGNED.match(form)}
-    parts = {
-        part for form in hyphenated if "-" in form for part in form.split("-") if part
-    }
-    joined = {form.replace("-", "") for form in hyphenated}
+    parts = {part for form in known if "-" in form for part in form.split("-") if part}
+    joined = {form.replace("-", "") for form in known}
     for word in {unit} | {_bare(token.text).casefold() for token in own}:
         word = word.rstrip("-")
-        # A minus before a figure is its sign, never a hyphen a text layer dropped.
-        signed = _SIGNED.match(word) is not None
-        if word in known or (
-            not signed and (word in parts or word.replace("-", "") in joined)
-        ):
+        if word in known or word in parts or word.replace("-", "") in joined:
             return True
         if numeric:
             continue
@@ -2965,7 +2913,6 @@ def claim(
     return Claim(
         predicates=_predicates(document) or int(_untagged_claim(document)),
         units=_units(document),
-        signed=_spoken_signs(document, language),
         calendar=tuple(
             sorted({one for token in document if (one := _calendar(token, language))})
         ),

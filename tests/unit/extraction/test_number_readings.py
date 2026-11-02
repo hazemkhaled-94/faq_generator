@@ -352,68 +352,8 @@ def test_a_german_amount_closing_a_sentence_restated_with_a_mark_validates():
 
 
 @pytest.mark.parametrize(
-    ("lang", "negative", "positive"),
-    [
-        (
-            "en",
-            "The savings account pays an interest rate of -0.5 % a year.",
-            "The savings account pays an interest rate of 0.5 % a year.",
-        ),
-        (
-            "de",
-            "Das Sparkonto hat einen Zinssatz von -0,5 % pro Jahr.",
-            "Das Sparkonto hat einen Zinssatz von 0,5 % pro Jahr.",
-        ),
-        (
-            "de",
-            "Die Temperatur liegt bei −5 °C.",
-            "Die Temperatur liegt bei 5 °C.",
-        ),
-        (
-            "fr",
-            "Le compte a un taux de -0,5 % par an.",
-            "Le compte a un taux de 0,5 % par an.",
-        ),
-        (
-            "el",
-            "Ο λογαριασμός έχει επιτόκιο -0,5 % ετησίως.",
-            "Ο λογαριασμός έχει επιτόκιο 0,5 % ετησίως.",
-        ),
-    ],
-)
-def test_opposite_signs_are_different_numbers_for_the_dedup_gate(
-    lang, negative, positive
-):
-    """A statement with the sign flipped is another claim, never a twin."""
-    from extraction.service import _counted_alike
-
-    assert not _counted_alike(negative, positive, lang)
-    assert _counted_alike(negative, negative, lang)
-
-
-@pytest.mark.parametrize(
     ("lang", "text", "fact"),
     [
-        (
-            "en",
-            "The account pays an interest rate of -0.5 % a year.",
-            "The account pays an interest rate of 0.5 % a year.",
-        ),
-        (
-            "en",
-            "The account pays an interest rate of 0.5 % a year.",
-            "The account pays an interest rate of -0.5 % a year.",
-        ),
-        (
-            "de",
-            "Das Konto hat einen Zinssatz von -0,5 % pro Jahr.",
-            "Das Konto hat einen Zinssatz von 0,5 % pro Jahr.",
-        ),
-        (
-            "de",
-            "Das Konto hat einen Zinssatz von 0,5 % pro Jahr.",
-            "Das Konto hat einen Zinssatz von -0,5 % pro Jahr.",
-        ),
         (
             "en",
             "The savings account pays 2½ % interest a year.",
@@ -431,21 +371,19 @@ def test_opposite_signs_are_different_numbers_for_the_dedup_gate(
         ),
     ],
 )
-def test_a_flipped_sign_or_another_fraction_is_refused(lang, text, fact):
-    """The sign and the fraction are part of the figure the passage states."""
+def test_another_fraction_is_refused(lang, text, fact):
+    """The fraction is part of the figure the passage states."""
     must_refuse(lang, text, fact)
 
 
 @pytest.mark.parametrize(
     ("lang", "text"),
     [
-        ("en", "The account pays an interest rate of -0.5 % a year."),
-        ("de", "Das Konto hat einen Zinssatz von -0,5 % pro Jahr."),
         ("en", "The savings account pays 2½ % interest a year."),
         ("de", "Das Sparkonto bringt 2½ % Zinsen pro Jahr."),
     ],
 )
-def test_a_statement_keeping_its_sign_or_fraction_validates(lang, text):
+def test_a_statement_keeping_its_fraction_validates(lang, text):
     """The restated figure is the cited one."""
     must_validate(lang, text)
 
@@ -464,227 +402,3 @@ def test_another_fraction_is_another_number_for_the_dedup_gate(lang, text, twin)
     from extraction.service import _counted_alike
 
     assert not _counted_alike(text, twin, lang)
-
-
-@pytest.mark.parametrize(
-    ("lang", "text", "fact"),
-    [
-        (
-            "en",
-            "The product can be stored at temperatures down to -5 °C.",
-            "The product can be stored at temperatures down to minus 5 °C.",
-        ),
-        (
-            "de",
-            "Das Produkt ist bis −5 °C lagerfähig.",
-            "Das Produkt ist bis minus 5 °C lagerfähig.",
-        ),
-        (
-            "en",
-            "The deposit rate is -0.5 % a year.",
-            "The deposit rate is negative 0.5 % a year.",
-        ),
-        (
-            "de",
-            "Der Einlagezins beträgt -0,5 % im Jahr.",
-            "Der Einlagezins beträgt negativ 0,5 % im Jahr.",
-        ),
-    ],
-)
-def test_a_sign_said_in_words_is_supported_by_the_cited_signed_figure(lang, text, fact):
-    """The word table of the language reads `minus 5` as `-5`."""
-    must_validate(lang, text, fact)
-
-
-@pytest.mark.parametrize(
-    ("lang", "text", "fact"),
-    [
-        (
-            "en",
-            "The deposit rate is 0.5 % a year.",
-            "The deposit rate is negative 0.5 % a year.",
-        ),
-        (
-            "de",
-            "Der Einlagezins beträgt 0,5 % im Jahr.",
-            "Der Einlagezins beträgt minus 0,5 % im Jahr.",
-        ),
-        (
-            "en",
-            "The deposit rate is -0.5 % a year.",
-            "The deposit rate is 0.5 % a year.",
-        ),
-    ],
-)
-def test_a_sign_in_words_does_not_rescue_a_flipped_figure(lang, text, fact):
-    """The sign said, or dropped, must be the cited one."""
-    must_refuse(lang, text, fact)
-
-
-def test_the_discount_badge_restated_as_a_reduction_stays_refused():
-    """Cost of the sign rule, accepted: `-20 %` restated as `20 % off` is refused, the safe side."""
-    must_refuse(
-        "en",
-        "Summer sale: -20% on all shoes.",
-        "The summer sale takes 20% off all shoes.",
-    )
-    must_refuse(
-        "de",
-        "Im Sommerschlussverkauf gilt: -20 % auf alle Schuhe.",
-        "Im Sommerschlussverkauf gibt es 20 % Rabatt auf alle Schuhe.",
-    )
-
-
-@pytest.mark.parametrize(
-    ("lang", "text", "value"),
-    [
-        ("en", "The loss is (-12) EUR.", [-12.0]),
-        ("de", "Der Verlust beträgt (-12) EUR.", [-12.0]),
-        ("fr", "La perte est de (-12) EUR.", [-12.0]),
-        ("el", "Η απώλεια είναι (-12) EUR.", [-12.0]),
-    ],
-)
-def test_a_sign_after_an_opening_parenthesis_is_read_by_figures_too(lang, text, value):
-    """The token reader and the figure reader agree on `(-12)`."""
-    assert figures(text, lang) == value
-    assert numbers(text, lang) == ("-12",)
-
-
-@pytest.mark.parametrize(
-    ("lang", "text"),
-    [
-        ("de", "Die Temperatur darf auf minus 5 Grad sinken."),
-        ("en", "The product can be stored at minus 5 degrees."),
-        ("en", "The deposit rate is negative 0.5 % a year."),
-        ("de", "Der Einlagezins ist negativ 0,5 % im Jahr."),
-        ("en", "The member price is EUR 100 minus 20 % for members."),
-        ("de", "Mitglieder zahlen 100 Euro minus 20 % Rabatt."),
-    ],
-)
-def test_a_statement_copying_a_spoken_sign_word_for_word_validates(lang, text):
-    """The cited text says the sign in words too, so both sides read the figure signed."""
-    must_validate(lang, text)
-
-
-@pytest.mark.parametrize(
-    ("lang", "text", "fact"),
-    [
-        (
-            "en",
-            "The product can be stored at minus 5 degrees.",
-            "The product can be stored at -5 degrees.",
-        ),
-        (
-            "de",
-            "Die Temperatur darf auf minus 5 Grad sinken.",
-            "Die Temperatur darf auf −5 Grad sinken.",
-        ),
-    ],
-)
-def test_a_cited_spoken_sign_supports_the_symbol(lang, text, fact):
-    """`minus 5` and `-5` are one figure."""
-    must_validate(lang, text, fact)
-
-
-@pytest.mark.parametrize(
-    ("lang", "text"),
-    [
-        ("fr", "La température peut descendre à moins 5 degrés."),
-        ("el", "Η θερμοκρασία μπορεί να πέσει στους μείον 5 βαθμούς."),
-    ],
-)
-def test_a_spoken_sign_in_a_language_without_a_row_is_read_as_no_sign(lang, text):
-    """No row: the figure stays unsigned and the claim's units hold it as written."""
-    from nlp.analysis import claim
-
-    read = claim(text, lang)
-    assert "5" in read.units
-    assert read.signed == ()
-
-
-@pytest.mark.parametrize(
-    ("lang", "text"),
-    [
-        ("de", "Die Temperatur darf auf minus 5 Grad sinken."),
-        ("en", "The deposit rate is negative 0.5 % a year."),
-    ],
-)
-def test_the_spoken_sign_is_no_unit_the_question_gates_read(lang, text):
-    """The gates read units: a key and its identical recovery agree, and the sign word moves nothing."""
-    from nlp.analysis import claim
-    from question_generation.gates import agrees
-
-    assert not any(unit.startswith("-") for unit in claim(text, lang).units)
-    assert agrees(text, text, lang)
-
-
-@pytest.mark.parametrize(
-    ("lang", "text", "fact"),
-    [
-        (
-            "de",
-            "Der Verlust beträgt -1 250,50 EUR im Jahr.",
-            "Der Verlust beträgt -1 250,50 EUR im Jahr.",
-        ),
-        (
-            "de",
-            "Der Verlust beträgt -1 250,50 EUR im Jahr.",
-            "Der Verlust beträgt -1.250,50 EUR im Jahr.",
-        ),
-        (
-            "de",
-            "Der Saldo beträgt −1 250,50 Euro.",
-            "Der Saldo beträgt −1250,50 Euro.",
-        ),
-        (
-            "en",
-            "The loss was -1 250.50 EUR last year.",
-            "The loss was -1,250.50 EUR last year.",
-        ),
-    ],
-)
-def test_a_sign_before_a_space_grouped_amount_belongs_to_the_whole_amount(
-    lang, text, fact
-):
-    """A regrouped copy of a signed amount is the same amount."""
-    must_validate(lang, text, fact)
-
-
-@pytest.mark.parametrize(
-    ("lang", "text", "fact"),
-    [
-        (
-            "de",
-            "Der Verlust beträgt -1 250,50 EUR im Jahr.",
-            "Der Verlust beträgt 1 250,50 EUR im Jahr.",
-        ),
-        (
-            "de",
-            "Der Verlust beträgt -1 250,50 EUR im Jahr.",
-            "Der Verlust beträgt 1.250,50 EUR im Jahr.",
-        ),
-        (
-            "en",
-            "The loss was -1 250.50 EUR last year.",
-            "The loss was 1 250.50 EUR last year.",
-        ),
-    ],
-)
-def test_a_flipped_sign_on_a_space_grouped_amount_is_refused(lang, text, fact):
-    """The statement drops the minus of the cited amount."""
-    must_refuse(lang, text, fact)
-
-
-@pytest.mark.parametrize(
-    ("lang", "text", "value"),
-    [
-        ("de", "Der Verlust beträgt -1 250,50 EUR.", [-1250.5]),
-        ("en", "The loss was -1 250.50 EUR.", [-1250.5]),
-        ("fr", "La perte est de -1 250.50 EUR.", [-1250.5]),
-        ("el", "Η απώλεια είναι -1 250.50 EUR.", [-1250.5]),
-    ],
-)
-def test_figures_reads_a_signed_space_grouped_amount_whole(lang, text, value):
-    """The sign does not keep the run from reading as one amount."""
-    assert figures(text, lang) == value
-    assert numbers(text, lang) == ("-1250.5",)
