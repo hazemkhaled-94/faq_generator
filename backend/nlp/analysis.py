@@ -671,7 +671,8 @@ CALENDAR_ABBREVIATIONS: dict[str, dict[str, str]] = {
         "jan feb mär apr jun jul aug sep sept okt nov dez",
         "januar februar märz april juni juli august september september oktober november dezember",
     )
-    | _abbreviated("mo di mi do fr sa so", _DE_WEEKDAYS),
+    | _abbreviated("mo di mi do fr sa so", _DE_WEEKDAYS)
+    | {"sonn": "sonntag"},
     "en": _abbreviated(
         "jan feb mar apr jun jul aug sep sept oct nov dec",
         "january february march april june july august september september october november december",
@@ -2888,20 +2889,34 @@ def vocabulary(text: str, language: str | None) -> frozenset[str]:
 def folds(text: str, language: str | None) -> frozenset[str]:
     """The folded months and weekdays a text names, for the evidence side of the fact check.
 
-    The base form of each name `Claim.calendar` reads, and of each
-    abbreviation (`Mo.`, `Dez.`) a word of the text is.
+    The base form of each name `Claim.calendar` reads, of each name a word
+    opens with (`Samstagvormittag`, `Montagabend`; a range `Montag-Freitag`
+    splits into its names) and of each abbreviation the text writes as one:
+    capitalised (`Mo`), dotted (`Dez.`), or in a range (`Mo-Fr`), so the
+    ordinary `so` and `sun` are words. Read of the cited text only, so each
+    can only add support.
     """
     document = _read(text, language)
     code = (language or document.lang_).strip().lower()
+    names = CALENDAR_NAMES.get(code, {})
     abbreviations = CALENDAR_ABBREVIATIONS.get(code, {})
-    return frozenset(
-        {name for token in document if (name := _calendar(token, language))}
-        | {
-            abbreviations[word.casefold()]
-            for word in re.findall(r"[^\W\d_]+", text)
-            if word.casefold() in abbreviations
-        }
-    )
+    found = {name for token in document if (name := _calendar(token, language))}
+    for word in re.finditer(r"[^\W\d_]+", text):
+        lower = word.group().casefold()
+        before, after = (
+            text[word.start() - 1 : word.start()],
+            text[word.end() : word.end() + 1],
+        )
+        if lower in abbreviations and (
+            word.group()[0].isupper() or after in ".-–" or before in "-–"
+        ):
+            found.add(abbreviations[lower])
+        found.update(
+            base
+            for name, base in names.items()
+            if len(name) > 3 and lower.startswith(name)
+        )
+    return frozenset(found)
 
 
 def content(text: str, language: str | None) -> frozenset[str]:

@@ -3328,3 +3328,71 @@ def test_a_weight_in_pounds_beside_a_cited_price_is_no_currency_claim(
     judged = Checker(passage(text, language=language)).atomic(statement, 0)
 
     assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Die Hotline ist Montag–Freitag von 8 bis 20 Uhr erreichbar.",
+            "Die Hotline ist Montag bis Freitag von 8 bis 20 Uhr erreichbar.",
+        ),
+        (
+            "de",
+            "Die Aktion läuft Januar–März.",
+            "Die Aktion läuft von Januar bis März.",
+        ),
+        (
+            "de",
+            "Die Filiale ist an Sonn- und Feiertagen geschlossen.",
+            "Die Filiale ist an Sonntagen und Feiertagen geschlossen.",
+        ),
+        (
+            "de",
+            "Die Filiale ist bis Montagabend geschlossen.",
+            "Die Filiale ist bis Montag geschlossen.",
+        ),
+        (
+            "de",
+            "Die Filiale öffnet am Samstagvormittag.",
+            "Die Filiale öffnet am Samstag.",
+        ),
+        (
+            "en",
+            "The hotline is open Monday–Friday from 8 to 8.",
+            "The hotline is open Monday to Friday from 8 to 8.",
+        ),
+    ],
+)
+def test_a_name_inside_a_range_or_a_compound_of_the_cited_text_supports_the_plain_name(
+    language, text, statement
+) -> None:
+    """The cited side reads Montag-Freitag, Samstagvormittag and Sonn- as the names they hold."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Die Filiale ist montags geöffnet, so lange der Vorrat reicht.",
+            "Die Filiale ist montags und sonntags geöffnet.",
+        ),
+        (
+            "en",
+            "The store is open on Mondays when the sun is out.",
+            "The store is open on Sundays.",
+        ),
+    ],
+)
+def test_an_ordinary_word_spelled_like_an_abbreviation_supports_no_day(
+    language, text, statement
+) -> None:
+    """An abbreviation counts only as the text writes one: capitalised, dotted or in a range."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
