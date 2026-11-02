@@ -1030,6 +1030,40 @@ def test_a_german_placeholder_before_its_clause_is_no_reference(statement: str) 
     ],
 )
 def test_a_pronoun_with_no_clause_after_it_still_points_outside(
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Der Verein hat es versäumt, die Unterlagen fristgerecht einzureichen.",
+        "Es ist erlaubt, die Karte zu sperren, damit niemand sie missbraucht.",
+    ],
+)
+def test_an_object_es_before_its_infinitive_and_an_infinitive_holding_a_clause_resolve(
+    statement: str,
+) -> None:
+    """The object correlate, and a clause nested in the infinitive, which is not the pronoun's clause."""
+    from nlp.analysis import claim
+
+    assert not claim(statement, "de").references
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Es ist kostenlos, wenn Sie bestätigen, dass die Karte gültig ist.",
+        "Der Kunde muss es zurückgeben, um eine Erstattung zu erhalten.",
+    ],
+)
+def test_a_condition_holding_a_dass_clause_and_an_object_before_a_purpose_clause_still_point_outside(
+    statement: str,
+) -> None:
+    """The nested dass clause is not the one the placeholder stands for."""
+    from nlp.analysis import claim
+
+    assert claim(statement, "de").references
+
+
     language: str, statement: str, refused: bool
 ) -> None:
     """The English twins are unchanged; a bare es is still a pronoun."""

@@ -1413,8 +1413,6 @@ def _clausal_correlate(token) -> bool:
     muss es zurückgeben, um eine Erstattung zu erhalten", still points at
     something the statement never named.
     """
-    if token.dep_ not in _SUBJECTS and token.dep_ not in _EXPLETIVE:
-        return False
     language = token.doc.lang_
     if language not in _PLACEHOLDER_GENDER:
         return False
@@ -1423,6 +1421,31 @@ def _clausal_correlate(token) -> bool:
     ):
         return False
     if "Sing" not in token.morph.get("Number"):
+        return False
+    # A clause hung on the pronoun itself, as a German parse hangs "Es ist
+    # verboten, die PIN zu notieren" and "Er hat es versäumt, ... einzureichen",
+    # subject or object: an infinitive, or a clause a complementizer opens.
+    # The clause's own words decide, not what is nested in it: a condition,
+    # `Es ist kostenlos, wenn ...`, hangs there too and is not what the pronoun
+    # stands for, whatever dass clause it holds.
+    if any(
+        child.i > token.i
+        and child.dep_ in {"oc", "ccomp", "xcomp", "re", "csubj"}
+        and (
+            (
+                "Inf" in child.morph.get("VerbForm", [])
+                and not any(c.dep_ in _SUBORDINATOR for c in child.children)
+            )
+            or any(
+                c.dep_ in _SUBORDINATOR
+                and c.lemma_.casefold() in _COMPLEMENTIZERS.get(language, ())
+                for c in child.children
+            )
+        )
+        for child in token.children
+    ):
+        return True
+    if token.dep_ not in _SUBJECTS and token.dep_ not in _EXPLETIVE:
         return False
     chain, frontier = [token.head], [token.head]
     while frontier:
@@ -1441,25 +1464,6 @@ def _clausal_correlate(token) -> bool:
             t.tag_ in {"PTKZU", "TO"} or t.dep_ in _SUBORDINATOR for t in child.subtree
         )
         for child in (c for one in chain for c in one.children)
-    ) or any(
-        # Hung on the pronoun itself, as a German parse hangs "Es ist verboten,
-        # die PIN zu notieren": an infinitive, or a clause a complementizer
-        # opens. A condition, `Es ist kostenlos, wenn ...`, hangs there too and
-        # is not what the pronoun stands for.
-        child.i > token.i
-        and child.dep_ in {"oc", "ccomp", "xcomp", "re", "csubj"}
-        and (
-            (
-                "Inf" in child.morph.get("VerbForm", [])
-                and not any(t.dep_ in _SUBORDINATOR for t in child.subtree)
-            )
-            or any(
-                t.dep_ in _SUBORDINATOR
-                and t.lemma_.casefold() in _COMPLEMENTIZERS.get(token.doc.lang_, ())
-                for t in child.subtree
-            )
-        )
-        for child in token.children
     )
 
 
