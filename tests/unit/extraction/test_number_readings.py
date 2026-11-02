@@ -548,3 +548,71 @@ def test_a_sign_after_an_opening_parenthesis_is_read_by_figures_too(lang, text, 
     """The token reader and the figure reader agree on `(-12)`."""
     assert figures(text, lang) == value
     assert numbers(text, lang) == ("-12",)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text"),
+    [
+        ("de", "Die Temperatur darf auf minus 5 Grad sinken."),
+        ("en", "The product can be stored at minus 5 degrees."),
+        ("en", "The deposit rate is negative 0.5 % a year."),
+        ("de", "Der Einlagezins ist negativ 0,5 % im Jahr."),
+        ("en", "The member price is EUR 100 minus 20 % for members."),
+        ("de", "Mitglieder zahlen 100 Euro minus 20 % Rabatt."),
+    ],
+)
+def test_a_statement_copying_a_spoken_sign_word_for_word_validates(lang, text):
+    """The cited text says the sign in words too, so both sides read the figure signed."""
+    must_validate(lang, text)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "fact"),
+    [
+        (
+            "en",
+            "The product can be stored at minus 5 degrees.",
+            "The product can be stored at -5 degrees.",
+        ),
+        (
+            "de",
+            "Die Temperatur darf auf minus 5 Grad sinken.",
+            "Die Temperatur darf auf −5 Grad sinken.",
+        ),
+    ],
+)
+def test_a_cited_spoken_sign_supports_the_symbol(lang, text, fact):
+    """`minus 5` and `-5` are one figure."""
+    must_validate(lang, text, fact)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text"),
+    [
+        ("fr", "La température peut descendre à moins 5 degrés."),
+        ("el", "Η θερμοκρασία μπορεί να πέσει στους μείον 5 βαθμούς."),
+    ],
+)
+def test_a_spoken_sign_in_a_language_without_a_row_is_read_as_no_sign(lang, text):
+    """No row: the figure stays unsigned and the claim's units hold it as written."""
+    from nlp.analysis import claim
+
+    read = claim(text, lang)
+    assert "5" in read.units
+    assert read.signed == ()
+
+
+@pytest.mark.parametrize(
+    ("lang", "text"),
+    [
+        ("de", "Die Temperatur darf auf minus 5 Grad sinken."),
+        ("en", "The deposit rate is negative 0.5 % a year."),
+    ],
+)
+def test_the_spoken_sign_is_no_unit_the_question_gates_read(lang, text):
+    """The gates read units: a key and its identical recovery agree, and the sign word moves nothing."""
+    from nlp.analysis import claim
+    from question_generation.gates import agrees
+
+    assert not any(unit.startswith("-") for unit in claim(text, lang).units)
+    assert agrees(text, text, lang)

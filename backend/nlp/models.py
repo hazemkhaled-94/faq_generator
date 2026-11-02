@@ -46,11 +46,21 @@ class Claim:
     #: form. Apart from `units` for the reason `currencies` is: only the fact
     #: check compares them.
     calendar: tuple[str, ...] = ()
+    #: The figures a spoken sign stands before (`minus 5`), each as written and
+    #: as signed. Apart from `units` for the reason `calendar` is: the gates
+    #: compare units, and a key and its recovery read alike without the sign.
+    signed: tuple[tuple[str, str], ...] = ()
 
     @property
     def asserted(self) -> tuple[str, ...]:
         """What the fact check asks the cited text for by its words: units, figures and dates."""
-        return self.units + self.figures + self.calendar
+        plain = {unsigned for unsigned, _ in self.signed}
+        return (
+            tuple(unit for unit in self.units if unit not in plain)
+            + tuple(signed for _, signed in self.signed)
+            + self.figures
+            + self.calendar
+        )
 
 
 #: What each configured language is called, for a prompt that has to name it.

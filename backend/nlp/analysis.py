@@ -737,7 +737,23 @@ def currencies_named(text: str, language: str | None) -> tuple[frozenset[str], .
     )
 
 
-def _units(span: Doc | Span, language: str | None = None) -> tuple[str, ...]:
+def _spoken_signs(document: Doc, language: str | None) -> tuple[tuple[str, str], ...]:
+    """The figures a sign word stands before, each as written and as signed: `5` and `-5` for `minus 5`."""
+    code = (language or document.lang_).strip().lower()
+    words = _SIGN_WORDS.get(code, ())
+    return tuple(
+        dict.fromkeys(
+            (plain, "-" + plain)
+            for token in document
+            if token.i
+            and is_number(token)
+            and document[token.i - 1].lower_ in words
+            and not (plain := _bare(token.text).casefold()).startswith(("-", "−"))
+        )
+    )
+
+
+def _units(span: Doc | Span) -> tuple[str, ...]:
     """Collects the values a statement may not introduce on its own.
 
     Numbers and proper nouns only. Both are things a writer reports rather
@@ -764,18 +780,10 @@ def _units(span: Doc | Span, language: str | None = None) -> tuple[str, ...]:
     """
     found = set()
     capitalising = span.doc.lang_ in _capitalises_nouns()
-    code = (language or span.doc.lang_).strip().lower()
     for token in span:
         if is_number(token):
             # An ordinal keeps what marks it, so `3.` is not the count 3.
             value = (token.text if ordinal(token) else _bare(token.text)).casefold()
-            # A sign said in words is the sign: `minus 5` is `-5`.
-            if (
-                token.i
-                and token.doc[token.i - 1].lower_ in _SIGN_WORDS.get(code, ())
-                and not value.startswith(("-", "−"))
-            ):
-                value = "-" + value
             found.add(value)
         elif token.pos_ == "PROPN":
             if (
@@ -1493,6 +1501,9 @@ def numerals(text: str, language: str | None) -> frozenset[str]:
             found.update(
                 _PADDING.sub("", _value(one, document.lang_)) for one in digits
             )
+    # A sign said in words signs the figure too, beside the figure unsigned,
+    # since `minus` also subtracts.
+    found.update(signed for _, signed in _spoken_signs(document, language))
     return frozenset(
         found | {one for one in _spoken(document).values() if one and one.isdigit()}
     )
@@ -2978,7 +2989,8 @@ def claim(
     document = _read(text, language)
     return Claim(
         predicates=_predicates(document) or int(_untagged_claim(document)),
-        units=_units(document, language),
+        units=_units(document),
+        signed=_spoken_signs(document, language),
         calendar=tuple(
             sorted({one for token in document if (one := _calendar(token, language))})
         ),
