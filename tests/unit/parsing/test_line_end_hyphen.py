@@ -10,14 +10,12 @@ at its own hyphen and joins a word the page broke.
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
 
-FONT = "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"
 
 #: language: (lines of one paragraph, what the text must hold, what it must not)
 CASES = {
@@ -68,13 +66,12 @@ def _pdf(lines: list[str]) -> bytes:
 
     book = pymupdf.open()
     page = book.new_page()
-    page.insert_text(
-        (72, 80), "Rückgabe und Zahlung", fontsize=16, fontname="uni", fontfile=FONT
-    )
+    # The font mupdf carries inside itself, which has Latin, Greek and Cyrillic
+    # on every machine; embedded so the text layer reads back as drawn.
+    page.insert_font(fontname="uni", fontbuffer=pymupdf.Font("helv").buffer)
+    page.insert_text((72, 80), "Rückgabe und Zahlung", fontsize=16, fontname="uni")
     for at, line in enumerate(lines):
-        page.insert_text(
-            (72, 120 + at * 14), line, fontsize=11, fontname="uni", fontfile=FONT
-        )
+        page.insert_text((72, 120 + at * 14), line, fontsize=11, fontname="uni")
     return book.tobytes()
 
 
@@ -96,7 +93,6 @@ def _converted_text(data: bytes) -> str:
     return " ".join(item.text for item in conversion.document.texts)
 
 
-@pytest.mark.skipif(not Path(FONT).exists(), reason="needs a Unicode TTF")
 @pytest.mark.parametrize("language", list(CASES))
 def test_a_line_end_hyphen_is_kept_for_the_repair_to_decide(language: str) -> None:
     """A real PDF through the real converter keeps a compound and a range."""

@@ -24,14 +24,16 @@ PARAGRAPHS = {
     "fr": ("La banque perçoit des frais mensuels pour chaque compte.", "8.01"),
     "el": ("Η τράπεζα χρεώνει μηνιαίο τέλος για κάθε λογαριασμό.", "8.01"),
 }
-FONT = "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"
 
 
 def page_of(text: str, number: str, *, margin: bool) -> bytes:
     """One line: the number in the margin before the text, or after it."""
     pdf = pymupdf.open()
     page = pdf.new_page(width=595, height=842)
-    options = {"fontsize": 11, "fontname": "uni", "fontfile": FONT}
+    # The font mupdf carries inside itself, which has Latin, Greek and Cyrillic
+    # on every machine; embedded so the text layer reads back as drawn.
+    page.insert_font(fontname="uni", fontbuffer=pymupdf.Font("helv").buffer)
+    options = {"fontsize": 11, "fontname": "uni"}
     if margin:
         page.insert_text((40, 100), number, **options)
         page.insert_text((80, 100), text, **options)
