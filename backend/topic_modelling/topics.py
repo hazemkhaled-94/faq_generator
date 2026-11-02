@@ -293,7 +293,8 @@ class TopicFitter:
         By the same sizing `_count` uses: one topic is worth
         TOPIC_PASSAGES_PER_TOPIC passages and a fit has at least two. With
         that off a fit is TOPIC_NUM_TOPICS topics, which takes as many
-        passages.
+        passages, and never fewer than three: two that no term tells apart are
+        no two topics.
         """
         if self._passages_per_topic <= 0:
             # Two passages no term tells apart are no two topics, whatever

@@ -344,7 +344,7 @@ class TopicQueue(StageQueue):
             )
 
     def passages(self, language: str) -> Iterator[PassageVocabulary]:
-        """Streams one language's passages by id, in batches of `_BATCH`.
+        """Streams one language's passages by document and position, in batches of `_BATCH`.
 
         Only the passages carrying a validated fact, where the language has
         any: a heading, a page number or a contents page extraction found

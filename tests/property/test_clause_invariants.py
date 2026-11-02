@@ -22,16 +22,23 @@ _WORDS = st.sampled_from([*_FORMS, *_OTHER, ",", "."])
 
 
 class _Doc:
-    """A document as far as the rule reads it: tokens, slices and a language."""
+    """A document as far as the rule reads it: tokens, their morphology and heads, and a language."""
 
     def __init__(self, language: str, words: list[str]) -> None:
         self.lang_ = language
         self.tokens = [
             SimpleNamespace(
-                i=i, text=word, is_punct=not any(c.isalnum() for c in word), doc=self
+                i=i,
+                text=word,
+                is_punct=not any(c.isalnum() for c in word),
+                doc=self,
+                # No number: the tagger said none, so the reading is as it was.
+                morph=SimpleNamespace(get=lambda name, default=None: []),
             )
             for i, word in enumerate(words)
         ]
+        for token in self.tokens:
+            token.head = token
 
     def __getitem__(self, index):
         return self.tokens[index]
