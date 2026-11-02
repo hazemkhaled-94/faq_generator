@@ -1740,6 +1740,7 @@ def test_the_origin_lines_never_print_an_address(tmp_path: Path) -> None:
         env_text="DATABASE_URL=postgresql+psycopg://u:hunter2@pg.example.net/ledger\n",
     )
 
+    assert len(done.stdout.splitlines()) == len(ADDRESSES), done
     assert "hunter2" not in done.stdout and "pg.example.net" not in done.stdout
 
 
@@ -2042,3 +2043,26 @@ def test_a_harmless_query_is_kept(tmp_path: Path) -> None:
     )
 
     assert "went-on" in done.stdout, done
+
+
+def test_the_doctor_reports_a_name_disagreement_and_goes_on(tmp_path: Path) -> None:
+    """Where every other target exits, the doctor wants the whole list."""
+    recipe = (
+        'say() { echo "$$1 $$2"; }; fail=0; $(LOADED) && set +a; $(AGREEMENT); '
+        'echo "went-on fail=$$fail"'
+    )
+    done = probe(
+        tmp_path,
+        recipe,
+        "APP_DB_NAME=qa_scratch",
+        env_text="DATABASE_URL=postgresql+psycopg://u:p@localhost:5432/qa_generator\n",
+    )
+    assert done.returncode == 0, done
+    assert (
+        "FAIL DATABASE_URL names qa_generator but APP_DB_NAME is qa_scratch"
+        in done.stdout
+    )
+    assert "went-on fail=1" in done.stdout
+
+    agreed = probe(tmp_path, recipe, "APP_DB_NAME=qa_scratch")
+    assert "FAIL" not in agreed.stdout and "went-on fail=0" in agreed.stdout, agreed

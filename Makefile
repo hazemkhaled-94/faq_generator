@@ -92,6 +92,10 @@ DERIVED = DATABASE_URL=$${DATABASE_URL:-postgresql+psycopg://$$APP_DB_USER:$$APP
           OTEL_EXPORTER_OTLP_ENDPOINT=$${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:$$PHOENIX_GRPC_PORT} \
           ARGILLA_API_URL=$${ARGILLA_API_URL:-http://localhost:$$ARGILLA_PORT}
 
+# What `make doctor` does with the check in AGREED: a FAIL line and the next
+# check, instead of the exit every other target makes. Needs `say` and `fail`.
+AGREEMENT = if ! agreed=$$( $(AGREED) 2>&1 ); then say FAIL "$${agreed\#REFUSED: }"; fail=1; fi
+
 # Where each address in DERIVED came from, one `NAME: source` line each, for
 # `make doctor`: the file that names it, the environment, the command line, or
 # the ports it is built from. Never the address, which may carry a password.
@@ -114,8 +118,10 @@ ORIGINS = for name in DATABASE_URL BACKEND_URL S3_ENDPOINT PHOENIX_BASE_URL OTEL
 # .env, found no key in either, and failed to authenticate.
 PROVIDER = { [ ! -f ./configs/env/provider.env ] || . ./configs/env/provider.env; }
 
-LOADENV = set -a && . ./configs/env/backend.env && . ./configs/env/deployment.env \
-          && $(PROVIDER) && . "$(ENV_PATH)" $(OVERRIDE) && $(DERIVED) $(OVERRIDE) && $(AGREED) && set +a
+LOADED = set -a && . ./configs/env/backend.env && . ./configs/env/deployment.env \
+         && $(PROVIDER) && . "$(ENV_PATH)" $(OVERRIDE) && $(DERIVED) $(OVERRIDE)
+
+LOADENV = $(LOADED) && $(AGREED) && set +a
 
 # What `wipe` leaves standing. Comma-separated, and empty by default: the
 # command is called wipe, and a default that quietly kept things would be
@@ -512,7 +518,7 @@ doctor:
 	  say FAIL "$$($(ASSIGNED) | grep -c change_me) placeholder password(s) left - run: make setup"; fail=1; \
 	  else say ok "no placeholder passwords"; fi; \
 	$(ORIGINS) | while IFS= read -r line; do say "-" "$$line"; done; \
-	$(LOADENV); \
+	$(LOADED) && set +a; $(AGREEMENT); \
 	if printf '%s' "$$PHOENIX_ADMIN_SECRET" | grep -qE '^.{32,}$$' \
 	   && printf '%s' "$$PHOENIX_ADMIN_SECRET" | grep -q '[0-9]' \
 	   && printf '%s' "$$PHOENIX_ADMIN_SECRET" | grep -q '[a-z]'; then \
