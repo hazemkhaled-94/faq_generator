@@ -1257,14 +1257,18 @@ def test_the_english_twin_of_a_dangling_sie_is_refused_too() -> None:
             1,
         ),
         (
-            "Bei kostenlosen Diensten haben Sie das Recht zu erfahren, wie Ihre Daten "
-            "verwendet werden. Sie sollten auch die Vertragsdauer kennen.",
+            (
+                "Bei kostenlosen Diensten haben Sie das Recht zu erfahren, wie Ihre Daten "
+                "verwendet werden. Sie sollten auch die Vertragsdauer kennen."
+            ),
             "Sie sollten die Vertragsdauer kennen.",
             1,
         ),
         (
-            "Bei kostenlosen Diensten haben Sie das Recht zu erfahren, wie Ihr Konto "
-            "geführt wird. Sie sollten auch die Vertragsdauer kennen.",
+            (
+                "Bei kostenlosen Diensten haben Sie das Recht zu erfahren, wie Ihr Konto "
+                "geführt wird. Sie sollten auch die Vertragsdauer kennen."
+            ),
             "Sie sollten die Vertragsdauer kennen.",
             1,
         ),
