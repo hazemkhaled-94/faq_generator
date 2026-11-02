@@ -517,4 +517,4 @@ def test_a_citation_carries_the_section_its_passage_sits_under(written, engine) 
 
     assert cited.question_id == ids[0]
     assert cited.section_path == "Terms > Returns"
-    assert cited.page == "3–4"
+    assert (cited.first_page, cited.last_page) == (3, 4)

@@ -120,6 +120,11 @@ def test_an_export_of_seventy_thousand_questions_completes(
         )
 
     book = load_workbook(io.BytesIO(out.read_bytes()), read_only=True)
-    summary = dict(list(book["Summary"].iter_rows(values_only=True))[1:])
+    # A read-only sheet trims a row after its last value, so a row with no
+    # count has one cell.
+    summary = {
+        row[0]: row[1] if len(row) > 1 else None
+        for row in list(book["Summary"].iter_rows(values_only=True))[1:]
+    }
     assert summary["Questions in this workbook"] == 70_000
     assert summary["Citation rows"] == 70_000
