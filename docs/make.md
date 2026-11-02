@@ -358,8 +358,7 @@ Track.
 
 Every target that destroys data in a database refuses unless
 `CONFIRM=<database>`, typed on the command line (an exported `CONFIRM` does
-not count), names the database `DATABASE_URL` resolves to. The refusal says which
-database and port it would act on. A `DATABASE_URL` naming no database is
+not count), names the database `DATABASE_URL` resolves to. A `DATABASE_URL` naming no database is
 refused, because libpq would take the user's namesake, the main database.
 A `DATABASE_URL` given by `ENV_FILE`, the environment or the command line must
 name the database `APP_DB_NAME` says, or every target that loads the settings
@@ -412,9 +411,9 @@ spares what nothing upstream rebuilds; any other name is refused:
 | Target | Does |
 |---|---|
 | `make archive` | What is held, by table, with its age |
-| `make backup DIR=<dir> [ARGILLA=1]` | Dump the application, SeaweedFS, Phoenix and Dagster databases (`pg_dump -Fc`), copy the five buckets, and write a manifest of row counts and sha256 into `DIR`, which must hold no backup. `ARGILLA=1` adds Argilla's database, whose dump holds the owner's API key in clear: store it as a secret. Never includes `.env`, `provider.env` or a certificate key. See Backups in the operations guide |
-| `make restore-backup DIR=<dir> CONFIRM=<database>` | Put one database back (`pg_restore` and its own objects), checked against the manifest. Leaves shared stores and other databases alone. Refuses while a worker runs. **Replaces the data** |
-| `make restore-backup-stack DIR=<dir> CONFIRM=stack` | Put the whole stack back. Refuses while more than one application database exists unless `ALL_DATABASES=1`. **Replaces the data of the stack** |
+| `make backup DIR=<dir> [ARGILLA=1]` | Dump the application, SeaweedFS, Phoenix and Dagster databases (`pg_dump -Fc`), copy the five buckets, and write a manifest of row counts and sha256 into `DIR`, which must hold no backup. `ARGILLA=1` adds Argilla's database, whose dump holds the owner's API key in clear: store it as a secret. Never includes `.env`, `provider.env` or a certificate key. Dumps through the stack's postgres container, so it refuses a `DATABASE_URL` naming another host. See Backups in the operations guide |
+| `make restore-backup DIR=<dir> CONFIRM=<database>` | Put one database back (`pg_restore` and its own objects), checked against the manifest. Leaves shared stores and other databases alone. Refuses while a worker runs, and a `DATABASE_URL` naming another host than the stack's postgres. **Replaces the data** |
+| `make restore-backup-stack DIR=<dir> CONFIRM=stack` | Put the whole stack back. Refuses while more than one application database exists unless `ALL_DATABASES=1`, and a `DATABASE_URL` naming another host than the stack's postgres. **Replaces the data of the stack** |
 | `make restore-documents` | Without `SINCE`, list the 20 newest deleting transactions and exit 2. `SINCE=<time>` lists them from then on. `AT=<archived_at>[,...]` puts those deletions back (not `service_settings` or `prompts`, unless `TABLES` names them). Run before `archive-purge` |
 | `make archive-purge` | The second deletion. **This one is final** |
 

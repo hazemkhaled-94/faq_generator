@@ -201,6 +201,16 @@ RESOLVED_DB = db=$$(printf %s "$$DATABASE_URL" | sed -n 's|^[^:]*://[^/]*/\([^?]
 AGREED = $(RESOLVED_DB) && { [ "$$db" = "$$APP_DB_NAME" ] || \
          { echo "REFUSED: DATABASE_URL names $$db but APP_DB_NAME is $$APP_DB_NAME; set APP_DB_NAME=$$db" >&2; exit 2; }; }
 
+# Refuses unless DATABASE_URL names the stack's own postgres, localhost or
+# 127.0.0.1 at POSTGRES_PORT. $(1) says what is asked. For the targets that dump
+# and restore through `compose exec postgres`: whatever other server the URL names
+# is not the one they would act on, and a managed database is backed up by its
+# provider.
+#
+#     @$(call ON_STACK,backup)
+ON_STACK = $(LOADENV) && $(RESOLVED_DB) && case "$$host" in "localhost:$$POSTGRES_PORT"|"127.0.0.1:$$POSTGRES_PORT") ;; \
+           *) echo "REFUSED: $(1) dumps and restores inside the stack's postgres container (localhost:$$POSTGRES_PORT) but DATABASE_URL names $$host; a managed database is backed up by its provider." >&2; exit 2;; esac
+
 BANNER = $(LOADENV) && $(RESOLVED_DB) && echo "on database $$db on $$host" >&2
 
 # Refuses unless CONFIRM, typed on the command line (one exported in the shell
@@ -1832,6 +1842,7 @@ s3-prefix:
 # docs/operations.md.
 backup:
 	@[ -n "$(DIR)" ] || { echo "usage: make backup DIR=<directory>"; exit 2; }
+	@$(call ON_STACK,backup)
 	@[ ! -e "$(DIR)/manifest.json" ] || { echo "REFUSED: $(DIR) already holds a backup." >&2; exit 2; }
 	@echo "A worker still running writes while this copies: the dumps, the objects and the row counts are of different moments. Stop the workers first (docs/operations.md, Backups)." >&2
 	@umask 077 && mkdir -p "$(DIR)/db" && chmod 700 "$(DIR)" "$(DIR)/db"
@@ -1850,6 +1861,7 @@ backup:
 # in use.
 restore-backup:
 	@[ -n "$(DIR)" ] && [ -f "$(DIR)/manifest.json" ] || { echo "usage: make restore-backup DIR=<a directory make backup wrote> CONFIRM=<database>"; exit 2; }
+	@$(call ON_STACK,restore-backup)
 	@$(foreach worker,parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker,$(call IDLE,$(worker)); )
 	@$(call CONFIRMED,restore-backup: it replaces the application database and its objects from $(DIR))
 	$(LOADENV) && $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists --single-transaction -U \"\$$POSTGRES_USER\" -d $$APP_DB_NAME" < "$(DIR)/db/$$APP_DB_NAME.dump"
@@ -1863,6 +1875,7 @@ restore-backup:
 # ALL_DATABASES=1, and unless CONFIRM=stack.
 restore-backup-stack:
 	@[ -n "$(DIR)" ] && [ -f "$(DIR)/manifest.json" ] || { echo "usage: make restore-backup-stack DIR=<a directory make backup wrote> CONFIRM=stack"; exit 2; }
+	@$(call ON_STACK,restore-backup-stack)
 	@$(foreach worker,parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker,$(call IDLE,$(worker)); )
 	@$(LOADENV) && n=$$($(COMPOSE_CMD) exec -T postgres sh -c "psql -At -U \"\$$POSTGRES_USER\" -d $$APP_DB_NAME -c \"SELECT count(*) FROM pg_database WHERE NOT datistemplate AND datname NOT IN ('postgres','\$$POSTGRES_USER','$$SEAWEEDFS_DB_NAME','$$PHOENIX_DB_NAME','$$DAGSTER_DB_NAME','$$ARGILLA_DB_NAME')\"") && \
 	  { [ "$$n" -le 1 ] || [ "$(ALL_DATABASES)" = 1 ] || \

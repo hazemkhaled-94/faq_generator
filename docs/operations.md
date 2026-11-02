@@ -349,6 +349,8 @@ protects. A backup copies both elsewhere.
 make backup DIR=/backups/$(date +%F)
 ```
 
+`make backup`, `make restore-backup` and `make restore-backup-stack` dump and restore through the stack's postgres container, so they refuse a `DATABASE_URL` that names another host than `localhost` or `127.0.0.1` at `POSTGRES_PORT`. A managed database is backed up by its provider.
+
 | Path under `DIR` | Content |
 |---|---|
 | `db/<name>.dump` | `pg_dump -Fc` of the application, SeaweedFS, Phoenix and Dagster databases |

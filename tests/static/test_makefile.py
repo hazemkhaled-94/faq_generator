@@ -1051,7 +1051,7 @@ def test_a_restore_refuses_while_a_worker_runs_and_checks_the_manifest() -> None
         for part in (
             "ps -q parse-worker",
             "ps -q assess-worker",
-            "REFUSED:",
+            "Run it again with CONFIRM=stack",
             "pg_restore --clean",
             "archive.backup --restore",
         )
@@ -1835,18 +1835,46 @@ def test_a_url_naming_another_database_than_app_db_name_is_refused(
     assert "pg_restore" not in asked and "orchestration.wipe" not in asked, asked
 
 
-@pytest.mark.parametrize("where", ["env_file", "environment"])
-def test_restore_backup_restores_the_database_both_names_say(
-    tmp_path: Path, where: str
+@pytest.mark.parametrize("where", ["env_file", "environment", "command_line"])
+@pytest.mark.parametrize("target", ["backup", "restore-backup", "restore-backup-stack"])
+def test_a_target_run_inside_the_stacks_postgres_refuses_another_host(
+    tmp_path: Path, where: str, target: str
 ) -> None:
-    """With the two names equal, pg_restore acts on that one."""
+    """pg_dump and pg_restore run in the container, so a managed URL is not theirs to act on."""
+    directory = backup_directory(tmp_path)
+    if target == "backup":
+        directory = tmp_path / "fresh"
+    arguments = [
+        f"DIR={directory}",
+        "CONFIRM=stack" if target.endswith("stack") else "CONFIRM=faq_prod",
+        "APP_DB_NAME=faq_prod",
+    ]
+    extra = {"env_text": f"DATABASE_URL={MANAGED}\n"}
+    if where == "environment":
+        extra = {"DATABASE_URL": MANAGED}
+    if where == "command_line":
+        arguments.append(f"DATABASE_URL={MANAGED}")
+        extra = {}
+    done, asked = run_target(tmp_path, target, *arguments, **extra)
+
+    assert done.returncode == 2, done
+    assert f"REFUSED: {target} dumps and restores" in done.stderr, done.stderr
+    assert "managed.example.net:5432" in done.stderr and "localhost:5432" in done.stderr
+    assert "pg_restore" not in asked and "pg_dump" not in asked, asked
+
+
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1"])
+def test_restore_backup_restores_the_database_both_names_say_on_the_stack(
+    tmp_path: Path, host: str
+) -> None:
+    """With the two names equal and the stack's own host, pg_restore acts on that one."""
     done, asked = run_target(
         tmp_path,
         "restore-backup",
         f"DIR={backup_directory(tmp_path)}",
         "CONFIRM=faq_prod",
         "APP_DB_NAME=faq_prod",
-        **given_url(where),
+        env_text=f"DATABASE_URL=postgresql+psycopg://u:p@{host}:5432/faq_prod\n",
     )
 
     restore = [line for line in asked.splitlines() if "pg_restore" in line]
