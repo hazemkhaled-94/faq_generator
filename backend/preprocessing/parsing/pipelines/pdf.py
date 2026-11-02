@@ -771,7 +771,7 @@ def _printed(document: DoclingDocument) -> frozenset[tuple[str, str]]:
 
 #: What ends a sentence in a cell: a cell ending on one is complete, and the
 #: row below it is a row of its own. Not a colon, which in a cell opens what
-#: follows - `Impact:` over `goal kick`.
+#: follows - `Fee:` over `late payment`.
 _SENTENCE_END = (".", "!", "?")
 
 #: A font as a page sets text in it: its name, and its size in whole points.

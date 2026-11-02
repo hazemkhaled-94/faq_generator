@@ -2335,7 +2335,7 @@ def _lemmas(document: Doc) -> list[str]:
 
 
 #: Characters that join two words with no space between them: a sentence
-#: never ends inside "Anspucken/Spucken" or "Ball-im-Spiel".
+#: never ends inside "Ein-/Auszahlung" or "Click-and-Collect".
 _JOINERS = "/-"
 
 #: The marks that end a sentence, in the scripts read here. A joiner after

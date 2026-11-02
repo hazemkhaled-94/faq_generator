@@ -228,7 +228,7 @@ def _misfits(
 
     Two readings: how long it is, and what it is made of. A value carrying a
     verb is a fragment of the sentence rather than the thing asked for -
-    `Verwarnungen aussprechen`, `nachvollziehbar zu begruenden`. Any verb and
+    `Gebuehren erheben`, `nachvollziehbar zu begruenden`. Any verb and
     not only a finite one, because those two are infinitives and make no
     claim: a phrase can describe an action without asserting it. Only for an
     answer of more than one word, because a single word is a thing by
@@ -1693,8 +1693,8 @@ def enumerates(answer: str, language: str | None) -> bool:
     A suspended hyphen adds one item more for each part it leaves hanging:
     a word ending in `-` directly before a comma or a coordinating
     conjunction is a compound whose head the last part supplies.
-    `Junioren-, Senioren-, Behinderten- und Breitenfussball` is one noun
-    phrase and four kinds of football; `short- and long-term savings
+    `Spar-, Giro-, Tages- und Festgeldkonten` is one noun
+    phrase and four kinds of account; `short- and long-term savings
     accounts` is two kinds of account.
 
     A coordination with no noun phrase is a set too, `political, religious
@@ -2129,8 +2129,8 @@ def _contrasts(question: str, answer: str, language: str | None) -> bool:
 
     Otherwise the sides are read either side of a seam. The first seam
     dividing the subjects wins, in that order, except that a comma opening
-    a subordinate clause comes after a conjunction: `beim Anstoss und ...
-    des Elfmeters, wenn der Ball ...` compares at the `und`. The answer
+    a subordinate clause comes after a conjunction: `bei der Eroeffnung und ...
+    der Kuendigung, wenn der Kunde ...` compares at the `und`. The answer
     holds where each side carries a comparative of its own - `less formal`,
     `more formal` - or, at a seam opening a subordinate clause, where one
     side does: `Card payments are faster, while bank transfers take a day`.
