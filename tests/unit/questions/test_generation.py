@@ -1584,13 +1584,13 @@ def test_every_type_is_told_to_name_the_case_that_fixes_its_key() -> None:
         assert "ask about one of them and say which" in " ".join(system.split()), name
 
 
-def test_the_key_rule_has_a_shop_and_a_bank_example_in_both_languages() -> None:
-    """Two domains, English and German, none of them the corpus at hand."""
+def test_the_key_rule_has_a_library_and_a_permit_example_in_both_languages() -> None:
+    """Two domains, English and German, none of them a corpus the project is calibrated on."""
     rule = SPECS["factoid"].system().split("NAME WHAT MAKES YOUR KEY")[1]
     rule = rule.split("- `facts` is")[0]
 
-    assert "return an item bought online" in rule
-    assert "Überweisung ins Ausland" in rule
+    assert "a book from the main library" in rule
+    assert "Parkausweis für Besucher" in rule
 
 
 def test_every_writer_is_told_the_reader_never_sees_the_passage() -> None:

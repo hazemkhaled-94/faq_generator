@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 #: every worked example into the neutral domain the rest of the prompts use:
 #: the examples had been taken from the corpus being debugged against, which
 #: is the one thing extraction's own prompt warns about.
-PROMPT_VERSION = "6"
+PROMPT_VERSION = "7"
 
 _SOURCE = """ROLE
 You are a question reviewer. You judge ONE property of ONE question and
@@ -127,11 +127,11 @@ TRUE:  "When are the two instalments of a payment plan due?"
 TRUE:  "Müssen die beiden Vertragsparteien eines Mietvertrags unterschreiben?"
        (pointing word: "beiden". The parties are named in the question, and a
         contract has exactly two.)
-TRUE:  "Can a bank charge the same fee for a standing order as for a direct
-        debit?"
+TRUE:  "Can the office charge the same fee for a renewal as for a first
+        permit?"
        (pointing word: "same". The fee is named in the question.)
-TRUE:  "Gilt für Rückgaben im Laden dieselbe Frist wie für Rückgaben im
-        Onlineshop?"
+TRUE:  "Gilt für Verlängerungen im Bürgeramt dieselbe Frist wie für
+        Erstanträge?"
        (pointing word: "dieselbe". The period is named in the question.)
 TRUE:  "If a system meets its target by editing the stored score instead of
         doing the task, how is this behaviour classified?"

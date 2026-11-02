@@ -34,7 +34,7 @@ from llm.client import Client
 #: until the gate verdicts needed to say which prompt reached them, and a
 #: run recorded under no version cannot be told from one recorded under
 #: the next. Pinned by `tests/static/test_prompts_pinned.py`.
-PROMPT_VERSION = "15"
+PROMPT_VERSION = "16"
 
 #: The version of `_STATED` alone, so a change to it re-asks nothing `rejudge`
 #: keys on PROMPT_VERSION. Pinned by `tests/static/test_prompts_pinned.py`.
@@ -86,10 +86,10 @@ IN PASSAGE:     passages "Requests are answered within 48 hours." and "The
 NOT IN PASSAGE: same passages
                 question "How long is allowed on a public holiday?"
                 (the passages never mention public holidays)
-NO REASON:      passages "The shop only accepts returns that were announced
-                          before sending."
-                question "Why must a return be announced before the parcel is
-                          sent?"
+NO REASON:      passages "The library only accepts donations that were
+                          announced before they are brought in."
+                question "Why must a donation be announced before it is
+                          brought in?"
                 (the rule, and nothing on why it is there)
 
 FORMAT
@@ -329,13 +329,13 @@ EXAMPLES
            circumstances the question assumes)
   silent   "Through which channel is the answer to a standard request sent?"
            (no passage says, and no list or rule in them reaches it)
-  silent   passage "The shop only accepts returns that were announced before
-           sending."
-           "Why must a return be announced before the parcel is sent?"
+  silent   passage "The library only accepts donations that were announced
+           before they are brought in."
+           "Why must a donation be announced before it is brought in?"
            (the rule, and nothing on why it is there)
-  silent   passage "A standing order can be changed in online banking until
-           the day before it is executed."
-           "Why can a standing order not be changed on the day it is executed?"
+  silent   passage "A reservation can be changed in the online catalogue until
+           the day before it is collected."
+           "Why can a reservation not be changed on the day it is collected?"
            (the cut-off, and no reason for it)
 
 FORMAT
@@ -406,26 +406,25 @@ EXAMPLES
      months is dormant."]
      "the yearly charge": ["A dormant account is charged 30 EUR a year."]
 
-  [1] "A standing order can be changed in online banking until the day
-       before it is executed."
-  [2] "A direct debit can be stopped in online banking until the day before
-       it is debited."
-  question "Until when can a standing order be changed and a direct debit be
-            stopped?"
+  [1] "A reservation can be changed in the online catalogue until the day
+       before it is collected."
+  [2] "A loan can be extended in the online catalogue until the day before it
+       is due."
+  question "Until when can a reservation be changed and a loan be extended?"
   key      "until the day before"
-  -> "changing a standing order": ["A standing order can be changed in
-     online banking until the day before it is executed."]
-     "stopping a direct debit": ["A direct debit can be stopped in online
-     banking until the day before it is debited."]
+  -> "changing a reservation": ["A reservation can be changed in the online
+     catalogue until the day before it is collected."]
+     "extending a loan": ["A loan can be extended in the online catalogue
+     until the day before it is due."]
 
-  [1] "Returns are accepted within 30 days of delivery."
-  [2] "A return is accepted within 30 days of delivery and refunded to the
-       card used."
-  question "Within how many days can a purchase be returned?"
-  key      "within 30 days of delivery, refunded to the card used"
-  -> "the return period": ["Returns are accepted within 30 days of
-     delivery.", "A return is accepted within 30 days of delivery"]
-     (the refund is not asked, so it is not a part)
+  [1] "Loans run for 21 days from the date of issue."
+  [2] "A loan runs for 21 days from the date of issue and is renewed once
+       online."
+  question "For how many days can a book be borrowed?"
+  key      "21 days from the date of issue, renewed once online"
+  -> "the loan period": ["Loans run for 21 days from the date of issue.",
+     "A loan runs for 21 days from the date of issue"]
+     (the renewal is not asked, so it is not a part)
 
   [1] "Orders over 50 EUR are shipped free of charge."
   [2] "Gift cards cannot be exchanged for cash."
@@ -470,7 +469,7 @@ CONTEXT
 The two are in one language and sit close to each other, which is why they
 are compared; being close says nothing on its own. Two questions about one
 subject that ask for different things about it want two answers: what a
-transfer abroad costs and how long it takes are two tests.
+replacement permit costs and how long it takes are two tests.
 
 The questions may be in any language, and the examples below are in English
 only because these instructions are. Judge what they ask.
@@ -484,8 +483,8 @@ EXAMPLES
            - "the site manager's"
   FALSE: A "How long may the bank take to answer an urgent request?" - "4 hours"
          B "How long may it take to answer a standard request?" - "48 hours"
-  FALSE: A "What does a transfer abroad cost?" - "a flat fee of 5 euros"
-         B "How long does a transfer abroad take?" - "two working days"
+  FALSE: A "What does a replacement permit cost?" - "a flat fee of 5 euros"
+         B "How long does a replacement permit take?" - "two working days"
 
 FORMAT
 Return `same`, true or false, and nothing else."""

@@ -64,7 +64,7 @@ def test_the_prompt_says_which_mistake_costs_more() -> None:
         assert anchor not in system
 
 
-def test_a_why_over_a_bare_rule_is_taught_silent_with_a_shop_and_a_bank_example() -> (
+def test_a_why_over_a_bare_rule_is_taught_silent_with_a_library_and_a_catalogue_example() -> (
     None
 ):
     """The case the recoverability prompt already has, which settles lacked.
@@ -82,8 +82,8 @@ def test_a_why_over_a_bare_rule_is_taught_silent_with_a_shop_and_a_bank_example(
     silent = system.split("EXAMPLES")[1].split("FORMAT")[0].split("silent")
     whys = [one for one in silent if "Why" in one]
     assert len(whys) == 2
-    assert "The shop only accepts returns" in whys[0]
-    assert "A standing order can be changed in online banking" in whys[1]
+    assert "The library only accepts donations" in whys[0]
+    assert "A reservation can be changed in the online catalogue" in whys[1]
 
 
 @pytest.mark.parametrize("verdict", list(Settling))

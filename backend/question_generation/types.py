@@ -31,7 +31,7 @@ from database.qa_generator import (
 #: Recorded in the log beside every question written with the prompts below.
 #: Bumped whenever one changes what a question is: two prompts are two
 #: datasets, as with extraction.
-PROMPT_VERSION = "33"
+PROMPT_VERSION = "34"
 
 #: Every gate, in the order `checker.check` applies them, cheapest first.
 #: What `CheckedQuestion.gates_ran` and `questions.gates_ran` are a subset
@@ -150,7 +150,7 @@ READS = """Rules, all of them mandatory:
 
     WRONG  "Within what period does the regulation require the book back?"
     RIGHT  "Within how many days must a borrower return a library book?"
-    WRONG  "Welche Frist nennt der Artikel für die Rückgabe?"
+    WRONG  "Welche Frist nennt der Artikel für die Ausleihe?"
     RIGHT  "Binnen welcher Frist muss ein Entleiher ein Buch zurückgeben?"
 
 - NO PADDING WORDS. Nobody typing a question into a search box writes the
@@ -240,12 +240,12 @@ _FORMAT_RULES = f"""{READS}
   gives different answers for different cases, ask about one of them and say
   which: a question two readings answer differently is thrown away.
 
-    WRONG  "How long may a customer take to return an item?"
-           (the passage gives 14 days online and 30 days in store)
-    RIGHT  "How long may a customer take to return an item bought online?"
-    WRONG  "Wie hoch ist die Gebühr für eine Überweisung?"
-           (Inland und Ausland kosten verschieden)
-    RIGHT  "Wie hoch ist die Gebühr für eine Überweisung ins Ausland?"
+    WRONG  "How long may a member keep a book?"
+           (the passage gives 21 days at the main library and 7 at a branch)
+    RIGHT  "How long may a member keep a book from the main library?"
+    WRONG  "Wie hoch ist die Gebühr für einen Parkausweis?"
+           (Anwohner und Besucher zahlen verschieden)
+    RIGHT  "Wie hoch ist die Gebühr für einen Parkausweis für Besucher?"
 
 - `facts` is the NUMBERS of the facts your question needs. Use several only
   when the question genuinely cannot be answered without all of them.

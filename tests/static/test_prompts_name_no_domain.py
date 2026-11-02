@@ -108,6 +108,18 @@ SUBJECTS = (
     "cooling-off",
     "distance contract",
     "fernabsatz",
+    # The subjects the first recast of those examples still named: the shop
+    # corpus answers each of them, in both languages.
+    "return an item",
+    "online shop",
+    "transfer abroad",
+    "standing order",
+    "direct debit",
+    "rückgabe",
+    "onlineshop",
+    "überweisung",
+    "dauerauftrag",
+    "lastschrift",
 )
 
 
@@ -281,6 +293,12 @@ PASTED = [
     'RIGHT "Binnen welcher Frist kann ein Kunde einen Kreditvertrag widerrufen?"',
     'RIGHT "How long is the cooling-off period for a distance contract?"',
     'RIGHT "Within how many days must an online shop refund a returned purchase?"',
+    # The subjects a first recast kept: a return, a transfer abroad, a standing order.
+    'RIGHT "How long may a customer take to return an item bought online?"',
+    'RIGHT "Wie hoch ist die Gebühr für eine Überweisung ins Ausland?"',
+    '"Can a bank charge the same fee for a standing order as for a direct debit?"',
+    '"Gilt für Rückgaben im Laden dieselbe Frist wie für Rückgaben im Onlineshop?"',
+    '"Wer kündigt einen Dauerauftrag und wer widerruft eine Lastschrift?"',
 ]
 
 
