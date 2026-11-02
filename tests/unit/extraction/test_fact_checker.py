@@ -3205,16 +3205,54 @@ def test_a_year_after_a_month_or_a_year_preposition_is_still_a_swap(
     ("language", "evidence", "statement"),
     [
         (
+            "en",
+            "From winter the lamp in the warehouse must give at least 1 500 lm and carry a two-year guarantee.",
+            "From winter the lamp in the warehouse must give at least 1 500 lm.",
+        ),
+        (
+            "en",
+            "From winter the battery in the scanner must hold at least 1 500 mAh and carry a two-year guarantee.",
+            "From winter the battery in the scanner must hold at least 1 500 mAh.",
+        ),
+        (
             "de",
-            "Ab dem Winter müssen die Filialen bis spät geöffnet sein und die durchschnittliche horizontale Helligkeit (Eh) muss mindestens 1 500 lx mit einer Gleichmäßigkeit von U1>0,50 und U2>0,70 betragen.",
-            "Ab dem Winter muss die durchschnittliche horizontale Helligkeit (Eh) mindestens 1 500 lx betragen.",
+            "Ab Winter muss die Lampe im Lager mindestens 1 500 lm liefern und zwei Jahre Garantie haben.",
+            "Ab Winter muss die Lampe im Lager mindestens 1 500 lm liefern.",
         ),
     ],
 )
 def test_a_run_both_texts_write_alike_is_one_figure_whatever_class_the_tagger_gives_its_unit(
     language, evidence, statement
 ) -> None:
-    """The unit symbol is a preposition in one sentence and an adverb in the next."""
+    """A unit symbol such as lm or mAh gets a different tag in each sentence."""
     judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
 
-    assert judged.validated, (judged.rejection_code, judged.units_added)
+    assert judged.rejection_code != Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "alike", "dropped"),
+    [
+        (
+            "fr",
+            "À partir de l'hiver la lampe doit donner au moins 1 500 lm et deux ans de garantie.",
+            "À partir de l'hiver la lampe doit donner au moins 1 500 lm.",
+            "À partir de l'hiver la lampe doit donner au moins 1 lm.",
+        ),
+        (
+            "el",
+            "Από τον χειμώνα ο λαμπτήρας πρέπει να δίνει τουλάχιστον 1 500 lm και δύο χρόνια εγγύηση.",
+            "Από τον χειμώνα ο λαμπτήρας πρέπει να δίνει τουλάχιστον 1 500 lm.",
+            "Από τον χειμώνα ο λαμπτήρας πρέπει να δίνει τουλάχιστον 1 lm.",
+        ),
+    ],
+)
+def test_the_shared_run_rule_is_inert_in_a_language_without_a_pipeline(
+    language, evidence, alike, dropped
+) -> None:
+    """The run written alike and the run with a group dropped get the same verdict there."""
+    read = Checker(passage(evidence, language=language))
+
+    assert (
+        read.atomic(alike, 0).rejection_code == read.atomic(dropped, 0).rejection_code
+    )

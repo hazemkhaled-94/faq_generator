@@ -1071,7 +1071,7 @@ def _amount(
     """Whether a space-grouped run is one figure: a currency word or sign beside it, or a unit or noun after it, no label before.
 
     A text that is the run alone is one, as a unit read back out of an amount.
-    A noun, name or unit after the run that is no stop word makes it a count
+    A noun, name or unit after the run makes it a count
     (`8 000 Kundinnen`), as the language's own pipeline reads it: another
     language's pipeline reads nothing reliably, so there only a currency
     counts. `document` is the unmerged parse of `text` where `_grouped` asks;
@@ -1103,43 +1103,43 @@ def _amount(
 _WORD_AFTER = re.compile(r"\s?[^\W\d_]")
 
 
-#: The open classes that follow a figure without being what it counts.
-_MODIFYING = frozenset({"ADJ", "ADV", "VERB", "AUX"})
+#: The tags of what a run of digit groups counts: a noun, a name or a symbol.
+_COUNTED = frozenset({"NOUN", "PROPN", "SYM"})
 
-
-def _could_count(document: Doc, end: int, language: str | None) -> Token | None:
-    """The word after the run when it could be what the run counts, in the language's own pipeline, else None.
-
-    A word, not a stop word: not the `for` of `Call 100 000 for help`. Read off
-    the word's own entry.
-    """
-    code = (language or "").strip().lower()
-    if code and document.lang_ != code:
-        return None
-    following = next((token for token in document if token.idx >= end), None)
-    return (
-        following
-        if following is not None
-        and following.text[:1].isalpha()
-        and not following.is_stop
-        else None
-    )
+#: The symbols of the SI units of mass, length, volume, power, energy, light,
+#: frequency, pressure and data, as lower case, the single letters that are also
+#: words left out: an international standard, the same in every language, which
+#: the unit reader knows whatever tag a sentence gives the symbol. `4 g` is not
+#: `4 kg`.
+MEASURES = frozenset(
+    """mg g kg t mm cm dm m km ml cl dl l kw mw wh kwh mwh kv hz khz mhz ghz mah db
+    cd lm lx bar mbar kpa kn kj kcal rpm kb mb gb tb""".split()  # noqa: SIM905
+)
 
 
 def _counts(document: Doc, end: int, language: str | None) -> bool:
-    """Whether a noun, name or unit follows the run, so that it is one figure.
+    """Whether a noun, name, symbol or known unit follows the run, in the language's own pipeline.
 
-    Never an adjective, an adverb or a verb: `Es sind 1 000 fällig` reads two
-    figures. A unit symbol the tagger has no class for is given a different tag
-    in each sentence (a preposition in one, an adverb in the next), so a run
-    both texts write the same way is the same figure, see `spaced_runs`.
+    So `8 000 Kundinnen` and `3 650 Tage` are one figure each. Never before an
+    adjective, an adverb or a verb: `Es sind 1 000 fällig` reads two figures.
+    Read off the tag, not off a stop list, which holds nouns such as `Tage`
+    and `Zeit`. A unit symbol the tagger has no class for is given a different
+    tag in each sentence, so a run both texts write the same way is the same
+    figure, see `spaced_runs`.
 
     shortcut: a label the language has no `REFERENCE_LABELS` entry for does
     not stop a flattened table row `Tarif 5 100 Minuten` reading as 5100;
     supply the label, or read the row by its table cells.
     """
-    following = _could_count(document, end, language)
-    return following is not None and following.pos_ not in _MODIFYING
+    code = (language or "").strip().lower()
+    if code and document.lang_ != code:
+        return False
+    following = next((token for token in document if token.idx >= end), None)
+    return (
+        following is not None
+        and following.text[:1].isalpha()
+        and (following.pos_ in _COUNTED or following.lower_ in MEASURES)
+    )
 
 
 #: A figure as either convention writes one: 1.234,56 and 1,234.56 are the

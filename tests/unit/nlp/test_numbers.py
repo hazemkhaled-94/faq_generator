@@ -416,3 +416,22 @@ def test_a_unit_symbol_the_tagger_gives_any_tag_merges_in_every_sentence(
 
     read = figures(text, language)
     assert 1250.0 in read and 1.0 not in read and 250.0 not in read
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "value"),
+    [
+        ("Die Aufbewahrungsfrist beträgt 3 650 Tage.", "de", [3650.0]),
+        ("Das Archiv reicht 1 200 Jahre zurück.", "de", [1200.0]),
+        ("Der Antrag braucht 1 100 Stunden Zeit.", "de", [1100.0]),
+        ("The retention period is 3 650 days.", "en", [3650.0]),
+        ("The archive goes back 2 500 years.", "en", [2500.0]),
+    ],
+)
+def test_a_count_before_a_noun_the_stop_list_holds_is_one_figure(
+    text, language, value
+) -> None:
+    """spaCy's German stop list holds Tage, Jahre, Zeit and Uhr; the tag decides, not the list."""
+    from nlp.analysis import figures
+
+    assert figures(text, language) == value

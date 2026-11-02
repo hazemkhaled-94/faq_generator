@@ -2,8 +2,8 @@
 
 A run of digit groups joined by a space is one figure beside a word of the
 language's `AMOUNT_WORDS` or a currency sign, or - in a language with its own
-pipeline - before a noun that is no stop word, and never after a
-`REFERENCE_LABELS` word. Before an adjective, an adverb or a verb it is two
+pipeline - before a noun, a name or a unit symbol, and never after a
+`REFERENCE_LABELS` word. A noun is a noun whether or not the pipeline's stop list holds it (`Tage`). Before an adjective, an adverb or a verb it is two
 figures, and a language with no row reads the groups apart beside a word and
 as one beside a sign. An ordinal, written as a word or as a figure, is the
 ordinal it is and never the count of the same digits.

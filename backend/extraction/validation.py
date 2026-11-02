@@ -26,6 +26,7 @@ from extraction.models import (
 )
 from nlp.analysis import (
     CALENDAR_NAMES,
+    MEASURES,
     as_noun,
     claim,
     currencies_named,
@@ -788,12 +789,6 @@ _SHARE_PHRASES: dict[str, tuple[tuple[str, ...], ...]] = {
     "en": (("per", "cent"),),
 }
 
-#: The symbols of the SI units of mass, length and volume, as lower case:
-#: an international standard, the same in every language. `4 g` is not `4 kg`.
-_MEASURES = frozenset(
-    {"mg", "g", "kg", "t", "mm", "cm", "dm", "m", "km", "ml", "cl", "dl", "l"}
-)
-
 #: The lemmas of a language's units of time that a period is counted in, by
 #: ISO 639-1 code, as lower case: "30 days" and "2 weeks" are two figures of
 #: one kind. The whole closed set, second to year. A newly configured language
@@ -929,7 +924,7 @@ def _figure_tokens(
                 if near.pos_ in _UNIT_WORDS:
                     if (
                         word := near.lemma_.strip(".,;:()").casefold()
-                    ) in _MEASURES | _TIME_UNITS.get(
+                    ) in MEASURES | _TIME_UNITS.get(
                         (language or "").strip().lower(), frozenset()
                     ):
                         nouns.add(word)
