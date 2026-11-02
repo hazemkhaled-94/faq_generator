@@ -3134,3 +3134,59 @@ def test_a_currency_the_question_gates_read_is_no_vocabulary_fold() -> None:
     from nlp.analysis import vocabulary
 
     assert "eur" not in vocabulary("The fee is €5.", "en")
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "The daily card limit is 1500. Since 2024 the limit applies to all cards.",
+            "The daily card limit of 1500 applies to all cards.",
+        ),
+        (
+            "de",
+            "Das tägliche Kartenlimit liegt bei 1500. Seit 2024 gilt das Limit für alle Karten.",
+            "Das Limit von 1500 gilt für alle Karten.",
+        ),
+        (
+            "en",
+            "Orders up to 2500 ship free. From 2024 returns are free of charge.",
+            "Returns of orders up to 2500 are free of charge.",
+        ),
+    ],
+)
+def test_a_bare_four_digit_figure_is_no_year(language, text, statement) -> None:
+    """A limit, a count or an amount written bare is not compared with a cited year."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 1)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "In May 2024 the fee is 5 EUR. In June 2023 the fee was 3 EUR.",
+            "In May 2023 the fee is 5 EUR.",
+        ),
+        (
+            "de",
+            "Im Mai 2024 beträgt die Gebühr 5 Euro. Im Juni 2023 betrug die Gebühr 3 Euro.",
+            "Im Mai 2023 beträgt die Gebühr 5 Euro.",
+        ),
+        (
+            "en",
+            "Cards expire in 2026. Cards issued before 2020 expire in 2023.",
+            "Cards expire in 2023.",
+        ),
+    ],
+)
+def test_a_year_after_a_month_or_a_year_preposition_is_still_a_swap(
+    language, text, statement
+) -> None:
+    """The year context is a month name or a word of the language's year prepositions."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added

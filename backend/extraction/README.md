@@ -137,8 +137,9 @@ passage states, when the cited sentences state another of its kind: "costs EUR
 2" for a cited "costs EUR 5". So is a figure the cited sentences give only
 beside another currency, share or period: "12 % for 5 months" for a cited "5 %
 for 12 months". So is a figure that keeps its digits and changes its unit of time
-or SI measure: "3 weeks" for a cited "3 days", "4 g" for "4 kg". A year or a clock time with no unit beside it is a kind of its
-own, so "since 2023" for a cited "since 2024" is a swap too. `not_bridging` also refuses a statement naming the numbered
+or SI measure: "3 weeks" for a cited "3 days", "4 g" for "4 kg". A clock time written with a colon, and a four-digit year after a month name or a
+year preposition (`since`, `seit`), is a kind of its own, so "since 2023" for a
+cited "since 2024" is a swap too; a bare four-digit limit has no kind. `not_bridging` also refuses a statement naming the numbered
 heading of a cited passage ("Section 7"), because that is a claim about the
 document.
 

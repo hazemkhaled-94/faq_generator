@@ -25,6 +25,7 @@ from extraction.models import (
     Provenance,
 )
 from nlp.analysis import (
+    CALENDAR_NAMES,
     as_noun,
     claim,
     currencies_named,
@@ -808,13 +809,23 @@ def _named_kind(word: str, language: str | None) -> str | None:
     return None
 
 
-#: What a figure with no unit beside it is, read from its own shape: a year
-#: written with four digits, a clock time with a colon. A bare count has no
-#: kind, so a count is never compared with another.
-_SHAPES = (
-    ("year-number", re.compile(r"\d{4}")),
-    ("clock-time", re.compile(r"\d{1,2}:\d{2}")),
-)
+#: What a figure with no unit beside it is, read from its own shape: a clock
+#: time written with a colon. A bare count has no kind, so a count is never
+#: compared with another.
+_CLOCK = re.compile(r"\d{1,2}:\d{2}")
+
+#: A year: four digits and no group mark, which is a year only after a word
+#: that introduces one (`_YEAR_WORDS`) or a month name. A bare four-digit limit
+#: or amount is no year.
+_YEAR = re.compile(r"\d{4}")
+
+#: The prepositions a language puts before a year, by ISO 639-1 code, as lower
+#: case. A newly configured language supplies its own, or reads a year only
+#: after a month name.
+_YEAR_WORDS: dict[str, frozenset[str]] = {
+    "de": frozenset({"seit", "im", "ab", "bis", "vor", "nach"}),
+    "en": frozenset({"since", "in", "from", "until", "by", "before", "after"}),
+}
 
 
 def _kind_of(tokens: Sequence, at: int, language: str | None) -> str | None:
@@ -856,7 +867,15 @@ def _kind_of(tokens: Sequence, at: int, language: str | None) -> str | None:
                 or word.lemma_.casefold()
             )
     bare = token.text.strip(".,;:()")
-    return next((kind for kind, shape in _SHAPES if shape.fullmatch(bare)), None)
+    if _CLOCK.fullmatch(bare):
+        return "clock-time"
+    code = (language or "").strip().lower()
+    before = tokens[at - 1].lower_ if at else ""
+    if _YEAR.fullmatch(bare) and (
+        before in _YEAR_WORDS.get(code, ()) or before in CALENDAR_NAMES.get(code, ())
+    ):
+        return "year-number"
+    return None
 
 
 def _figure_tokens(
