@@ -151,7 +151,7 @@ SPARED = case " $(KEPT) " in *" $(1) "*) echo "KEEP=$(1): leaving $(2)";; \
 # so the process below saw none of them and stopped naming the first.
 WITH = set -a && . ./configs/env/backend.env && . ./configs/env/deployment.env && \
        . ./configs/env/$(1) && $(PROVIDER) && . "$(ENV_PATH)" $(OVERRIDE) && \
-       $(DERIVED) $(OVERRIDE) && set +a
+       $(DERIVED) $(OVERRIDE) && $(AGREED) && set +a
 
 # Narrows a stage target to one item instead of the whole queue, mirroring
 # the route's /{scope}/{value} segment:
