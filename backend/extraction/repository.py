@@ -128,6 +128,19 @@ _LINKS = cast("Table", FactPassage.__table__)
 #: The passages table itself, for the bulk update the backfill writes.
 _PASSAGES = cast("Table", Passage.__table__)
 
+#: What extraction may read: a passage with a language of its own, or one in a
+#: document with none. A passage in a language no pipeline is configured for
+#: has none of its own in a document that has one, and would be read under
+#: the document's.
+_READABLE = or_(
+    Passage.language.is_not(None),
+    select(Document.language)
+    .where(Document.sha256 == Passage.doc_sha256)
+    .scalar_subquery()
+    .is_(None),
+)
+
+
 #: What one passage of a bridge group is read as. The same columns `claim`
 #: reads, so a group and a queued passage are the same object.
 _PASSAGE_COLUMNS = (
@@ -441,6 +454,7 @@ class PassageQueue(RowQueue):
     }
     done = Status.EXTRACTED
     next_pending = _NEXT_PENDING
+    ready = _READABLE
 
     def resting(self, within=None) -> Resting:
         """The questions resting on the facts of the passages a rerun would read."""
@@ -624,6 +638,7 @@ def _next_undigested(after: int, min_chars: int):
         .where(
             Passage.extract_status == Status.EXTRACTED,
             Passage.id > after,
+            _READABLE,
             or_(
                 Passage.extract_error.startswith(DIGEST_FAILED),
                 and_(func.length(Passage.text) >= min_chars, ~has_digest),
