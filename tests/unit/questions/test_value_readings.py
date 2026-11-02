@@ -115,6 +115,36 @@ def test_a_wrong_total_of_millions_with_cents_still_does_not_add_up():
     )
 
 
+@pytest.mark.parametrize(
+    ("answer", "passages", "language"),
+    [
+        (
+            "24.691.357.802,47 EUR",
+            [
+                "Sparte A hält 12.345.678.901,23 EUR.",
+                "Sparte B hält 12.345.678.901,23 EUR.",
+            ],
+            "de",
+        ),
+        (
+            "USD 24,691,357,802.47",
+            [
+                "Segment A holds USD 12,345,678,901.23.",
+                "Segment B holds USD 12,345,678,901.23.",
+            ],
+            "en",
+        ),
+    ],
+)
+def test_a_total_one_cent_off_in_the_tens_of_billions_is_still_refused(
+    answer, passages, language
+):
+    """The tolerance is float error, not a share of the amount: a cent is a cent at any size."""
+    assert adds_up(answer, passages, language) is False
+    exact = answer.replace("802,47", "802,46").replace("802.47", "802.46")
+    assert adds_up(exact, passages, language) is True
+
+
 def test_a_total_in_a_language_no_configuration_names_is_not_misread():
     """French groups by spaces and is left to the model; Greek reads as it did."""
     assert (
