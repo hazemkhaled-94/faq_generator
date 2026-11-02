@@ -23,7 +23,7 @@ import numpy as np
 
 from database.qa_generator.passages import headings_of, trail_of
 from extraction.models import PassageToExtract
-from extraction.validation import label_of, label_word, label_words, numbered
+from extraction.validation import label_of, label_word, numbered
 from nlp.analysis import content, normalised, parse
 
 #: A quoted span, as two patterns by what opens it. A double mark closes at a
@@ -194,18 +194,16 @@ class _Headings:
         default_factory=lambda: defaultdict(list)
     )
     parents: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
-    #: The label words each document's titled headings teach, `label_words`.
-    titled: dict[str | None, frozenset[str]] = field(default_factory=dict)
 
 
 def _headings(partners: Sequence[PassageToExtract]) -> _Headings:
     """Reads every trail: its numbered headings, its headings and their parents."""
-    read = _Headings(titled=label_words(partners))
+    read = _Headings()
     for p in partners:
         trail = _segments(p)
         plain = [_plain(s) for s in trail]
         for depth, segment in enumerate(trail):
-            if label := label_of(segment, read.titled.get(p.doc_sha256, ())):
+            if label := label_of(segment):
                 read.labels[label].append((depth, segment, p))
             read.headings[plain[depth]].append((segment, p))
             read.parents[plain[depth]].update(plain[:depth])
@@ -259,7 +257,7 @@ def _references(
         own = {
             label
             for s in _segments(head)
-            if (label := label_of(s, index.titled.get(head.doc_sha256, ())))
+            if (label := label_of(s))
         }
         named = read[head.id].named
         for key in sorted(k for k in named if k not in own):

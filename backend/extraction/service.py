@@ -32,7 +32,7 @@ from extraction.models import (
     from_repair,
 )
 from extraction.repository import DIGEST_FAILED, DigestQueue, FactCatalog, PassageQueue
-from extraction.validation import WRITTEN, FactChecker, _cited_text, label_words
+from extraction.validation import WRITTEN, FactChecker, _cited_text
 from nlp.analysis import claim, is_currency, normalised, numbers
 from nlp.embedding import Embedder, cosine
 from settings.runs import run_id
@@ -540,10 +540,6 @@ def bridge(
     # would lose its link and its topic's slot would stay empty.
     facts = catalog.atomic_of({one.id for one in readable})
     partners = [one for one in readable if one.id in facts]
-    # The label words the headings teach, read over the corpus as the link
-    # pass reads them, so a bridge naming a titled heading is refused as one
-    # that names a numbered section.
-    titled = label_words(readable)
     heads = [
         one
         for _, ones in scoped
@@ -635,7 +631,7 @@ def bridge(
                         [
                             _headed(
                                 checker.check_bridge(
-                                    offered, candidate, extractor.provenance, titled
+                                    offered, candidate, extractor.provenance
                                 ),
                                 link.head,
                             )

@@ -317,45 +317,23 @@ def test_a_word_and_a_number_alone_is_a_numbered_section(segment: str) -> None:
     assert HEADING_LABEL.match(segment) is not None
 
 
-_TITLED = [
-    (
-        "en",
-        "Fees for dormant accounts are set out in Article 17.",
-        ("Article 1 Scope", "Article 2 Fees", "Article 17 Termination"),
-    ),
-    (
-        "de",
-        "Die Kündigung regelt § 5.",
-        ("§ 1 Geltung", "§ 2 Entgelte", "§ 5 Kündigung"),
-    ),
+_ABBREVIATED = [
     (
         "de",
         "Die Kündigung regelt Art. 5.",
-        ("Art. 1 Geltung", "Art. 2 Entgelte", "Art. 5 Kündigung"),
+        ("Art. 1", "Art. 2", "Art. 5"),
     ),
     (
         "en",
         "Fees for dormant accounts are set out in Sec. 7.",
-        ("Sec. 1: Scope", "Sec. 2 - Fees", "Sec. 7. Termination"),
-    ),
-    (
-        "fr",
-        "Les frais sont fixés, voir article 2.",
-        ("Article 1 Champ", "Article 2 Frais", "Article 3 Fin"),
-    ),
-    (
-        "el",
-        "Τα τέλη ορίζονται στο Άρθρο 2.",
-        ("Άρθρο 1 Πεδίο", "Άρθρο 2 Τέλη", "Άρθρο 3 Λήξη"),
+        ("Sec. 1", "Sec. 2", "Sec. 7"),
     ),
 ]
 
 
-@pytest.mark.parametrize("language,text,paths", _TITLED)
-def test_a_titled_heading_is_a_label_where_its_word_numbers_a_series(
-    language, text, paths
-):
-    """'Article 17 Termination' links once the document also holds 'Article 1 ...'."""
+@pytest.mark.parametrize("language,text,paths", _ABBREVIATED)
+def test_a_heading_numbered_with_an_abbreviated_word_is_a_label(language, text, paths):
+    """'Art. 5' and 'Sec. 7': the full stop of the abbreviation is no part of the word."""
     rows = [(text, "Terms > Intro", "d")] + [
         (f"Passage {i}.", f"Terms > {path}", "d") for i, path in enumerate(paths)
     ]
@@ -368,8 +346,28 @@ def test_a_titled_heading_is_a_label_where_its_word_numbers_a_series(
     [
         (
             "en",
-            "The Pro handset is covered by iPhone 15 for two years.",
-            ("iPhone 15 Pro", "Windows 11 Home", "Tarif 2025 Privatkunden"),
+            "The Gold plan costs 9 EUR; see Plan 2.",
+            ("Plan 1 Basic", "Plan 2 Silver", "Plan 3 Gold"),
+        ),
+        (
+            "en",
+            "Delivery to Zone 2 takes four days.",
+            ("Zone 1 Inner city", "Zone 2 Suburbs", "Zone 3 Rural"),
+        ),
+        (
+            "de",
+            "Ab Pflegegrad 2 gilt ein höherer Satz.",
+            ("Pflegegrad 1 Geringe", "Pflegegrad 2 Erhebliche", "Pflegegrad 3 Schwere"),
+        ),
+        (
+            "fr",
+            "Le tarif de la zone 2 s'applique.",
+            ("Zone 1 Centre", "Zone 2 Banlieue", "Zone 3 Rural"),
+        ),
+        (
+            "el",
+            "Η χρέωση της ζώνης 2 ισχύει.",
+            ("Ζώνη 1 Κέντρο", "Ζώνη 2 Προάστια", "Ζώνη 3 Επαρχία"),
         ),
         (
             "en",
@@ -381,28 +379,11 @@ def test_a_titled_heading_is_a_label_where_its_word_numbers_a_series(
             "Der Tarif 2025 gilt für Privatkunden.",
             ("Tarif 2025 Privatkunden", "Tarif 2026 Geschäftskunden"),
         ),
-        (
-            "en",
-            "Plan 3 is the cheapest.",
-            ("Plan 3 Gold card", "Plan 4 Silver card"),
-        ),
     ],
 )
-def test_a_titled_heading_whose_word_numbers_no_series_is_no_label(
-    language, text, paths
-):
-    """A product or a year before its title teaches no label word."""
+def test_an_entity_series_with_a_title_is_no_section_numbering(language, text, paths):
+    """Plan 1 Basic, Zone 2 Suburbs: a numbered tier or product, not the document's parts."""
     rows = [(text, "Shop > Intro", "d")] + [
         (f"Passage {i}.", f"Shop > {path}", "d") for i, path in enumerate(paths)
     ]
     assert references(language, rows) == []
-
-
-def test_a_series_is_counted_in_its_own_document():
-    """Article 1 in one document and Article 17 in another do not make a series."""
-    rows = [
-        ("Fees follow Article 17.", "Terms > Intro", "a"),
-        ("One.", "Terms > Article 1 Scope", "b"),
-        ("Two.", "Terms > Article 17 Termination", "a"),
-    ]
-    assert references("en", rows) == []

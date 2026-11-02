@@ -320,71 +320,46 @@ def test_a_bridge_names_its_section_in_the_language_of_its_passages(
 
 
 @pytest.mark.parametrize(
-    ("language", "statement", "path", "texts", "label_word"),
+    ("language", "statement", "path", "texts"),
     [
         (
             "en",
-            "The monthly fee is set in Article 17 of the terms.",
-            "Terms > Article 17 Termination",
-            ("A dormant card account is charged 10 EUR a year.", "A fee is set."),
-            "article",
+            "The Silver plan costs 9 EUR a month, as Plan 2 says.",
+            "Tariffs > Plan 2 Silver",
+            ("The Silver plan costs 9 EUR a month.", "A card is free of charge."),
         ),
         (
             "de",
-            "Die Kündigung ist in § 5 geregelt.",
-            "AGB > § 5 Kündigung",
-            ("Ein Konto kann monatlich gekündigt werden.", "Eine Gebühr fällt an."),
-            "§",
+            "Ab Pflegegrad 2 gilt ein höherer Satz.",
+            "Satz > Pflegegrad 2 Erhebliche Beeinträchtigung",
+            ("Ein höherer Satz gilt ab Grad zwei.", "Eine Karte ist kostenlos."),
         ),
         (
-            "de",
-            "Die Kündigung ist in Art. 5 geregelt.",
-            "AGB > Art. 5 Kündigung",
-            ("Ein Konto kann monatlich gekündigt werden.", "Eine Gebühr fällt an."),
-            "art",
+            "fr",
+            "Le tarif de la zone 2 est plus élevé.",
+            "Tarifs > Zone 2 Banlieue",
+            ("Le tarif de la banlieue est plus élevé.", "Une carte est gratuite."),
+        ),
+        (
+            "el",
+            "Η χρέωση της ζώνης 2 είναι υψηλότερη.",
+            "Χρεώσεις > Ζώνη 2 Προάστια",
+            ("Η χρέωση των προαστίων είναι υψηλότερη.", "Μια κάρτα είναι δωρεάν."),
         ),
     ],
 )
-def test_a_bridge_naming_a_learned_titled_heading_is_refused(
-    language, statement, path, texts, label_word
+def test_a_bridge_naming_a_numbered_tier_is_not_refused_as_a_location(
+    language, statement, path, texts
 ) -> None:
-    """Where the corpus numbers its titled headings, naming one is a claim about the document."""
-    under = passage(
-        texts[0], language=language, section_path=path, id=1, doc_sha256="d"
-    )
+    """A heading with a title after its number is no label, so naming the tier is content."""
+    under = passage(texts[0], language=language, section_path=path, id=1, doc_sha256="d")
     other = passage(
         texts[1], language=language, section_path="Other > Part", id=2, doc_sha256="d"
     )
 
-    learned = Checker().bridge(statement, [under, other], titled={"d": {label_word}})
-    unlearned = Checker().bridge(statement, [under, other])
+    judged = Checker().bridge(statement, [under, other])
 
-    assert learned.rejection_code == Rejection.NOT_BRIDGING, learned.validation_error
-    assert unlearned.rejection_code != Rejection.NOT_BRIDGING
-
-
-def test_a_bridge_naming_a_product_is_not_refused_as_a_location() -> None:
-    """'iPhone 15' under 'iPhone 15 Pro' is a product, not a numbered section."""
-    under = passage(
-        "The handset has a 48 MP camera.",
-        language="en",
-        section_path="Phones > iPhone 15 Pro",
-        id=1,
-        doc_sha256="d",
-    )
-    other = passage(
-        "The handset has a 12 MP camera.",
-        language="en",
-        section_path="Phones > Other",
-        id=2,
-        doc_sha256="d",
-    )
-
-    judged = Checker().bridge(
-        "The iPhone 15 has a 48 MP camera.", [under, other], titled={"d": set()}
-    )
-
-    assert judged.rejection_code != Rejection.NOT_BRIDGING
+    assert judged.rejection_code != Rejection.NOT_BRIDGING, judged.validation_error
 
 
 @pytest.mark.parametrize(

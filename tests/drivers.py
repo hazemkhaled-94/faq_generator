@@ -195,7 +195,6 @@ class Checker:
         cites: dict[int, tuple[int, ...]] | None = None,
         relation: str | None = None,
         probe: tuple[str, str] | None = None,
-        titled: dict[str, frozenset[str]] | None = None,
     ) -> CheckedFact:
         """Checks a claim drawn from a group of passages.
 
@@ -207,8 +206,6 @@ class Checker:
                 Every position cites its sentence 0 otherwise.
             relation: The relation the model named, when a test cares.
             probe: The question and short answer it was tested with.
-            titled: The label words of titled headings the corpus teaches, by
-                document.
 
         Returns:
             The checked fact.
@@ -227,7 +224,6 @@ class Checker:
                 probe=probe,
                 relation=relation,
             ),
-            titled=titled,
         )
 
     def _single(
