@@ -22,7 +22,7 @@ these models.
 | `assessments` | What an independent judge made of one artefact, and its queue | [the assessment phase](../assessment/README.md) |
 | `assessment_metrics` | One judgement by one judge about one artefact, with Phoenix's names, labels and scores | the assessment phase |
 | `prompts` | One prompt per version per service, stored as composed (system message, user template, answer JSON schema) | each stage, once before its first claim |
-| `archived_rows` | Every row deleted from any of the thirteen tables above, as JSON | an AFTER DELETE trigger |
+| `archived_rows` | Every row deleted from any of the thirteen tables above, as JSON, except a topic fit's topics and memberships and the rubric scores a downgrade takes out | an AFTER DELETE trigger |
 
 An assessment reaches its artefact (fact, topic or question) through exactly
 one of three cascading foreign keys.
