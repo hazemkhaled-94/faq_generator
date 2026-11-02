@@ -549,11 +549,6 @@ def bridge(
     # What is left after the clear is what this pass must not repeat,
     # whichever side of a cross-topic pair heads it: the bridges that stay.
     held = catalog.bridged_pairs(within, replaced=not missing)
-    if missing:
-        # A topic holds a bridge too where one headed in another topic rests
-        # on one of its passages: its pair is held, so a second pass would
-        # bridge it with another.
-        done |= {topic_of[i] for pair in held for i in pair if i in topic_of}
     offers: list[tuple[str, list[Link]]] = []
     topic: object = object()  # none yet, so the first link reads the cap too
     for language in sorted({one.language or "" for one in partners}):
@@ -563,10 +558,20 @@ def bridge(
             topic_of,
             groups_per_topic,
             size,
-            done,
-            held,
+            # A pass for the missing deals the links a whole pass deals, and
+            # then drops what is held, so the topic whose group was lost is
+            # offered the very link it was and a second pass adds nothing.
+            frozenset() if missing else done,
+            frozenset() if missing else held,
         )
         kinds = Counter(link.kind for link in links)
+        if missing:
+            links = [
+                link
+                for link in links
+                if topic_of.get(link.head or 0) not in done
+                and frozenset(one.id for one in link.passages[:2]) not in held
+            ]
         log.info(
             "offered %d link(s) in %r (%d reference, %d sibling, %d term)",
             len(links),

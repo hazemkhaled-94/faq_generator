@@ -59,9 +59,19 @@ class Store(Catalogue):
     def _in(self, head: int, within) -> bool:
         return within is None or self.topic_of[head] in within
 
-    def clear_bridges(self, within=None) -> int:
+    def clear_bridges(self, within=None, besides=()) -> int:
         """Deletes the bridges headed in scope, as the repository does."""
-        kept = [one for one in self.bridges if not self._in(one[1], within)]
+        kept = [
+            one
+            for one in self.bridges
+            if not self._in(one[1], within) or self.topic_of[one[1]] in besides
+        ]
+        cleared, self.bridges = len(self.bridges) - len(kept), kept
+        return cleared
+
+    def clear_bridges_of(self, topics) -> int:
+        """Deletes the bridges headed in these topics."""
+        kept = [one for one in self.bridges if self.topic_of[one[1]] not in topics]
         cleared, self.bridges = len(self.bridges) - len(kept), kept
         return cleared
 
@@ -231,3 +241,39 @@ def test_a_pass_for_the_missing_run_twice_adds_nothing() -> None:
     run(store, "missing", None, 1)
 
     assert store.held == once
+
+
+@pytest.mark.parametrize("lost", [1, 2, 3])
+def test_a_pass_for_the_missing_after_a_lost_group_equals_a_clean_pass(lost) -> None:
+    """A topic whose own group was lost is offered the very link it was, partner or not.
+
+    The k-th call fails once, then a pass for the missing runs with the model
+    answering: the store is what one clean pass writes, though the lost
+    topic's passage rests in a bridge another topic headed.
+    """
+    from llm.client import ModelUnavailable
+
+    class Fails(Model):
+        """Refuses the `lost`-th group, answers the rest."""
+
+        def answer(self, **kwargs):
+            """Raises once, on its turn."""
+            if len(self.asked) == lost - 1:
+                self.asked.append(kwargs)
+                raise ModelUnavailable("Timeout: took too long")
+            return super().answer(**kwargs)
+
+    topics = {"t1": [_placed(1), _placed(3)], "t2": [_placed(2, "3")]}
+    clean = fresh(topics, 1)
+    run(clean, "whole", None, 1)
+    store = fresh(topics, 1)
+    bridge(
+        store,  # type: ignore[arg-type]
+        BridgeExtractor(Fails(ANSWER)),  # type: ignore[arg-type]
+        FactChecker(DIGEST_SHARE),
+        1,
+        2,
+    )
+    run(store, "missing", None, 1)
+
+    assert store.held == clean.held
