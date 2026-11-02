@@ -13,6 +13,7 @@ import unicodedata
 from collections.abc import Iterable, Sequence
 from functools import cache
 
+from nlp.language import outside
 from nlp.pipelines import languages
 
 #: The words that complete a hanging hyphen, by ISO 639-1 code, as in "Zoll-
@@ -99,15 +100,25 @@ def unfinished(label: str) -> bool:
 
 
 def printed(texts: Iterable[str]) -> frozenset[tuple[str, str]]:
-    """The words a document prints whole around a hyphen, as their halves.
+    """The words a document prints whole, and around a hyphen as their halves.
 
-    Casefolded, so "Third-party" opening a sentence is "third-party".
+    Casefolded, so "Third-party" opening a sentence is "third-party". A word
+    printed whole is the pair of an empty first half and the word: where a
+    document prints "breakthrough", "break- through" at a line is that word.
     """
+    texts = list(texts)
     return frozenset(
         (first.casefold(), second.casefold())
         for text in texts
         for first, second in _COMPOUND.findall(text)
+    ) | frozenset(
+        ("", word.casefold()) for text in texts for word in _WORD.findall(text)
     )
+
+
+def _latin(char: str) -> bool:
+    """Whether a letter is of the Latin script, by its Unicode name."""
+    return unicodedata.name(char, "").startswith("LATIN")
 
 
 def rejoined(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
@@ -115,26 +126,48 @@ def rejoined(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
 
     What follows the hyphen says what the break was. A lower-case letter
     continues a word, which is joined: "Kontofüh- rungsentgelt". A capital, a
-    digit, or any letter after a digit continues a compound broken at its own
-    hyphen, which keeps it: "Online- Händler" and "14- 30" are "Online-Händler"
-    and "14-30". A word in `JOINING` after the hyphen is a hanging hyphen,
-    "Zoll- und Steuerrecht", and the break is left as it is. A word whose
-    halves `whole` holds, one the document prints with its hyphen elsewhere,
-    keeps it: "third- party" is "third-party" where the document prints that,
-    and "thirdparty" only where it never does. A script without case is left
-    alone. Mending a string already mended changes nothing, so a join may mend
-    the whole of what it made.
+    digit, or a word of three letters or more after a digit continues a
+    compound broken at its own hyphen, which keeps it: "Online- Händler" and
+    "14- 30" are "Online-Händler" and "14-30". A word in `JOINING` after the
+    hyphen is a hanging hyphen, "Zoll- und Steuerrecht", and the break is left
+    as it is, unless `whole` holds the joined word: "break- through" is
+    "breakthrough" where the document prints that. The halves of a word of
+    capitals are capitals, so they are joined as lower case ones are:
+    "INTERNA- TIONAL". A word whose halves `whole` holds, one the document
+    prints with its hyphen elsewhere, keeps it: "third- party" is
+    "third-party" where the document prints that, and "thirdparty" only where
+    it never does.
+
+    Only Latin letters are joined, and a continuation of one letter is no half
+    of a word: "pół- i całodniowe". A script no row here names, and a text
+    surely in a language `NLP_MODELS` does not name, is left alone but for a
+    range of figures, "14- 30". Mending a
+    string already mended changes nothing, so a join may mend the whole of
+    what it made.
+
+    ponytail: punctuation alone cannot separate a broken word from two ratings
+    written side by side in one cell ("Mittel- niedrig"), nor a short text in a
+    language no row names from one that is. Telling those apart needs a
+    character language model or the geometry of the cells either side.
 
     Args:
         text: The string to mend.
         whole: What `printed` read off the document the string is from.
     """
+    if not _BREAK.search(text):
+        return text
+    foreign = outside(text)
 
     def mended(broken: re.Match[str]) -> str:
-        after = text[broken.end()]
+        before, after = text[broken.start() - 1], text[broken.end()]
+        if foreign:
+            # Nothing but a range of figures is read in a language no row names.
+            return "-" if before.isdigit() and after.isdigit() else broken[0]
         word = _WORD.match(text, broken.end())
-        if word is not None and word[0] in _joining():
-            return broken[0]
+        first = _FIRST_HALF.search(text, 0, broken.start())
+        if word is not None and word[0].casefold() in _joining():
+            joined = (first[0] + word[0]).casefold() if first else ""
+            return "" if ("", joined) in whole else broken[0]
         # A slash set apart, "Schaden- / Unfall", is a hanging hyphen; one set
         # against the next word is a compound broken at its own hyphen.
         if after in _CLOSING or (
@@ -143,12 +176,17 @@ def rejoined(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
             return "-"
         if not after.isalnum():
             return broken[0]
-        if after.isdigit() or text[broken.start() - 1].isdigit() or after.isupper():
-            return "-"
-        if not after.islower():
-            return broken[0]
-        first = _FIRST_HALF.search(text, 0, broken.start())
         second = _SECOND_HALF.match(text, broken.end())
+        letters = len(second[0]) if second else 0
+        capitals = before.isupper() and word is not None and word[0].isupper()
+        if after.isdigit() or (after.isupper() and not (capitals and letters > 1)):
+            return "-"
+        if before.isdigit():
+            return "-" if after.islower() and letters >= 3 else broken[0]
+        if not (after.islower() or capitals):
+            return broken[0]
+        if not (_latin(before) and _latin(after) and letters > 1):
+            return broken[0]
         kept = (
             first is not None
             and second is not None

@@ -173,7 +173,7 @@ _TOKEN = re.compile(r"\S+")
 
 #: Stands for a hyphen that ends a line while the converter's own join runs,
 #: so that it does not drop it.
-_KEPT = "\ue000"
+_KEPT = "\ufdd0"
 
 
 class _Assembler(PageAssembleModel):

@@ -96,7 +96,7 @@ def test_held_and_holders_read_a_quote_per_passage() -> None:
         ("ein prélè- vement", "ein prélèvement"),
         ("opła- ta i zał- ącznik", "opłata i załącznik"),
         ("the fran- çais", "the français"),
-        ("ο λογα- ριασμός", "ο λογαριασμός"),
+        ("pře- vod a plat- ba", "převod a platba"),
         # A slash or a comma after the hyphen closes a suspended hyphen.
         ("für Bau- /Renovierungsarbeiten", "für Bau-/Renovierungsarbeiten"),
         ("für Gas- , Strom- und Wasser", "für Gas-, Strom- und Wasser"),
@@ -134,3 +134,82 @@ def test_a_hanging_hyphen_before_a_coordinator_keeps_its_words_apart(kept) -> No
     from nlp.text import rejoined
 
     assert rejoined(kept) == kept
+
+
+#: Hanging hyphens in languages no configuration names, in sentences long
+#: enough for the language to be told.
+HANGING = [
+    "Wynajmujemy mieszkania 2- i 3-pokojowe oraz domy pół- i całodniowe w mieście.",
+    "Nous proposons des cartes de crédit- et de débit pour tous nos clients ici.",
+    "Προσφέρουμε οικονομικο- και κοινωνικο- υποστήριξη σε όλους τους πελάτες μας.",
+    "Мы предлагаем кредитно- и дебетовые карты для всех наших клиентов сегодня.",
+]
+
+
+@pytest.mark.parametrize("text", HANGING)
+def test_a_text_in_a_language_no_configuration_names_is_left_alone(text: str) -> None:
+    """A hanging hyphen before a space and a conjunction stays in every language."""
+    from nlp.text import rejoined
+
+    assert rejoined(text) == text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "pół- i całodniowe",
+        "mieszkania 2- i 3-pokojowe",
+        "ενδο- και εξωτερικός",
+        "οικονομικο- και κοινωνικο-",
+        "кредитно- и дебетовой",
+        "ο λογα- ριασμός",
+    ],
+)
+def test_a_short_greek_cyrillic_or_one_letter_continuation_is_not_joined(
+    text: str,
+) -> None:
+    """Only Latin letters are joined, and a half of one letter is no half."""
+    from nlp.text import rejoined
+
+    assert rejoined(text) == text
+
+
+@pytest.mark.parametrize(
+    ("broken", "whole"),
+    [
+        ("a big break- through in the market", "a big breakthrough in the market"),
+        ("an der Werk- statt", "an der Werkstatt"),
+        ("im Zweifel den- noch", "im Zweifel dennoch"),
+    ],
+)
+def test_a_coordinator_that_completes_a_word_the_document_prints_is_that_word(
+    broken: str, whole: str
+) -> None:
+    """The document's own spelling says a joining word is a half of a word."""
+    from nlp.text import printed, rejoined
+
+    printing = printed(
+        ["Das war ein breakthrough.", "Die Werkstatt ist offen.", "Dennoch geht es."]
+    )
+
+    assert rejoined(broken) == broken
+    assert rejoined(broken, printing) == whole
+
+
+@pytest.mark.parametrize(
+    ("broken", "mended"),
+    [
+        ("INTERNA- TIONAL REGULATIONS", "INTERNATIONAL REGULATIONS"),
+        ("ALLGEMEINE GESCHÄFTS- BEDINGUNGEN", "ALLGEMEINE GESCHÄFTSBEDINGUNGEN"),
+        ("CONDITIONS GÉNÉ- RALES DE VENTE", "CONDITIONS GÉNÉRALES DE VENTE"),
+        ("ΓΕΝΙΚΟΙ ΟΡΟ- ΙΤΕΣ", "ΓΕΝΙΚΟΙ ΟΡΟ- ΙΤΕΣ"),
+        ("die UEFA- Administration", "die UEFA-Administration"),
+        ("per E- Mail", "per E-Mail"),
+        ("pre- And Post-Trial", "pre- And Post-Trial"),
+    ],
+)
+def test_the_halves_of_a_word_of_capitals_are_joined(broken: str, mended: str) -> None:
+    """A word of capitals breaks at a syllable like any other, a name and a letter do not."""
+    from nlp.text import rejoined
+
+    assert rejoined(broken) == mended
