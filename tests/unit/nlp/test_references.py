@@ -932,6 +932,12 @@ def test_a_language_with_no_row_in_the_pointing_table_reads_no_such_word(
         ("de", "Beide kosten 5 Euro im Monat."),
         ("de", "Die anderen sind kostenlos."),
         ("de", "Alle zahlen 5 Euro im Monat."),
+        ("en", "Both can cost 5 EUR a month."),
+        ("en", "Both are charged 5 EUR a month."),
+        ("en", "The others have been closed."),
+        ("en", "Both usually cost 5 EUR a month."),
+        ("de", "Beide können 5 Euro im Monat kosten."),
+        ("de", "Alle werden informiert."),
     ],
 )
 def test_a_bare_quantifier_as_the_subject_is_a_reference(
@@ -956,6 +962,11 @@ def test_a_bare_quantifier_as_the_subject_is_a_reference(
         ("de", "Niemand darf mehr abheben."),
         ("en", "Both cards cost 5 EUR a month."),
         ("de", "Beide Karten kosten 5 Euro im Monat."),
+        ("en", "Nobody can withdraw more than 500 EUR."),
+        ("en", "Everyone has been informed."),
+        ("en", "Somebody will call back."),
+        ("en", "Anyone who loses a card must call the bank."),
+        ("en", "Both of the cards cost 5 EUR a month."),
     ],
 )
 def test_a_person_generic_subject_or_one_with_its_noun_is_no_reference(

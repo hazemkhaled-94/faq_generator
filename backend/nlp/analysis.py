@@ -1481,8 +1481,8 @@ def _quantifies(token) -> bool:
     """Whether a token is the whole subject a statement opens with, standing for a set named before.
 
     "Both cost 5 EUR a month", "The others are free of charge": nothing but a
-    determiner comes before it and its verb comes right after, so it has no
-    noun of its own. A pronoun counts that is neither personal, interrogative
+    determiner comes before it and its verb comes after it, past an auxiliary
+    or an adverb at most, so it has no noun of its own. A pronoun counts that is neither personal, interrogative
     nor relative and not singular, nor a neuter that carries no number
     (`Nichts`), so a person-generic "Anyone may open an account" or "Jeder kann
     ..." names nobody earlier. `who` in "Customers who hold a card" is a
@@ -1490,7 +1490,14 @@ def _quantifies(token) -> bool:
     morphology, but for the word for the other, which a tagger reads as any of
     three parts of speech.
     """
-    if token.dep_ not in _SUBJECTS or token.i + 1 != token.head.i:
+    if token.dep_ not in _SUBJECTS:
+        return False
+    # Its verb follows, past the auxiliaries, adverbs and negation an English
+    # parse puts between a subject and the verb it heads: "Both can cost".
+    if any(
+        one.pos_ not in {"AUX", "PART", "ADV"}
+        for one in token.doc[token.i + 1 : token.head.i]
+    ) or (token.head.i < token.i):
         return False
     if any(not (one.is_punct or one.pos_ == "DET") for one in token.doc[: token.i]):
         return False
