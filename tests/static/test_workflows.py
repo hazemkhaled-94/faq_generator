@@ -328,23 +328,32 @@ def test_the_model_quality_job_runs_only_for_a_named_model_with_its_provider_sec
 
 
 def test_a_mutation_run_that_cannot_start_fails_the_nightly() -> None:
-    """The step that runs mutants is not allowed to fail quietly.
+    """The step that runs mutants is not allowed to fail quietly, nor to time out loudly.
 
     `continue-on-error` hid a harness that ran no mutant for as long as it was
-    there. The survivors are still put in the summary, whatever the run did.
+    there. Only running out of time (the exit status of `timeout`, 124) ends
+    the step as a pass, with a warning; every other status fails it. The
+    survivors are put in the summary whatever the run did, and the summary
+    step makes the link the survivors are read through, which `make mutation`
+    removes when it ends.
     """
     job = loaded(ROOT / ".github/workflows/nightly.yml")["jobs"]["mutation"]
-    (run,) = [one for one in job["steps"] if one.get("run") == "make mutation"]
-    summary = [one for one in job["steps"] if "mutmut results" in one.get("run", "")]
+    (run,) = [one for one in job["steps"] if "make mutation" in one.get("run", "")]
+    (summary,) = [one for one in job["steps"] if "mutmut results" in one.get("run", "")]
 
     assert "continue-on-error" not in run
-    assert summary and summary[0]["if"] == "always()"
+    assert "timeout" in run["run"]
+    assert 'exit "$status"' in run["run"]
+    assert summary["if"] == "always()"
+    assert summary["run"].index("ln -sfn backend src") < summary["run"].index(
+        "mutmut results"
+    )
 
 
 def test_the_mutation_harness_copies_what_its_layers_read_and_selects_no_git_layer() -> (
     None
 ):
-    """mutmut runs the tests from a copy holding only the files it mutates.
+    """Mutmut runs the tests from a copy holding only the files it mutates.
 
     The layers it runs read configs/env/backend.env at import, the backend
     packages beside the mutated files and compose.yaml, so the copy takes them.

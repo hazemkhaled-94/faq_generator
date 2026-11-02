@@ -80,16 +80,32 @@ jobs:
         with:
           path: ~/.cache/huggingface
           key: huggingface-${{ runner.os }}-${{ github.job }}-${{ steps.setup.outputs.embedding }}
-      - run: make mutation
+      # Every line of six files is mutated, some five thousand mutants. A
+      # planning.py run of 253 went at 5.3 mutants a second on three children;
+      # the full run is not measured, so it is boxed: out of time at 270
+      # minutes it ends with what it covered, and the summary says how much
+      # that was. Anything else non-zero is the harness failing, and fails.
+      - name: Mutate
+        run: |
+          status=0
+          timeout 270m make mutation || status=$?
+          if [ "$status" -eq 124 ]; then
+            echo "::warning::mutation ran out of time; the summary lists what it covered"
+            exit 0
+          fi
+          exit "$status"
+      # The link `make mutation` removes is what mutmut finds its files through.
       - name: Put the survivors in the job summary
         if: always()
         run: |
+          ln -sfn backend src
           {
             echo '## Mutants that survived'
             echo '```'
             poetry run mutmut results || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          rm -f src
 
   # The tests that need real weights skip on a laptop with none. Here a
   # missing weight is the failure: the models are fetched at their pinned
