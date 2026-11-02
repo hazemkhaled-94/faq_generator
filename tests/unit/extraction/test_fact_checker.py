@@ -2333,69 +2333,6 @@ def test_a_language_no_pipeline_is_configured_for_is_refused_at_parse_not_read(
     ("language", "evidence", "statement"),
     [
         (
-            "de",
-            "Die Filiale betreut mindestens 8 000 Kundinnen.",
-            "Die Filiale betreut mindestens 8000 Kundinnen.",
-        ),
-        (
-            "de",
-            "Die Leuchte liefert mindestens 1 250 lm.",
-            "Die Leuchte liefert mindestens 1.250 lm.",
-        ),
-        (
-            "en",
-            "The warehouse must have at least 2 300 m² of floor space.",
-            "The warehouse must have at least 2,300 m² of floor space.",
-        ),
-        (
-            "en",
-            "The bank serves 12 000 customers.",
-            "The bank serves 12,000 customers.",
-        ),
-    ],
-)
-def test_a_count_in_its_other_spelling_is_supported(
-    language, evidence, statement
-) -> None:
-    """A space-grouped count is one figure, so its other spelling adds nothing."""
-    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
-
-    assert judged.validated, (judged.rejection_code, judged.units_added)
-
-
-@pytest.mark.parametrize(
-    ("language", "evidence", "statement"),
-    [
-        (
-            "en",
-            "The bank serves 12 000 customers.",
-            "The bank serves 12 customers.",
-        ),
-        (
-            "de",
-            "Die Bank hat 12 000 Kundinnen und Kunden.",
-            "Die Bank hat 12 Kundinnen und Kunden.",
-        ),
-        (
-            "de",
-            "Die Filiale betreut mindestens 8 000 Kundinnen.",
-            "Die Filiale betreut mindestens 8 Kundinnen.",
-        ),
-    ],
-)
-def test_a_count_missing_its_thousands_is_not_supported(
-    language, evidence, statement
-) -> None:
-    """Dropping a group of a space-grouped count changes the count."""
-    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
-
-    assert not judged.validated, (judged.units_added,)
-
-
-@pytest.mark.parametrize(
-    ("language", "evidence", "statement"),
-    [
-        (
             "en",
             "The promotional rate is 5 % for 12 months.",
             "The promotional rate is 12 % for 5 months.",
@@ -3071,63 +3008,6 @@ def test_a_year_after_a_month_or_a_year_preposition_is_still_a_swap(
     judged = Checker(passage(text, language=language)).atomic(statement, 0)
 
     assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
-
-
-@pytest.mark.parametrize(
-    ("language", "evidence", "statement"),
-    [
-        (
-            "en",
-            "From winter the lamp in the warehouse must give at least 1 500 lm and carry a two-year guarantee.",
-            "From winter the lamp in the warehouse must give at least 1 500 lm.",
-        ),
-        (
-            "en",
-            "From winter the battery in the scanner must hold at least 1 500 mAh and carry a two-year guarantee.",
-            "From winter the battery in the scanner must hold at least 1 500 mAh.",
-        ),
-        (
-            "de",
-            "Ab Winter muss die Lampe im Lager mindestens 1 500 lm liefern und zwei Jahre Garantie haben.",
-            "Ab Winter muss die Lampe im Lager mindestens 1 500 lm liefern.",
-        ),
-    ],
-)
-def test_a_run_both_texts_write_alike_is_one_figure_whatever_class_the_tagger_gives_its_unit(
-    language, evidence, statement
-) -> None:
-    """A unit symbol such as lm or mAh gets a different tag in each sentence."""
-    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
-
-    assert judged.rejection_code != Rejection.UNSUPPORTED_ADDITION, judged.units_added
-
-
-@pytest.mark.parametrize(
-    ("language", "evidence", "alike", "dropped"),
-    [
-        (
-            "fr",
-            "À partir de l'hiver la lampe doit donner au moins 1 500 lm et deux ans de garantie.",
-            "À partir de l'hiver la lampe doit donner au moins 1 500 lm.",
-            "À partir de l'hiver la lampe doit donner au moins 1 lm.",
-        ),
-        (
-            "el",
-            "Από τον χειμώνα ο λαμπτήρας πρέπει να δίνει τουλάχιστον 1 500 lm και δύο χρόνια εγγύηση.",
-            "Από τον χειμώνα ο λαμπτήρας πρέπει να δίνει τουλάχιστον 1 500 lm.",
-            "Από τον χειμώνα ο λαμπτήρας πρέπει να δίνει τουλάχιστον 1 lm.",
-        ),
-    ],
-)
-def test_the_shared_run_rule_is_inert_in_a_language_without_a_pipeline(
-    language, evidence, alike, dropped
-) -> None:
-    """The run written alike and the run with a group dropped get the same verdict there."""
-    read = Checker(passage(evidence, language=language))
-
-    assert (
-        read.atomic(alike, 0).rejection_code == read.atomic(dropped, 0).rejection_code
-    )
 
 
 @pytest.mark.parametrize(

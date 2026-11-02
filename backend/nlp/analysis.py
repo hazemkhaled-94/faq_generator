@@ -75,7 +75,7 @@ def _grouped(document: Doc, language: str | None) -> Doc:
     """
     spans = []
     for found in _SPACED.finditer(document.text):
-        if _amount(document.text, found.start(), found.end(), language, document):
+        if _amount(document.text, found.start(), found.end(), language):
             span = document.char_span(
                 found.start(), found.end(), alignment_mode="expand"
             )
@@ -984,10 +984,10 @@ REFERENCE_LABELS: dict[str, frozenset[str]] = {
     ),
 }
 
-#: A head of one to three digits, the first not a zero, and one group of exactly three, alone: not
+#: A head of one to three digits and one group of exactly three, alone: not
 #: part of a longer run of groups, as a table row is.
 _SPACED = re.compile(
-    r"(?<![\w.,])(?<!\d[ \u00a0\u202f])[1-9]\d{0,2}[ \u00a0\u202f]\d{3}(?:[.,]\d+)?(?![\w])(?![ \u00a0\u202f]\d)"
+    r"(?<![\w.,])(?<!\d[ \u00a0\u202f])\d{1,3}[ \u00a0\u202f]\d{3}(?:[.,]\d+)?(?![\w])(?![ \u00a0\u202f]\d)"
 )
 
 
@@ -1006,80 +1006,21 @@ def _beside(found: re.Match[str] | None, keep_case: bool = False) -> str:
 _CURRENCY_AFTER = re.compile(r"\s?(?:[.,][-–—]+\s?)?([^\W\d_]+|[^\w\s])")
 
 
-def _amount(
-    text: str, start: int, end: int, language: str | None, document: Doc | None = None
-) -> bool:
-    """Whether a space-grouped run is one figure: a currency word or sign beside it, or a unit or noun after it, no label before.
+def _amount(text: str, start: int, end: int, language: str | None) -> bool:
+    """Whether a space-grouped run is an amount: a currency word or sign beside it, no label before.
 
     A text that is the run alone is one, as a unit read back out of an amount.
-    A noun, name or unit after the run makes it a count
-    (`8 000 Kundinnen`), as the language's own pipeline reads it: another
-    language's pipeline reads nothing reliably, so there only a currency
-    counts. `document` is the unmerged parse of `text` where `_grouped` asks;
-    a reader of the text alone is told what the parse merged.
     """
     if not text[:start].strip() and not text[end:].strip(" ."):
         return True
     code = (language or "").strip().lower()
     before = _beside(re.search(r"(\S+)\s?$", text[:start]))
-    if before in REFERENCE_LABELS.get(code, ()):
-        return False
-    if any(
+    return before not in REFERENCE_LABELS.get(code, ()) and any(
         is_currency(word, language)
         for word in (
             _beside(re.search(r"(\S+)\s?$", text[:start]), keep_case=True),
             _beside(_CURRENCY_AFTER.match(text[end:]), keep_case=True),
         )
-    ):
-        return True
-    if not _WORD_AFTER.match(text[end:]):
-        return False
-    if document is None:
-        merged = _read(text, language).char_span(start, end, alignment_mode="expand")
-        return merged is not None and len(merged) == 1
-    return _counts(document, end, language)
-
-
-#: What follows a figure when a word does: its letters, after one space.
-_WORD_AFTER = re.compile(r"\s?[^\W\d_]")
-
-
-#: The tags of what a run of digit groups counts: a noun, a name or a symbol.
-_COUNTED = frozenset({"NOUN", "PROPN", "SYM"})
-
-#: The symbols of the SI units of mass, length, volume, power, energy, light,
-#: frequency, pressure and data, as lower case, the single letters that are also
-#: words left out: an international standard, the same in every language, which
-#: the unit reader knows whatever tag a sentence gives the symbol. `4 g` is not
-#: `4 kg`.
-MEASURES = frozenset(
-    """mg g kg t mm cm dm m km ml cl dl l kw mw wh kwh mwh kv hz khz mhz ghz mah db
-    cd lm lx bar mbar kpa kn kj kcal rpm kb mb gb tb""".split()  # noqa: SIM905
-)
-
-
-def _counts(document: Doc, end: int, language: str | None) -> bool:
-    """Whether a noun, name, symbol or known unit follows the run, in the language's own pipeline.
-
-    So `8 000 Kundinnen` and `3 650 Tage` are one figure each. Never before an
-    adjective, an adverb or a verb: `Es sind 1 000 fällig` reads two figures.
-    Read off the tag, not off a stop list, which holds nouns such as `Tage`
-    and `Zeit`. A unit symbol the tagger has no class for is given a different
-    tag in each sentence, so a run both texts write the same way is the same
-    figure, see `spaced_runs`.
-
-    shortcut: a label the language has no `REFERENCE_LABELS` entry for does
-    not stop a flattened table row `Tarif 5 100 Minuten` reading as 5100;
-    supply the label, or read the row by its table cells.
-    """
-    code = (language or "").strip().lower()
-    if code and document.lang_ != code:
-        return False
-    following = next((token for token in document if token.idx >= end), None)
-    return (
-        following is not None
-        and following.text[:1].isalpha()
-        and (following.pos_ in _COUNTED or following.lower_ in MEASURES)
     )
 
 
@@ -1231,16 +1172,6 @@ def _fractions(text: str) -> tuple[list[str], list[tuple[int, int]]]:
         values.append(str(int(total)) if total == int(total) else repr(total))
         spans.append(found.span())
     return values, spans
-
-
-def spaced_runs(text: str) -> frozenset[str]:
-    """The runs of one head and one group of three digits a space apart that a text writes, as written.
-
-    What the fact check compares between a statement and its cited text: a run
-    both write the same way is one figure in both, whichever way each tagger
-    read the word after it.
-    """
-    return frozenset(found.group() for found in _SPACED.finditer(text))
 
 
 def fraction_value(token: str) -> float | None:

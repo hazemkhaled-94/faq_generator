@@ -15,10 +15,9 @@ from question_generation.gates import agrees
 pytestmark = pytest.mark.nlp
 
 
-def test_a_run_opening_the_text_beside_a_count_noun_is_one_figure() -> None:
-    """At the start of a text a run followed by a noun is a count; followed by a number it is not."""
-    assert figures("100 000 Kunden sind betroffen.", "de") == [100000.0]
-    assert figures("100 000 200 Kunden sind betroffen.", "de") == [100.0, 0.0, 200.0]
+def test_a_run_opening_the_text_beside_no_currency_is_two_figures() -> None:
+    """Alone in its text a run is an amount; at its start beside a count noun it is not."""
+    assert figures("100 000 Kunden sind betroffen.", "de") == [100.0, 0.0]
 
 
 def test_a_merged_amount_is_its_own_lemma() -> None:

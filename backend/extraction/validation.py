@@ -26,7 +26,6 @@ from extraction.models import (
 )
 from nlp.analysis import (
     CALENDAR_NAMES,
-    MEASURES,
     as_noun,
     claim,
     folds,
@@ -34,7 +33,6 @@ from nlp.analysis import (
     normalised,
     numerals,
     parse,
-    spaced_runs,
     spoken_numbers,
     vocabulary,
     written_in,
@@ -668,7 +666,6 @@ class FactChecker:
         said = claim(statement, language, (passage.text,), passage.title)
         units = said.asserted
         known, numbers = _carried(evidence, passage)
-        numbers |= _shared_runs(statement, evidence, language)
         known |= numbers
         supported = _supported_units(units, known, numbers, language, statement)
         swaps: dict[str, str] = {}
@@ -715,22 +712,6 @@ class FactChecker:
 def _evidence_vocabulary(text: str, language: str | None) -> frozenset[str]:
     """Every form a word of the evidence appears in, with the folded names the fact check adds."""
     return vocabulary(text, language) | folds(text, language)
-
-
-def _shared_runs(statement: str, evidence: str, language: str | None) -> frozenset[str]:
-    """The numerals of a space-grouped run the statement and the evidence write alike.
-
-    `1 500 lx` is one figure in both however each tagger reads the unit, which
-    is a preposition in one sentence and an adverb in the next: its parts and
-    its whole all count as the evidence's.
-    """
-    return frozenset(
-        one
-        for run in spaced_runs(statement) & spaced_runs(evidence)
-        for one in numerals(run, language).union(
-            *(numerals(part, language) for part in run.split())
-        )
-    )
 
 
 def _carried(evidence: str, passage: PassageToExtract) -> tuple[set[str], set[str]]:
@@ -781,6 +762,12 @@ _SHARE_PHRASES: dict[str, tuple[tuple[str, ...], ...]] = {
     "de": (),
     "en": (("per", "cent"),),
 }
+
+#: The symbols of the SI units of mass, length and volume, as lower case:
+#: an international standard, the same in every language. `4 g` is not `4 kg`.
+_MEASURES = frozenset(
+    {"mg", "g", "kg", "t", "mm", "cm", "dm", "m", "km", "ml", "cl", "dl", "l"}
+)
 
 #: The lemmas of a language's units of time that a period is counted in, by
 #: ISO 639-1 code, as lower case: "30 days" and "2 weeks" are two figures of
@@ -918,7 +905,7 @@ def _figure_tokens(
                 if near.pos_ in _UNIT_WORDS:
                     if (
                         word := near.lemma_.strip(".,;:()").casefold()
-                    ) in MEASURES | _TIME_UNITS.get(
+                    ) in _MEASURES | _TIME_UNITS.get(
                         (language or "").strip().lower(), frozenset()
                     ):
                         nouns.add(word)

@@ -1,12 +1,10 @@
 """What the number readings hold for any amount and any ordinal, not just the examples.
 
-A run of digit groups joined by a space is one figure beside a word of the
-language's `AMOUNT_WORDS` or a currency sign, or - in a language with its own
-pipeline - before a noun, a name or a unit symbol, and never after a
-`REFERENCE_LABELS` word. A noun is a noun whether or not the pipeline's stop list holds it (`Tage`). Before an adjective, an adverb or a verb it is two
-figures, and a language with no row reads the groups apart beside a word and
-as one beside a sign. An ordinal, written as a word or as a figure, is the
-ordinal it is and never the count of the same digits.
+A run of digit groups joined by a space is one amount only beside a word of
+the language's `AMOUNT_WORDS` or a currency sign, and never after a
+`REFERENCE_LABELS` word; a language with no row reads the groups apart beside
+a word, and as one beside a sign. An ordinal, written as a word or as a
+figure, is the ordinal it is and never the count of the same digits.
 """
 
 from __future__ import annotations
@@ -21,18 +19,8 @@ from question_generation.gates import agrees
 
 pytestmark = pytest.mark.nlp
 
-#: Nouns that stand beside a number and mark no amount, by language, and the
-#: sentence around the run: its last word is an adjective, never a noun.
-_PLAIN = {
-    "de": ("Kunden", "Stück", "Tage"),
-    "en": ("customers", "items", "days"),
-    "fr": ("clients", "articles", "jours"),
-}
-_FRAME = {
-    "de": ("Es sind", "fällig."),
-    "en": ("There are", "due."),
-    "fr": ("Il y a", "dû."),
-}
+#: Words that stand beside a number and mark no amount.
+_PLAIN = ("Kunden", "customers", "Stück", "items", "Tage", "days", "Mio.", "Konto")
 
 #: Currency signs, which no row lists, and a sign that is none.
 _SIGNS = ("€", "£", "¥", "₹")
@@ -49,25 +37,20 @@ def spaced(draw):
     run = f"{head} {group:03d}{fraction}"
     words = sorted(AMOUNT_WORDS.get(language, frozenset())) or ["eur"]
     labels = sorted(REFERENCE_LABELS.get(language, frozenset())) or ["section"]
-    before = draw(st.sampled_from(["", *_PLAIN[language], *words, *_SIGNS, *labels]))
-    after = draw(st.sampled_from(["", *_PLAIN[language], *words, *_SIGNS, _NO_SIGN]))
+    before = draw(st.sampled_from(["", *_PLAIN, *words, *_SIGNS, *labels]))
+    after = draw(st.sampled_from(["", *_PLAIN, *words, *_SIGNS, _NO_SIGN]))
     return language, run, before, after
 
 
 @given(spaced())
-def test_a_space_grouped_run_is_one_figure_beside_a_currency_or_before_a_noun(
-    case,
-) -> None:
-    """One figure beside a currency or before a noun, after no label; anywhere else two."""
+def test_a_space_grouped_run_is_one_amount_only_beside_a_currency_word(case) -> None:
+    """Beside a currency word and after no label it is one figure; anywhere else two."""
     language, run, before, after = case
-    opening, closing = _FRAME[language]
-    text = " ".join(one for one in (opening, before, run, after, closing) if one)
+    text = " ".join(one for one in ("Es sind", before, run, after, "fällig.") if one)
     amounts = AMOUNT_WORDS.get(language, frozenset())
-    labelled = before.casefold() in REFERENCE_LABELS.get(language, frozenset())
-    merged = not labelled and (
-        bool({before.casefold(), after.casefold()} & {*amounts, *_SIGNS})
-        or (language != "fr" and after in _PLAIN[language])
-    )
+    merged = before.casefold() not in REFERENCE_LABELS.get(
+        language, frozenset()
+    ) and bool({before.casefold(), after.casefold()} & {*amounts, *_SIGNS})
 
     read = figures(text, language)
     tokens = [one.text for one in parse(text, language)]

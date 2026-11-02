@@ -121,9 +121,8 @@ A statement the deterministic reader composed faces only `copied`.
 names a language's `CALENDAR_NAMES` lists. An abbreviation, a range or a compound in the cited text (`Mo.`, `Dez.`,
 `Montag-Freitag`, `Samstagvormittag`, `Sonn-`) supports the full name; the statement's own are never read. A number is read
 in any spelling (`1st` and `1 st`, `two` and `2`, `CHF 1'250.50` and
-`CHF 1250.50`, `8 000 Kundinnen` and `8000 Kundinnen`: an apostrophe between a
-digit and three digits groups thousands, and so does a space before a noun; a run the statement and the cited text write alike
-is one figure in both, whatever the tagger calls the unit after it),
+`CHF 1250.50`: an apostrophe between a digit and three digits groups
+thousands),
 reads a vulgar fraction as its value (`2½` is `2.5`),
 and a proper noun is lemmatised. A fact may rest on the sentences it cites, the
 passage's heading trail and the document's title. A name or number found only
