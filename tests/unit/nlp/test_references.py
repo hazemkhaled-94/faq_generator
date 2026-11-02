@@ -1032,17 +1032,6 @@ def test_a_german_placeholder_before_its_clause_is_no_reference(statement: str) 
 
 @pytest.mark.nlp
 @pytest.mark.parametrize(
-    ("language", "statement", "refused"),
-    [
-        ("de", "Es kostet 5 Euro im Monat.", True),
-        ("en", "It costs 5 EUR a month.", True),
-        ("en", "It is forbidden to write the PIN on the card.", False),
-        ("en", "It is important that the customer keeps the PIN secret.", False),
-    ],
-)
-def test_a_pronoun_with_no_clause_after_it_still_points_outside(
-@pytest.mark.nlp
-@pytest.mark.parametrize(
     "statement",
     [
         "Der Verein hat es versäumt, die Unterlagen fristgerecht einzureichen.",
@@ -1075,6 +1064,17 @@ def test_a_condition_holding_a_dass_clause_and_an_object_before_a_purpose_clause
     assert claim(statement, "de").references
 
 
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement", "refused"),
+    [
+        ("de", "Es kostet 5 Euro im Monat.", True),
+        ("en", "It costs 5 EUR a month.", True),
+        ("en", "It is forbidden to write the PIN on the card.", False),
+        ("en", "It is important that the customer keeps the PIN secret.", False),
+    ],
+)
+def test_a_pronoun_with_no_clause_after_it_still_points_outside(
     language: str, statement: str, refused: bool
 ) -> None:
     """The English twins are unchanged; a bare es is still a pronoun."""
