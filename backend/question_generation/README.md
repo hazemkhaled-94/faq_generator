@@ -297,7 +297,7 @@ step, and the free half of `leaks_source` runs in it too.
 
 | Gate | Rejects a question that | Costs |
 |---|---|---|
-| `malformed` | is not a question, carries no target answer when it claims one, is in the wrong language, is one of its own facts handed back, or answers with the number of facts it cites (a bare integer: an amount, a decimal, a range or a percentage is a value) | nothing |
+| `malformed` | is not a question, carries no target answer when it claims one, is surely in the wrong language (a question merely naming a product of the other language is not), is one of its own facts handed back, or answers with the number of facts it cites (a bare integer: an amount, a decimal, a range or a percentage is a value) | nothing |
 | `compound` | asks two things | nothing |
 | `answer_too_short` | is scored against an answer below its form's floor | nothing |
 | `answer_too_long` | answers past its form's ceiling | nothing |

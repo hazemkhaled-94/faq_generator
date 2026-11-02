@@ -362,6 +362,75 @@ def test_two_marks_are_two_questions(language, question):
     assert failed is not None and "2 things" in failed[1]
 
 
+# N-045: only a sure reading of another language refuses a question for its language.
+@pytest.mark.parametrize(
+    ("language", "question", "answer"),
+    [
+        (
+            "de",
+            "Wie hoch ist die monatliche Gebühr für das Girokonto?",
+            "5 EUR pro Monat",
+        ),
+        ("en", "How much is the monthly fee for the current account?", "5 EUR a month"),
+        ("de", "Was kostet die Mastercard Gold Business Edition?", "120 EUR"),
+        ("de", "Wie viel kostet Express Shipping mit Same Day Delivery?", "9,90 EUR"),
+        ("en", "How much is the Girokonto Klassik per month?", "5 EUR"),
+        ("en", "What does the Sparkasse Kreditkarte Gold cost?", "50 EUR a year"),
+    ],
+)
+def test_a_question_naming_a_product_in_another_language_is_not_malformed(
+    language, question, answer
+):
+    """A product name in the other language tips a two-way pick, and no more than that."""
+    failed, _ = structural(
+        question_text=question, target_answer=answer, answerable=True, language=language
+    )
+    assert failed is None or "it is written in" not in failed[1], failed
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "answer"),
+    [
+        (
+            "de",
+            "Does the warranty on the vacuum cleaner also cover the battery?",
+            "Yes, two years in total",
+        ),
+        (
+            "en",
+            "Gilt die Garantie auf den Staubsauger auch für den Akku?",
+            "Ja, insgesamt zwei Jahre lang",
+        ),
+    ],
+)
+def test_a_question_surely_in_another_language_is_still_refused(
+    language, question, answer
+):
+    """The controls: a whole sentence of the other configured language."""
+    failed, _ = structural(
+        question_text=question, target_answer=answer, answerable=True, language=language
+    )
+    assert failed is not None and "it is written in" in failed[1]
+
+
+@pytest.mark.parametrize(
+    ("question", "answer"),
+    [
+        (
+            "Quel est le montant des frais annuels de la carte bancaire Gold?",
+            "5 EUR par an",
+        ),
+        ("Πόσο κοστίζει η ετήσια κάρτα Gold της τράπεζας;", "5 EUR το χρόνο"),
+    ],
+)
+def test_a_language_no_configuration_names_raises_nothing(question, answer):
+    """The detector reads only the configured languages, so it cannot say what these are."""
+    failed, _ = structural(
+        question_text=question, target_answer=answer, answerable=True, language="de"
+    )
+    assert failed is None or "it is written in" not in failed[1] or "en" in failed[1]
+
+
 def test_a_space_grouped_amount_is_one_number_to_relabelled():
     """An aggregation keyed with `EUR 100 000` holds one number."""
     kind = relabelled(QuestionType.AGGREGATION, AnswerForm.VALUE, "EUR 100 000", "en")

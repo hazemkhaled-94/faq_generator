@@ -55,7 +55,7 @@ from nlp.analysis import (
     phrases,
     vocabulary,
 )
-from nlp.language import detect
+from nlp.language import detect_surely
 from nlp.pipelines import pipeline
 from question_generation.models import Neighbour
 
@@ -795,8 +795,9 @@ def structural(
     # Read on the question and its answer together, and only believed when it
     # answers: lingua returns nothing below forty characters of prose, and
     # most questions are shorter than that. A detector that cannot tell is
-    # not evidence of the wrong language.
-    written = detect(f"{asked} {target_answer or ''}".strip())
+    # not evidence of the wrong language, and neither is a pick that merely
+    # tips: a product named in the other language does that.
+    written = detect_surely(f"{asked} {target_answer or ''}".strip())
     if language and written and written != language:
         return (
             QuestionRejection.MALFORMED,
