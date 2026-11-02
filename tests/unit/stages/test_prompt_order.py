@@ -47,6 +47,6 @@ def test_the_listing_orders_by_the_leading_number_of_the_version(monkeypatch) ->
         "ORDER BY"
     )[1]
     assert "CAST(SUBSTRING(prompts.version FROM" in ordered
-    assert "AS INTEGER) DESC" in ordered
-    assert ordered.index("AS INTEGER) DESC") < ordered.index("prompts.version DESC")
+    assert "AS BIGINT) DESC" in ordered
+    assert ordered.index("AS BIGINT) DESC") < ordered.index("prompts.version DESC")
     assert "length" not in ordered

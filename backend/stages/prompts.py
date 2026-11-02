@@ -19,7 +19,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Integer, cast, func, literal, select
+from sqlalchemy import BigInteger, cast, func, literal, select
 from sqlalchemy.dialects.postgresql import insert
 
 from database.qa_generator import Prompt, sessions
@@ -117,7 +117,10 @@ def stored(
                 # capped prompt is `12+cap4`, and a version with none sorts last.
                 .order_by(
                     Prompt.service,
-                    cast(func.substring(Prompt.version, literal("^[0-9]+")), Integer)
+                    cast(
+                        func.substring(Prompt.version, literal("^[0-9]{1,18}")),
+                        BigInteger,
+                    )
                     .desc()
                     .nulls_last(),
                     Prompt.version.desc(),
