@@ -1408,10 +1408,11 @@ def _clausal_correlate(token) -> bool:
     complement clause that its head, or the verb chain under it, governs
     later. Read off the structure, so no word list is involved.
 
-    Only a subject, and only before a complement: an object pronoun before a
-    purpose clause, "The bank asks it to confirm the transfer" or "Der Kunde
-    muss es zurückgeben, um eine Erstattung zu erhalten", still points at
-    something the statement never named.
+    A subject or, where the clause hangs on the pronoun itself, an object
+    ("Er hat es versäumt, die Unterlagen einzureichen"). An object pronoun
+    before a purpose clause, "The bank asks it to confirm the transfer" or
+    "Der Kunde muss es zurückgeben, um eine Erstattung zu erhalten", still
+    points at something the statement never named.
     """
     language = token.doc.lang_
     if language not in _PLACEHOLDER_GENDER:
