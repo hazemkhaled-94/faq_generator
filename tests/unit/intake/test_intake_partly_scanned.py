@@ -122,6 +122,27 @@ def test_a_picture_page_with_only_a_running_head_and_a_page_number_is_named(
     assert image_only_pages(pdf.tobytes(), OCR_CHARS) == (1,)
 
 
+WATERMARKS = {
+    "de": "VERTRAULICH",
+    "en": "CONFIDENTIAL",
+    "fr": "COPIE",
+    "el": "ΑΝΤΙΓΡΑΦΟ",
+}
+
+
+@pytest.mark.parametrize("language", sorted(WATERMARKS))
+def test_a_scan_with_a_watermark_across_its_middle_is_still_named(language) -> None:
+    """A word of capitals set large over a picture is a stamp, not text that was read."""
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=595, height=842)
+    page.insert_image(page.rect, pixmap=_picture(), keep_proportion=False)
+    page.insert_font(fontname="uni", fontbuffer=pymupdf.Font("helv").buffer)
+    page.insert_text((60, 420), WATERMARKS[language], fontsize=48, fontname="uni")
+    page.insert_text((290, 820), "2", fontsize=9)
+
+    assert image_only_pages(pdf.tobytes(), OCR_CHARS) == (1,)
+
+
 def test_the_service_warns_and_records_the_named_pages(caplog) -> None:
     """A partly scanned document is parsed, and says which pages it lost."""
     driver = ParseDriver(

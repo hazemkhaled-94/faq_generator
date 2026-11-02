@@ -43,11 +43,14 @@ A document is scanned when `char_count / page_count` is below
 implemented, so a scanned document is refused here.
 
 A digital PDF page with a picture over at least half of it and no body text is
-image-only. Body text is text outside the top and bottom tenth of the page, read
-as the reader sees it, so a page stored on its side is read right. The margins
-may hold at most `PARSING_OCR_CHAR_THRESHOLD` characters (a merge tool's
-`Seite 2 von 3` stamp included), while a cover's title or a divider's line is
-body text and the page was read. The document is parsed for its text pages,
+image-only. Body text is three words or more outside the top and bottom tenth
+of the page, read as the reader sees it, so a page stored on its side is read
+right. A page holds at most `PARSING_OCR_CHAR_THRESHOLD` characters in all
+(a merge tool's `Seite 2 von 3` stamp included), and a watermark of a word or
+two across the picture is a stamp too, while a cover's title or a divider's line
+is body text and the page was read. The cut at three words and at the tenth
+moves the named pages of the football set when it moves by a fifth: a cover
+whose title sits near the margin is the page that changes. The document is parsed for its text pages,
 and the page is named, as a picture with no body text, in a warning, in the
 `image-only-pages` metadata and in `documents.parse_error`, which the
 documents page, the API and `make parse-status` show. A re-parse clears it.
