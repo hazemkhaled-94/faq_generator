@@ -435,3 +435,18 @@ def test_a_count_before_a_noun_the_stop_list_holds_is_one_figure(
     from nlp.analysis import figures
 
     assert figures(text, language) == value
+
+
+@pytest.mark.parametrize(
+    ("text", "language"),
+    [
+        ("Tel. 030 123 Kundenservice", "de"),
+        ("Call 020 123 customer service", "en"),
+        ("Appelez le 030 123 service clients", "fr"),
+    ],
+)
+def test_a_head_opening_with_zero_takes_no_group(text, language) -> None:
+    """A trunk-prefixed number is a phone number, never thousands."""
+    from nlp.analysis import figures
+
+    assert len(figures(text, language)) == 2

@@ -1075,10 +1075,10 @@ REFERENCE_LABELS: dict[str, frozenset[str]] = {
     ),
 }
 
-#: A head of one to three digits and one group of exactly three, alone: not
+#: A head of one to three digits, the first not a zero, and one group of exactly three, alone: not
 #: part of a longer run of groups, as a table row is.
 _SPACED = re.compile(
-    r"(?<![\w.,])(?<!\d[ \u00a0\u202f])\d{1,3}[ \u00a0\u202f]\d{3}(?:[.,]\d+)?(?![\w])(?![ \u00a0\u202f]\d)"
+    r"(?<![\w.,])(?<!\d[ \u00a0\u202f])[1-9]\d{0,2}[ \u00a0\u202f]\d{3}(?:[.,]\d+)?(?![\w])(?![ \u00a0\u202f]\d)"
 )
 
 
