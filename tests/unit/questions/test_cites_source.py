@@ -83,6 +83,7 @@ def test_a_numbered_standard_is_still_a_source(question, language):
         ("Wie laut ist die Wärmepumpe WP 300 im Nachtbetrieb?", "de"),
         ("Wie laut ist das Modell 2024 bei voller Leistung?", "de"),
         ("Wie laut darf Musik ab 22 Uhr sein?", "de"),
+        ("Wie laut im Vergleich zu X4 ist der Staubsauger X5?", "de"),
         ("How loud is the X5 vacuum cleaner in eco mode?", "en"),
         ("Quel est le niveau sonore de l'aspirateur X5?", "fr"),
         ("Πόσο θορυβώδης είναι η ηλεκτρική σκούπα X5;", "el"),

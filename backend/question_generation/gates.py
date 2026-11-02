@@ -976,8 +976,10 @@ def _names_something(following: Sequence, documents: frozenset[str]) -> bool:
 
 
 def _adposition(token) -> bool:
-    """Whether a token is an adposition or the head of one: `laut`, `according` to."""
-    return token.pos_ == "ADP" or any(child.pos_ == "ADP" for child in token.children)
+    """Whether a token is an adposition or the head of one, an adverb never: `laut`, `according` to."""
+    return token.pos_ == "ADP" or (
+        token.pos_ != "ADV" and any(child.pos_ == "ADP" for child in token.children)
+    )
 
 
 #: The symbols of a measure that may be written against its figure (`24h`,
