@@ -151,7 +151,7 @@ class ChunkingService(StageService):
                 self._chunk(claimed.sha256, claimed.language, current)
             except NoPassages as exc:
                 self._fail(claimed.sha256, str(exc), current)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - one bad row is not the drain
                 self._crashed(claimed.sha256, exc, current)
         return claimed.sha256
 

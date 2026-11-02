@@ -161,7 +161,7 @@ class ParsingService(StageService):
                 AlreadyHeld,
             ) as exc:
                 self._fail(document.sha256, str(exc), current)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - one bad row is not the drain
                 self._crashed(document.sha256, exc, current)
         return document.sha256
 

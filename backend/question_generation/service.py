@@ -1152,7 +1152,7 @@ class QuestionGenerationService(StageService):
                         "questions.followups": followups,
                     },
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - one bad row is not the drain
                 self._crashed(topic.id, exc, current, is_outage(exc))
         return topic.id
 

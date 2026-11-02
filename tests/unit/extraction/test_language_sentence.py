@@ -26,7 +26,8 @@ def sent(language: str | None) -> list[str]:
 
 
 @pytest.mark.parametrize(
-    ("language", "name"), [("de", "German"), ("en", "English"), ("fr", "fr"), ("el", "el")]
+    ("language", "name"),
+    [("de", "German"), ("en", "English"), ("fr", "fr"), ("el", "el")],
 )
 def test_a_language_is_named_in_every_message(language: str, name: str) -> None:
     """A language the table does not know is named by its code."""
@@ -45,5 +46,8 @@ def test_no_language_leaves_no_sentence_and_no_dangling_in() -> None:
 def test_the_sentence_is_dropped_only_where_it_is() -> None:
     """A template with no language placeholder is returned as it was."""
     assert with_language("Excerpt:\n{{excerpt}}", None) == "Excerpt:\n{{excerpt}}"
-    assert with_language("A\n\nWrite it in {{language}}.", "de") == "A\n\nWrite it in {{language}}."
+    assert (
+        with_language("A\n\nWrite it in {{language}}.", "de")
+        == "A\n\nWrite it in {{language}}."
+    )
     assert with_language("A\n\nWrite it in {{language}}.", None) == "A"
