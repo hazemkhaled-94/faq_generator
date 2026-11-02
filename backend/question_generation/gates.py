@@ -990,8 +990,13 @@ _UNIT_SYMBOLS = frozenset(
     | {"kb", "mb", "gb", "tb", "kw", "kwh"}
 )
 
-#: How a figure hangs off the noun it counts, in the English and German pipelines.
-_COUNTS_A_NOUN = frozenset({"nummod", "nk"})
+#: How a figure hangs off the noun it counts, by language: UD's `nummod` in
+#: English and the TIGER labels in German (`nk`, and `nmc` or `pnc` for a
+#: number or unit). A newly configured language supplies its pipeline's.
+_COUNTS_A_NOUN: dict[str, frozenset[str]] = {
+    "en": frozenset({"nummod"}),
+    "de": frozenset({"nk", "nmc", "pnc"}),
+}
 
 
 def _numbers_a_document(token, following) -> bool:
@@ -1005,20 +1010,41 @@ def _numbers_a_document(token, following) -> bool:
     glued = re.search(r"\d([^\W\d_]+)", token.text)
     if glued and glued[1].casefold() in _UNIT_SYMBOLS:
         return False
-    if (
-        len(following) > 2
-        and following[0].text in "-–"
-        and is_number(following[1])
-        and following[2].pos_ in ("NOUN", "PROPN")
-        # A tagger reads the verb after `29119-4` as a noun, and it heads the clause.
-        and following[2].dep_ != "ROOT"
-    ):
+    # `2-Tage-Versand` is one token, `2-day` three: a figure joined to a word by
+    # a dash measures that word, whatever the word is.
+    if re.match(r"\d+[-–][^\W\d_]", token.text):
         return False
+    if len(following) > 1 and following[0].text in "-–":
+        # A dash and a noun, `48-hour`.
+        if not is_number(following[1]) and following[1].pos_ in _MEASURED:
+            return False
+        # A dash and a greater figure before a noun, `3-5 days`: a range, where
+        # `29119-4` falls to a part.
+        if (
+            len(following) > 2
+            and is_number(following[1])
+            and _greater(token.text, following[1].text)
+            and following[2].pos_ in ("NOUN", "PROPN")
+        ):
+            return False
     return not (
-        token.dep_ in _COUNTS_A_NOUN
+        token.dep_ in _COUNTS_A_NOUN.get(token.doc.lang_, frozenset())
         and token.head.i == token.i + 1
-        and token.head.pos_ in ("NOUN", "PROPN")
+        and token.head.pos_ in _MEASURED
     )
+
+
+#: What a figure may count or measure: a noun, a name, or a unit the tagger
+#: leaves untagged (`GB`).
+_MEASURED = ("NOUN", "PROPN", "X")
+
+
+def _greater(first: str, second: str) -> bool:
+    """Whether the second of two written figures is the greater."""
+    try:
+        return float(second) > float(first)
+    except ValueError:
+        return False
 
 
 def cites_source(question: str, language: str | None) -> bool | None:

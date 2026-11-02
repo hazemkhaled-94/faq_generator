@@ -388,7 +388,9 @@ entity labels of an author. An attribution counts only as an adposition, so the
 adjective in `wie laut` attributes nothing. A year beside a proper noun is a
 citation only for a person or an organisation the tagger reads as one, so a
 product the tagger does not read as an organisation is none, and a number after a document
-word is its number only if no unit or range follows it. A language with no row
+word is its number only if no unit, hyphenated unit or range follows it. A part
+number (`29119-4`, `3b`) stays one; a figure the tagger takes for a count of
+the noun after it (`Standard 20246 require`) does not. A language with no row
 settles nothing here.
 
 ## Unanswerable questions
