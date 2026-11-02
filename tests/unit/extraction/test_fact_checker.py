@@ -2477,3 +2477,99 @@ def test_a_language_no_pipeline_is_configured_for_never_reaches_the_swap_guard(
     judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
 
     assert judged.rejection_code != Rejection.UNSUPPORTED_ADDITION
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "Since 2024 the account fee is 5 EUR a month. Until 2023 the account fee was 3 EUR a month.",
+            "Since 2023 the account fee is 5 EUR a month.",
+        ),
+        (
+            "de",
+            "Seit 2024 beträgt die Kontogebühr 5 Euro im Monat. Bis 2023 betrug die Kontogebühr 3 Euro im Monat.",
+            "Seit 2023 beträgt die Kontogebühr 5 Euro im Monat.",
+        ),
+        (
+            "en",
+            "The branch opens at 9:00. The branch closes at 17:00.",
+            "The branch opens at 17:00.",
+        ),
+        (
+            "de",
+            "Die Filiale öffnet um 9:00 Uhr. Die Filiale schließt um 17:00 Uhr.",
+            "Die Filiale öffnet um 17:00 Uhr.",
+        ),
+    ],
+)
+def test_a_year_or_time_lifted_from_an_uncited_sentence_is_a_swap(
+    language, text, statement
+) -> None:
+    """A figure with no unit beside it still has a kind: its shape."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement", "cited"),
+    [
+        (
+            "en",
+            "Since 2024 the account fee is 5 EUR a month. Until 2023 the account fee was 3 EUR a month.",
+            "Until 2023 the account fee was 3 EUR a month.",
+            1,
+        ),
+        (
+            "de",
+            "Seit 2024 beträgt die Kontogebühr 5 Euro im Monat. Bis 2023 betrug die Kontogebühr 3 Euro im Monat.",
+            "Bis 2023 betrug die Kontogebühr 3 Euro im Monat.",
+            1,
+        ),
+        (
+            "en",
+            "The branch opens at 9:00. The branch closes at 17:00.",
+            "The branch closes at 17:00.",
+            1,
+        ),
+        (
+            "en",
+            "Orders 100 and 250 are shipped. Order 7 is held.",
+            "Order 7 is held.",
+            1,
+        ),
+    ],
+)
+def test_a_year_or_time_in_the_cited_sentence_is_supported(
+    language, text, statement, cited
+) -> None:
+    """Citing the sentence that states the figure keeps the fact."""
+    judged = Checker(passage(text, language=language)).atomic(statement, cited)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "fr",
+            "Depuis 2024 les frais sont de 5 EUR par mois. Jusqu'en 2023 ils étaient de 3 EUR par mois.",
+            "Depuis 2023 les frais sont de 5 EUR par mois.",
+        ),
+        (
+            "el",
+            "Από το 2024 η χρέωση είναι 5 EUR. Μέχρι το 2023 ήταν 3 EUR.",
+            "Από το 2023 η χρέωση είναι 5 EUR.",
+        ),
+    ],
+)
+def test_a_year_in_a_language_no_pipeline_is_configured_for_is_refused_at_parse(
+    language, text, statement
+) -> None:
+    """Such a language is read by the default pipeline's tags and refused whatever the shape rule does."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert not judged.validated

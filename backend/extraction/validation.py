@@ -769,14 +769,24 @@ def _named_kind(word: str, language: str | None) -> str | None:
     return None
 
 
+#: What a figure with no unit beside it is, read from its own shape: a year
+#: written with four digits, a clock time with a colon. A bare count has no
+#: kind, so a count is never compared with another.
+_SHAPES = (
+    ("year-number", re.compile(r"\d{4}")),
+    ("clock-time", re.compile(r"\d{1,2}:\d{2}")),
+)
+
+
 def _kind_of(tokens: Sequence, at: int, language: str | None) -> str | None:
     """What the figure at `at` measures or counts, from the word beside it.
 
     A sign or unit written on the figure ("5%", "$5"), else the noun or
     sign after it, the last of a run of nouns ("5 working days"), else before it: "EUR" of
-    "EUR 5 per month" and of "5 EUR", "days" of "30 days". None where the
-    parse names none, which is every figure of a language no pipeline is
-    configured for.
+    "EUR 5 per month" and of "5 EUR", "days" of "30 days". Where no word
+    stands beside it, its shape: a year, a clock time; None for a bare count.
+    None too where the parse names none, which is every figure of a language no
+    pipeline is configured for.
     """
     token = tokens[at]
     if any(one.isdigit() for one in token.text) and (
@@ -802,7 +812,8 @@ def _kind_of(tokens: Sequence, at: int, language: str | None) -> str | None:
                 or _named_kind(word.lemma_, language)
                 or word.lemma_.casefold()
             )
-    return None
+    bare = token.text.strip(".,;:()")
+    return next((kind for kind, shape in _SHAPES if shape.fullmatch(bare)), None)
 
 
 def _figure_tokens(
