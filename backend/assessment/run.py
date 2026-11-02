@@ -318,6 +318,8 @@ def _sheets(path: Path, name: str, **kwargs):
     The export goes on in `Citations 2` where a sheet would pass Excel's row
     limit, so reading only the first would count part of the set.
     """
+    # Here rather than above: the assess-worker imports this module and never
+    # reads a workbook.
     import pandas as pd
 
     with pd.ExcelFile(path) as book:
@@ -399,9 +401,6 @@ def _read(
     passages, which a question without an answer does not have, so every one
     of them would otherwise be counted as `single`.
     """
-    # Here rather than above: the assess-worker imports this module and
-    # never reads a workbook.
-
     # Text as written: pandas would otherwise read a question "None" or "N/A"
     # as missing, and measure it as the word "nan".
     frame = _sheets(
