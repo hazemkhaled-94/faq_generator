@@ -192,12 +192,12 @@ def _asked(monkeypatch) -> dict[str, str]:
     }
 
 
-def test_a_refused_or_failed_document_is_not_still_to_do(monkeypatch) -> None:
+def test_a_failed_document_is_not_still_to_do(monkeypatch) -> None:
     """Parse refused it: nothing is left to parse, chunk or extract for it."""
     documents = _asked(monkeypatch)["documents"]
 
     assert "chunk_status IN ('new', 'pending', 'in_progress')" in documents
-    assert "parse_status NOT IN ('failed', 'refused')" in documents
+    assert "parse_status != 'failed'" in documents
 
 
 def test_only_passages_waiting_for_extraction_are_still_to_do(monkeypatch) -> None:

@@ -202,8 +202,9 @@ def counted() -> Rows:
                 .select_from(Document)
                 .where(
                     Document.chunk_status.in_(WAITING),
-                    # Parsing refused or failed it: nothing is left to do for it.
-                    Document.parse_status.not_in((Status.FAILED, "refused")),
+                    # Parsing failed it (a refusal is stored as a failure): nothing
+                    # is left to do for it.
+                    Document.parse_status != Status.FAILED,
                 )
             )
             or 0,
