@@ -2714,3 +2714,77 @@ def test_a_sign_or_code_reads_the_same_in_a_language_without_a_currency_row(
     from nlp.analysis import claim
 
     assert unit in claim(text, language).currencies
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "Returns are accepted within 14 days. Refunds are paid within 2 weeks.",
+            "Returns are accepted within 2 weeks.",
+        ),
+        (
+            "en",
+            "The goalkeeper must release the ball within 8 seconds. A temporary dismissal lasts 10 minutes.",
+            "The goalkeeper must release the ball within 10 minutes.",
+        ),
+        (
+            "de",
+            "Der Torhüter muss den Ball innerhalb von 8 Sekunden freigeben. Eine Zeitstrafe dauert 10 Minuten.",
+            "Der Torhüter muss den Ball innerhalb von 10 Minuten freigeben.",
+        ),
+        (
+            "en",
+            "The legal guarantee lasts at least 2 years. A repair must be made within 6 months.",
+            "The legal guarantee lasts at least 6 months.",
+        ),
+        (
+            "de",
+            "Die gesetzliche Gewährleistung beträgt mindestens 2 Jahre. Eine Reparatur muss binnen 6 Monaten erfolgen.",
+            "Die gesetzliche Gewährleistung beträgt mindestens 6 Monate.",
+        ),
+        (
+            "en",
+            "A transfer arrives within 24 hours. A cheque clears within 3 days.",
+            "A transfer arrives within 3 days.",
+        ),
+        (
+            "de",
+            "Eine Überweisung dauert 24 Stunden. Ein Scheck wird binnen 3 Tagen gutgeschrieben.",
+            "Eine Überweisung dauert 3 Tage.",
+        ),
+    ],
+)
+def test_a_period_lifted_from_an_uncited_sentence_is_a_swap_across_every_unit_of_time(
+    language, text, statement
+) -> None:
+    """Seconds, minutes, hours, days, weeks, months and years are one kind of figure."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "fr",
+            "Un virement arrive sous 24 heures. Un chèque est crédité sous 3 jours.",
+            "Un virement arrive sous 3 jours.",
+        ),
+        (
+            "el",
+            "Η μεταφορά φτάνει σε 24 ώρες. Η επιταγή πιστώνεται σε 3 ημέρες.",
+            "Η μεταφορά φτάνει σε 3 ημέρες.",
+        ),
+    ],
+)
+def test_a_period_in_a_language_without_a_time_table_is_never_a_swap(
+    language, text, statement
+) -> None:
+    """No row, no kind: the guard stays silent rather than guess at another language's units."""
+    from extraction.validation import _named_kind
+
+    assert _named_kind("jours", language) is None
+    assert _named_kind("ημέρες", language) is None

@@ -743,11 +743,11 @@ _SHARE_WORDS: dict[str, frozenset[str]] = {
 
 #: The lemmas of a language's units of time that a period is counted in, by
 #: ISO 639-1 code, as lower case: "30 days" and "2 weeks" are two figures of
-#: one kind. A newly configured language supplies its days, weeks and months,
-#: or its periods are compared by the unit as written.
+#: one kind. The whole closed set, second to year. A newly configured language
+#: supplies its seven, or its periods are compared by the unit as written.
 _TIME_UNITS: dict[str, frozenset[str]] = {
-    "de": frozenset({"tag", "woche", "monat"}),
-    "en": frozenset({"day", "week", "month"}),
+    "de": frozenset({"sekunde", "minute", "stunde", "tag", "woche", "monat", "jahr"}),
+    "en": frozenset({"second", "minute", "hour", "day", "week", "month", "year"}),
 }
 
 
