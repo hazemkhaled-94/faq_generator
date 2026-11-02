@@ -609,15 +609,19 @@ def ordinal(token: Token) -> str | None:
 
 #: The names of the months and of the days of the week, by ISO 639-1 code,
 #: each as the one form it is folded to: German tags them as common nouns
-#: (`Januar`, `montags`), so a writer's choice of one is no proper noun to
-#: `_units`, and a fact moving a date to another month or day looks the same.
-#: A language missing here reads them by their tags. A newly configured
-#: language supplies its months and weekdays, with the adverbial and
-#: inflected forms it writes, each mapped to its base form, all lower case.
+#: (`Januar`, `montags`), and English its plural weekdays (`Tuesdays`), so a
+#: writer's choice of one is no proper noun to `_units`, and a fact moving a
+#: date to another month or day looks the same. A language missing here reads
+#: them by their tags. A newly configured language supplies its months and
+#: weekdays, with the adverbial and inflected forms it writes, each mapped to
+#: its base form, all lower case, and the tags it gives them in
+#: `_CALENDAR_TAGS`: a month spelled like a verb (`may`) is no month.
 _DE_MONTHS = (
     "januar februar märz april mai juni juli august september oktober november dezember"
 )
 _DE_WEEKDAYS = "montag dienstag mittwoch donnerstag freitag samstag sonntag"
+_EN_MONTHS = "january february march april may june july august september october november december"
+_EN_WEEKDAYS = "monday tuesday wednesday thursday friday saturday sunday"
 CALENDAR_NAMES: dict[str, dict[str, str]] = {
     "de": {
         **{name: name for name in (_DE_MONTHS + " " + _DE_WEEKDAYS).split()},
@@ -625,14 +629,50 @@ CALENDAR_NAMES: dict[str, dict[str, str]] = {
         "sonnabend": "samstag",
         **{f"{day}s": day for day in _DE_WEEKDAYS.split()},
     },
-    # English tags its months and weekdays as proper nouns, which `_units` reads.
-    "en": {},
+    "en": {
+        **{name: name for name in (_EN_MONTHS + " " + _EN_WEEKDAYS).split()},
+        **{f"{day}s": day for day in _EN_WEEKDAYS.split()},
+    },
+}
+
+#: The tags a month or weekday carries in each language's pipeline: nouns and
+#: names, and German's adverbial `montags`.
+_CALENDAR_TAGS: dict[str, frozenset[str]] = {
+    "de": frozenset({"NOUN", "PROPN", "ADV"}),
+    "en": frozenset({"NOUN", "PROPN"}),
+}
+
+
+#: The abbreviations of the same names, with or without a full stop, each
+#: mapped to its base form. Read of the cited text only, so one can only add
+#: support, never a refusal: `Mo.-Fr.` supports `Montag bis Freitag`, and a
+#: two-letter form that is also an ordinary word (`Do`, `so`) supports a name
+#: it may not mean, which is the safe side.
+def _abbreviated(abbreviations: str, names: str) -> dict[str, str]:
+    """Each abbreviation of a space-separated list, mapped to the name at its position."""
+    return dict(zip(abbreviations.split(), names.split(), strict=True))
+
+
+CALENDAR_ABBREVIATIONS: dict[str, dict[str, str]] = {
+    "de": _abbreviated(
+        "jan feb mär apr jun jul aug sep sept okt nov dez",
+        "januar februar märz april juni juli august september september oktober november dezember",
+    )
+    | _abbreviated("mo di mi do fr sa so", _DE_WEEKDAYS),
+    "en": _abbreviated(
+        "jan feb mar apr jun jul aug sep sept oct nov dec",
+        "january february march april june july august september september october november december",
+    )
+    | _abbreviated("mon tue wed thu fri sat sun", _EN_WEEKDAYS),
 }
 
 
 def _calendar(token: Token, language: str | None) -> str | None:
     """The form a month or weekday name is folded to, or None for any other token."""
-    names = CALENDAR_NAMES.get((language or token.doc.lang_).strip().lower(), {})
+    code = (language or token.doc.lang_).strip().lower()
+    if token.pos_ not in _CALENDAR_TAGS.get(code, ()):
+        return None
+    names = CALENDAR_NAMES.get(code, {})
     return next(
         (
             names[form]
@@ -668,12 +708,13 @@ def _currency(token: Token, language: str | None) -> str | None:
 def _units(span: Doc | Span, language: str | None = None) -> tuple[str, ...]:
     """Collects the values a statement may not introduce on its own.
 
-    Numbers and proper nouns only, and the months and weekdays a language's
-    `CALENDAR_NAMES` lists, which its tagger may call common nouns. All are
-    things a writer reports rather than chooses, so one appearing in a
-    statement and nowhere in the sentence it cites was invented.
+    Numbers and proper nouns only. Both are things a writer reports rather
+    than chooses, so one appearing in a statement and nowhere in the sentence
+    it cites was invented. The months, weekdays and currencies the tagger
+    does not call proper nouns are read apart, in `Claim.calendar` and
+    `Claim.currencies`.
 
-    Three things are deliberately left out. Other common nouns, because a statement
+    Three things are deliberately left out. Common nouns, because a statement
     is supposed to name its subject in its own words. Verbs, because the
     statement is written rather than quoted, so its predicate is the model's
     to choose - "Die Digitalisierung schreitet fort" drawn from
@@ -695,8 +736,6 @@ def _units(span: Doc | Span, language: str | None = None) -> tuple[str, ...]:
         if is_number(token):
             # An ordinal keeps what marks it, so `3.` is not the count 3.
             found.add((token.text if ordinal(token) else _bare(token.text)).casefold())
-        elif name := _calendar(token, language):
-            found.add(name)
         elif token.pos_ == "PROPN":
             if (
                 capitalising
@@ -2718,11 +2757,26 @@ def vocabulary(text: str, language: str | None) -> frozenset[str]:
         for variant in (form, _bare(form))
         # An ordinal figure, `3.`, is no bare 3 as well.
         if variant and not (variant != form and ordinal(token))
-    ) | {
-        name
-        for token in document
-        if (name := _calendar(token, language) or _currency(token, language))
-    }
+    ) | {name for token in document if (name := _currency(token, language))}
+
+
+def folds(text: str, language: str | None) -> frozenset[str]:
+    """The folded months and weekdays a text names, for the evidence side of the fact check.
+
+    The base form of each name `Claim.calendar` reads, and of each
+    abbreviation (`Mo.`, `Dez.`) a word of the text is.
+    """
+    document = _read(text, language)
+    code = (language or document.lang_).strip().lower()
+    abbreviations = CALENDAR_ABBREVIATIONS.get(code, {})
+    return frozenset(
+        {name for token in document if (name := _calendar(token, language))}
+        | {
+            abbreviations[word.casefold()]
+            for word in re.findall(r"[^\W\d_]+", text)
+            if word.casefold() in abbreviations
+        }
+    )
 
 
 def content(text: str, language: str | None) -> frozenset[str]:
@@ -2837,6 +2891,9 @@ def claim(
     return Claim(
         predicates=_predicates(document) or int(_untagged_claim(document)),
         units=_units(document, language),
+        calendar=tuple(
+            sorted({one for token in document if (one := _calendar(token, language))})
+        ),
         currencies=tuple(
             sorted({one for token in document if (one := _currency(token, language))})
         ),

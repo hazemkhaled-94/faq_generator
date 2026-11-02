@@ -2651,12 +2651,147 @@ def test_a_faithful_date_restatement_is_validated(language, text, statement) -> 
     assert judged.validated, (judged.rejection_code, judged.units_added)
 
 
-def test_a_german_month_is_a_unit_whatever_the_tagger_calls_it() -> None:
-    """German tags `Mai` as a common noun; its row in the calendar table makes it a unit."""
+def test_a_month_or_weekday_is_read_whatever_the_tagger_calls_it() -> None:
+    """German tags `Mai` as a common noun; its row in the calendar table reads it."""
     from nlp.analysis import claim
 
-    assert "mai" in claim("Der Bericht vom Mai ist fertig.", "de").units
-    assert "montag" in claim("Die Filiale ist montags geöffnet.", "de").units
+    assert "mai" in claim("Der Bericht vom Mai ist fertig.", "de").calendar
+    assert "montag" in claim("Die Filiale ist montags geöffnet.", "de").calendar
+    assert "tuesday" in claim("The branch is closed on Tuesdays.", "en").calendar
+    assert "march" in claim("Fees are due in March.", "en").calendar
+
+
+def test_a_verb_spelled_like_a_month_is_no_month() -> None:
+    """Only a token the tagger reads as a noun or a name is a month or a weekday."""
+    from nlp.analysis import claim
+
+    assert claim("The bank may close on Tuesdays.", "en").calendar == ("tuesday",)
+    assert claim("Clients march to the branch.", "en").calendar == ()
+
+
+def test_the_calendar_names_leave_the_units_the_question_gates_read_alone() -> None:
+    """The fact check reads them from their own field."""
+    from nlp.analysis import claim
+
+    assert "februar" not in claim("Gültig ab dem 1. Februar.", "de").units
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Les prix s'appliquent à partir du 1 janvier 2026.",
+        "Οι τιμές ισχύουν από την 1 Ιανουαρίου 2026.",
+        "La sucursal cierra los lunes.",
+    ],
+)
+def test_a_language_without_a_calendar_row_reads_no_month(text) -> None:
+    """No row, no fold: French, Greek and Spanish names are left to their tags."""
+    from nlp.analysis import claim
+
+    assert claim(text, "fr").calendar == ()
+    assert claim(text, "el").calendar == ()
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "The branch is closed on Mondays.",
+            "The branch is closed on Tuesdays.",
+        ),
+        (
+            "en",
+            "Payments made on Saturdays are booked on Mondays.",
+            "Payments made on Sundays are booked on Mondays.",
+        ),
+        (
+            "en",
+            "Fees are due in March.",
+            "Fees are due in May.",
+        ),
+        (
+            "de",
+            "Die Filiale ist am Montagmorgen geschlossen.",
+            "Die Filiale ist am Dienstag geschlossen.",
+        ),
+    ],
+)
+def test_a_fact_moving_a_weekday_or_month_is_refused_in_the_plural_and_across_tags(
+    language, text, statement
+) -> None:
+    """The English plural weekday is a common noun to the tagger; the table reads it all the same."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Die Hotline ist Mo.–Fr. von 8 bis 20 Uhr erreichbar.",
+            "Die Hotline ist Montag bis Freitag von 8 bis 20 Uhr erreichbar.",
+        ),
+        (
+            "de",
+            "Die Hotline ist Mo-Fr von 8 bis 20 Uhr erreichbar.",
+            "Die Hotline ist montags bis freitags von 8 bis 20 Uhr erreichbar.",
+        ),
+        (
+            "de",
+            "Die Frist endet am 31. Dez. 2025.",
+            "Die Frist endet am 31. Dezember 2025.",
+        ),
+        (
+            "en",
+            "The hotline is open Mon-Fri from 8 to 8.",
+            "The hotline is open Monday to Friday from 8 to 8.",
+        ),
+        (
+            "en",
+            "The deadline is 31 Dec. 2025.",
+            "The deadline is 31 December 2025.",
+        ),
+        (
+            "en",
+            "The bank may close on Tuesdays.",
+            "The bank may close on Tuesdays.",
+        ),
+    ],
+)
+def test_an_abbreviated_date_in_the_evidence_supports_its_full_name(
+    language, text, statement
+) -> None:
+    """An abbreviation can only add support to the cited text, never a refusal."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Die Hotline ist Mo.–Fr. von 8 bis 20 Uhr erreichbar.",
+            "Die Hotline ist Samstag von 8 bis 20 Uhr erreichbar.",
+        ),
+        (
+            "en",
+            "The hotline is open Mon-Fri from 8 to 8.",
+            "The hotline is open Saturday from 8 to 8.",
+        ),
+    ],
+)
+def test_a_weekday_the_abbreviated_evidence_does_not_name_is_refused(
+    language, text, statement
+) -> None:
+    """The folded range names Monday and Friday only."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
 
 
 @pytest.mark.parametrize(

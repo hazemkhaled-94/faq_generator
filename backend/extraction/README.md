@@ -120,7 +120,8 @@ A statement the deterministic reader composed faces only `copied`.
 `unsupported_addition` compares numbers, proper nouns, the month and weekday
 names a language's `CALENDAR_NAMES` lists, and currencies, each folded to its ISO
 code whether written as a code, a sign or a name (`5 EUR`, `5 €` and `5 Euro`
-are one amount; `5 USD` is another). A number is read
+are one amount; `5 USD` is another). An abbreviation in the cited text (`Mo.`,
+`Dez.`) supports the full name; the statement's own are never read. A number is read
 in any spelling (`1st` and `1 st`, `two` and `2`, `CHF 1'250.50` and
 `CHF 1250.50`, `8 000 Kundinnen` and `8000 Kundinnen`: an apostrophe between a
 digit and three digits groups thousands, and so does a space before a noun),

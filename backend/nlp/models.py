@@ -42,6 +42,15 @@ class Claim:
     #: because only the fact check compares them: a question's key and its
     #: recovery are not asked for the currency.
     currencies: tuple[str, ...] = ()
+    #: The months and weekdays the statement names, each folded to its base
+    #: form. Apart from `units` for the reason `currencies` is: only the fact
+    #: check compares them.
+    calendar: tuple[str, ...] = ()
+
+    @property
+    def asserted(self) -> tuple[str, ...]:
+        """Everything the fact check asks the cited text for: units, figures, currencies, dates."""
+        return self.units + self.figures + self.currencies + self.calendar
 
 
 #: What each configured language is called, for a prompt that has to name it.

@@ -27,6 +27,7 @@ from extraction.models import (
 from nlp.analysis import (
     as_noun,
     claim,
+    folds,
     is_currency,
     normalised,
     numerals,
@@ -170,7 +171,7 @@ class Judged:
         """
         added = tuple(
             unit
-            for unit in self.claim.units + self.claim.figures + self.claim.currencies
+            for unit in self.claim.asserted
             if unit not in self.evidence_vocabulary and unit not in self.supported
         )
         return added + tuple(unit for unit, _ in self.swaps if unit not in added)
@@ -578,7 +579,7 @@ class FactChecker:
             claim=said,
             evidence_vocabulary=frozenset(known),
             supported=_supported_units(
-                said.units + said.figures + said.currencies,
+                said.asserted,
                 known,
                 numbers,
                 anchor.language,
@@ -662,7 +663,7 @@ class FactChecker:
         language = passage.language
         statement = candidate.statement.strip()
         said = claim(statement, language, (passage.text,), passage.title)
-        units = said.units + said.figures + said.currencies
+        units = said.asserted
         known, numbers = _carried(evidence, passage)
         known |= numbers
         supported = _supported_units(units, known, numbers, language, statement)
@@ -670,7 +671,7 @@ class FactChecker:
         if candidate.kind == FactKind.ATOMIC:
             alone = known | supported
             swaps = _swapped(statement, evidence, numbers, passage, language)
-            known |= vocabulary(passage.text, language)
+            known |= _evidence_vocabulary(passage.text, language)
             numbers |= numerals(passage.text, language)
             known |= numbers
             valued = {
@@ -707,6 +708,11 @@ class FactChecker:
         )
 
 
+def _evidence_vocabulary(text: str, language: str | None) -> frozenset[str]:
+    """Every form a word of the evidence appears in, with the folded names the fact check adds."""
+    return vocabulary(text, language) | folds(text, language)
+
+
 def _carried(evidence: str, passage: PassageToExtract) -> tuple[set[str], set[str]]:
     """Reads what a passage's cited text, heading trail and title carry.
 
@@ -717,11 +723,11 @@ def _carried(evidence: str, passage: PassageToExtract) -> tuple[set[str], set[st
         Every form a word appears in, and the numerals, of all three.
     """
     language = passage.language
-    known = set(vocabulary(evidence, language))
+    known = set(_evidence_vocabulary(evidence, language))
     numbers = set(numerals(evidence, language))
     headings = "\n".join(part for part in (passage.section_path, passage.title) if part)
     if headings:
-        known |= vocabulary(headings, language)
+        known |= _evidence_vocabulary(headings, language)
         numbers |= numerals(headings, language)
     return known, numbers
 
