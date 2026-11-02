@@ -6,8 +6,10 @@ import logging
 from datetime import UTC, datetime
 
 from database.qa_generator import Outcome
+from database.qa_generator.repository import storable
 from ingestion.models import (
     DETECTABLE,
+    INVALID_VALUE,
     DocumentName,
     IngestResult,
     StoredDocument,
@@ -126,8 +128,21 @@ class IngestService:
             upload: The file as it arrived.
 
         Returns:
-            What became of the upload.
+            What became of the upload. A filename no text column can hold
+            (a NUL byte, or a lone surrogate, which a name that is not valid
+            UTF-8 reads back with) is refused as `invalid_value` before
+            anything is recorded: the name cannot be written to the events
+            table, the object metadata or the log.
         """
+        if not storable(upload.filename):
+            detail = "a filename may not hold a NUL byte or a lone surrogate"
+            log.info(
+                "%s %s: %s",
+                INVALID_VALUE,
+                upload.filename.encode("utf-8", "backslashreplace").decode(),
+                detail,
+            )
+            return IngestResult(INVALID_VALUE, None, detail)
         with working(
             span,
             "ingest",

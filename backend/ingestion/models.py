@@ -133,6 +133,12 @@ class Removal:
     twinless: int = 0
 
 
+#: The outcome of an upload whose filename cannot be stored. Not an `Outcome`,
+#: which is what the events table records and its constraint lists: nothing is
+#: recorded for it. The api answers it as 400 under this same code.
+INVALID_VALUE = "invalid_value"
+
+
 @dataclass(frozen=True)
 class IngestResult:
     """What happened to one upload.
