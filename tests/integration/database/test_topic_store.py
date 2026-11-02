@@ -12,6 +12,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import event
 from topics import TopicStore, fitting
 
 from database.qa_generator import Status
@@ -1298,7 +1299,8 @@ class TestATopicSitsWhereItsPassagesDo:
         self, store
     ) -> None:
         """The placement is written for the fitted languages, once."""
-        from sqlalchemy import event, text
+        from sqlalchemy import text
+        from sqlalchemy.engine import Engine
 
         store.given_passages(de=2, en=2)
         de_one, de_two = store.passages["de"]
@@ -1326,11 +1328,13 @@ class TestATopicSitsWhereItsPassagesDo:
             if "SET embedding" in statement:
                 placed.append(statement)
 
-        event.listen(store.engine, "before_cursor_execute", watch)
+        # On the class: the repository writes through its own cached engine,
+        # not the fixture's.
+        event.listen(Engine, "before_cursor_execute", watch)
         try:
             store.queue.replace(store.request(), [both[0]])
         finally:
-            event.remove(store.engine, "before_cursor_execute", watch)
+            event.remove(Engine, "before_cursor_execute", watch)
 
         with store.engine.connect() as connection:
             english = {
@@ -1405,3 +1409,63 @@ def test_a_passage_deleted_while_the_fit_ran_costs_only_its_own_membership(
     assert written == 2
     assert len(store.stored_topics()) == 2
     assert locking and all("ORDER BY" in one for one in locking), locking
+
+
+# ── The order a fit reads its passages in ─────────────────────────────────
+
+
+@pytest.mark.parametrize("language", ["de", "en"])
+def test_the_fit_reads_the_same_passages_in_the_same_order_whatever_the_insert_order(
+    store, language
+) -> None:
+    """Ordered by document and position, so the ids a re-ingest hands out change nothing."""
+    from seed import digest, document, passage
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    rows = {
+        "a": [["konto", "karte"], ["gebühr"], ["rückgabe", "frist"]],
+        "b": [["versand"], ["lieferung", "paket"]],
+    }
+    forward = [("a", 1), ("a", 2), ("a", 3), ("b", 1), ("b", 2)]
+
+    def write(order) -> None:
+        with Session(store.engine) as session:
+            for key in rows:
+                session.add(document(digest(language + key)))
+            session.flush()
+            for key, ordinal in order:
+                session.add(
+                    passage(
+                        digest(language + key),
+                        ordinal=ordinal,
+                        language=language,
+                        lemmas=rows[key][ordinal - 1],
+                        text=f"{key} {ordinal}",
+                    )
+                )
+                session.flush()
+            session.commit()
+
+    def read() -> list:
+        with store.engine.connect() as connection:
+            where = {
+                row.id: (row.doc_sha256, row.ordinal)
+                for row in connection.execute(
+                    text("SELECT id, doc_sha256, ordinal FROM passages")
+                )
+            }
+        return [
+            (where[one.id], tuple(one.lemmas)) for one in store.queue.passages(language)
+        ]
+
+    write(forward)
+    first = read()
+    with store.engine.begin() as connection:
+        connection.execute(
+            text("TRUNCATE documents, passages RESTART IDENTITY CASCADE")
+        )
+    write(list(reversed(forward)))
+
+    assert len(first) == 5
+    assert first == read()
