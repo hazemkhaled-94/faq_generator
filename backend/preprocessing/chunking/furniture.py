@@ -283,15 +283,22 @@ def furniture_of(document: DoclingDocument) -> Furniture:
     def headed_by_own(page: int, own: tuple[str, ...]) -> bool:
         """Whether a page holds a heading that says each of its single-page fields.
 
-        It must be the page's only heading of its level: a glossary's entries
-        are many headings of one level on a page, and its guide words say them.
+        It must be the page's only heading of its level, or open on a
+        numbering (`X`, `IV`, `3.`): a glossary's entries are many headings of
+        one level on a page, none of them numbered, and its guide words say
+        them.
         """
         here = headings_on[page]
 
         def alone(key: str) -> bool:
-            named = [level for heading, level in here if _names(heading, spelled[key])]
-            return bool(named) and all(
-                sum(level == other for _, other in here) == 1 for level in named
+            named = [
+                (heading, level)
+                for heading, level in here
+                if _names(heading, spelled[key])
+            ]
+            return any(
+                sum(level == other for _, other in here) == 1 or _numbered(heading)
+                for heading, level in named
             )
 
         return all(alone(key) for key in own)
@@ -1081,6 +1088,12 @@ def _names(heading: str, field: str) -> bool:
         == [word.group().casefold() for word in shorter]
         and (_numbering(longer[cut - 1]) or _numbering(longer[cut]))
     )
+
+
+def _numbered(heading: str) -> bool:
+    """Whether a heading opens on a word that numbers a chapter."""
+    first = _WORD.search(heading)
+    return first is not None and _numbering(first)
 
 
 def _numbering(word: re.Match[str]) -> bool:

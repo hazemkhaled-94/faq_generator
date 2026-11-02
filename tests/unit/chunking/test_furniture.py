@@ -1095,3 +1095,29 @@ def test_a_glossary_whose_entries_are_headings_names_no_chapter(language: str) -
     furniture = furniture_of(document)
 
     assert [furniture.chapter(page) for page in (3, 4, 5, 6)] == [(), (), (), ()]
+
+
+@pytest.mark.parametrize("language", sorted(CHAPTERS))
+def test_numbered_chapter_headings_at_the_level_of_the_articles_name_their_chapter(
+    language: str,
+) -> None:
+    """A chapter heading shares its level with the article headings of its page."""
+    from preprocessing.chunking.furniture import furniture_of
+
+    chapters = CHAPTERS[language]
+    document = paged(7)
+    for page, chapter in enumerate([0, 0, 1, 1, 2, 3, 4], 1):
+        foot(document, page, str(page))
+        foot(document, page, chapters[chapter])
+        if page in (1, 3) or page > 4:
+            document.add_heading(text=chapters[chapter], level=2, prov=on(page, 40))
+        document.add_heading(text=f"Article {page}", level=2, prov=on(page, 60))
+        say(document, page, f"Body of article {page}.")
+
+    furniture = furniture_of(document)
+
+    assert [furniture.chapter(page) for page in (5, 6, 7)] == [
+        (chapters[2],),
+        (chapters[3],),
+        (chapters[4],),
+    ]
