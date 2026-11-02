@@ -2349,7 +2349,11 @@ def periods(answer: str, language: str | None) -> bool:
 
 #: A year, or a number that could be a day or a month beside one. What
 #: separates a period from a quantity in a list of units.
-_DATED = re.compile(r"(?:1[89]|20)\d{2}|\d{1,2}[./]\d{1,2}(?:[./](?:\d{2}|\d{4}))?")
+_DATED = re.compile(
+    r"[a-z]{0,2}(?:1[89]|20)\d{2}"
+    r"|\d{1,2}[./]\d{1,2}(?:[./](?:\d{2}|\d{4}))?"
+    r"|\d{1,2}[./](?:1[89]|20)\d{2}"
+)
 
 
 def typed(

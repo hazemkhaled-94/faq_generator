@@ -385,6 +385,9 @@ def test_two_amounts_are_not_two_periods(answer, language):
         ("Von 2024 auf 2025 stieg die Gebühr von 5 auf 7 EUR.", "de"),
         ("From 2024 to 2025 the fee rose from 5 to 7 EUR.", "en"),
         ("Vom 01.03.2024 bis zum 15.04.2025 galt der Tarif.", "de"),
+        ("Der Tarif galt von 03/2024 bis 05/2025.", "de"),
+        ("The rate applied from 03/2024 to 05/2025.", "en"),
+        ("FY2023 and FY2024", "en"),
     ],
 )
 def test_two_years_or_dates_are_two_periods(answer, language):
