@@ -64,7 +64,8 @@ jobs:
   # Whether a test would notice a gate changing. Line coverage says the
   # line ran; this changes it and asks whether anything fails. Reported and
   # never gated: a surviving mutant is sometimes a mutant nobody should
-  # care about, and that judgement is a person's.
+  # care about, and that judgement is a person's. A harness that runs no mutant
+  # is a failure, and fails the job.
   mutation:
     name: Mutation
     needs: setup
@@ -80,7 +81,6 @@ jobs:
           path: ~/.cache/huggingface
           key: huggingface-${{ runner.os }}-${{ github.job }}-${{ steps.setup.outputs.embedding }}
       - run: make mutation
-        continue-on-error: true
       - name: Put the survivors in the job summary
         if: always()
         run: |

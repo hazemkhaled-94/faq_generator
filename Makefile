@@ -1934,10 +1934,11 @@ test-perf:
 #
 # Which modules and which layers are [tool.mutmut] in pyproject.toml.
 # Hours, so nightly rather than per change; `mutmut browse` reads the
-# survivors afterwards.
+# survivors afterwards. mutmut names a function after its file's path, so the
+# run links src to backend and the six files are named under src.
 mutation:
-	poetry run mutmut run
-	poetry run mutmut results
+	@ln -sfn backend src
+	@poetry run mutmut run; code=$$?; poetry run mutmut results; rm -f src; exit $$code
 
 # Everything that gates. Another name for `test`.
 check: test

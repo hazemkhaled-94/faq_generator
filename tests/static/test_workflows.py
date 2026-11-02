@@ -307,3 +307,47 @@ def test_the_weights_job_caches_docling_by_its_version_and_keeps_a_failed_conver
     assert kept and kept[0]["if"] == "failure()"
     assert kept[0]["with"]["path"] == "tests/golden/snapshots"
     assert steps.index(refresh[0]) < steps.index(kept[0])
+
+
+def test_a_mutation_run_that_cannot_start_fails_the_nightly() -> None:
+    """The step that runs mutants is not allowed to fail quietly.
+
+    `continue-on-error` hid a harness that ran no mutant for as long as it was
+    there. The survivors are still put in the summary, whatever the run did.
+    """
+    job = loaded(ROOT / ".github/workflows/nightly.yml")["jobs"]["mutation"]
+    (run,) = [one for one in job["steps"] if one.get("run") == "make mutation"]
+    summary = [one for one in job["steps"] if "mutmut results" in one.get("run", "")]
+
+    assert "continue-on-error" not in run
+    assert summary and summary[0]["if"] == "always()"
+
+
+def test_the_mutation_harness_copies_what_its_layers_read_and_selects_no_git_layer() -> (
+    None
+):
+    """mutmut runs the tests from a copy holding only the files it mutates.
+
+    The layers it runs read configs/env/backend.env at import, the backend
+    packages beside the mutated files and compose.yaml, so the copy takes them.
+    The static layer reads the git checkout and is not selected: a layer that
+    cannot run in the copy fails the whole run before a mutant is tried.
+    """
+    import tomllib
+
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["mutmut"]
+    copied = set(config["also_copy"])
+    selected = config["pytest_add_cli_args_test_selection"]
+
+    assert {"src", "backend", "configs", "compose.yaml"} <= copied
+    assert selected
+    # The files it mutates are named under src, which `make mutation` links to
+    # backend, so mutmut's name for a function is the name the tests import.
+    for path in config["source_paths"]:
+        assert path.startswith("src/"), path
+        assert (ROOT / "backend" / path.removeprefix("src/")).is_file(), path
+    assert "ln -sfn backend src" in (ROOT / "Makefile").read_text()
+    assert "backend" not in config["pytest_add_cli_args"][1].split()
+    for path in selected:
+        assert path.startswith(("tests/unit/", "tests/property")), path
+        assert not path.startswith("tests/static"), path

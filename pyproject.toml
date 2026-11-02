@@ -433,23 +433,56 @@ exclude_also = [
 # `make mutation` runs it and it is never a pull-request gate: it takes
 # hours and its number is a measurement, not a threshold.
 [tool.mutmut]
+# Read as src/..., a link `make mutation` makes to backend/ for the run: mutmut
+# names a function after its file's path, `src.` stripped, and the tests import
+# it as question_generation.gates, so a path under backend/ never matched a hit.
 source_paths = [
-    "backend/question_generation/gates.py",
-    "backend/question_generation/balance.py",
-    "backend/question_generation/selection.py",
-    "backend/question_generation/models.py",
-    "backend/question_generation/planning.py",
-    "backend/extraction/validation.py",
+    "src/question_generation/gates.py",
+    "src/question_generation/balance.py",
+    "src/question_generation/selection.py",
+    "src/question_generation/models.py",
+    "src/question_generation/planning.py",
+    "src/extraction/validation.py",
 ]
-# The layers that need no container and no model. A mutant surviving
-# because the only test that would catch it was skipped is a false result.
+# mutmut runs the tests from mutants/, a copy of these files, tests/ and
+# pyproject.toml. The layers below read configs/env/backend.env at import,
+# the backend packages the six files import (src is the mutated copy, backend
+# the one the tests read prompts and READMEs from), the docs and compose.yaml,
+# so the copy takes them. tests/static is not run there: it reads the git
+# checkout, which the copy does not have.
+also_copy = [
+    "src",
+    "backend",
+    "telemetry",
+    "configs",
+    "docs",
+    "compose.yaml",
+    ".importlinter",
+]
+# The layers that test the six files and need no container and no model. A
+# mutant surviving because the only test that would catch it was skipped is a
+# false result.
+pytest_add_cli_args_test_selection = [
+    "tests/unit/questions",
+    "tests/unit/extraction",
+    "tests/property",
+]
 pytest_add_cli_args = [
+    # Without backend: the unmutated copy of it must not be importable ahead of
+    # the mutated one in src.
+    "-o",
+    "pythonpath=. src tests tests/integration tests/frontend",
     "-m",
     "not integration and not smoke and not eval and not perf and not types",
     "-p",
     "no:randomly",
 ]
-mutate_only_covered_lines = true
+# Every line, not only the covered ones: the coverage run mutmut takes its
+# covered lines from reads [tool.coverage.run] relative_files, which names each
+# file relative and which mutmut looks up by absolute path, so it found no
+# covered line in any file and generated no mutant. A line no test reaches
+# survives, which is what the survivors summary is for.
+mutate_only_covered_lines = false
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

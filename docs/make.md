@@ -511,7 +511,12 @@ could read every span, and never `default`.
 The nightly workflow also runs `test-perf`, `mutation`, `make audit` and `make
 test-eval`, and keeps differing golden conversions as the
 `golden-snapshots-linux` artifact. `[tool.mutmut]` in `pyproject.toml` sets
-what mutation covers.
+what mutation covers: six files, tested by `tests/unit/questions`,
+`tests/unit/extraction` and `tests/property`, run from a copy that takes the
+backend, configs, docs and `compose.yaml`. `make mutation` links `src` to
+`backend` for the run, because mutmut names a function after its file's path.
+A mutation run that cannot start fails the nightly; surviving mutants are
+listed in its summary and do not.
 
 ## Cost
 ```bash
