@@ -167,3 +167,85 @@ def test_a_hyphen_at_the_end_of_a_line_is_read_by_the_repair(lines, mended) -> N
 
     text = _Assembler(options=PageAssembleOptions()).sanitize_text(list(lines))
     assert _mend(text) == mended
+
+
+#: A paragraph in each language no configuration names, in a German or English
+#: document: the line the converter ends on a syllable, and what it joins to.
+FOREIGN = {
+    "fr": (
+        [
+            "Le vendeur doit vous rembourser tous les paie-",
+            "ments reçus, y compris les frais.",
+        ],
+        "paiements reçus",
+    ),
+    "pl": (
+        [
+            "Sprzedawca musi zwrócić wszystkie wpłaty w ciągu czter-",
+            "nastu dni od dnia otrzymania.",
+        ],
+        "czternastu dni",
+    ),
+    "el": (
+        [
+            "Ο πωλητής πρέπει να επιστρέψει όλες τις πληρω-",
+            "μές που έλαβε, μαζί με τα έξοδα.",
+        ],
+        "πληρωμές που",
+    ),
+    "ru": (
+        [
+            "Продавец обязан вернуть все полученные пла-",
+            "тежи, включая расходы на доставку.",
+        ],
+        "платежи, включая",
+    ),
+}
+
+
+@pytest.mark.parametrize("language", sorted(FOREIGN))
+def test_a_break_in_a_language_the_repair_leaves_alone_is_joined_as_the_converter_did(
+    language: str,
+) -> None:
+    """Where the mend stays inert the converter's own join closes the word."""
+    from docling.models.stages.page_assemble.page_assemble_model import (
+        PageAssembleOptions,
+    )
+
+    from preprocessing.parsing.pipelines.pdf import _Assembler, _mend
+
+    lines, joined = FOREIGN[language]
+    text = _Assembler(options=PageAssembleOptions()).sanitize_text(list(lines))
+
+    assert joined in _mend(text), text
+
+
+@pytest.mark.parametrize("language", sorted(FOREIGN))
+def test_the_merge_of_two_blocks_in_such_a_language_is_joined_as_the_converter_did(
+    language: str,
+) -> None:
+    """The reading-order merge across a page or column follows the same rule."""
+    from docling.models.stages.reading_order.readingorder_model import (
+        ReadingOrderOptions,
+    )
+    from docling_core.types.doc.base import BoundingBox
+    from docling_core.types.doc.document import DoclingDocument
+    from docling_core.types.doc.labels import DocItemLabel
+
+    from preprocessing.parsing.pipelines.pdf import _mend, _ReadingOrder
+
+    lines, joined = FOREIGN[language]
+    document = DoclingDocument(name="terms")
+    item = document.add_text(label=DocItemLabel.TEXT, text=lines[0], orig=lines[0])
+    continued = SimpleNamespace(
+        label=DocItemLabel.TEXT,
+        text=lines[1],
+        page_no=2,
+        hyperlink=None,
+        cluster=SimpleNamespace(bbox=BoundingBox(l=54, t=60, r=500, b=72)),
+    )
+    _ReadingOrder(options=ReadingOrderOptions())._merge_elements(
+        SimpleNamespace(label=DocItemLabel.TEXT), continued, item, 842
+    )
+
+    assert joined in _mend(item.text), item.text

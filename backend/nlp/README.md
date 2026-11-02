@@ -103,20 +103,32 @@ config instead of assuming mean pooling.
 
 [`text.py`](text.py) rejoins a word a converter broke across two lines at a
 hyphen. What follows the hyphen says what the break was. A lower-case letter
-continues a word, so `Kontofüh- rungsentgelt` is joined. A capital or a digit,
-or any letter after a digit, continues a compound broken at its own hyphen, so
-`Online- Händler` becomes `Online-Händler` and `14- 30` becomes `14-30`. A
-word in `JOINING` after the hyphen is a hanging hyphen, `Zoll- und
-Steuerrecht`, and stays. A lower-case continuation keeps its hyphen only where
-the document prints the word whole elsewhere: `third- party` becomes
-`third-party` in a document that prints `third-party`, and `thirdparty` in
-one that never does. Letters are read by their Unicode class, so a script
-without case is left as it is.
+continues a word, so `Kontofüh- rungsentgelt` is joined, and so are the halves
+of a word of capitals, `INTERNA- TIONAL`. A capital or a digit continues a
+compound broken at its own hyphen, so `Online- Händler` becomes `Online-Händler`
+and `14- 30` becomes `14-30`; after a digit a lower-case word closes only from
+three letters, `2- year` is `2-year` and `2- i` stays. A word in `JOINING` (or
+the phrase `as well as`) after the hyphen is a hanging hyphen, `Zoll- und
+Steuerrecht`, and stays, unless the document prints the joined word whole
+(`break- through` where it prints `breakthrough`). A lower-case continuation
+keeps its hyphen where the document prints the compound: `third- party` becomes
+`third-party` where it prints `third-party`, and `thirdparty` where it never
+does.
+
+Only Latin letters are joined, and a continuation of one letter is no half of a
+word. A text the all-language detector places surely in a language `NLP_MODELS`
+does not name is left as it is, a range of figures aside. A text it cannot place
+(short, or under its confidence) is mended as a configured one, so a French
+`crédit- et` of a few words is joined. A word broken before a syllable that is
+also a joining word stays broken unless the document prints it whole: `Werk-
+statt`, `de- but`.
 
 The parser keeps the hyphen that ends a printed line, which its converter would
-drop, so every break reaches this repair. A comma, semicolon or closing
-bracket after the hyphen closes it, and so does a slash set against the next
-word: `Bau- /Umbau` is `Bau-/Umbau`.
+drop, so every break in a Latin-script text the repair reads reaches it. In
+Greek or Cyrillic, or in a text surely in an unconfigured language, the
+converter's own join closes the word as it always did. A comma, semicolon or
+closing bracket after the hyphen closes it, and so does a slash set against the
+next word: `Bau- /Umbau` is `Bau-/Umbau`.
 
 ## Adding a language
 
@@ -209,10 +221,11 @@ about, and `Bericht` is a thing a corpus is. Each list is matched as follows.
 - Question openings at the start of the question, and `_COUNTS` against an
   answer's first word.
 
-A language needs only its row of `JOINING`: the words that complete a hanging
+A language needs its row of `JOINING`: the words that complete a hanging
 hyphen, its conjunctions and the words that join a range (`und`, `oder`,
-`respektive`; `and`, `or`, `through`). The letters of a broken word are read by
-Unicode class and need no list.
+`respektive`; `and`, `or`, `through`). A language written in another script than
+Latin also needs `latin` in [`text.py`](text.py) widened to its script, or no
+break in it is mended or joined by the converter.
 
 Five sets in [`analysis.py`](analysis.py) name languages by a grammatical
 trait: `_PLURAL_GENDERLESS`, `_SYNCRETIC_FEMININE`,

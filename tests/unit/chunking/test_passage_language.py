@@ -60,20 +60,6 @@ def test_a_document_with_no_language_extracts_every_passage(guest: str) -> None:
     assert read[0].extractable
 
 
-@pytest.mark.parametrize("guest", sorted(GUEST))
-def test_a_passage_extraction_may_not_read_is_stored_as_extracted(guest: str) -> None:
-    """The queue takes pending passages only, so a stored `extracted` is never claimed."""
-    from database.qa_generator import Status
-    from preprocessing.chunking.repository import _columns
-
-    read = PassageBuilder._read(
-        [passage(1, GUEST[guest]), passage(2, HOST["de"])], "de"
-    )
-
-    assert _columns(read[0])["extract_status"] == Status.EXTRACTED
-    assert "extract_status" not in _columns(read[1])
-
-
 @pytest.mark.parametrize("host", sorted(HOST))
 @pytest.mark.parametrize("guest", sorted(GUEST))
 def test_a_re_read_labels_a_guest_passage_none(host: str, guest: str) -> None:

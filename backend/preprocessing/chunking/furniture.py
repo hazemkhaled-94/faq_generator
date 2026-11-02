@@ -1093,7 +1093,8 @@ def _names(heading: str, field: str) -> bool:
 def _numbered(heading: str) -> bool:
     """Whether a heading opens on a word that numbers a chapter."""
     first = _WORD.search(heading)
-    return first is not None and _numbering(first)
+    # `E-Banking` and `0800-Nummer` open on a prefix, not on a number.
+    return first is not None and _numbering(first) and heading[first.end() :][:1] != "-"
 
 
 def _numbering(word: re.Match[str]) -> bool:

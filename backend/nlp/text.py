@@ -38,7 +38,7 @@ JOINING: dict[str, tuple[str, ...]] = {
         "statt",
         "wie",
     ),
-    "en": ("and", "or", "nor", "to", "through", "but", "as", "vs", "versus"),
+    "en": ("and", "or", "nor", "to", "through", "but", "as well as", "vs", "versus"),
 }
 
 #: The words that cannot end a label, by ISO 639-1 code: articles,
@@ -72,6 +72,15 @@ _WORD = re.compile(r"\w+")
 
 #: What can only close a suspended hyphen, never open a phrase: "Gas-, Strom".
 _CLOSING = ",;)"
+
+
+def _hanging(text: str, at: int) -> bool:
+    """Whether a word of `JOINING`, or a phrase of it, opens the text at `at`."""
+    rest = text[at:].casefold()
+    return any(
+        rest.startswith(word) and not rest[len(word) :][:1].isalnum()
+        for word in _joining()
+    )
 
 
 @cache
@@ -116,7 +125,7 @@ def printed(texts: Iterable[str]) -> frozenset[tuple[str, str]]:
     )
 
 
-def _latin(char: str) -> bool:
+def latin(char: str) -> bool:
     """Whether a letter is of the Latin script, by its Unicode name."""
     return unicodedata.name(char, "").startswith("LATIN")
 
@@ -146,8 +155,10 @@ def rejoined(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
     what it made.
 
     ponytail: punctuation alone cannot separate a broken word from two ratings
-    written side by side in one cell ("Mittel- niedrig"), nor a short text in a
-    language no row names from one that is. Telling those apart needs a
+    written side by side in one cell ("Mittel- niedrig"), nor a text the
+    detector cannot place surely (short, or under its confidence) in a language
+    no row names from one that is, nor a word broken before a joining word
+    ("Werk- statt") from a hanging hyphen unless the document prints it whole. Telling those apart needs a
     character language model or the geometry of the cells either side.
 
     Args:
@@ -165,7 +176,7 @@ def rejoined(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
             return "-" if before.isdigit() and after.isdigit() else broken[0]
         word = _WORD.match(text, broken.end())
         first = _FIRST_HALF.search(text, 0, broken.start())
-        if word is not None and word[0].casefold() in _joining():
+        if word is not None and _hanging(text, broken.end()):
             joined = (first[0] + word[0]).casefold() if first else ""
             return "" if ("", joined) in whole else broken[0]
         # A slash set apart, "Schaden- / Unfall", is a hanging hyphen; one set
@@ -185,7 +196,7 @@ def rejoined(text: str, whole: frozenset[tuple[str, str]] = frozenset()) -> str:
             return "-" if after.islower() and letters >= 3 else broken[0]
         if not (after.islower() or capitals):
             return broken[0]
-        if not (_latin(before) and _latin(after) and letters > 1):
+        if not (latin(before) and latin(after) and letters > 1):
             return broken[0]
         kept = (
             first is not None

@@ -1074,12 +1074,60 @@ TERMS = {
 }
 
 
+#: The same, its entries opening on a one-letter prefix or on figures.
+PREFIXED = {
+    "de": [
+        "E-Banking",
+        "Einlage",
+        "E-Geld",
+        "Effekten",
+        "0800-Nummer",
+        "Emittent",
+        "3D-Secure",
+        "Euribor",
+    ],
+    "en": [
+        "E-banking",
+        "Escrow",
+        "E-money",
+        "Equity",
+        "0800-number",
+        "Euribor",
+        "3D-Secure",
+        "Exchange",
+    ],
+    "fr": [
+        "E-banking",
+        "Épargne",
+        "E-monnaie",
+        "Escompte",
+        "0800-numéro",
+        "Émission",
+        "3D-Secure",
+        "Euribor",
+    ],
+    "el": [
+        "E-banking",
+        "Εγγύηση",
+        "E-money",
+        "Έμβασμα",
+        "0800-αριθμός",
+        "Έκδοση",
+        "3D-Secure",
+        "Euribor",
+    ],
+}
+
+
+@pytest.mark.parametrize("terms_of", [TERMS, PREFIXED], ids=["terms", "prefixed"])
 @pytest.mark.parametrize("language", sorted(TERMS))
-def test_a_glossary_whose_entries_are_headings_names_no_chapter(language: str) -> None:
+def test_a_glossary_whose_entries_are_headings_names_no_chapter(
+    language: str, terms_of: dict
+) -> None:
     """Its guide words repeat an entry that is itself a heading, one of several on the page."""
     from preprocessing.chunking.furniture import furniture_of
 
-    terms = TERMS[language]
+    terms = terms_of[language]
     document = paged(6)
     for page in range(1, 7):
         foot(document, page, str(page))

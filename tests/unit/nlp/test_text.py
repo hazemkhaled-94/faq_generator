@@ -203,7 +203,7 @@ def test_a_coordinator_that_completes_a_word_the_document_prints_is_that_word(
         ("ALLGEMEINE GESCHÄFTS- BEDINGUNGEN", "ALLGEMEINE GESCHÄFTSBEDINGUNGEN"),
         ("CONDITIONS GÉNÉ- RALES DE VENTE", "CONDITIONS GÉNÉRALES DE VENTE"),
         ("ΓΕΝΙΚΟΙ ΟΡΟ- ΙΤΕΣ", "ΓΕΝΙΚΟΙ ΟΡΟ- ΙΤΕΣ"),
-        ("die UEFA- Administration", "die UEFA-Administration"),
+        ("die SEPA- Überweisung", "die SEPA-Überweisung"),
         ("per E- Mail", "per E-Mail"),
         ("pre- And Post-Trial", "pre- And Post-Trial"),
     ],
