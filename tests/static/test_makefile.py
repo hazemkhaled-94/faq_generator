@@ -1442,24 +1442,6 @@ def test_down_volumes_refuses_without_confirm_all_volumes() -> None:
     assert ran, "the command is still there once confirmed"
 
 
-#: The addresses the Makefile builds only when ENV_FILE and the environment leave them unset.
-HOST_ADDRESSES = (
-    "DATABASE_URL",
-    "BACKEND_URL",
-    "S3_ENDPOINT",
-    "PHOENIX_BASE_URL",
-    "OTEL_EXPORTER_OTLP_ENDPOINT",
-    "ARGILLA_API_URL",
-)
-
-
-@pytest.fixture(autouse=True)
-def no_ambient_host_address(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The suite's own DATABASE_URL would otherwise stand in for the one a target derives."""
-    for name in HOST_ADDRESSES:
-        monkeypatch.delenv(name, raising=False)
-
-
 def probe(
     tmp_path: Path, recipe: str, *given: str, env_text: str = "", **environment: str
 ):
