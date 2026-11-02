@@ -102,11 +102,8 @@ def _cited_text(passage: PassageToExtract, cited: Sequence[Sentence]) -> str:
 
 
 #: One ' > ' segment of a heading trail that is a word and a number
-#: ('Section 7', 'Regel 5.1', '§ 3', 'Art. 5'): the document's own way to
-#: number a part. The word may end in the full stop of an abbreviation. A title
-#: after the number ('Plan 1 Basic', 'iPhone 15 Pro') is no label: it may as
-#: well name an entity of a series.
-HEADING_LABEL = re.compile(r"^([^\W\d_]+\.?|§)\s?(\d+(?:\.\d+)*)$")
+#: ('Section 7', 'Regel 5.1', '§ 3'): the document's own way to number a part.
+HEADING_LABEL = re.compile(r"^([^\W\d_]+|§)\s?(\d+(?:\.\d+)*)$")
 
 #: A heading number as the documents write it ('7', '5.1').
 NUMBER = re.compile(r"\d+(?:\.\d+)*")
@@ -119,13 +116,12 @@ _SECTION_TOKEN = re.compile(rf"({NUMBER.pattern})(?:\(.*)?")
 def label_of(segment: str) -> tuple[str, str] | None:
     """The label word and the number a heading segment is, or None.
 
-    A word and a number alone. The word is folded to lower case and its
-    abbreviating full stop dropped: `Art. 5` is `art`, `5`.
+    A word and a number alone, the word folded to lower case.
     """
     found = HEADING_LABEL.match(segment.strip())
     if found is None:
         return None
-    return found.group(1).casefold().rstrip("."), found.group(2)
+    return found.group(1).casefold(), found.group(2)
 
 
 def _section(text: str) -> str | None:
@@ -359,10 +355,6 @@ _INFLECTIONS: dict[str, tuple[str, ...]] = {
 }
 
 
-#: What a tagger calls the words of the closed classes, in any language.
-_FUNCTION_WORDS = frozenset({"DET", "PRON", "ADP", "CCONJ", "SCONJ", "AUX", "PART"})
-
-
 def label_word(
     tokens: Sequence, at: int, words: Collection[str], language: str | None
 ) -> str | None:
@@ -373,16 +365,11 @@ def label_word(
     lemma as written). An inflection is an ending of the language's table.
     """
     token = tokens[at]
-    # A word of a closed class is no label: `a` of an annex `A.2` is the
-    # article, `Die` of a heading `Die 2` the German one.
-    if token.pos_ in _FUNCTION_WORDS:
-        return None
-    # An abbreviation's full stop is no part of the word: 'Art.' is `art`.
-    forms = {token.text.casefold().rstrip("."), token.lemma_.casefold().rstrip(".")}
+    forms = {token.text.casefold(), token.lemma_.casefold()}
     if found := next((w for w in words if w in forms), None):
         return found
     if at + 1 < len(tokens) and _section(tokens[at + 1].text):
-        text = token.text.casefold().rstrip(".")
+        text = token.text.casefold()
         ends = _INFLECTIONS.get(language or "", ())
         return next(
             (w for w in words if any(text == w + end for end in ends)),
@@ -406,9 +393,6 @@ def numbered(tokens: Sequence, at: int) -> list[str]:
     found = []
     plural = "Plur" in tokens[at].morph.get("Number", [])
     nxt = at + 1
-    # The full stop of an abbreviation, 'Art. 5', is a token of its own.
-    if nxt < len(tokens) and tokens[nxt].text == "." and not tokens[at].whitespace_:
-        nxt += 1
     while nxt < len(tokens) and (number := _section(tokens[nxt].text)):
         found.append(number)
         joined = nxt + 2

@@ -317,47 +317,6 @@ def test_a_word_and_a_number_alone_is_a_numbered_section(segment: str) -> None:
     assert HEADING_LABEL.match(segment) is not None
 
 
-_ABBREVIATED = [
-    (
-        "de",
-        "Die Kündigung regelt Art. 5.",
-        ("Art. 1", "Art. 2", "Art. 5"),
-    ),
-    (
-        "en",
-        "Fees for dormant accounts are set out in Sec. 7.",
-        ("Sec. 1", "Sec. 2", "Sec. 7"),
-    ),
-]
-
-
-@pytest.mark.parametrize("language,text,paths", _ABBREVIATED)
-def test_a_heading_numbered_with_an_abbreviated_word_is_a_label(language, text, paths):
-    """'Art. 5' and 'Sec. 7': the full stop of the abbreviation is no part of the word."""
-    rows = [(text, "Terms > Intro", "d")] + [
-        (f"Passage {i}.", f"Terms > {path}", "d") for i, path in enumerate(paths)
-    ]
-    reached = references(language, rows)
-    assert reached == [(1, 4)], "to the heading it names, the third of three"
-
-
-@pytest.mark.parametrize(
-    "language,text,heading",
-    [
-        ("en", "A transfer abroad costs a 2 EUR fee.", "Annex > A.2"),
-        ("de", "Die 2 Karten kosten 5 Euro im Monat.", "Anhang > Die 2"),
-    ],
-)
-def test_a_closed_class_word_before_a_number_is_no_label_word(language, text, heading):
-    """A heading `A.2` or `Die 2` teaches no word, and `a 2 EUR fee` names no section.
-
-    French and Greek have no pipeline here: the default one tags their articles
-    as names, which no closed-class rule can see, so they are not asserted.
-    """
-    rows = [(text, "Terms > Intro", "d"), ("A passage.", heading, "d")]
-    assert references(language, rows) == []
-
-
 @pytest.mark.parametrize(
     "language,text,paths",
     [

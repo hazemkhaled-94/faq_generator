@@ -2114,7 +2114,7 @@ def test_a_label_word_is_matched_through_an_inflection_of_its_language(
 
     from extraction.validation import label_word
 
-    tokens = [T(text=w, lemma_=w, pos_="NOUN") for w in text.split()]
+    tokens = [T(text=w, lemma_=w) for w in text.split()]
     assert (label_word(tokens, 0, (word,), language) == word) is named
 
 
