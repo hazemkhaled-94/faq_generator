@@ -2219,12 +2219,18 @@ UPDATE passages SET embedding = (
 
 def _score(engine) -> None:
     """Scores every passage the way extraction does when it embeds one."""
-    from extraction.repository import FactCatalog
+    from database.qa_generator import furniture
 
     with engine.begin() as connection:
-        connection.execute(text("UPDATE passages SET nearest_foreign_cosine = NULL"))
+        connection.execute(
+            text(
+                "UPDATE passages SET nearest_foreign_cosine = NULL, "
+                "nearest_foreign_doc = NULL"
+            )
+        )
         ids = list(connection.execute(text("SELECT id FROM passages")).scalars())
-    FactCatalog().score_foreign(ids)
+    with Session(engine) as session, session.begin():
+        furniture.score(session, ids)
 
 
 def _embed(engine, sql: str) -> None:

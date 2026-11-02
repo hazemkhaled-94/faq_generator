@@ -98,9 +98,10 @@ bridge fact is offered alone.
 - A passage that is the corpus's own furniture (a copyright notice, contents
   page or revision table) is never offered. It has a twin above
   `QUESTIONS_BOILERPLATE_COSINE` in another document of its own language. The
-  twin's cosine is `passages.nearest_foreign_cosine`, written exactly when a
-  passage is embedded and raised when a later document's passage is closer, so
-  the filter is a comparison on the row and not a probe per candidate. The
+  twin's cosine is `passages.nearest_foreign_cosine`, which every writer of a
+  passage's vector, language or existence keeps exact (extraction when it
+  embeds, deleting or re-chunking a document, a language change), so the filter
+  is a comparison on the row and not a probe per candidate. The
   reading abstains for a language held by one document and for a passage with
   no embedding, and `0` turns it off.
 - `QUESTIONS_PARTY_DENSITY` catches acknowledgements: the share of a passage's
@@ -607,7 +608,7 @@ nor the ids of a very large corpus are held at once. A sheet that would pass
 Excel's 1,048,575 data rows goes on in a numbered one (`Citations 2`) with the
 same headings. A cell starting with `=`, `+`, `-` or `@` is stored as text and
 marked with a quote prefix, so editing it or saving the sheet as CSV does not
-turn it into a formula. A cell over Excel's 32,767 characters is cut and marked
+turn it into a formula. A cell over 32,000 characters (Excel refuses 32,767) is cut and marked
 `[truncated]`, whichever column it is in. The Citations sheet's page is two
 integer columns, `First page` and `Last page`.
 

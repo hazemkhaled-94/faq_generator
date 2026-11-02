@@ -43,6 +43,7 @@ from database.qa_generator import (
     Rejection,
     Status,
     engine,
+    furniture,
 )
 from database.qa_generator.passage_topics import DOMINANT
 from database.qa_generator.repository import Repository, lock_reached, matching
@@ -570,11 +571,16 @@ class PassageQueue(RowQueue):
                 session.execute(update(Fact).where(Fact.id == fact_id).values(**row))
             _write(session, added, self._version)
             if embedding is not None:
+                # Under the language's lock from before the vector is written to
+                # the commit, so the score sees every twin another drain has
+                # written and that drain's, this one.
+                furniture.lock(session, [passage_id])
                 session.execute(
                     update(Passage)
                     .where(Passage.id == passage_id)
                     .values(embedding=embedding)
                 )
+                furniture.score(session, [passage_id])
             self._finish(passage_id, session=session, note=note)
         return len(facts)
 
@@ -1494,59 +1500,16 @@ class FactCatalog(Repository):
 
     def embed_passages(self, vectors: list[tuple[int, list[float]]]) -> int:
         """Writes a vector onto each of the given passages, and their furniture score."""
-        written = self._embed(_PASSAGES, vectors)
-        self.score_foreign([row for row, _ in vectors])
-        return written
-
-    def score_foreign(self, passage_ids: list[int]) -> None:
-        """Writes `nearest_foreign_cosine` for passages just embedded, and raises others'.
-
-        The exact maximum cosine to any embedded passage of another document
-        in the same language, so the furniture filter reads a column. The
-        passages given get their own score from every other passage; every
-        older passage of the same language that one of them is closer to than
-        it was to anything gets that cosine. Both read the same pairs, so a
-        document added later raises the scores its twins already hold.
-        """
-        if not passage_ids:
-            return
-        ids = bindparam("ids", type_=ARRAY(BigInteger))
+        if not vectors:
+            return 0
         with self._session.begin() as session:
-            session.execute(
-                text(
-                    """
-                    UPDATE passages p SET nearest_foreign_cosine = (
-                        SELECT max(1 - (q.embedding <=> p.embedding))
-                        FROM passages q
-                        WHERE q.doc_sha256 <> p.doc_sha256
-                          AND q.language = p.language
-                          AND q.embedding IS NOT NULL
-                    )
-                    WHERE p.id = ANY(:ids) AND p.embedding IS NOT NULL
-                    """
-                ).bindparams(ids),
-                {"ids": passage_ids},
-            )
-            session.execute(
-                text(
-                    """
-                    UPDATE passages q SET nearest_foreign_cosine = closest.best
-                    FROM (
-                        SELECT o.id, max(1 - (o.embedding <=> n.embedding)) AS best
-                        FROM passages n
-                        JOIN passages o ON o.doc_sha256 <> n.doc_sha256
-                                       AND o.language = n.language
-                        WHERE n.id = ANY(:ids) AND n.embedding IS NOT NULL
-                          AND o.embedding IS NOT NULL
-                        GROUP BY o.id
-                    ) AS closest
-                    WHERE q.id = closest.id
-                      AND (q.nearest_foreign_cosine IS NULL
-                           OR closest.best > q.nearest_foreign_cosine)
-                    """
-                ).bindparams(ids),
-                {"ids": passage_ids},
-            )
+            furniture.lock(session, [row for row, _ in vectors])
+            written = session.execute(
+                update(_PASSAGES).where(_PASSAGES.c.id == bindparam("row")),
+                [{"row": row, "embedding": one} for row, one in vectors],
+            ).rowcount
+            furniture.score(session, [row for row, _ in vectors])
+        return written
 
     def _embed(self, table: Table, vectors: list[tuple[int, list[float]]]) -> int:
         """Writes a vector onto each of the given rows of one table."""

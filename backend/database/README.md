@@ -11,7 +11,7 @@ these models.
 |---|---|---|
 | `ingest_events` | Every upload attempt that declares its length, refused ones included | [ingestion](../ingestion/README.md) |
 | `documents` | One row per kept document, keyed by the SHA-256 of its bytes, with each stage's status | ingestion, then each stage's own column |
-| `passages` | Text, numbered sentences, lemmas, language, table cells, bounding box, heading trail; the nearest-twin cosine is written by extraction | [chunking](../preprocessing/chunking/README.md) |
+| `passages` | Text, numbered sentences, lemmas, language, table cells, bounding box, heading trail; the nearest-twin cosine and its document are kept by `qa_generator/furniture.py` | [chunking](../preprocessing/chunking/README.md) |
 | `facts` | One claim each, with its verdict, rejection code and producing configuration | [extraction](../extraction/README.md) |
 | `fact_passages` | Which passages a fact rests on, and the span cited in each | extraction |
 | `topics` | Both a fitted topic and a request to refit | [topic modelling](../topic_modelling/README.md), [question generation](../question_generation/README.md) |

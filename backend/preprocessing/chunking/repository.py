@@ -9,7 +9,14 @@ from typing import ClassVar, cast
 from sqlalchemy import Table, bindparam, delete, func, insert, select, update
 from sqlalchemy.orm import InstrumentedAttribute
 
-from database.qa_generator import Document, Fact, FactPassage, Passage, Status
+from database.qa_generator import (
+    Document,
+    Fact,
+    FactPassage,
+    Passage,
+    Status,
+    furniture,
+)
 from database.qa_generator.repository import Repository, lock_reached, matching
 from preprocessing.chunking.models import (
     Chunk,
@@ -176,6 +183,9 @@ class ChunkQueue(RowQueue):
                     select(FactPassage.fact_id).where(FactPassage.passage_id.in_(gone)),
                 )
                 session.execute(delete(Passage).where(Passage.id.in_(gone)))
+                # Another document's passage may have taken its score from one
+                # of these: read again, without them.
+                furniture.rescore_from(session, [sha256])
             if kept:
                 # (doc_sha256, ordinal) is unique and Postgres checks it row by
                 # row, so every kept passage first steps past any ordinal held
@@ -329,6 +339,14 @@ class PassageCatalog(Repository):
         if not read:
             return 0
         with self._session.begin() as session:
+            before = {
+                row.id: (row.language, row.doc_sha256)
+                for row in session.execute(
+                    select(Passage.id, Passage.language, Passage.doc_sha256).where(
+                        Passage.id.in_([one for one, _, _ in read])
+                    )
+                )
+            }
             # The table rather than the entity: an executemany against the
             # mapped class is read as an ORM bulk update by primary key, which
             # wants the key among the values being set.
@@ -339,6 +357,12 @@ class PassageCatalog(Repository):
                     for passage_id, language, terms in read
                 ],
             )
+            # A passage that changed language is scored among its new
+            # language's, and what took its score from it in the old one is
+            # read again: the score is per language.
+            changed = [one for one, language, _ in read if before[one][0] != language]
+            furniture.score(session, changed)
+            furniture.rescore_from(session, {before[one][1] for one in changed})
             session.execute(
                 update(_FACTS)
                 .where(

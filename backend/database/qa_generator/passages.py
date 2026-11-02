@@ -192,6 +192,12 @@ class Passage(Base):
         "the passage has no embedding or no other document holds its "
         "language.",
     )
+    nearest_foreign_doc: Mapped[str | None] = mapped_column(
+        CHAR(64),
+        comment="The document that closest passage is in, so a score is read "
+        "again when that document is deleted or re-chunked. Not a foreign "
+        "key: the digest is the cue to rescore, and what it names may be gone.",
+    )
     page_from: Mapped[int | None] = mapped_column(
         Integer, comment="Page the passage starts on."
     )

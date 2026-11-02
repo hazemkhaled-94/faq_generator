@@ -26,6 +26,7 @@ from database.qa_generator import (
     Passage,
     Rejection,
     Status,
+    furniture,
 )
 from database.qa_generator.repository import Repository, lock_reached, matching
 from ingestion.models import DocumentName, PdfFacts, StoredDocument, UploadedFile
@@ -218,6 +219,7 @@ class DocumentRepository(Repository):
             pointing = _pointing_into(session, sha256)
             _delete_questions(session, [sha256])
             session.execute(delete(Document).where(Document.sha256 == sha256))
+            furniture.rescore_from(session, [sha256])
             twinless = _twinless(session, pointing)
             if before_commit is not None:
                 before_commit()
@@ -245,6 +247,7 @@ class DocumentRepository(Repository):
             )
             _delete_questions(session, digests)
             session.execute(delete(Document).where(Document.sha256.in_(digests)))
+            furniture.rescore_from(session, digests)
             if before_commit is not None:
                 before_commit()
         return passages
@@ -268,6 +271,7 @@ class DocumentRepository(Repository):
             pointing = _pointing_into(session, sha256)
             _delete_questions(session, [sha256])
             session.execute(delete(Passage).where(Passage.doc_sha256 == sha256))
+            furniture.rescore_from(session, [sha256])
             session.execute(
                 update(Document)
                 .where(Document.sha256 == sha256)

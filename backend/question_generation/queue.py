@@ -112,9 +112,9 @@ def repeated_across_documents(threshold: float):
     furniture took whole subjects out of both languages.
 
     Read from `passages.nearest_foreign_cosine`, the exact cosine to the
-    nearest passage of another document of the same language, which
-    extraction writes when a passage is embedded and raises when a later
-    document's passage is closer. So the filter is a comparison on the row
+    nearest passage of another document of the same language, which every
+    writer of a passage's vector, language or existence keeps true
+    (`database.qa_generator.furniture`). So the filter is a comparison on the row
     and not a nearest-neighbour probe per candidate.
 
     Three ways this abstains, all of them correct rather than missing:
@@ -125,6 +125,7 @@ def repeated_across_documents(threshold: float):
     if threshold <= 0:
         return sa_false()
     return and_(
+        Passage.embedding.is_not(None),
         Passage.nearest_foreign_cosine.is_not(None),
         Passage.nearest_foreign_cosine >= threshold,
     )

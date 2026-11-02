@@ -16,7 +16,9 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from database.qa_generator import Document, Passage
-from extraction.repository import FactCatalog
+from extraction.repository import FactCatalog, PassageQueue
+from ingestion.repository import DocumentRepository
+from preprocessing.chunking.repository import PassageCatalog
 from question_generation.queue import repeated_across_documents
 
 pytestmark = pytest.mark.integration
@@ -114,3 +116,89 @@ def test_the_filter_excludes_the_shared_passage_and_reads_no_other_table(
     assert furniture == {a, b}
     assert far not in furniture
     assert "FROM passages" not in str(predicate)
+
+
+def _furniture(engine) -> set[int]:
+    """The passages the furniture filter reads as the corpus's own."""
+    with Session(engine) as session:
+        return set(
+            session.scalars(select(Passage.id).where(repeated_across_documents(0.95)))
+        )
+
+
+def _held(engine, language: str, *letters: str) -> list[int]:
+    """One notice passage in each of these documents, not yet embedded."""
+    ids = []
+    with Session(engine) as session:
+        for letter in letters:
+            session.add(document(digest(letter + language)))
+        session.flush()
+        for at, letter in enumerate(letters, 1):
+            held = passage(
+                digest(letter + language), ordinal=at, text="Notice.", language=language
+            )
+            session.add(held)
+            session.flush()
+            ids.append(held.id)
+        session.commit()
+    return ids
+
+
+@pytest.mark.parametrize("language", ["de", "en", "fr", "el"])
+def test_a_notice_stored_by_the_extract_worker_is_furniture(
+    engine, database, language
+) -> None:
+    """The worker writes the vector through `PassageQueue.store`, which scores it."""
+    ids = _held(engine, language, "a", "b")
+    queue = PassageQueue()
+    for one, angle in zip(ids, (0.0, 0.01), strict=True):
+        queue.store(one, [], embedding=_turned(angle))
+
+    assert _furniture(engine) == set(ids)
+
+
+@pytest.mark.parametrize("language", ["de", "en", "fr", "el"])
+def test_a_passage_whose_twin_document_was_deleted_is_offered_again(
+    engine, database, language
+) -> None:
+    """The score falls with the document it came from."""
+    kept, _ = _write(engine, ("a", language, 0.0), ("b", language, 0.01))
+
+    DocumentRepository().delete(digest("b"))
+
+    assert kept not in _furniture(engine)
+    assert _scores(engine)[kept] is None
+
+
+def test_a_deleted_twin_leaves_the_next_closest_document(engine, database) -> None:
+    """Three documents share a notice: deleting one still leaves it furniture."""
+    first, *_ = _write(engine, ("a", "en", 0.0), ("b", "en", 0.01), ("c", "en", 0.02))
+
+    DocumentRepository().delete(digest("b"))
+
+    assert _scores(engine)[first] == pytest.approx(math.cos(0.02), abs=1e-6)
+    assert first in _furniture(engine)
+
+
+def test_dropping_a_documents_passages_rescores_the_ones_that_took_from_it(
+    engine, database
+) -> None:
+    """`delete_derived`, which a re-chunk of the document also is, from its side."""
+    kept, _ = _write(engine, ("a", "de", 0.0), ("b", "de", 0.01))
+
+    DocumentRepository().delete_derived(digest("b"))
+
+    assert kept not in _furniture(engine)
+
+
+def test_a_passage_that_changes_language_is_scored_among_its_new_one(
+    engine, database
+) -> None:
+    """`revocabulary` moves a passage out of one language's twins and into another's."""
+    a, b, c = _write(engine, ("a", "de", 0.0), ("b", "de", 0.01), ("c", "en", 0.0))
+    assert _furniture(engine) == {a, b}
+
+    PassageCatalog().revocabulary([(b, "en", ["notice"])])
+
+    assert _furniture(engine) == {b, c}
+    assert _scores(engine)[a] is None
