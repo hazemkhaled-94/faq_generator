@@ -226,7 +226,7 @@ def test_a_question_is_asked_its_relevance_by_the_papers_judge_alone() -> None:
     assert JudgeMetric.RELEVANCE in metrics_of(ArtifactKind.FACT)
     assert JudgeMetric.RELEVANCE in metrics_of(ArtifactKind.TOPIC)
     assert direction_of(JudgeMetric.RELEVANCE) == "maximize"
-    assert PROMPT_VERSION == "5"
+    assert PROMPT_VERSION == "4"
 
 
 def test_a_template_says_the_material_may_be_in_any_language() -> None:
@@ -333,37 +333,5 @@ def test_the_rubric_is_the_papers_prompt() -> None:
     assert '"clarity": 1' in said
     assert '"clarity: 1' not in said
     assert "any language" in said
-    assert THE_RUBRIC.user.startswith("Passage: {{passages}}\n\nQuestion: {{question}}")
+    assert THE_RUBRIC.user == "Passage: {{passages}}\n\nQuestion: {{question}}"
     assert THE_RUBRIC.roots_only
-
-
-@pytest.mark.parametrize(
-    ("passages", "question", "answer", "kind"),
-    [
-        (
-            "Eine Antwort erfolgt innerhalb von fünf Werktagen.",
-            "Wie lange dauert die Antwort der Bank?",
-            "fünf Werktage",
-            "factoid",
-        ),
-        (
-            "A reply is due within five working days.",
-            "How long does the bank take to reply?",
-            "five working days",
-            "factoid",
-        ),
-    ],
-)
-def test_the_judge_reads_the_key_and_the_type_beside_the_passages(
-    passages: str, question: str, answer: str, kind: str
-) -> None:
-    """Shown the passages and the question alone, it cannot tell a question a key answers from one it does not."""
-    assert set(THE_RUBRIC.fields) == {"passages", "question", "answer", "type"}
-
-    sent = THE_RUBRIC.rendered(
-        passages=passages, question=question, answer=answer, type=kind
-    )
-
-    for shown in (passages, question, answer, kind):
-        assert shown in sent
-    assert "{{" not in sent

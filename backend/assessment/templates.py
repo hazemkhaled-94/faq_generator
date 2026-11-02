@@ -65,12 +65,7 @@ from llm.prompt import fill
 #: labelled review at least as well. A root is due eleven metrics from six
 #: calls and a follow-up five from five; a question's `relevance` row stored
 #: under version 3 is kept and read as it was.
-#:
-#: Version 5 shows the paper's judge the question's key and its type beside
-#: the passages and the question: shown the question alone it agreed with the
-#: labelled review near chance, as a key that does not answer is a defect it
-#: cannot see.
-PROMPT_VERSION = "5"
+PROMPT_VERSION = "4"
 
 #: The DataMorgana paper's six dimensions (Filice et al., 2025, Appendix D),
 #: in its order, by the name each score is stored under. One call answers
@@ -903,10 +898,6 @@ STEPS
 CONTEXT
 {_ANY_LANGUAGE}
 
-The question is followed by the answer it is expected to have and the kind of
-question it was written as. Score the question; the answer and the kind show
-what it asks for, and a question the answer does not answer is not answerable.
-
 EXAMPLES
 {_RUBRIC_EXAMPLES}
 
@@ -918,11 +909,7 @@ output."""
 #: The paper's own layout, which its examples follow.
 _RUBRIC_USER = """Passage: {{passages}}
 
-Question: {{question}}
-
-Expected answer: {{answer}}
-
-Question type: {{type}}"""
+Question: {{question}}"""
 
 
 #: Every template, by artefact and then by metric, in the order a reader
@@ -1011,7 +998,7 @@ TEMPLATES: dict[str, tuple[Template, ...]] = {
             kind=ArtifactKind.QUESTION,
             system=_RUBRIC,
             user=_RUBRIC_USER,
-            fields=("passages", "question", "answer", "type"),
+            fields=("passages", "question"),
             roots_only=True,
         ),
     ),

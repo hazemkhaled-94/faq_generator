@@ -61,15 +61,14 @@ The DataMorgana paper ([Filice et al., 2025](#references), Appendix D) scores
 each question from 1 to 3 on six dimensions with one prompt, the `Rubric`
 template in [`templates.py`](templates.py). The scores are stored as
 `rubric_fluency`, `rubric_clarity`, `rubric_conciseness`, `rubric_relevance`,
-`rubric_consistency` and `rubric_answerability`, the paper's dimensions.
+`rubric_consistency` and `rubric_answerability`, so they can be read beside
+the paper's Table 3.
 
 The template keeps the paper's definitions, guidelines and six examples. One
 call returns all six scores, each stored as its own row with an empty
 explanation. The judge reads the passages the question's facts cite, each
-once, in reading order, at most four. From template version 5 it also reads the
-question's key and type, which the paper's judge does not, so its scores are
-the paper's dimensions and not its exact figures in Table 3. A score s is
-stored as its label and as (s - 1) / 2, so the mean of a `rubric_` metric over a set is the paper's
+once, in reading order, at most four. A score s is stored as its label and as
+(s - 1) / 2, so the mean of a `rubric_` metric over a set is the paper's
 normalised figure.
 
 Only a question that opens its thread is asked, because a follow-up depends

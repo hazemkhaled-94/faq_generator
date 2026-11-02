@@ -249,9 +249,7 @@ From template version 3, a question that opens its thread is also scored by
 the DataMorgana paper's judge (Filice et al., [*Generating Q&A Benchmarks for
 RAG Evaluation in Enterprise
 Settings*](https://aclanthology.org/2025.acl-industry.33/), ACL 2025 Industry
-Track, Appendix D), in the paper's words with its six examples. From template
-version 5 it also reads the question's key and type, so its scores are the
-paper's dimensions and not its exact figures. One call over
+Track, Appendix D), in the paper's words with its six examples. One call over
 at most four cited passages scores fluency, clarity, conciseness, relevance,
 consistency and answerability from 1 to 3. Each is stored as `rubric_fluency`
 to `rubric_answerability` with the score (s − 1) / 2. The paper's normalised

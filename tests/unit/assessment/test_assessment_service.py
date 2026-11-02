@@ -460,7 +460,6 @@ def test_a_rubric_that_abstains_leaves_the_verdict_thin() -> None:
             fields={
                 "question": "How long is allowed for a reply?",
                 "answer": "Five days.",
-                "type": "factoid",
                 "facts": "- A reply is due in five days.",
                 "passages": "A reply is due in five days.",
                 "root": "True",
