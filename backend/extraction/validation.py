@@ -25,6 +25,8 @@ from extraction.models import (
     Provenance,
 )
 from nlp.analysis import (
+    MEASURES,
+    SHARE_WORDS,
     as_noun,
     claim,
     is_currency,
@@ -733,14 +735,6 @@ _UNIT_WORDS = frozenset({"NOUN", "PROPN", "SYM"})
 #: What may stand between a figure and the noun it counts: "5 working days".
 _MODIFIERS = frozenset({"ADJ", "VERB"})
 
-#: The words of a language that name a share, by ISO 639-1 code, as lower
-#: case: `%` is one in every language. A newly configured language supplies
-#: its own word, or reads a share written out as a word of its own kind.
-_SHARE_WORDS: dict[str, frozenset[str]] = {
-    "de": frozenset({"%", "prozent"}),
-    "en": frozenset({"%", "percent"}),
-}
-
 #: A currency's minor units, by ISO 639-1 code, as lower case: `50 cents` is
 #: money like `EUR 2`. A newly configured language supplies its own.
 _MINOR_UNITS: dict[str, frozenset[str]] = {
@@ -750,17 +744,11 @@ _MINOR_UNITS: dict[str, frozenset[str]] = {
 
 #: The words a language writes a share with that are not one token, by ISO
 #: 639-1 code, as the lemmas in order: `9.5 per cent`. A newly configured
-#: language supplies its own, or reads only the single words of `_SHARE_WORDS`.
+#: language supplies its own, or reads only the single words of `SHARE_WORDS`.
 _SHARE_PHRASES: dict[str, tuple[tuple[str, ...], ...]] = {
     "de": (),
     "en": (("per", "cent"),),
 }
-
-#: The symbols of the SI units of mass, length and volume, as lower case:
-#: an international standard, the same in every language. `4 g` is not `4 kg`.
-_MEASURES = frozenset(
-    {"mg", "g", "kg", "t", "mm", "cm", "dm", "m", "km", "ml", "cl", "dl", "l"}
-)
 
 #: The lemmas of a language's units of time that a period is counted in, by
 #: ISO 639-1 code, as lower case: "30 days" and "2 weeks" are two figures of
@@ -788,7 +776,7 @@ def _named_kind(word: str, language: str | None) -> str | None:
     code = (language or "").strip().lower()
     if is_currency(bare, language) or bare.casefold() in _MINOR_UNITS.get(code, ()):
         return "currency"
-    if bare.casefold() in _SHARE_WORDS.get(code, ()):
+    if bare.casefold() in SHARE_WORDS.get(code, ()):
         return "share"
     if bare.casefold() in _TIME_UNITS.get(code, ()):
         return "period"
@@ -879,7 +867,7 @@ def _figure_tokens(
                 if near.pos_ in _UNIT_WORDS:
                     if (
                         word := near.lemma_.strip(".,;:()").casefold()
-                    ) in _MEASURES | _TIME_UNITS.get(
+                    ) in MEASURES | _TIME_UNITS.get(
                         (language or "").strip().lower(), frozenset()
                     ):
                         nouns.add(word)

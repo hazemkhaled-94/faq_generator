@@ -350,3 +350,54 @@ def test_a_vulgar_fraction_reads_as_its_value(text, language, value) -> None:
 
     assert numbers(text, language) == value
     assert numerals(text, language) == frozenset(value)
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "clock"),
+    [
+        ("Die Filiale ist bis 18.00 Uhr geöffnet.", "de", "18:00"),
+        ("Der Schalter öffnet um 8.30 Uhr.", "de", "08:30"),
+        ("Registration closes at 23.59 CET.", "en", "23:59"),
+        ("Le guichet ferme à 18.30.", "fr", "18:30"),
+        ("Το γκισέ κλείνει στις 18.30.", "el", "18:30"),
+    ],
+)
+def test_a_dotted_pair_of_digits_with_no_unit_also_reads_as_a_clock_time(
+    text, language, clock
+) -> None:
+    """`18.00` is also 18:00: its hour and minute are numerals too, beside the decimal."""
+    from nlp.analysis import numerals
+
+    assert numerals(clock, language) <= numerals(text, language)
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "absent"),
+    [
+        ("The fee is EUR 12.30 a month.", "en", "30"),
+        ("Die Gebühr beträgt EUR 12.30 im Monat.", "de", "30"),
+        ("The rate is 3.25% a year.", "en", "25"),
+        ("Der Zins beträgt 3.25 % im Jahr.", "de", "25"),
+        ("Le taux est de 3.25% par an.", "fr", "25"),
+        ("Το επιτόκιο είναι 3.25% ετησίως.", "el", "25"),
+        ("Le tarif est de EUR 12.30 par mois.", "fr", "30"),
+        ("The rate is 3.25 percent a year.", "en", "25"),
+        ("Der Zins beträgt 3.25 Prozent im Jahr.", "de", "25"),
+        ("The plank is 12.30 m long.", "en", "30"),
+        ("The price is 8.75 EUR.", "en", "75"),
+    ],
+)
+def test_a_dotted_figure_with_a_currency_a_share_or_a_measure_is_no_clock_time(
+    text, language, absent
+) -> None:
+    """The kind of the figure decides: an amount, a rate and a length have no minutes."""
+    from nlp.analysis import numerals
+
+    assert absent not in numerals(text, language)
+
+
+def test_a_dotted_figure_beside_no_unit_keeps_its_decimal_value() -> None:
+    """The clock reading is added beside the decimal, never in place of it."""
+    from nlp.analysis import numerals
+
+    assert numerals("Open until 18.30.", "en") >= {"18.3", "18", "30"}

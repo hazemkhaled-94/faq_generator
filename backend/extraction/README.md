@@ -126,6 +126,8 @@ in any spelling (`1st` and `1 st`, `two` and `2`, `CHF 1'250.50` and
 digit and three digits groups thousands, and so does a space before a noun),
 keeps its sign (`-0.5` is not `0.5`; a dash between digits, `5-7`, is no sign),
 reads a vulgar fraction as its value (`2½` is `2.5`),
+reads a dotted pair a clock may write (`18.00`) as `18:00` too unless a currency, a
+share or an SI unit stands beside it (`EUR 12.30` has no 30),
 and a proper noun is lemmatised. A fact may rest on the sentences it cites, the
 passage's heading trail and the document's title. A name or number found only
 in an uncited sentence is an addition. So is a figure only the rest of the
