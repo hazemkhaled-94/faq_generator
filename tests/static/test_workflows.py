@@ -339,7 +339,11 @@ def test_a_mutation_run_that_cannot_start_fails_the_nightly() -> None:
     """
     job = loaded(ROOT / ".github/workflows/nightly.yml")["jobs"]["mutation"]
     (run,) = [one for one in job["steps"] if "make mutation" in one.get("run", "")]
-    (summary,) = [one for one in job["steps"] if "mutmut results" in one.get("run", "")]
+    (summary,) = [
+        one
+        for one in job["steps"]
+        if one.get("name", "").startswith("Put the survivors")
+    ]
 
     assert "continue-on-error" not in run
     assert "timeout" in run["run"]
