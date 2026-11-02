@@ -131,6 +131,7 @@ language's words in one set or pattern.
 | `_DOCUMENTS` | same | Words naming a document type, never a subject | `Richtlinie`, `guideline` |
 | `_ATTRIBUTIONS` | same | Words that attribute what follows to a source | `laut`, `according` |
 | `_AUTHORS` | same | The entity labels of your pipeline for a person and an organisation, which make a proper noun beside a year an author | `PER`, `PERSON` |
+| `_QUESTION_MARKS` | same | The mark a question ends with. A language missing here is held to no mark | `?` |
 | `_AGENTS` | same | Interrogatives that ask after a party, not a thing | `wer`, `who` |
 | `_HOW_MANY` | same | The opening of a question asking for a count | `wie viele`, `how many` |
 | `_COUNTS` | same | Counts written out, read off `CARDINALS` in [`analysis.py`](analysis.py) | `zwei`, `two` |
@@ -183,6 +184,7 @@ about, and `Bericht` is a thing a corpus is. Each list is matched as follows.
 - By lemma: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC`, `_ASKING`.
 - By lemma or the word as written, `_ATTRIBUTIONS` only as an adposition: `_ATTRIBUTIONS`, `_SOURCE` and the two
   modifier tables (also with an `_ADJECTIVE_ENDINGS` ending).
+- By the character: `_QUESTION_MARKS`.
 - By the word as written: `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
   `_EXCEPTIVE`, `_POLITE`, `_GENITIVE_DEMONSTRATIVES`,
   `_CLAUSE_DEMONSTRATIVES` and the two abbreviation tables.

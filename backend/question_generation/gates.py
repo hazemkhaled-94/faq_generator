@@ -594,6 +594,12 @@ def _coordinated(tokens: Sequence, at: int) -> bool:
     return before >= 0 and tokens[before].pos_ == "CCONJ"
 
 
+#: The marks a question is written with, by ISO 639-1 code. A language with no
+#: row is held to no mark: Greek, Arabic and Chinese each write a mark of their
+#: own, and a newly configured language supplies its row here.
+_QUESTION_MARKS: dict[str, str] = {"de": "?", "en": "?"}
+
+
 def structural(
     *,
     question_text: str,
@@ -634,16 +640,18 @@ def structural(
     form = forms[0] if forms else AnswerForm.VALUE
     if not asked:
         return (QuestionRejection.MALFORMED, "the model returned no question"), form
-    if not query and not asked.endswith("?"):
+    marks = _QUESTION_MARKS.get((language or "").strip().lower(), "")
+    marked = sum(asked.count(mark) for mark in marks)
+    if marks and not query and not asked.endswith(tuple(marks)):
         return (
             QuestionRejection.MALFORMED,
             "it does not end in a question mark",
         ), form
-    if asked.count("?") > 1:
+    if marked > 1:
         return (
             QuestionRejection.MALFORMED,
             (
-                f"it asks {asked.count('?')} things; a chatbot answering one of "
+                f"it asks {marked} things; a chatbot answering one of "
                 f"them is neither right nor wrong"
             ),
         ), form

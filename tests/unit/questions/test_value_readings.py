@@ -307,6 +307,61 @@ def test_two_years_or_dates_are_two_periods(answer, language):
     assert periods(answer, language) is True
 
 
+# N-040: the question mark is a per-language table, and no language but a configured one is held to it.
+@pytest.mark.parametrize(
+    ("language", "question"),
+    [
+        ("de", "Wie viel kostet die Karte im Jahr?"),
+        ("en", "How much does the card cost per year?"),
+        ("fr", "Combien coûte la carte par an ?"),
+        ("el", "Πόσο κοστίζει η κάρτα τον χρόνο;"),
+        ("ar", "كم تكلفة البطاقة في السنة؟"),
+    ],
+)
+def test_a_question_in_its_own_script_is_not_refused_for_its_mark(language, question):
+    """The ending and the count read the language's own mark, and a language with none is not held to one."""
+    failed, _ = structural(
+        question_text=question,
+        target_answer="5 EUR",
+        answerable=True,
+        language=language,
+    )
+    assert failed is None or "question mark" not in failed[1], failed
+
+
+@pytest.mark.parametrize(
+    ("language", "question"),
+    [
+        ("de", "Wie viel kostet die Karte im Jahr"),
+        ("en", "How much does the card cost per year."),
+    ],
+)
+def test_a_configured_language_still_needs_its_mark(language, question):
+    """The controls: no mark is refused, and so are two."""
+    failed, _ = structural(
+        question_text=question,
+        target_answer="5 EUR",
+        answerable=True,
+        language=language,
+    )
+    assert failed is not None and "question mark" in failed[1]
+
+
+@pytest.mark.parametrize(
+    ("language", "question"),
+    [("de", "Wie viel kostet die Karte? Und wann?"), ("en", "What is it? And when?")],
+)
+def test_two_marks_are_two_questions(language, question):
+    """The count reads the same table."""
+    failed, _ = structural(
+        question_text=question,
+        target_answer="5 EUR",
+        answerable=True,
+        language=language,
+    )
+    assert failed is not None and "2 things" in failed[1]
+
+
 def test_a_space_grouped_amount_is_one_number_to_relabelled():
     """An aggregation keyed with `EUR 100 000` holds one number."""
     kind = relabelled(QuestionType.AGGREGATION, AnswerForm.VALUE, "EUR 100 000", "en")
