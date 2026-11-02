@@ -261,8 +261,8 @@ class SourceFact:
     #: whether the material states a REASON, which a statement condensed
     #: from them may have dropped. Empty where none was carried.
     evidence: str = ""
-    #: Whether the latest draft written from it was refused by a gate no
-    #: wording can pass. It is dealt after the facts that were not.
+    #: Whether some draft written from it was refused by one of the codes in
+    #: `queue._REFUSED_BY`. It is dealt after the facts with none.
     refused: bool = False
 
     @property

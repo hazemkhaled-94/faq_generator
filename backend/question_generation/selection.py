@@ -418,6 +418,12 @@ def ranked(facts: Iterable[SourceFact]) -> list[SourceFact]:
     two are what the types a single claim cannot answer are written from: a
     definition asks what something IS, an enumeration wants a real set, and
     neither is in one sentence of a passage.
+
+    A fact some refused draft was written from comes after the others of its
+    kind. Only within its kind: the kinds are interleaved, so a refused atomic
+    fact is still offered before an unrefused summary of the same passage, and
+    the deferral to rerun the facts no gate refused is made per passage, by
+    `Deal`.
     """
     held: dict[str, list[SourceFact]] = {}
     for fact in sorted(facts, key=lambda one: (one.refused, not one.units, one.id)):

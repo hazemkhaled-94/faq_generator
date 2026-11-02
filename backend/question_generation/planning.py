@@ -8,8 +8,9 @@ and the gates all differ by type.
 Nothing here draws a random number. Two mixes are turned into an exact,
 repeatable sequence of slots, so the same settings over the same corpus give
 the same plan twice. The paper's categories are dealt the same way: an exact
-quota per categorization, put in an order hashed from the topic, so the same
-topic is told the same categories twice.
+quota per categorization, put in an order hashed from the topic and the
+number of questions it already holds, so a first run of a topic is told its
+categories and a rerun others.
 
 The band is a request, not a verdict. `difficulty` is still read off what the
 question turned out to cite; `planned_difficulty` is this, stored beside it,

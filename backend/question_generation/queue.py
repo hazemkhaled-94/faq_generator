@@ -81,22 +81,22 @@ _ALREADY_ASKED = (
 )
 
 
-#: The codes of a gate that reads the draft's own words and nothing the
-#: slot's type asks for: another draft of the same fact fails it the same
-#: way. A type or form gate is left out, as a fact refused as one kind of
-#: question may answer another.
+#: The codes of the gates that run without a model and read the draft's own
+#: wording, not the slot's type: the same fact is likely to be refused by one
+#: again. A type or form gate is left out, as a fact refused as one kind of
+#: question may answer another, and so is `leaks_source`, which the phrasing
+#: judge, a model, also gives.
 _REFUSED_BY = (
     QuestionRejection.MALFORMED,
     QuestionRejection.COMPOUND,
-    QuestionRejection.LEAKS_SOURCE,
     QuestionRejection.RESTATES_QUESTION,
     QuestionRejection.EXPLANATION_UNUSABLE,
     QuestionRejection.OFF_TOPIC,
 )
 
-#: A fact some draft was written from and one of those gates refused. A rerun
-#: deals it after the facts no gate has refused, so the same drafts are not
-#: paid for again.
+#: A fact some draft written from it was refused by one of those codes. A
+#: rerun deals it after the facts with none, so the same refusals are not paid
+#: for again.
 _ALREADY_REFUSED = (
     select(QuestionFact.fact_id)
     .join(Question, Question.id == QuestionFact.question_id)
