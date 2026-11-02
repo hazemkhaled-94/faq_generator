@@ -716,7 +716,7 @@ def _currency(token: Token, language: str | None) -> tuple[str, tuple[str, ...]]
     if bare in ISO_4217:
         return bare.casefold(), (bare,)
     if len(bare) == 1 and unicodedata.category(bare) == "Sc":
-        return bare, _SIGN_READINGS.get(bare, (bare,))
+        return bare, _SIGN_READINGS.get(bare, ())
     names = CURRENCY_NAMES.get((language or token.doc.lang_).strip().lower(), {})
     return next(
         (
@@ -733,7 +733,7 @@ def currencies_named(text: str, language: str | None) -> tuple[frozenset[str], .
     return tuple(
         frozenset(found[1])
         for token in _read(text, language)
-        if (found := _currency(token, language))
+        if (found := _currency(token, language)) and found[1]
     )
 
 
@@ -957,13 +957,36 @@ CURRENCY_NAMES: dict[str, dict[str, tuple[str, ...]]] = {
     },
 }
 
-#: The codes each of the commonest currency signs may mean. A sign missing
-#: here is its own code.
+#: The codes each currency sign may mean, the commonest first: a closed
+#: standard (Unicode's signs of category Sc and the ISO 4217 code of each), the
+#: same in every language. `$` is a dozen currencies, `€` one. A sign with no
+#: row, such as a newly encoded one, judges nothing: it reads as no currency
+#: rather than as its own code.
 _SIGN_READINGS: dict[str, tuple[str, ...]] = {
     "€": ("EUR",),
     "$": ("USD", "CAD", "AUD", "NZD", "HKD", "SGD"),
     "£": ("GBP",),
     "¥": ("JPY", "CNY"),
+    "₩": ("KRW", "KPW"),
+    "₺": ("TRY",),
+    "₽": ("RUB",),
+    "₪": ("ILS",),
+    "₴": ("UAH",),
+    "₦": ("NGN",),
+    "₱": ("PHP",),
+    "₹": ("INR",),
+    "₫": ("VND",),
+    "฿": ("THB",),
+    "₡": ("CRC",),
+    "₸": ("KZT",),
+    "₼": ("AZN",),
+    "₾": ("GEL",),
+    "₭": ("LAK",),
+    "₮": ("MNT",),
+    "₲": ("PYG",),
+    "₵": ("GHS",),
+    "₨": ("PKR", "INR", "LKR", "NPR", "MUR", "SCR"),
+    "﷼": ("SAR", "QAR", "OMR", "YER", "IRR"),
 }
 
 #: The words that mark an amount of money, by ISO 639-1 code, as lower case:

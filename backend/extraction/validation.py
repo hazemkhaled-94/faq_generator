@@ -1004,6 +1004,13 @@ def _swapped(
     return swaps
 
 
+#: The names that are currencies and units of weight both, as written, and the
+#: symbols of the units of mass a cited text may weigh something in: a name is
+#: judged as a currency only when the cited text weighs nothing.
+_WEIGHT_NAMES = frozenset({"pound", "pounds", "pfund"})
+_MASSES = frozenset({"mg", "g", "kg", "t", "lb", "lbs", "oz"})
+
+
 def _currency_swaps(
     said: Claim, evidence: str, language: str | None
 ) -> tuple[dict[str, str], frozenset[str]]:
@@ -1016,14 +1023,17 @@ def _currency_swaps(
     is, it is matched, so a code the tagger called a proper noun is no
     addition: `$50` for a cited `CAD 50`, `5 EUR` for `5 Euro`. A cited text
     that names no currency judges nothing, and a name like `pounds`, which also
-    weighs, is left to the units check.
+    weighs, is no currency when the cited text weighs something in a unit of mass.
     """
     named = currencies_named(evidence, language)
     if not said.currencies or not named:
         return {}, frozenset()
     cited = "/".join(sorted(named[0]))
+    weighed = bool(set(re.findall(r"[^\W\d_]+", evidence.casefold())) & _MASSES)
     swaps, matched = {}, set()
     for written, readings in said.currencies:
+        if not readings or (weighed and written in _WEIGHT_NAMES):
+            continue
         if any(set(readings) & one for one in named):
             matched.add(written)
         else:

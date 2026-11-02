@@ -3256,3 +3256,75 @@ def test_the_shared_run_rule_is_inert_in_a_language_without_a_pipeline(
     assert (
         read.atomic(alike, 0).rejection_code == read.atomic(dropped, 0).rejection_code
     )
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        ("en", "The annual fee is KRW 5000.", "The annual fee is ₩5000."),
+        ("de", "Die Gebühr beträgt 50 TRY.", "Die Gebühr beträgt 50 ₺."),
+        ("en", "The annual fee is RUB 500.", "The annual fee is ₽500."),
+        ("de", "Die Gebühr beträgt 500 UAH.", "Die Gebühr beträgt 500 ₴."),
+        ("en", "The annual fee is ILS 50.", "The annual fee is ₪50."),
+        ("de", "Die Gebühr beträgt 500 NGN.", "Die Gebühr beträgt 500 ₦."),
+        ("en", "The annual fee is ₩5000.", "The annual fee is KRW 5000."),
+        ("de", "Die Gebühr beträgt 50 ₺.", "Die Gebühr beträgt 50 TRY."),
+    ],
+)
+def test_a_currency_sign_and_its_iso_code_are_one_currency(
+    language, text, statement
+) -> None:
+    """Every sign the amount reader knows stands for the code of its currency."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        ("en", "The annual fee is KRW 5000.", "The annual fee is €5000."),
+        ("de", "Die Gebühr beträgt 50 ₺.", "Die Gebühr beträgt 50 USD."),
+    ],
+)
+def test_another_currency_than_the_cited_sign_is_refused(
+    language, text, statement
+) -> None:
+    """The table makes the sign a currency, not any currency."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "Shipping costs EUR 5 for parcels up to 10 lb.",
+            "Shipping costs EUR 5 for parcels up to 10 pounds.",
+        ),
+        (
+            "en",
+            "A parcel that weighs up to 20 lb costs EUR 9 to send.",
+            "A parcel that weighs up to 20 pounds costs EUR 9 to send.",
+        ),
+        (
+            "de",
+            "Eine Packung mit 500 g Kaffee kostet 8 Euro.",
+            "Eine Packung mit einem Pfund Kaffee kostet 8 Euro.",
+        ),
+        (
+            "de",
+            "500 g Kaffee kosten 5 Euro.",
+            "Ein Pfund Kaffee kostet 5 Euro.",
+        ),
+    ],
+)
+def test_a_weight_in_pounds_beside_a_cited_price_is_no_currency_claim(
+    language, text, statement
+) -> None:
+    """The cited text weighs something, so `pounds` or `Pfund` is a weight."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
