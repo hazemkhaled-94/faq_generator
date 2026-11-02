@@ -37,6 +37,7 @@ from dagster import (
     SensorResult,
     SkipReason,
     define_asset_job,
+    in_process_executor,
     sensor,
 )
 
@@ -337,4 +338,13 @@ defs = Definitions(
     jobs=[corpus],
     schedules=[nightly],
     sensors=[arrivals, progress],
+    # In the run's own process, one step after another. A step here is a thin
+    # client: it posts `start` to the api and polls `/status`, and the work is in
+    # the stage's worker container. The default multiprocess executor adds a
+    # process per step (each importing dagster) to the run worker and to the
+    # webserver or daemon, inside the 512M each of those containers is held to,
+    # and a run launched from a page was killed there (exit 137) the moment its
+    # second step started. The assets are a chain, so nothing ran in parallel
+    # that this gives up.
+    executor=in_process_executor,
 )
