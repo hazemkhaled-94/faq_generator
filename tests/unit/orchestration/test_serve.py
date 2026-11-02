@@ -144,11 +144,13 @@ def test_a_websocket_opened_from_another_origin_is_closed() -> None:
     client = TestClient(SameOrigin(_Echo()))
     host = {"Host": "localhost:3000"}
 
-    with pytest.raises(WebSocketDisconnect) as refused:
-        with client.websocket_connect(
+    with (
+        pytest.raises(WebSocketDisconnect) as refused,
+        client.websocket_connect(
             "/graphql", headers={**host, "Origin": "https://evil.example"}
-        ):
-            pass
+        ),
+    ):
+        pass
     assert refused.value.code == 1008
 
     with client.websocket_connect(
