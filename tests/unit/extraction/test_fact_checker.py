@@ -2788,3 +2788,75 @@ def test_a_period_in_a_language_without_a_time_table_is_never_a_swap(
 
     assert _named_kind("jours", language) is None
     assert _named_kind("ημέρες", language) is None
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "A card costs EUR 2 a month. A text message costs 50 cents.",
+            "A card costs 50 cents a month.",
+        ),
+        (
+            "de",
+            "Eine Karte kostet 2 Euro im Monat. Eine SMS kostet 50 Cent.",
+            "Eine Karte kostet 50 Cent im Monat.",
+        ),
+        (
+            "en",
+            "The overdraft rate is 9.5 per cent. The savings rate is 2 per cent.",
+            "The overdraft rate is 2 per cent.",
+        ),
+        (
+            "en",
+            "The rate rose by 2 percentage points. The fee is 9 %.",
+            "The rate rose by 9 percentage points.",
+        ),
+        (
+            "de",
+            "Der Zins stieg um 2 Prozentpunkte. Die Gebühr beträgt 9 %.",
+            "Der Zins stieg um 9 Prozentpunkte.",
+        ),
+    ],
+)
+def test_a_figure_swapped_across_a_minor_unit_or_a_share_spelling_is_refused(
+    language, text, statement
+) -> None:
+    """A cent is money and a per cent is a share, however many words write it."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "The overdraft rate is 9.5 per cent a year.",
+            "The overdraft rate is 9.5 per cent a year.",
+        ),
+        (
+            "de",
+            "Eine SMS kostet 50 Cent.",
+            "Eine SMS kostet 50 Cent.",
+        ),
+    ],
+)
+def test_a_minor_unit_or_a_share_spelling_kept_is_validated(
+    language, text, statement
+) -> None:
+    """The faithful restatement keeps its kind."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize("language", ["fr", "el"])
+def test_a_minor_unit_in_a_language_without_a_row_names_no_kind(language) -> None:
+    """No table row: `cent` is only a word there."""
+    from extraction.validation import _named_kind
+
+    assert _named_kind("cent", language) is None
+    assert _named_kind("cents", language) is None

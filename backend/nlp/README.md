@@ -177,6 +177,8 @@ the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
 | `_INFLECTIONS` | [`extraction/validation.py`](../extraction/validation.py) | Endings a label word takes ("Sections 7") | `Abschnitte`, `Sections` |
 | `_SHARE_WORDS` | [`extraction/validation.py`](../extraction/validation.py) | Words that name a share. A language missing here compares a share by the word as written | `Prozent`, `percent` |
 | `_TIME_UNITS` | [`extraction/validation.py`](../extraction/validation.py) | Lemmas of the seven units a period is counted in, second to year. A language missing here compares by the unit as written | `Stunde`, `week` |
+| `_MINOR_UNITS` | [`extraction/validation.py`](../extraction/validation.py) | A currency's minor units, read as the currency's kind (`50 cents` against `EUR 2`). A language missing here reads them as ordinary nouns | `Cent`, `pence` |
+| `_SHARE_PHRASES` | [`extraction/validation.py`](../extraction/validation.py) | Shares written with more than one word, as lemmas in order. A language missing here reads only `_SHARE_WORDS` | `per cent` |
 
 No list is matched as a substring: `Risikobericht` is a thing a corpus is
 about, and `Bericht` is a thing a corpus is. Each list is matched as follows.

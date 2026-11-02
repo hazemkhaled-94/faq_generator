@@ -741,6 +741,21 @@ _SHARE_WORDS: dict[str, frozenset[str]] = {
     "en": frozenset({"%", "percent"}),
 }
 
+#: A currency's minor units, by ISO 639-1 code, as lower case: `50 cents` is
+#: money like `EUR 2`. A newly configured language supplies its own.
+_MINOR_UNITS: dict[str, frozenset[str]] = {
+    "de": frozenset({"cent"}),
+    "en": frozenset({"cent", "cents", "penny", "pence"}),
+}
+
+#: The words a language writes a share with that are not one token, by ISO
+#: 639-1 code, as the lemmas in order: `9.5 per cent`. A newly configured
+#: language supplies its own, or reads only the single words of `_SHARE_WORDS`.
+_SHARE_PHRASES: dict[str, tuple[tuple[str, ...], ...]] = {
+    "de": (),
+    "en": (("per", "cent"),),
+}
+
 #: The lemmas of a language's units of time that a period is counted in, by
 #: ISO 639-1 code, as lower case: "30 days" and "2 weeks" are two figures of
 #: one kind. The whole closed set, second to year. A newly configured language
@@ -760,11 +775,12 @@ def _named_kind(word: str, language: str | None) -> str | None:
     """The kind a word names whatever its spelling: a currency, a share, a period.
 
     A currency is an ISO 4217 code, a sign or the language's own word, so
-    `EUR`, `€` and `Euro` are one kind; None for any other word.
+    `EUR`, `€` and `Euro` are one kind, and a minor unit (`cents`) is the
+    currency's; None for any other word.
     """
     bare = word.strip(".,;:()")
     code = (language or "").strip().lower()
-    if is_currency(bare, language):
+    if is_currency(bare, language) or bare.casefold() in _MINOR_UNITS.get(code, ()):
         return "currency"
     if bare.casefold() in _SHARE_WORDS.get(code, ()):
         return "share"
@@ -799,6 +815,10 @@ def _kind_of(tokens: Sequence, at: int, language: str | None) -> str | None:
         )
     ):
         return _named_kind(attached, language) or attached.casefold()
+    for phrase in _SHARE_PHRASES.get((language or "").strip().lower(), ()):
+        words = tokens[at + 1 : at + 1 + len(phrase)]
+        if tuple(word.lemma_.casefold() for word in words) == phrase:
+            return "share"
     ahead = at + 1
     while ahead < min(at + 3, len(tokens) - 1) and tokens[ahead].pos_ in _MODIFIERS:
         ahead += 1
