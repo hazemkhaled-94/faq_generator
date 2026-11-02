@@ -203,6 +203,7 @@ def _fields_query(kind: str, artifact_id: int) -> Select:
     return select(
         Question.question_text.label("question"),
         func.coalesce(Question.target_answer, "").label("answer"),
+        func.coalesce(Question.question_type, "").label("type"),
         func.coalesce(_question_facts(), "(none recorded)").label("facts"),
         func.coalesce(_question_passages(), "(none recorded)").label("passages"),
         # A follow-up leans on the turn before it, which the rubric is not

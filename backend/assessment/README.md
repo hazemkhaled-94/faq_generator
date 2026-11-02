@@ -67,7 +67,9 @@ the paper's Table 3.
 The template keeps the paper's definitions, guidelines and six examples. One
 call returns all six scores, each stored as its own row with an empty
 explanation. The judge reads the passages the question's facts cite, each
-once, in reading order, at most four. A score s is stored as its label and as
+once, in reading order, at most four, and the question's key and type beside
+them (template version 5; the paper's judge reads the passages and the question
+only, so its scores no longer compare with Table 3 to the letter). A score s is stored as its label and as
 (s - 1) / 2, so the mean of a `rubric_` metric over a set is the paper's
 normalised figure.
 

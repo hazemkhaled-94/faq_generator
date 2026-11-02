@@ -199,6 +199,7 @@ def _question(answer: str = "Five days.", root: str = "True") -> ArtifactToJudge
         fields={
             "question": "How long is allowed for a reply?",
             "answer": answer,
+            "type": "factoid",
             "facts": "- A reply is due in five days.",
             "passages": "A reply is due in five days of the request.",
             "root": root,
@@ -283,7 +284,9 @@ def test_one_call_returns_the_six_scores() -> None:
         "_Rubric",
         (
             "Passage: A reply is due in five days of the request.\n\n"
-            "Question: How long is allowed for a reply?"
+            "Question: How long is allowed for a reply?\n\n"
+            "Expected answer: Five days.\n\n"
+            "Question type: factoid"
         ),
     ) in client.asked
 
