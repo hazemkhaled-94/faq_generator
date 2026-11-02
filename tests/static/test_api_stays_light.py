@@ -50,8 +50,8 @@ HEAVY = {
     # `routes/questions.py` put them into the start-up of a process whose
     # job is to serve JSON. The route imports it inside the function, which
     # this reads as deferred and does not count.
-    "pandas": "the dataframe the workbook export builds",
-    "openpyxl": "the engine that export writes an .xlsx through",
+    "pandas": "the frames assessment.run reads an exported workbook into",
+    "openpyxl": "what the workbook export writes an .xlsx with",
 }
 
 

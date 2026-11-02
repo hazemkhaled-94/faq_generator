@@ -61,16 +61,13 @@ data = [
     # scores to. Transitive through gensim and sentence-transformers; named
     # for the reason transformers is.
     "scipy>=1.18.1,<2.0.0",
-    # The frame `question_generation.export` builds directly and writes the
-    # workbook out of. Transitive through the evals package and through pyLDAvis; named for
-    # the reason transformers is - a package somebody else pins is one they
-    # may drop.
+    # The frames `assessment.run` reads an exported workbook into. The export
+    # itself writes openpyxl cells directly and builds no frame. Transitive
+    # through the evals package and through pyLDAvis; named for the reason
+    # transformers is - a package somebody else pins is one they may drop.
     "pandas>=2.0.0,<4.0.0",
-    # The engine pandas writes an .xlsx through. pandas names it by string
-    # and imports nothing, so this would be transitive-only if the export
-    # only wrote cells; it also sets the column widths and freezes the
-    # headings, which is `openpyxl.styles` and `openpyxl.utils` imported by
-    # name. It arrives through docling's own `docling-slim[standard]`
+    # What `question_generation.export` writes the workbook with, in its
+    # write-only mode, and the engine pandas reads it back through. It arrives through docling's own `docling-slim[standard]`
     # extra, which is about as far from this project's control as a pin
     # gets.
     "openpyxl>=3.1.5,<4.0.0",

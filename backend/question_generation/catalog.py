@@ -1291,10 +1291,10 @@ class QuestionCatalog(Repository):
     ) -> tuple[int, list[StoredQuestion]]:
         """Reads one page of questions and the total behind it.
 
-        `limit` of None is every row the filter selects, which is what the
-        export asks for. It has to be this call and not a count followed by
-        a window the size of it: those are two statements, and a question
-        written between them is one the window no longer has room for.
+        `limit` of None is every row the filter selects, in one statement and
+        not a count followed by a window the size of it: a question written
+        between those two is one the window no longer has room for. The export
+        does not read it: it draws the same rows through `stream`.
         """
         chosen = _ids(document, topic, search, status, answerable, field, **scopes)
         # By id, so a filter narrows which questions are listed and never

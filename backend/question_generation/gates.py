@@ -1822,8 +1822,8 @@ def restates(question: str, answer: str, language: str | None) -> bool:
     Read on `_SAYS` on both sides - nouns, proper nouns, adjectives, verbs,
     adverbs and interjections, less stop words - and not on `content`, which
     the gates comparing an answer with a recovery read and which keeps nouns
-    and adjectives only. On `content`, `The player must be cautioned.` added
-    nothing to the question it answered, because `cautioned` is the answer
+    and adjectives only. On `content`, `The customer must be refunded.` added
+    nothing to the question it answered, because `refunded` is the answer
     and a verb.
 
     Fewer than `_NEW` of the answer's lemmas new to the question:

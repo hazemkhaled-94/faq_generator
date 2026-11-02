@@ -144,7 +144,8 @@ class IngestResult:
     """What happened to one upload.
 
     Attributes:
-        outcome: One of the `Outcome` values.
+        outcome: One of the `Outcome` values, or `INVALID_VALUE`, which is
+            recorded nowhere.
         sha256: The document's digest, when one was hashed.
         detail: The refusal in words, when it was refused.
     """

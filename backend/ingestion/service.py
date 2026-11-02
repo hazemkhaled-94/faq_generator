@@ -122,7 +122,8 @@ class IngestService:
     def ingest(self, upload: UploadedFile) -> IngestResult:
         """Runs one upload through every check and stores it if they pass.
 
-        Every path records an ingest_events row, refusals included.
+        Every path but an unstorable filename records an ingest_events row,
+        refusals included.
 
         Args:
             upload: The file as it arrived.

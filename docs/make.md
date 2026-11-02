@@ -133,6 +133,18 @@ make logs-retention LOGS_RETENTION_DAYS=90
 make logs-prune LOGS_KEEP_DAYS=7
 ```
 
+The Filebeat template keeps no replica, so a single node reads green. An
+Elasticsearch volume from before v0.5.3 still holds `qa-logs` indices with one,
+and reads yellow until they age out; set them once (use `docker compose` where
+that is your engine):
+
+```bash
+podman compose exec -T elasticsearch sh -c 'curl -sS \
+  --cacert /usr/share/elasticsearch/config/certs/ca.crt \
+  -u "elastic:$ELASTIC_PASSWORD" -X PUT "https://localhost:9200/qa-logs*/_settings" \
+  -H "Content-Type: application/json" -d "{\"index\":{\"number_of_replicas\":0}}"'
+```
+
 ## The corpus as one thing
 | Target | Does |
 |---|---|
@@ -522,7 +534,10 @@ what mutation covers: six files, tested by `tests/unit/questions`,
 backend, configs, docs and `compose.yaml`. `make mutation` links `src` to
 `backend` for the run, because mutmut names a function after its file's path.
 A mutation run that cannot start fails the nightly; surviving mutants are
-listed in its summary and do not.
+listed in its summary and do not. The run is boxed at 270 minutes: out of time
+it ends as a pass with a warning, and the summary lists what it covered. The
+full run is not yet timed (`planning.py` alone, 253 mutants, ran at 5.3 a
+second).
 
 The nightly's Model quality job runs only when the repository variable
 `LLM_MODEL` is set, and shows as skipped otherwise. To turn it on, set that
