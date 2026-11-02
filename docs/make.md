@@ -21,7 +21,7 @@ is the long form.
 |---|---|
 | `make setup` | Write `.env` and `configs/env/provider.env` and fill in every placeholder. Safe to run twice: it replaces only `change_me_*` placeholders |
 | `make install` | `make install-python`, then `make docling-weights` |
-| `make doctor` | Check the tools, the configuration, the model split, the stored settings, and the pinned models and Docling's weights in the cache (a miss fails with `HF_HUB_OFFLINE=1` or `HOST_RUNNER=1`, else warns). Then ask every model one question. Also lists names `ENV_FILE` sets over a committed file, warns when the checkout or `ENV_FILE` sits in a synced folder, fails on an `APP_DB_PASSWORD` a connection string cannot hold, and prints the archive's estimated size |
+| `make doctor` | Check the tools, the configuration, the model split, the stored settings, and the pinned models and Docling's weights in the cache (a miss fails with `HF_HUB_OFFLINE=1` or `HOST_RUNNER=1`, else warns). Then ask every model one question. Also lists names `ENV_FILE` sets over a committed file, warns when the checkout or `ENV_FILE` sits in a synced folder, fails on an `APP_DB_PASSWORD` a connection string cannot hold, and prints the archive's estimated size. Fails when the api refuses this host's `API_TOKEN` (run `make up` after changing `.env`), and only warns when the api is not up |
 | `make dev` | `make install` first, then certificates, every service, the schema and the Grafana grants |
 | `make upgrade` | Check the engine has `UPGRADE_FREE_GB` free (20), build, prune orphaned images, stop the workers, `make schema`, `make up`. Stops at the first failing step |
 
