@@ -360,7 +360,12 @@ Every target that destroys data in a database refuses unless
 `CONFIRM=<database>`, typed on the command line (an exported `CONFIRM` does
 not count), names the database `DATABASE_URL` resolves to. The refusal says which
 database and port it would act on. A `DATABASE_URL` naming no database is
-refused, because libpq would take the user's namesake, the main database. The targets are `schema-down`,
+refused, because libpq would take the user's namesake, the main database.
+A `DATABASE_URL` given by `ENV_FILE`, the environment or the command line must
+name the database `APP_DB_NAME` says, or every target that loads the settings
+refuses before it runs: `DATABASE_URL names X but APP_DB_NAME is Y; set
+APP_DB_NAME=X`. Not given, it is built from `APP_DB_NAME`. The refusal and the
+banner name the host and database the URL resolves to. The targets are `schema-down`,
 `schema-reset`, `wipe`, `wipe-all`, `delete`, `delete-derived`,
 `topics-delete`, an unnarrowed `*-rerun`, `archive-purge` with `TABLE`, `ALL`
 or `DAYS`, and the wipe's store steps `phoenix-purge`, `review-delete`,

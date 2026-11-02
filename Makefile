@@ -115,7 +115,7 @@ ORIGINS = for name in DATABASE_URL BACKEND_URL S3_ENDPOINT PHOENIX_BASE_URL OTEL
 PROVIDER = { [ ! -f ./configs/env/provider.env ] || . ./configs/env/provider.env; }
 
 LOADENV = set -a && . ./configs/env/backend.env && . ./configs/env/deployment.env \
-          && $(PROVIDER) && . "$(ENV_PATH)" $(OVERRIDE) && $(DERIVED) $(OVERRIDE) && set +a
+          && $(PROVIDER) && . "$(ENV_PATH)" $(OVERRIDE) && $(DERIVED) $(OVERRIDE) && $(AGREED) && set +a
 
 # What `wipe` leaves standing. Comma-separated, and empty by default: the
 # command is called wipe, and a default that quietly kept things would be
@@ -190,13 +190,22 @@ STORE_DOWN = echo "$(1) is not running: not checked, and $(2) is skipped by the 
 WIPE_STEP = if $(call RUNNING,$(1)); then $(MAKE) $(2); else $(call STORE_DOWN,$(1),$(2)); fi
 
 # Names where a command acts, once the settings are loaded.
-RESOLVED_DB = db=$$(printf %s "$$DATABASE_URL" | sed -n 's|^[^:]*://[^/]*/\([^?]*\).*|\1|p')
+# The database and the host:port DATABASE_URL names, as `db` and `host`.
+RESOLVED_DB = db=$$(printf %s "$$DATABASE_URL" | sed -n 's|^[^:]*://[^/]*/\([^?]*\).*|\1|p') && \
+              host=$$(printf %s "$$DATABASE_URL" | sed -n 's|^[^:]*://\([^/?]*\).*|\1|p' | sed 's|.*@||')
 
-BANNER = $(LOADENV) && echo "on database $$APP_DB_NAME on localhost:$$POSTGRES_PORT" >&2
+# One database name everywhere: a DATABASE_URL given by ENV_FILE, the
+# environment or the command line must name the database APP_DB_NAME says, so
+# every reader of either acts on the same one. Not given, DERIVED builds it
+# from APP_DB_NAME and the two agree.
+AGREED = $(RESOLVED_DB) && { [ "$$db" = "$$APP_DB_NAME" ] || \
+         { echo "REFUSED: DATABASE_URL names $$db but APP_DB_NAME is $$APP_DB_NAME; set APP_DB_NAME=$$db" >&2; exit 2; }; }
+
+BANNER = $(LOADENV) && $(RESOLVED_DB) && echo "on database $$db on $$host" >&2
 
 # Refuses unless CONFIRM, typed on the command line (one exported in the shell
 # does not count), equals the database DATABASE_URL names once the settings
-# are loaded, and names the database and the port it would act on. A URL that
+# are loaded, and names the database and the host it would act on. A URL that
 # names none is refused too: libpq would take the user's namesake, the main
 # database. $(1) says what is asked.
 #
@@ -204,7 +213,7 @@ BANNER = $(LOADENV) && echo "on database $$APP_DB_NAME on localhost:$$POSTGRES_P
 CONFIRMED = $(LOADENV) && $(RESOLVED_DB) && \
             { [ -n "$$db" ] || { echo "REFUSED: $(1) acts on no database: DATABASE_URL names none." >&2; exit 2; }; } && \
             { [ "$(if $(filter command line,$(origin CONFIRM)),$(CONFIRM))" = "$$db" ] || \
-            { echo "REFUSED: $(1) acts on database $$db on localhost:$$POSTGRES_PORT." >&2; \
+            { echo "REFUSED: $(1) acts on database $$db on $$host." >&2; \
               echo "  Run it again with CONFIRM=$$db to go on." >&2; exit 2; }; }
 
 # What the parse or chunk drain is given under WAIT=1, which `corpus` sets,

@@ -58,7 +58,8 @@ export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
 ## What is derived, and so written nowhere
 
 The Makefile builds each host address below only when `ENV_FILE` or the
-environment leaves it unset. Naming one there points a host command at a
+environment leaves it unset. Naming `DATABASE_URL` there also needs `APP_DB_NAME` to name the same
+database, or the Makefile refuses. Naming one there points a host command at a
 managed database, an object store or a collector. `make doctor` says for each
 which of those gave it, or that it was built from the ports.
 

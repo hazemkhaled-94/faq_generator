@@ -850,6 +850,12 @@ DESTRUCTIVE = {
 }
 
 
+#: What only the CONFIRM guard prints, as `REFUSED:` is also what the check that
+#: the two database names agree prints, and every line that loads the settings
+#: carries that.
+GUARD = "Run it again with CONFIRM="
+
+
 def sandbox(tmp_path: Path, name: str = "qa_generator") -> Path:
     """Env files naming a database, for a recipe line to be run against."""
     for path, text in {
@@ -882,7 +888,7 @@ def test_a_destructive_target_refuses_unless_confirm_names_the_database(
     sandbox(tmp_path)
     given = DESTRUCTIVE[target]
     lines = printed(target, *given)
-    at = next((i for i, line in enumerate(lines) if "REFUSED:" in line), None)
+    at = next((i for i, line in enumerate(lines) if GUARD in line), None)
     assert at is not None, lines
     acting = [
         i
@@ -915,7 +921,7 @@ def test_a_destructive_target_refuses_unless_confirm_names_the_database(
 )
 def test_a_narrowed_rerun_needs_no_confirmation(target: str, given: str) -> None:
     """Only the unnarrowed one reaches the whole corpus."""
-    assert not any("REFUSED:" in line for line in printed(target, given))
+    assert not any(GUARD in line for line in printed(target, given))
 
 
 @pytest.mark.parametrize("target", [*DRAINS, *REWRITES])
@@ -924,9 +930,7 @@ def test_a_drain_names_its_database_and_port(tmp_path: Path, target: str) -> Non
     sandbox(tmp_path, "qa_scratch")
     lines = printed(target)
     banner = next(
-        i
-        for i, line in enumerate(lines)
-        if "on database $APP_DB_NAME on localhost" in line
+        i for i, line in enumerate(lines) if "on database $db on $host" in line
     )
     assert banner < next(i for i, line in enumerate(lines) if "python -m" in line)
     ran = refusal(lines[banner], tmp_path)
@@ -1210,11 +1214,11 @@ def test_a_purge_of_one_tables_archive_needs_confirmation_like_the_others(
     """TABLE= is as irreversible as DAYS= and ALL=1: it is the second deletion of a whole table."""
     sandbox(tmp_path)
     (line,) = [
-        one for one in printed("archive-purge", "TABLE=questions") if "REFUSED:" in one
+        one for one in printed("archive-purge", "TABLE=questions") if GUARD in one
     ]
     assert refusal(line, tmp_path).returncode == 2
     with_confirm = printed("archive-purge", "TABLE=questions", "CONFIRM=qa_generator")
-    (line,) = [one for one in with_confirm if "REFUSED:" in one]
+    (line,) = [one for one in with_confirm if GUARD in one]
     assert refusal(line, tmp_path).returncode == 0
 
 
@@ -1286,7 +1290,7 @@ def test_a_confirm_exported_in_the_shell_does_not_satisfy_the_guard(
     """Only a CONFIRM typed on the command line counts: an exported one confirms every later target."""
     sandbox(tmp_path)
     lines = printed(target, CONFIRM="qa_generator")
-    at = next(i for i, line in enumerate(lines) if "REFUSED:" in line)
+    at = next(i for i, line in enumerate(lines) if GUARD in line)
 
     ran = refusal(lines[at], tmp_path, CONFIRM="qa_generator")
 
@@ -1535,8 +1539,13 @@ def test_the_guard_compares_confirm_with_the_database_the_url_names(
     tmp_path: Path, url: str, confirm: str, goes_on: bool
 ) -> None:
     """APP_DB_NAME alone said nothing about a DATABASE_URL the env file brought."""
+    named = url.split("/", 3)[3].split("?")[0]
     done = probe(
-        tmp_path, GUARDED, f"CONFIRM={confirm}", env_text=f"DATABASE_URL={url}\n"
+        tmp_path,
+        GUARDED,
+        f"CONFIRM={confirm}",
+        f"APP_DB_NAME={named}",
+        env_text=f"DATABASE_URL={url}\n",
     )
     assert ("went-on" in done.stdout) is goes_on, done
     assert done.returncode == (0 if goes_on else 2), done
@@ -1547,6 +1556,7 @@ def test_the_refusal_names_the_database_the_url_names(tmp_path: Path) -> None:
     done = probe(
         tmp_path,
         GUARDED,
+        "APP_DB_NAME=orders",
         env_text="DATABASE_URL=postgresql+psycopg://u:p@shop.example.net/orders\n",
     )
     assert "orders" in done.stderr and "CONFIRM=orders" in done.stderr, done
@@ -1568,7 +1578,10 @@ def test_a_host_command_keeps_the_address_the_env_file_names(
 ) -> None:
     """The address was rebuilt from localhost after the env file was read, so no remote service was reachable."""
     done = probe(
-        tmp_path, f'$(LOADENV) && echo "$${name}"', env_text=f"{name}={REMOTE[name]}\n"
+        tmp_path,
+        f'$(LOADENV) && echo "$${name}"',
+        "APP_DB_NAME=ledger",
+        env_text=f"{name}={REMOTE[name]}\n",
     )
     assert done.stdout.strip() == REMOTE[name], done
 
@@ -1647,7 +1660,7 @@ def test_logs_wipe_deletes_the_lines_of_the_database_the_url_names(
     """The lines of the database DATABASE_URL names, not of APP_DB_NAME."""
     asked = asked_of_logs_wipe(
         tmp_path,
-        "APP_DB_NAME=",
+        "APP_DB_NAME=ledger",
         "CONFIRM=ledger",
         env_text="DATABASE_URL=postgresql+psycopg://u:p@pg.example.net/ledger\n",
     )
@@ -1751,3 +1764,179 @@ def test_the_origin_lines_never_print_an_address(tmp_path: Path) -> None:
 def test_doctor_prints_the_origins() -> None:
     """The recipe runs them."""
     assert "built from the ports" in "\n".join(printed("doctor"))
+
+
+#: A compose that only records its arguments, and answers `ps` empty.
+RECORDING_COMPOSE = """#!/bin/bash
+printf '%s\\n' "$*" >> "$COMPOSE_LOG"
+for a in "$@"; do [ "$a" = ps ] && exit 0; done
+for a in "$@"; do [ "$a" = postgres ] && exit 1; done
+exit 0
+"""
+
+#: A managed database an operator names in ENV_FILE or the shell, beside the stack's own.
+MANAGED = "postgresql+psycopg://u:p@managed.example.net:5432/faq_prod"
+
+
+def run_target(
+    tmp_path: Path, target: str, *given: str, env_text: str = "", **environment: str
+):
+    """Runs one target against a compose that records; returns (result, its arguments)."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    (bin_dir / "compose").write_text(RECORDING_COMPOSE)
+    (bin_dir / "compose").chmod(0o755)
+    env_file = tmp_path / "scratch.env"
+    env_file.write_text("APP_DB_PASSWORD=x\n" + env_text)
+    log = tmp_path / "compose.log"
+    log.unlink(missing_ok=True)
+    done = subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            target,
+            f"COMPOSE={bin_dir / 'compose'}",
+            f"ENV_FILE={env_file}",
+            *given,
+        ],
+        cwd=ROOT,
+        env={
+            "PATH": os.environ["PATH"],
+            "HOME": str(tmp_path),
+            "COMPOSE_LOG": str(log),
+            **environment,
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    return done, (log.read_text() if log.exists() else "")
+
+
+def backup_directory(tmp_path: Path) -> Path:
+    """A directory `make restore-backup` accepts, holding a dump of each database."""
+    directory = tmp_path / "bk"
+    (directory / "db").mkdir(parents=True)
+    (directory / "manifest.json").write_text("{}")
+    for name in ("qa_generator", "faq_prod", "qa_scratch"):
+        (directory / "db" / f"{name}.dump").write_text("")
+    return directory
+
+
+def given_url(where: str) -> dict:
+    """DATABASE_URL named in ENV_FILE, or in the environment."""
+    return (
+        {"env_text": f"DATABASE_URL={MANAGED}\n"}
+        if where == "env_file"
+        else {"DATABASE_URL": MANAGED}
+    )
+
+
+@pytest.mark.parametrize("where", ["env_file", "environment"])
+@pytest.mark.parametrize(
+    "target", ["restore-backup", "dagster-wipe", "backup", "schema", "topics-discover"]
+)
+def test_a_url_naming_another_database_than_app_db_name_is_refused(
+    tmp_path: Path, where: str, target: str
+) -> None:
+    """Both names must be one, or a target confirms one database and acts on the other."""
+    directory = backup_directory(tmp_path)
+    if target == "backup":
+        directory = tmp_path / "fresh"
+    arguments = [f"DIR={directory}", "CONFIRM=faq_prod"]
+    done, asked = run_target(tmp_path, target, *arguments, **given_url(where))
+
+    assert done.returncode == 2, done
+    assert "DATABASE_URL names faq_prod but APP_DB_NAME is qa_generator" in done.stderr
+    assert "APP_DB_NAME=faq_prod" in done.stderr
+    assert "pg_restore" not in asked and "orchestration.wipe" not in asked, asked
+
+
+@pytest.mark.parametrize("where", ["env_file", "environment"])
+def test_restore_backup_restores_the_database_both_names_say(
+    tmp_path: Path, where: str
+) -> None:
+    """With the two names equal, pg_restore acts on that one."""
+    done, asked = run_target(
+        tmp_path,
+        "restore-backup",
+        f"DIR={backup_directory(tmp_path)}",
+        "CONFIRM=faq_prod",
+        "APP_DB_NAME=faq_prod",
+        **given_url(where),
+    )
+
+    restore = [line for line in asked.splitlines() if "pg_restore" in line]
+    assert restore and "-d faq_prod" in restore[0], (done.stderr, asked)
+
+
+@pytest.mark.parametrize("where", ["env_file", "environment"])
+def test_dagster_wipe_deletes_the_runs_of_the_database_both_names_say(
+    tmp_path: Path, where: str
+) -> None:
+    """With the two names equal, the runs tagged with that database go."""
+    done, asked = run_target(
+        tmp_path,
+        "dagster-wipe",
+        "CONFIRM=faq_prod",
+        "APP_DB_NAME=faq_prod",
+        **given_url(where),
+    )
+
+    wipe = [line for line in asked.splitlines() if "orchestration.wipe" in line]
+    assert wipe and "APP_DB_NAME=faq_prod" in wipe[0], (done.stderr, asked)
+
+
+def test_a_command_line_database_is_not_beaten_by_an_exported_url(
+    tmp_path: Path,
+) -> None:
+    """`make X APP_DB_NAME=qa_scratch` with another database's URL exported is refused, not run there."""
+    done, _ = run_target(
+        tmp_path,
+        "schema",
+        "APP_DB_NAME=qa_scratch",
+        DATABASE_URL="postgresql+psycopg://u:p@localhost:5432/qa_generator",
+    )
+
+    assert done.returncode == 2, done
+    assert (
+        "DATABASE_URL names qa_generator but APP_DB_NAME is qa_scratch" in done.stderr
+    )
+
+
+def test_the_refusal_and_the_banner_name_the_host_the_url_names(tmp_path: Path) -> None:
+    """Not localhost and not APP_DB_NAME."""
+    refused, _ = run_target(
+        tmp_path,
+        "schema-reset",
+        "APP_DB_NAME=faq_prod",
+        env_text=f"DATABASE_URL={MANAGED}\n",
+    )
+    assert "faq_prod on managed.example.net:5432" in refused.stderr, refused.stderr
+
+    probe_file = tmp_path / "banner.mk"
+    probe_file.write_text(f"include {ROOT}/Makefile\nprobe:\n\t@$(BANNER)\n")
+    env_file = tmp_path / "banner.env"
+    env_file.write_text(
+        f"APP_DB_PASSWORD=x\nAPP_DB_NAME=faq_prod\nDATABASE_URL={MANAGED}\n"
+    )
+    shown = subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            "-f",
+            str(probe_file),
+            "probe",
+            f"ENV_FILE={env_file}",
+        ],
+        cwd=ROOT,
+        env={"PATH": os.environ["PATH"], "HOME": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert "on database faq_prod on managed.example.net:5432" in shown.stderr, (
+        shown.stderr
+    )
