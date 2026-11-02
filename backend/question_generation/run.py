@@ -73,9 +73,15 @@ def main(argv: list[str] | None = None) -> int:
         The verifier the workers use, from the same settings, and proved
         before the first question is asked.
         """
-        settings, model, _ = configured()
-        _, verifier, _ = models(settings, model)
-        before_work(verifier)
+
+        def ready() -> tuple[Settings, ModelSettings]:
+            """The settings, and the verifier proved, before a question is asked."""
+            settings, model, _ = configured()
+            _, verifier, _ = models(settings, model)
+            before_work(verifier)
+            return settings, verifier
+
+        settings, verifier = proved(ready)
         trace("questions")
         return rejudge(QuestionCatalog(), settings, Verifier(Client(verifier)), within)
 
