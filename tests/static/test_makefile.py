@@ -2066,3 +2066,16 @@ def test_the_doctor_reports_a_name_disagreement_and_goes_on(tmp_path: Path) -> N
 
     agreed = probe(tmp_path, recipe, "APP_DB_NAME=qa_scratch")
     assert "FAIL" not in agreed.stdout and "went-on fail=0" in agreed.stdout, agreed
+
+
+def test_a_failed_settings_load_stops_the_recipe_line(tmp_path: Path) -> None:
+    """A missing ENV_FILE ran the rest of the line and advised an APP_DB_NAME."""
+    done = probe(
+        tmp_path,
+        "$(LOADENV) && echo ran",
+        f"ENV_FILE={tmp_path}/missing.env",
+    )
+
+    assert done.returncode != 0, done
+    assert "ran" not in done.stdout, done
+    assert "APP_DB_NAME=" not in done.stderr, done

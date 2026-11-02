@@ -200,7 +200,7 @@ WIPE_STEP = if $(call RUNNING,$(1)); then $(MAKE) $(2); else $(call STORE_DOWN,$
 # and `query`, split as SQLAlchemy's make_url does: the password ends at the
 # first `@` and may hold `/` and `?`, and the host never carries userinfo.
 URL_PARTS = ^[^:]+://(([^:/]*)(:[^@]*)?@)?([^/:]*)(:([^/]*))?(/([^?]*))?(\?.*)?$$
-RESOLVED_DB = re='$(URL_PARTS)'; { [[ "$$DATABASE_URL" =~ $$re ]] || true; } && \
+RESOLVED_DB = re='$(URL_PARTS)' && { [[ "$$DATABASE_URL" =~ $$re ]] || true; } && \
               db="$${BASH_REMATCH[8]}" && host="$${BASH_REMATCH[4]}$${BASH_REMATCH[5]}" && query="$${BASH_REMATCH[9]}"
 
 # One database name everywhere: a DATABASE_URL given by ENV_FILE, the
