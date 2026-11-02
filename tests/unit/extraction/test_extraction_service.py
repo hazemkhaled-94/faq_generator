@@ -275,7 +275,11 @@ def test_the_digest_pass_never_fails_an_extracted_passage(language: str) -> None
     run.run()
 
     assert run.queue.failed == {}, "make extract-retry would read it again"
-    assert run.queue.notes[1] == "digest failed: RuntimeError: disk full"
+    note = run.queue.notes[1]
+    assert note.startswith(
+        "digest failed: RuntimeError (the log holds the rest, trace "
+    )
+    assert "disk full" not in note
 
 
 def test_a_digest_pass_cut_short_releases_its_row() -> None:
@@ -296,7 +300,8 @@ def test_an_unexpected_failure_is_named_by_its_type() -> None:
     run = Extraction(passage(), facts=ValueError("nonsense came back"))
     run.next()
 
-    assert run.queue.failed[1] == "ValueError: nonsense came back"
+    assert run.queue.failed[1].startswith("ValueError (the log holds the rest, trace ")
+    assert "nonsense" not in run.queue.failed[1], "the log holds the text"
 
 
 def test_draining_works_every_passage_and_stops() -> None:

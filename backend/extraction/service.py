@@ -1168,9 +1168,8 @@ class ExtractionService(StageService):
                 )
             except ExtractionFailed as exc:
                 self._fail(passage.id, str(exc), current, is_outage(exc))
-            except Exception as exc:
-                self._fail(passage.id, f"{type(exc).__name__}: {exc}", current)
-                log.exception("failed passage %d", passage.id)
+            except Exception as exc:  # noqa: BLE001 - one bad passage is not the drain
+                self._crashed(passage.id, exc, current)
         return passage.id
 
     def _replays(self) -> bool:
@@ -1620,11 +1619,10 @@ class DigestPass(ExtractionService):
                     stored,
                     extra={"facts.stored": stored},
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - one bad digest is not the drain
                 # `DigestQueue.fail` keeps the passage extracted, with the
                 # reason as its digest note: its facts stand.
-                self._fail(passage.id, f"{type(exc).__name__}: {exc}", current)
-                log.exception("failed digest of passage %d", passage.id)
+                self._crashed(passage.id, exc, current)
             except BaseException:
                 # Interrupted: the row goes back as it was, for the next pass.
                 self._repository.release(passage.id)
