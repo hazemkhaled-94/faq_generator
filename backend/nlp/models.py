@@ -37,14 +37,10 @@ class Claim:
     #: score, a figure glued to its unit - `08:00`, `2.5x`. Apart from
     #: `units` because only the checks for an invented value read them.
     figures: tuple[str, ...] = ()
-    #: The currencies the statement names, each as the way it is written and
-    #: the ISO codes it may be read as. Apart from `units` because only the
-    #: fact check compares them: a question's key and its recovery are not
-    #: asked for the currency.
-    currencies: tuple[tuple[str, tuple[str, ...]], ...] = ()
     #: The months and weekdays the statement names, each folded to its base
-    #: form. Apart from `units` for the reason `currencies` is: only the fact
-    #: check compares them.
+    #: form. Apart from `units` because only the fact check compares them: the
+    #: question gates compare units, and a key and its recovery are not asked
+    #: for a date.
     calendar: tuple[str, ...] = ()
     #: The figures a spoken sign stands before (`minus 5`), each as written and
     #: as signed. Apart from `units` for the reason `calendar` is: the gates

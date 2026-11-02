@@ -118,12 +118,7 @@ kind calls for run, and the first failure wins:
 A statement the deterministic reader composed faces only `copied`.
 
 `unsupported_addition` compares numbers, proper nouns and the month and weekday
-names a language's `CALENDAR_NAMES` lists. A currency is judged as a swap only: a
-statement's currency is refused when the cited text names a currency and none of
-the codes the statement's may be read as (`$` is any dollar, `¥` yen or yuan) is
-among its codes (`5 EUR`, `5 €` and `5 Euro` are one amount; `5 USD` is another). A
-cited text that names no currency judges none, and `pounds` or `Pfund` is no
-currency when the cited text weighs something in a unit of mass. An abbreviation, a range or a compound in the cited text (`Mo.`, `Dez.`,
+names a language's `CALENDAR_NAMES` lists. An abbreviation, a range or a compound in the cited text (`Mo.`, `Dez.`,
 `Montag-Freitag`, `Samstagvormittag`, `Sonn-`) supports the full name; the statement's own are never read. A number is read
 in any spelling (`1st` and `1 st`, `two` and `2`, `CHF 1'250.50` and
 `CHF 1250.50`, `8 000 Kundinnen` and `8000 Kundinnen`: an apostrophe between a

@@ -706,38 +706,6 @@ def _calendar(token: Token, language: str | None) -> str | None:
     )
 
 
-def _currency(token: Token, language: str | None) -> tuple[str, tuple[str, ...]] | None:
-    """A currency token as the way it is written and the ISO codes it may be read as, or None.
-
-    A code is itself, a sign or one of the language's `CURRENCY_NAMES` is the
-    codes it stands for, whatever the tagger calls the token: `$` is any dollar,
-    `¥` yen or yuan.
-    """
-    bare = token.text.strip(".,;:()")
-    if bare in ISO_4217:
-        return bare.casefold(), (bare,)
-    if len(bare) == 1 and unicodedata.category(bare) == "Sc":
-        return bare, _SIGN_READINGS.get(bare, ())
-    names = CURRENCY_NAMES.get((language or token.doc.lang_).strip().lower(), {})
-    return next(
-        (
-            (form, names[form])
-            for form in (token.lower_, token.lemma_.casefold())
-            if form in names
-        ),
-        None,
-    )
-
-
-def currencies_named(text: str, language: str | None) -> tuple[frozenset[str], ...]:
-    """The currencies a text names, each as the codes it may be read as."""
-    return tuple(
-        frozenset(found[1])
-        for token in _read(text, language)
-        if (found := _currency(token, language)) and found[1]
-    )
-
-
 def _spoken_signs(document: Doc, language: str | None) -> tuple[tuple[str, str], ...]:
     """The figures a sign word stands before, each as written and as signed: `5` and `-5` for `minus 5`."""
     code = (language or document.lang_).strip().lower()
@@ -759,9 +727,8 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
 
     Numbers and proper nouns only. Both are things a writer reports rather
     than chooses, so one appearing in a statement and nowhere in the sentence
-    it cites was invented. The months, weekdays and currencies the tagger
-    does not call proper nouns are read apart, in `Claim.calendar` and
-    `Claim.currencies`.
+    it cites was invented. The months and weekdays the tagger does not call
+    proper nouns are read apart, in `Claim.calendar`.
 
     Three things are deliberately left out. Common nouns, because a statement
     is supposed to name its subject in its own words. Verbs, because the
@@ -933,63 +900,6 @@ CARDINALS: dict[str, dict[str, int]] = {
 #: A language missing here reads three digits after either mark as thousands.
 DECIMAL_MARK: dict[str, str] = {"de": ",", "en": "."}
 
-#: The names each language gives its currencies, by ISO 639-1 code, as lower
-#: case, each with the ISO 4217 codes it may mean, the commonest first: `Dollar`
-#: is a dozen currencies, `Euro` one. The fact check judges a currency only
-#: against a currency the cited text names, and accepts any reading, so `5 Euro`,
-#: `5 EUR` and `5 €` are one amount, `5 USD` is another and `$50` may be `CAD
-#: 50`. A language missing here has no names: its codes and signs still are
-#: read. A newly configured language supplies the names it writes, plurals
-#: included.
-CURRENCY_NAMES: dict[str, dict[str, tuple[str, ...]]] = {
-    "de": {
-        "euro": ("EUR",),
-        "dollar": ("USD", "CAD", "AUD", "NZD", "HKD", "SGD"),
-        "pfund": ("GBP",),
-        "franken": ("CHF",),
-    },
-    "en": {
-        "euro": ("EUR",),
-        "euros": ("EUR",),
-        "dollar": ("USD", "CAD", "AUD", "NZD", "HKD", "SGD"),
-        "dollars": ("USD", "CAD", "AUD", "NZD", "HKD", "SGD"),
-        "pound": ("GBP",),
-        "pounds": ("GBP",),
-    },
-}
-
-#: The codes each currency sign may mean, the commonest first: a closed
-#: standard (Unicode's signs of category Sc and the ISO 4217 code of each), the
-#: same in every language. `$` is a dozen currencies, `€` one. A sign with no
-#: row, such as a newly encoded one, judges nothing: it reads as no currency
-#: rather than as its own code.
-_SIGN_READINGS: dict[str, tuple[str, ...]] = {
-    "€": ("EUR",),
-    "$": ("USD", "CAD", "AUD", "NZD", "HKD", "SGD"),
-    "£": ("GBP",),
-    "¥": ("JPY", "CNY"),
-    "₩": ("KRW", "KPW"),
-    "₺": ("TRY",),
-    "₽": ("RUB",),
-    "₪": ("ILS",),
-    "₴": ("UAH",),
-    "₦": ("NGN",),
-    "₱": ("PHP",),
-    "₹": ("INR",),
-    "₫": ("VND",),
-    "฿": ("THB",),
-    "₡": ("CRC",),
-    "₸": ("KZT",),
-    "₼": ("AZN",),
-    "₾": ("GEL",),
-    "₭": ("LAK",),
-    "₮": ("MNT",),
-    "₲": ("PYG",),
-    "₵": ("GHS",),
-    "₨": ("PKR", "INR", "LKR", "NPR", "MUR", "SCR"),
-    "﷼": ("SAR", "QAR", "OMR", "YER", "IRR"),
-}
-
 #: The words that mark an amount of money, by ISO 639-1 code, as lower case:
 #: codes and names. A number grouped by a space - `5 000 Euro`,
 #: `EUR 100 000`, `12 500.00 GBP` (DIN 5008 and SI) - is read as one figure
@@ -1006,8 +916,32 @@ _SIGN_READINGS: dict[str, tuple[str, ...]] = {
 #: yearly 120) is read as 5120. Upgrade: read a longer run where a currency
 #: stands beside each of its numbers, and a row by its table cells.
 AMOUNT_WORDS: dict[str, frozenset[str]] = {
-    language: frozenset(names) | {codes[0].lower() for codes in names.values()}
-    for language, names in CURRENCY_NAMES.items()
+    "de": frozenset(
+        [
+            "eur",
+            "euro",
+            "usd",
+            "dollar",
+            "gbp",
+            "pfund",
+            "chf",
+            "franken",
+        ]
+    ),
+    "en": frozenset(
+        [
+            "eur",
+            "euro",
+            "euros",
+            "usd",
+            "dollar",
+            "dollars",
+            "gbp",
+            "pound",
+            "pounds",
+            "chf",
+        ]
+    ),
 }
 
 #: The currency codes of ISO 4217: a static international standard, the same
@@ -3034,11 +2968,6 @@ def claim(
         signed=_spoken_signs(document, language),
         calendar=tuple(
             sorted({one for token in document if (one := _calendar(token, language))})
-        ),
-        currencies=tuple(
-            dict.fromkeys(
-                found for token in document if (found := _currency(token, language))
-            )
         ),
         references=_references(document, passages, title),
         verbs=_verbs(document),

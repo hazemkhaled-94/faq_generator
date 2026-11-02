@@ -29,7 +29,6 @@ from nlp.analysis import (
     MEASURES,
     as_noun,
     claim,
-    currencies_named,
     folds,
     is_currency,
     normalised,
@@ -178,7 +177,7 @@ class Judged:
             for unit in self.claim.asserted
             if unit not in self.evidence_vocabulary and unit not in self.supported
         )
-        return tuple(dict.fromkeys(added + tuple(unit for unit, _ in self.swaps)))
+        return added + tuple(unit for unit, _ in self.swaps if unit not in added)
 
 
 def _copied(judged: Judged) -> Failure | None:
@@ -570,9 +569,6 @@ class FactChecker:
         said = claim(
             statement, anchor.language, tuple(passage.text for passage, _ in rested)
         )
-        bridge_swaps, bridge_matched = _currency_swaps(
-            said, _JOIN.join(texts), anchor.language
-        )
         judged = Judged(
             statement=statement,
             evidence=_JOIN.join(texts),
@@ -591,8 +587,7 @@ class FactChecker:
                 numbers,
                 anchor.language,
                 statement,
-            )
-            | bridge_matched,
+            ),
             citations=tuple(one for _, one in rested),
             labels=tuple(
                 segment
@@ -602,7 +597,6 @@ class FactChecker:
             ),
             language=anchor.language,
             claims=2 if candidate.relation in _TWO_SIDED else 1,
-            swaps=tuple(bridge_swaps.items()),
         )
         return self._verdict(anchor, candidate, judged, WRITTEN, provenance)
 
@@ -677,8 +671,7 @@ class FactChecker:
         numbers |= _shared_runs(statement, evidence, language)
         known |= numbers
         supported = _supported_units(units, known, numbers, language, statement)
-        swaps, matched = _currency_swaps(said, evidence, language)
-        supported |= matched
+        swaps: dict[str, str] = {}
         if candidate.kind == FactKind.ATOMIC:
             alone = known | supported
             swaps |= _swapped(statement, evidence, numbers, passage, language)
@@ -699,7 +692,7 @@ class FactChecker:
             }
             known -= numbered
             supported = _supported_units(units, known, numbers, language, statement)
-            supported = (supported | matched) - numbered
+            supported -= numbered
         return Judged(
             statement=statement,
             evidence=evidence,
@@ -1003,43 +996,6 @@ def _swapped(
         if there and all(one and not one & nouns for _, one in there):
             swaps[unit] = there[0][0]
     return swaps
-
-
-#: The names that are currencies and units of weight both, as written, and the
-#: symbols of the units of mass a cited text may weigh something in: a name is
-#: judged as a currency only when the cited text weighs nothing.
-_WEIGHT_NAMES = frozenset({"pound", "pounds", "pfund"})
-_MASSES = frozenset({"mg", "g", "kg", "t", "lb", "lbs", "oz"})
-
-
-def _currency_swaps(
-    said: Claim, evidence: str, language: str | None
-) -> tuple[dict[str, str], frozenset[str]]:
-    """Judges the currencies a statement names against the cited text's: the swaps and the matches.
-
-    Judged only as a swap: when the cited text names a currency and none of
-    the codes a statement's currency may be read as is among the codes of any
-    of them, it is a swap, `5 USD` for a cited `5 EUR`, `$5` for `€5`, mapped as
-    the statement writes it to the first one the evidence names. When one
-    is, it is matched, so a code the tagger called a proper noun is no
-    addition: `$50` for a cited `CAD 50`, `5 EUR` for `5 Euro`. A cited text
-    that names no currency judges nothing, and a name like `pounds`, which also
-    weighs, is no currency when the cited text weighs something in a unit of mass.
-    """
-    named = currencies_named(evidence, language)
-    if not said.currencies or not named:
-        return {}, frozenset()
-    cited = "/".join(sorted(named[0]))
-    weighed = bool(set(re.findall(r"[^\W\d_]+", evidence.casefold())) & _MASSES)
-    swaps, matched = {}, set()
-    for written, readings in said.currencies:
-        if not readings or (weighed and written in _WEIGHT_NAMES):
-            continue
-        if any(set(readings) & one for one in named):
-            matched.add(written)
-        else:
-            swaps[written] = cited
-    return swaps, frozenset(matched)
 
 
 def _numbers_part_of(unit: str, section_path: str | None) -> bool:
