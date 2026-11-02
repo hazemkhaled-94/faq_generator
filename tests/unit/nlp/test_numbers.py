@@ -431,7 +431,7 @@ def test_a_unit_symbol_the_tagger_gives_any_tag_merges_in_every_sentence(
 def test_a_count_before_a_noun_the_stop_list_holds_is_one_figure(
     text, language, value
 ) -> None:
-    """spaCy's German stop list holds Tage, Jahre, Zeit and Uhr; the tag decides, not the list."""
+    """The German stop list holds Tage, Jahre, Zeit and Uhr; the tag decides, not the list."""
     from nlp.analysis import figures
 
     assert figures(text, language) == value
