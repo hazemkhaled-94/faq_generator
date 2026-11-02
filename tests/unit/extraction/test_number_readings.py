@@ -616,3 +616,75 @@ def test_the_spoken_sign_is_no_unit_the_question_gates_read(lang, text):
 
     assert not any(unit.startswith("-") for unit in claim(text, lang).units)
     assert agrees(text, text, lang)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "fact"),
+    [
+        (
+            "de",
+            "Der Verlust beträgt -1 250,50 EUR im Jahr.",
+            "Der Verlust beträgt -1 250,50 EUR im Jahr.",
+        ),
+        (
+            "de",
+            "Der Verlust beträgt -1 250,50 EUR im Jahr.",
+            "Der Verlust beträgt -1.250,50 EUR im Jahr.",
+        ),
+        (
+            "de",
+            "Der Saldo beträgt −1 250,50 Euro.",
+            "Der Saldo beträgt −1250,50 Euro.",
+        ),
+        (
+            "en",
+            "The loss was -1 250.50 EUR last year.",
+            "The loss was -1,250.50 EUR last year.",
+        ),
+    ],
+)
+def test_a_sign_before_a_space_grouped_amount_belongs_to_the_whole_amount(
+    lang, text, fact
+):
+    """A regrouped copy of a signed amount is the same amount."""
+    must_validate(lang, text, fact)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "fact"),
+    [
+        (
+            "de",
+            "Der Verlust beträgt -1 250,50 EUR im Jahr.",
+            "Der Verlust beträgt 1 250,50 EUR im Jahr.",
+        ),
+        (
+            "de",
+            "Der Verlust beträgt -1 250,50 EUR im Jahr.",
+            "Der Verlust beträgt 1.250,50 EUR im Jahr.",
+        ),
+        (
+            "en",
+            "The loss was -1 250.50 EUR last year.",
+            "The loss was 1 250.50 EUR last year.",
+        ),
+    ],
+)
+def test_a_flipped_sign_on_a_space_grouped_amount_is_refused(lang, text, fact):
+    """The statement drops the minus of the cited amount."""
+    must_refuse(lang, text, fact)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "value"),
+    [
+        ("de", "Der Verlust beträgt -1 250,50 EUR.", [-1250.5]),
+        ("en", "The loss was -1 250.50 EUR.", [-1250.5]),
+        ("fr", "La perte est de -1 250.50 EUR.", [-1250.5]),
+        ("el", "Η απώλεια είναι -1 250.50 EUR.", [-1250.5]),
+    ],
+)
+def test_figures_reads_a_signed_space_grouped_amount_whole(lang, text, value):
+    """The sign does not keep the run from reading as one amount."""
+    assert figures(text, lang) == value
+    assert numbers(text, lang) == ("-1250.5",)

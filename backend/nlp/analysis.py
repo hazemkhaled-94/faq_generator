@@ -1085,7 +1085,7 @@ def _amount(
     counts. `document` is the unmerged parse of `text` where `_grouped` asks;
     a reader of the text alone is told what the parse merged.
     """
-    if not text[:start].strip() and not text[end:].strip(" ."):
+    if not text[:start].rstrip("-−").strip() and not text[end:].strip(" ."):
         return True
     code = (language or "").strip().lower()
     before = _beside(re.search(r"(\S+)\s?$", text[:start]))
@@ -1317,7 +1317,10 @@ def spaced_runs(text: str) -> frozenset[str]:
     both write the same way is one figure in both, whichever way each tagger
     read the word after it.
     """
-    return frozenset(found.group() for found in _SPACED.finditer(text))
+    return frozenset(
+        ("-" if text[: found.start()].endswith(("-", "−")) else "") + found.group()
+        for found in _SPACED.finditer(text)
+    )
 
 
 def fraction_value(token: str) -> float | None:
