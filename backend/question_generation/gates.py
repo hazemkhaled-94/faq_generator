@@ -982,71 +982,6 @@ def _adposition(token) -> bool:
     )
 
 
-#: The symbols of a measure that may be written against its figure (`24h`,
-#: `5kg`): the international ones, which no language spells its own way. A
-#: letter that is no symbol, `3b` or `4a`, numbers a part of a document.
-_UNIT_SYMBOLS = frozenset(
-    {"h", "min", "s", "kg", "g", "mg", "m", "cm", "mm", "km", "l", "ml"}
-    | {"kb", "mb", "gb", "tb", "kw", "kwh"}
-)
-
-#: How a figure hangs off the noun it counts, by language: UD's `nummod` in
-#: English and the TIGER labels in German (`nk`, and `nmc` or `pnc` for a
-#: number or unit). A newly configured language supplies its pipeline's.
-_COUNTS_A_NOUN: dict[str, frozenset[str]] = {
-    "en": frozenset({"nummod"}),
-    "de": frozenset({"nk", "nmc", "pnc"}),
-}
-
-
-def _numbers_a_document(token, following) -> bool:
-    """Whether a digit token numbers the document noun before it.
-
-    Not where a unit sticks to it (`24h`), a range runs on from it into a
-    noun (`3-5 days`), or it counts a noun that comes after it (`Standard 2
-    plan`): that is a service level, a size or a tariff, and the document
-    word is its name. A part number, `29119-4` or `3b`, is an identifier.
-    """
-    glued = re.search(r"\d([^\W\d_]+)", token.text)
-    if glued and glued[1].casefold() in _UNIT_SYMBOLS:
-        return False
-    # `2-Tage-Versand` is one token, `2-day` three: a figure joined to a word by
-    # a dash measures that word, whatever the word is.
-    if re.match(r"\d+[-–][^\W\d_]", token.text):
-        return False
-    if len(following) > 1 and following[0].text in "-–":
-        # A dash and a noun, `48-hour`.
-        if not is_number(following[1]) and following[1].pos_ in _MEASURED:
-            return False
-        # A dash and a greater figure before a noun, `3-5 days`: a range, where
-        # `29119-4` falls to a part.
-        if (
-            len(following) > 2
-            and is_number(following[1])
-            and _greater(token.text, following[1].text)
-            and following[2].pos_ in ("NOUN", "PROPN")
-        ):
-            return False
-    return not (
-        token.dep_ in _COUNTS_A_NOUN.get(token.doc.lang_, frozenset())
-        and token.head.i == token.i + 1
-        and token.head.pos_ in _MEASURED
-    )
-
-
-#: What a figure may count or measure: a noun, a name, or a unit the tagger
-#: leaves untagged (`GB`).
-_MEASURED = ("NOUN", "PROPN", "X")
-
-
-def _greater(first: str, second: str) -> bool:
-    """Whether the second of two written figures is the greater."""
-    try:
-        return float(second) > float(first)
-    except ValueError:
-        return False
-
-
 def cites_source(question: str, language: str | None) -> bool | None:
     """Whether a question says WHERE its answer is, read off its parse.
 
@@ -1117,11 +1052,7 @@ def cites_source(question: str, language: str | None) -> bool | None:
             or (token.pos_ in ("VERB", "X") and position and token.text.istitle())
         ):
             # `die Norm ISO/IEC 20246`: the document named and numbered.
-            if (
-                following is not None
-                and _identifier(following)
-                and _numbers_a_document(following, tokens[position + 2 :])
-            ):
+            if following is not None and _identifier(following):
                 return True
             # `in diesem Lehrplan`: the question pointing at the corpus it
             # is asked of. Only for a word that names a document - `in

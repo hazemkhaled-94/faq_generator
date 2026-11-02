@@ -141,7 +141,6 @@ language's words in one set or pattern.
 | `_RELATES` | same | Lemmas by which a question claims a relation. A compound question that says one is refused | `unterscheiden`, `differ` |
 | `_POLARITY` | same | Words answering a yes-or-no question by polarity | `nein`, `not` |
 | `_PURPOSE` | same | How the material says why: what a `reason` slot is dealt | `damit`, `so that` |
-| `_COUNTS_A_NOUN` | [`question_generation/gates.py`](../question_generation/gates.py) | The dependency labels your pipeline gives a figure that counts the noun after it, so `Standard 2 plan` is no numbered document | `nummod`, `nk` |
 | `_INTERROGATIVES` | [`analysis.py`](analysis.py) | The fine tags your pipeline gives a question word, where its morphology does not say `PronType=Int` | `WP`, `PWS` |
 | `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said | `besagt`, `aforementioned` |
 | `_ASKING` | same | Words a tagger reads as demonstrative that ask rather than point | `wessen`, `whose` |

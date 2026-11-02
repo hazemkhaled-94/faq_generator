@@ -50,31 +50,6 @@ def test_a_product_led_by_a_brand_the_english_tagger_calls_an_organisation_still
     assert cites_source("What is the price of the Samsung Galaxy 2024?", "en") is True
 
 
-# N-028: a service level named Standard is not a numbered document.
-@pytest.mark.parametrize(
-    ("question", "language"),
-    [
-        ("Was kostet der Standard 24h-Versand?", "de"),
-        ("Wie lange dauert der Standard 3-5 Tage Versand?", "de"),
-        ("How long does Standard 3-5 day shipping take?", "en"),
-        ("Does the warranty cover the Standard 2 plan?", "en"),
-        ("How much is Standard 48-hour delivery?", "en"),
-        ("Does Standard 2-day shipping cost extra?", "en"),
-        ("What does the Standard 100 GB plan cost?", "en"),
-        ("What does the Standard 5 GB plan cost?", "en"),
-        ("Was kostet der Standard 48-Stunden-Service?", "de"),
-        ("Wie viel kostet der Standard 2-Tage-Versand?", "de"),
-        ("Was kostet der Tarif Standard 100 GB?", "de"),
-        ("Was kostet der Tarif Standard 5 GB Tarif?", "de"),
-        ("Combien coûte la livraison Standard 48h?", "fr"),
-        ("Πόσο κοστίζει η αποστολή Standard 48h;", "el"),
-    ],
-)
-def test_a_service_level_named_standard_is_not_a_cited_document(question, language):
-    """A figure with a unit or a range after it is no document number."""
-    assert cites_source(question, language) is not True
-
-
 @pytest.mark.parametrize(
     ("question", "language"),
     [
