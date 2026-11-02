@@ -519,6 +519,12 @@ class PassageQueue(RowQueue):
             How many facts were written.
         """
         with self._session.begin() as session:
+            # First, before any row is written or any other lock taken, as
+            # every path that scores does: a delete holding it would otherwise
+            # wait on the rows this transaction wrote while this one waited
+            # on it.
+            if embedding is not None:
+                furniture.lock(session, [passage_id])
             if settle is not None:
                 language = _languages(session, {passage_id}).get(passage_id) or ""
                 for kind in sorted({fact.kind for fact in facts if fact.validated}):
@@ -571,10 +577,6 @@ class PassageQueue(RowQueue):
                 session.execute(update(Fact).where(Fact.id == fact_id).values(**row))
             _write(session, added, self._version)
             if embedding is not None:
-                # Under the language's lock from before the vector is written to
-                # the commit, so the score sees every twin another drain has
-                # written and that drain's, this one.
-                furniture.lock(session, [passage_id])
                 session.execute(
                     update(Passage)
                     .where(Passage.id == passage_id)

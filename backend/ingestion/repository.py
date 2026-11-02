@@ -211,6 +211,9 @@ class DocumentRepository(Repository):
             left pointing at no twin.
         """
         with self._session.begin() as session:
+            # Before any row it writes, as every writer of a score: a store of
+            # these languages waits, and reads this deletion once it is over.
+            furniture.lock_documents(session, [sha256])
             passages = session.scalar(
                 select(func.count())
                 .select_from(Passage)
@@ -238,6 +241,7 @@ class DocumentRepository(Repository):
             Passages the cascade took with it, by digest.
         """
         with self._session.begin() as session:
+            furniture.lock_documents(session, digests)
             passages = dict(
                 session.execute(
                     select(Passage.doc_sha256, func.count())
@@ -263,6 +267,7 @@ class DocumentRepository(Repository):
             twin.
         """
         with self._session.begin() as session:
+            furniture.lock_documents(session, [sha256])
             passages = session.scalar(
                 select(func.count())
                 .select_from(Passage)

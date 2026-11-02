@@ -142,9 +142,24 @@ class ChunkQueue(RowQueue):
             "span_id": span_id or None,
         }
         with self._session.begin() as session:
+            # The languages this document's passages are in and will be in,
+            # locked before any row is written, in the one order every path
+            # takes them: what is scored against them is read again below.
+            furniture.lock_languages(
+                session,
+                [
+                    *session.scalars(
+                        select(Passage.language)
+                        .where(Passage.doc_sha256 == sha256)
+                        .distinct()
+                    ),
+                    *(chunk.language for chunk in chunks),
+                ],
+            )
             stored = session.execute(
                 select(
                     Passage.id,
+                    Passage.language,
                     Passage.ordinal,
                     Passage.text,
                     Passage.section_path,
@@ -183,9 +198,6 @@ class ChunkQueue(RowQueue):
                     select(FactPassage.fact_id).where(FactPassage.passage_id.in_(gone)),
                 )
                 session.execute(delete(Passage).where(Passage.id.in_(gone)))
-                # Another document's passage may have taken its score from one
-                # of these: read again, without them.
-                furniture.rescore_from(session, [sha256])
             if kept:
                 # (doc_sha256, ordinal) is unique and Postgres checks it row by
                 # row, so every kept passage first steps past any ordinal held
@@ -214,6 +226,16 @@ class ChunkQueue(RowQueue):
                         for chunk in added
                     ],
                 )
+            # A kept passage the new chunk puts in another language is scored
+            # among that language's, and whatever took its score from a passage
+            # of this document that is gone or moved is read again.
+            before = {row.id: row.language for row in stored}
+            moved = [
+                one for one, chunk in kept.items() if before[one] != chunk.language
+            ]
+            furniture.score(session, moved)
+            if gone or moved:
+                furniture.rescore_from(session, [sha256])
             self._finish(sha256, session=session, oversized=chunking.oversized)
         return len(chunks)
 
@@ -347,6 +369,17 @@ class PassageCatalog(Repository):
                     )
                 )
             }
+            # A passage deleted since it was read is skipped. The locks of the
+            # languages it leaves and the ones it joins come before any row is
+            # written, in the one order every path takes them.
+            read = [one for one in read if one[0] in before]
+            if not read:
+                return 0
+            furniture.lock_languages(
+                session,
+                [language for language, _ in before.values()]
+                + [language for _, language, _ in read],
+            )
             # The table rather than the entity: an executemany against the
             # mapped class is read as an ORM bulk update by primary key, which
             # wants the key among the values being set.

@@ -35,7 +35,8 @@ _NEAREST = """
     (SELECT c, d FROM (
         SELECT 1 - (q.embedding <=> p.embedding) AS c, q.doc_sha256 AS d
         FROM passages q
-        WHERE q.doc_sha256 <> p.doc_sha256
+        WHERE p.embedding IS NOT NULL
+          AND q.doc_sha256 <> p.doc_sha256
           AND q.language = p.language
           AND q.embedding IS NOT NULL
         ORDER BY c DESC
@@ -82,23 +83,47 @@ _LANGUAGES = text(
     "SELECT DISTINCT coalesce(language, '') FROM passages WHERE id = ANY(:ids)"
 ).bindparams(bindparam("ids", type_=ARRAY(BigInteger)))
 
+_DOCUMENT_LANGUAGES = text(
+    "SELECT DISTINCT coalesce(language, '') FROM passages WHERE doc_sha256 = ANY(:docs)"
+).bindparams(bindparam("docs", type_=ARRAY(CHAR(64))))
+
+
+def lock_languages(session: Session, languages: Collection[str | None]) -> None:
+    """Takes a transaction lock for each of these languages, in sorted order.
+
+    The one order every path takes them in, so two paths holding several never
+    wait on each other's. A passage of no language is the language ''.
+    """
+    for language in sorted({one or "" for one in languages}):
+        session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"foreign:{language}"},
+        )
+
 
 def lock(session: Session, passage_ids: Collection[int]) -> None:
-    """Takes a transaction lock for each language these passages are in.
+    """Takes the lock of each language these passages are in.
 
     Before the vector is written, and held to the commit, so a second worker
     embedding the other half of a twin pair waits and then reads this one's
     vector: without it each side was scored before the other was visible, and
-    neither was. One lock to a language, in a fixed order, so workers on
-    different languages do not wait on each other.
+    neither was. One lock to a language, so workers on different languages do
+    not wait on each other. Every path that scores or rescores takes it first,
+    before any row it writes: a delete that rescored without it read a store's
+    passage as still twinned with the document it was deleting, and that
+    store, committing second, kept the score of a document that was gone.
     """
     ids = sorted(passage_ids)
-    if not ids:
-        return
-    for language in sorted(session.scalars(_LANGUAGES, {"ids": ids})):
-        session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-            {"key": f"foreign:{language}"},
+    if ids:
+        lock_languages(session, session.scalars(_LANGUAGES, {"ids": ids}).all())
+
+
+def lock_documents(session: Session, documents: Collection[str]) -> None:
+    """Takes the lock of each language these documents' passages are in."""
+    docs = sorted(set(documents))
+    if docs:
+        lock_languages(
+            session, session.scalars(_DOCUMENT_LANGUAGES, {"docs": docs}).all()
         )
 
 
