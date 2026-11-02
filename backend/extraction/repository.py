@@ -1600,6 +1600,27 @@ class FactCatalog(Repository):
                 )
             ).rowcount
 
+    def clear_bridges_on(self, pair: Collection[int]) -> int:
+        """Deletes the bridges whose first two passages are this pair.
+
+        Args:
+            pair: The two passages' ids.
+
+        Returns:
+            How many were deleted.
+        """
+        ids = list(pair)
+        opening = (
+            select(FactPassage.fact_id)
+            .where(FactPassage.position < 2, FactPassage.passage_id.in_(ids))
+            .group_by(FactPassage.fact_id)
+            .having(func.count(func.distinct(FactPassage.passage_id)) == len(ids))
+        )
+        with self._session.begin() as session:
+            return session.execute(
+                delete(Fact).where(Fact.kind == FactKind.BRIDGE, Fact.id.in_(opening))
+            ).rowcount
+
     def bridged_topics(self, within=None) -> frozenset[int]:
         """The topics a bridge already rests in, by the passage that headed it.
 

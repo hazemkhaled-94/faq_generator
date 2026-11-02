@@ -442,6 +442,7 @@ class Catalogue:
         self.cleared = 0
         self.cleared_topics: list[int] = []
         self.cleared_besides: list[set[int]] = []
+        self.cleared_pairs: list[frozenset[int]] = []
         #: The passage ids of every `atomic_of` read.
         self.read_facts: list[set[int]] = []
         self.narrowed: list[Any] = []
@@ -670,6 +671,11 @@ class Catalogue:
     def clear_bridges(self, within=None, besides=()) -> int:
         """Records that the previous pass's remaining bridges were replaced."""
         self.cleared_besides.append(set(besides))
+        return 0
+
+    def clear_bridges_on(self, pair) -> int:
+        """Records the pairs whose old bridge was replaced before its new one."""
+        self.cleared_pairs.append(frozenset(pair))
         return 0
 
     def clear_bridges_of(self, topics) -> int:

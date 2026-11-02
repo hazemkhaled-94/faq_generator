@@ -190,6 +190,9 @@ def test_a_model_outage_stops_the_pass_and_keeps_the_stored_bridges() -> None:
 
     assert model.calls == STOP_AFTER
     assert catalog.cleared == 0, "the bridges of a pass that wrote nothing stay"
+    assert catalog.cleared_besides == [], (
+        "and the rest of the scope is not replaced by a stop"
+    )
 
 
 def test_an_outage_after_the_first_group_still_stops_the_pass() -> None:
@@ -214,6 +217,7 @@ def test_an_outage_after_the_first_group_still_stops_the_pass() -> None:
     assert model.calls == 1 + STOP_AFTER
     assert len(catalog.written) == 1, "what was written is kept"
     assert catalog.cleared_topics == [1], "the topics never reached keep their bridges"
+    assert catalog.cleared_besides == [], "and the stop replaces nothing more"
 
 
 def test_a_refused_bridge_is_stored_with_its_reason() -> None:

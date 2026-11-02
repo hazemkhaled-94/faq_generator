@@ -550,6 +550,15 @@ def bridge(
     # What is left after the clear is what this pass must not repeat,
     # whichever side of a cross-topic pair heads it: the bridges that stay.
     held = catalog.bridged_pairs(within, replaced=not missing)
+    # The pairs the bridges this pass will replace rest on, which stand until
+    # their topic is answered or the pass ends. A pass that stops first must
+    # not leave a pair with the old bridge and a new one, so a link dealt one
+    # of them deletes the old bridge before it writes its own.
+    stale = (
+        set(catalog.bridged_pairs(within, replaced=False)) - held
+        if not missing
+        else set()
+    )
     offers: list[tuple[str, list[Link]]] = []
     topic: object = object()  # none yet, so the first link reads the cap too
     for language in sorted({one.language or "" for one in partners}):
@@ -634,6 +643,9 @@ def bridge(
                         at,
                     )
                     replaced.add(at)
+                if (rests := frozenset(one.id for one in offered[:2])) in stale:
+                    catalog.clear_bridges_on(rests)
+                    stale.discard(rests)
                 try:
                     written += catalog.add_bridges(
                         [

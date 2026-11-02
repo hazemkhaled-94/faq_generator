@@ -9,8 +9,11 @@ pass offers a pair a stored bridge already rests on.
 
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import replace
+from unittest.mock import patch
 
+import litellm
 import pytest
 from drivers import DIGEST_SHARE, Catalogue, Model, passage
 from hypothesis import given
@@ -19,6 +22,8 @@ from hypothesis import strategies as st
 from extraction.extractors.bridge import BridgeExtractor
 from extraction.service import bridge
 from extraction.validation import FactChecker
+from llm.client import ModelUnavailable
+from stages.service import SpendCapReached
 
 pytestmark = pytest.mark.nlp
 
@@ -66,6 +71,12 @@ class Store(Catalogue):
             for one in self.bridges
             if not self._in(one[1], within) or self.topic_of[one[1]] in besides
         ]
+        cleared, self.bridges = len(self.bridges) - len(kept), kept
+        return cleared
+
+    def clear_bridges_on(self, pair) -> int:
+        """Deletes the bridges resting on this pair."""
+        kept = [one for one in self.bridges if frozenset(one[0][:2]) != frozenset(pair)]
         cleared, self.bridges = len(self.bridges) - len(kept), kept
         return cleared
 
@@ -138,19 +149,58 @@ def corpora(draw):
     return {f"t{topic}": ones for topic, ones in by_topic.items()}
 
 
-#: A pass: whole, narrowed to one topic, or for the missing.
+#: A pass: whole, narrowed to one topic, for the missing, or whole and stopped
+#: by an unreachable model after some answers.
 PASSES = st.lists(
     st.one_of(
         st.just(("whole", None)),
         st.just(("missing", None)),
+        st.integers(1, 3).map(lambda answered: ("stopped", answered)),
         st.integers(1, 3).map(lambda topic: ("scoped", frozenset({topic}))),
     ),
     max_size=4,
 )
 
 
+def _unreachable() -> ModelUnavailable:
+    """What the client raises when the deployment cannot be reached."""
+    try:
+        raise litellm.exceptions.APIConnectionError(
+            message="connection refused", llm_provider="azure", model="azure/x"
+        )
+    except litellm.exceptions.APIConnectionError as exc:
+        failure = ModelUnavailable(f"APIConnectionError: {exc}")
+        failure.__cause__ = exc
+        return failure
+
+
+class Dies(Model):
+    """Answers some calls and is then out of reach."""
+
+    def __init__(self, answered: int) -> None:
+        super().__init__(ANSWER)
+        self.answered = answered
+
+    def answer(self, **kwargs):
+        """Answers while it has answers left."""
+        if len(self.asked) < self.answered:
+            return super().answer(**kwargs)
+        self.asked.append(kwargs)
+        raise _unreachable()
+
+
 def run(store: Store, how: str, within, wanted: int) -> None:
-    """Runs one bridge pass, whole, narrowed or missing."""
+    """Runs one bridge pass: whole, narrowed, missing, or whole and stopped (`within` answers)."""
+    if how == "stopped":
+        with patch("extraction.service.STOP_AFTER", 1), suppress(SpendCapReached):
+            bridge(
+                store,  # type: ignore[arg-type]
+                BridgeExtractor(Dies(within)),  # type: ignore[arg-type]
+                FactChecker(DIGEST_SHARE),
+                wanted,
+                2,
+            )
+        return
     bridge(
         store,  # type: ignore[arg-type]
         BridgeExtractor(Model(ANSWER)),  # type: ignore[arg-type]
@@ -277,3 +327,38 @@ def test_a_pass_for_the_missing_after_a_lost_group_equals_a_clean_pass(lost) -> 
     run(store, "missing", None, 1)
 
     assert store.held == clean.held
+
+
+def test_one_pair_one_bridge_after_a_narrowed_pass_and_a_stopped_whole_one() -> None:
+    """A topic written before the stop must not rest on the pair an unreached topic's old bridge holds."""
+    topics = {"t1": [_placed(1, "2")], "t2": [_placed(2), _placed(3)]}
+    store = fresh(topics, 1)
+    run(store, "scoped", frozenset({2}), 1)
+    run(store, "stopped", 1, 1)
+
+    pairs = [pair for pair, _ in store.held]
+    assert len(pairs) == len(set(pairs)), store.held
+    run(store, "missing", None, 1)
+    pairs = [pair for pair, _ in store.held]
+    assert len(pairs) == len(set(pairs)), store.held
+
+
+def test_one_pair_one_bridge_after_a_pass_the_spend_cap_stops(monkeypatch) -> None:
+    """The same history, the whole pass stopped between its first and second topic."""
+    import stages.service as stages
+
+    topics = {"t1": [_placed(1, "2")], "t2": [_placed(2), _placed(3)]}
+    store = fresh(topics, 1)
+    run(store, "scoped", frozenset({2}), 1)
+    asked: list[int] = []
+
+    def cap():
+        asked.append(1)
+        return "SPEND_CAP reached" if len(asked) > 1 else None
+
+    monkeypatch.setattr(stages, "spend_stop", cap)
+    with suppress(SpendCapReached):
+        run(store, "whole", None, 1)
+
+    pairs = [pair for pair, _ in store.held]
+    assert len(pairs) == len(set(pairs)), store.held

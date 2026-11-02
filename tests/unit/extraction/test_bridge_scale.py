@@ -175,4 +175,9 @@ def test_the_bridges_in_scope_are_deleted_only_after_the_links_are_dealt(
         2,
     )
 
-    assert order == ["held replaced=True", "linked", "clear"], order
+    assert order == [
+        "held replaced=True",
+        "held replaced=False",
+        "linked",
+        "clear",
+    ], order

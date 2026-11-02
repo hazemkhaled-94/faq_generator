@@ -517,6 +517,32 @@ class TestBridges:
         assert [row[0] for row in store.rows("statement")] == ["From b."]
         assert store.catalog.clear_bridges_of([]) == 0
 
+    def test_a_pair_is_cleared_of_the_bridges_that_open_on_it_and_no_others(
+        self, store, corpus
+    ) -> None:
+        """A new bridge on a pair an old one holds replaces it before it is written."""
+        first, second = corpus["a"][0], corpus["b"][0]
+        store.bridges(
+            checked(
+                first, "On the pair.", kind=FactKind.BRIDGE, passage_ids=[first, second]
+            ),
+            checked(
+                second,
+                "On the pair, the other way round.",
+                kind=FactKind.BRIDGE,
+                passage_ids=[second, first],
+            ),
+            checked(
+                first,
+                "On another pair.",
+                kind=FactKind.BRIDGE,
+                passage_ids=[first, corpus["a"][1]],
+            ),
+        )
+
+        assert store.catalog.clear_bridges_on([first, second]) == 2
+        assert [row[0] for row in store.rows("statement")] == ["On another pair."]
+
     def test_a_narrowed_pass_clears_every_bridge_of_the_topics_it_reads(
         self, store, corpus
     ) -> None:
