@@ -2456,27 +2456,32 @@ def test_figures_keeping_their_kinds_in_another_order_are_validated(
 
 
 @pytest.mark.parametrize(
-    ("language", "evidence", "statement"),
+    ("language", "evidence", "statement", "faithful"),
     [
         (
             "fr",
             "Le taux promotionnel est de 5 % pendant 12 mois.",
             "Le taux promotionnel est de 12 % pendant 5 mois.",
+            "Le taux promotionnel est de 5 % pendant 12 mois.",
         ),
         (
             "el",
             "Το επιτόκιο είναι 5 % για 12 μήνες.",
             "Το επιτόκιο είναι 12 % για 5 μήνες.",
+            "Το επιτόκιο είναι 5 % για 12 μήνες.",
         ),
     ],
 )
 def test_a_language_no_pipeline_is_configured_for_never_reaches_the_swap_guard(
-    language, evidence, statement
+    language, evidence, statement, faithful
 ) -> None:
-    """Such a statement is refused at parse, before any figure is compared."""
-    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+    """The traded pair and the faithful one get the same verdict: the guard is inert."""
+    read = Checker(passage(evidence, language=language))
 
-    assert judged.rejection_code != Rejection.UNSUPPORTED_ADDITION
+    assert (
+        read.atomic(statement, 0).rejection_code
+        == read.atomic(faithful, 0).rejection_code
+    )
 
 
 @pytest.mark.parametrize(
@@ -2901,28 +2906,32 @@ def test_a_period_lifted_from_an_uncited_sentence_is_a_swap_across_every_unit_of
 
 
 @pytest.mark.parametrize(
-    ("language", "text", "statement"),
+    ("language", "text", "statement", "faithful"),
     [
         (
             "fr",
             "Un virement arrive sous 24 heures. Un chèque est crédité sous 3 jours.",
             "Un virement arrive sous 3 jours.",
+            "Un virement arrive sous 24 heures.",
         ),
         (
             "el",
             "Η μεταφορά φτάνει σε 24 ώρες. Η επιταγή πιστώνεται σε 3 ημέρες.",
             "Η μεταφορά φτάνει σε 3 ημέρες.",
+            "Η μεταφορά φτάνει σε 24 ώρες.",
         ),
     ],
 )
 def test_a_period_in_a_language_without_a_time_table_is_never_a_swap(
-    language, text, statement
+    language, text, statement, faithful
 ) -> None:
-    """No row, no kind: the guard stays silent rather than guess at another language's units."""
-    from extraction.validation import _named_kind
+    """No row, no kind: the swapped pair and the faithful one get the same verdict."""
+    read = Checker(passage(text, language=language))
 
-    assert _named_kind("jours", language) is None
-    assert _named_kind("ημέρες", language) is None
+    assert (
+        read.atomic(statement, 0).rejection_code
+        == read.atomic(faithful, 0).rejection_code
+    )
 
 
 @pytest.mark.parametrize(
