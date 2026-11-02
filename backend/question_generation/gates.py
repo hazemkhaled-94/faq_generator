@@ -290,7 +290,8 @@ def _misfits(
 _ITEMS = re.compile(r";|(?<!\d),|,(?!\d)")
 
 #: How many items punctuation has to separate before an answer is taken for a
-#: list. Two commas, so `A, B and C` is a list and `Berlin, 2025` is not.
+#: list: `A, B, C` is, `Berlin, 2025` is not. Items joined by a conjunction
+#: are counted off the parse instead, see `_looks_like`.
 _LISTED = 3
 
 #: The same, for a type that asked for a list first: one comma will do. Its
@@ -301,7 +302,9 @@ _LISTED = 3
 _LISTED_WHEN_ASKED = 2
 
 
-def _looks_like(answer: str, verbs: bool, listed: int = _LISTED) -> str:
+def _looks_like(
+    answer: str, verbs: bool, language: str | None, listed: int = _LISTED
+) -> str:
     """The form an answer appears to take, read before any type is consulted.
 
     Which matters because the forms are tried in order and the first that
@@ -311,9 +314,14 @@ def _looks_like(answer: str, verbs: bool, listed: int = _LISTED) -> str:
     form the answer actually has first, where its type allows that form.
 
     `listed` is how many items make a list, which `fitting` lowers for a
-    type whose first form is one, where the answer carries no verb.
+    type whose first form is one, where the answer carries no verb. An
+    answer with no verb is a list too where the parse coordinates two items
+    or more, as `enumerates` reads one: `A, B and C` has one comma and
+    `Kreditkarte und Überweisung` none.
     """
     if len(_ITEMS.split(answer)) >= listed:
+        return AnswerForm.LIST
+    if not verbs and any(map(_coordinated_item, pipeline(language)(answer))):
         return AnswerForm.LIST
     if verbs and len(answer.split()) > 1:
         return AnswerForm.EXPLANATION
@@ -371,6 +379,7 @@ def fitting(
     looks = _looks_like(
         answer,
         verbs,
+        language,
         _LISTED_WHEN_ASKED if asked == AnswerForm.LIST and not verbs else _LISTED,
     )
     tried = (
