@@ -529,7 +529,7 @@ def tidied(
 #: a justified line; and how far below, in line heights, its next line is.
 _SAME_LINE = 1.0
 _SPLIT_GAP = 8.0
-_WRAPPED = 1.6
+_WRAPPED = 2.0
 
 #: How many other pages must print their running items where a paragraph sits
 #: for it to be one, and how near, in points, its left edge and top must be.
@@ -859,38 +859,62 @@ def _split_headings(
 ) -> list[tuple[str, str]]:
     """The pairs of section headers the converter cut one heading into.
 
-    A justified heading comes out as several headers of one level, side by
-    side on one line, and siblings replace one another in the trail. Two are
-    one heading when they sit on one page, level and all, and the second is
-    on the first's line, starting right of it no further than `_SPLIT_GAP`
-    line heights (a justified line's spaces, not the gutter between two
-    columns' headings), or on the line right below it, starting left of it:
-    the heading wrapped.
+    A justified heading comes out as several headers of one level, one after
+    another in reading order with nothing between them, side by side on one
+    line, and siblings replace one another in the trail. Two are one heading
+    when the second is on the first's line, starting right of it no further
+    than `_SPLIT_GAP` line heights (the spaces of a justified line). A header
+    on the line below, within `_WRAPPED` line heights, goes on a heading that
+    already has two fragments on its line and sits under that line: the
+    heading wrapped. A heading of one line under another is a sibling.
     """
-    headings = [
-        item
-        for item, _ in document.iterate_items()
-        if isinstance(item, SectionHeaderItem)
-        and item.content_layer == ContentLayer.BODY
-        and item.self_ref not in skipped
-        and item.prov
-    ]
-    return [
-        (first.self_ref, second.self_ref)
-        for first, second in pairwise(headings)
-        if first.level == second.level and _one_heading(first.prov[-1], second.prov[0])
-    ]
+    pairs: list[tuple[str, str]] = []
+    run: list[SectionHeaderItem] = []
+    for item, _ in document.iterate_items():
+        if (
+            isinstance(item, SectionHeaderItem)
+            and item.content_layer == ContentLayer.BODY
+            and item.self_ref not in skipped
+            and item.prov
+        ):
+            run.append(item)
+            continue
+        pairs += _fragments(run)
+        run = []
+    return pairs + _fragments(run)
 
 
-def _one_heading(first: ProvenanceItem, second: ProvenanceItem) -> bool:
-    """Whether the second box continues the first's heading, on its line or the next."""
-    if first.page_no != second.page_no:
-        return False
-    height = abs(first.bbox.t - first.bbox.b)
-    down = abs(first.bbox.t - second.bbox.t)
-    if down <= _SAME_LINE:
-        return 0 <= second.bbox.l - first.bbox.r <= _SPLIT_GAP * height
-    return down <= _WRAPPED * height and second.bbox.l < first.bbox.l
+def _fragments(run: list[SectionHeaderItem]) -> list[tuple[str, str]]:
+    """The pairs of one run of headers that are fragments of one heading."""
+    pairs: list[tuple[str, str]] = []
+    if not run:
+        return pairs
+    # The fragments on the line the heading is on, and where that line spans.
+    on_line, left, right = 1, run[0].prov[0].bbox.l, run[0].prov[0].bbox.r
+    for first, second in pairwise(run):
+        before, after = first.prov[-1], second.prov[0]
+        height = abs(before.bbox.t - before.bbox.b)
+        down = abs(before.bbox.t - after.bbox.t)
+        same = first.level == second.level and before.page_no == after.page_no
+        if same and down <= _SAME_LINE:
+            beside = 0 <= after.bbox.l - before.bbox.r <= _SPLIT_GAP * height
+        else:
+            beside = False
+        below = (
+            same
+            and on_line >= 2
+            and down <= _WRAPPED * height
+            and after.bbox.l < right
+            and after.bbox.r > left
+        )
+        if beside:
+            pairs.append((first.self_ref, second.self_ref))
+            on_line, right = on_line + 1, max(right, after.bbox.r)
+        else:
+            if below:
+                pairs.append((first.self_ref, second.self_ref))
+            on_line, left, right = 1, after.bbox.l, after.bbox.r
+    return pairs
 
 
 def _opens_lower(text: str) -> bool:

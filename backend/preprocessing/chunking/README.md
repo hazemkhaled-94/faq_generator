@@ -330,11 +330,16 @@ Unit tests stand in only for the database and the passage builder
   auxiliary and the second as opening with a noun or a figure: `Die Gebühr für
   die` and `Ersatzkarte beträgt 15 EUR.` are one sentence.
 - A heading the converter cut into words is joined. Section headers of one
-  level on one page are one heading when the second is on the first's line,
-  right of it by no more than eight line heights, or on the line right below,
-  left of it: a justified `Artikel 9 Disziplinarische` `Tragweite` `von`
-  over `Schiedsrichterentscheidungen` heads its passages whole, article number
-  first. Two columns' headings, a column apart, stay two.
+  level that follow one another in reading order with no other block between
+  them are one heading when the second is on the first's line, right of it by
+  no more than eight line heights (a justified line's spaces). A header on the
+  line below, within two line heights and under the line it follows, goes on
+  a heading that already has two fragments on its line: a justified `Artikel 9
+  Haftung` `des` `Kontoinhabers` over `bei Missbrauch` heads its passages
+  whole, article number first. A heading of one line under another is a
+  sibling, and so is a column's heading, which its own text follows. Two
+  columns' headings that follow each other with nothing between are not told
+  apart from the fragments of one line.
 - A flattened list is nested again by its indents. An item whose left edge
   lies more than half a line right of the item before it, in the same column
   and page, nests under it. Across a column or page break no level opens. A
