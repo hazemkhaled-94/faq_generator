@@ -2860,3 +2860,71 @@ def test_a_minor_unit_in_a_language_without_a_row_names_no_kind(language) -> Non
 
     assert _named_kind("cent", language) is None
     assert _named_kind("cents", language) is None
+
+
+_UNIT_SWAPS = [
+    ("de", "Die Lieferung dauert 3 Tage.", "Die Lieferung dauert 3 Wochen."),
+    ("en", "Delivery takes 3 days.", "Delivery takes 3 weeks."),
+    ("de", "Das Gerät wiegt 4 kg.", "Das Gerät wiegt 4 g."),
+    ("en", "The device weighs 4 kg.", "The device weighs 4 g."),
+    (
+        "de",
+        "Die Kündigungsfrist beträgt 3 Monate.",
+        "Die Kündigungsfrist beträgt 3 Jahre.",
+    ),
+    ("en", "The notice period is 3 months.", "The notice period is 3 years."),
+]
+
+
+@pytest.mark.parametrize(("language", "text", "statement"), _UNIT_SWAPS)
+def test_a_figure_that_keeps_its_digits_and_changes_its_unit_is_refused(
+    language, text, statement
+) -> None:
+    """The digits are cited, but beside another unit: the statement says another thing."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text"), [(one[0], one[1]) for one in _UNIT_SWAPS]
+)
+def test_the_faithful_statement_keeps_its_unit_and_is_validated(language, text) -> None:
+    """The control: the same figure and unit."""
+    judged = Checker(passage(text, language=language)).atomic(text, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.validation_error)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        ("en", "Delivery takes 3 days.", "Delivery takes 3 working days."),
+        ("en", "The fee is 3 EUR a month.", "The fee is 3 EUR per month."),
+        ("de", "Die Lieferung dauert 3 Tage.", "Die Lieferung dauert 3 Tage lang."),
+        ("en", "The bank serves 3 customers.", "The bank serves 3 customers today."),
+    ],
+)
+def test_a_unit_written_with_a_modifier_or_a_neighbour_is_the_same_unit(
+    language, text, statement
+) -> None:
+    """Only another unit lemma beside the same digits is a swap."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        ("fr", "La livraison prend 3 jours.", "La livraison prend 3 semaines."),
+        ("el", "Η παράδοση διαρκεί 3 ημέρες.", "Η παράδοση διαρκεί 3 εβδομάδες."),
+    ],
+)
+def test_a_unit_in_a_language_no_pipeline_is_configured_for_is_refused_at_parse(
+    language, text, statement
+) -> None:
+    """No predicate is read, so the unit is never compared."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.ASSERTS_NOTHING
