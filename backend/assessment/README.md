@@ -203,7 +203,9 @@ comes from few documents. For k = 5, 10, 15 and so on up to the language's
 document count, it draws fifty times k documents and `SIZE` questions (200
 unless given) and prints the mean PoS-CR and its spread. Export with
 citations: a question counts under the first document its Citations rows
-name. A corpus of one document per language has no curve.
+name. A workbook exported with `--no-citations` has no documents, and the
+command says so instead of drawing a curve. A corpus of one document per
+language has no curve.
 
 The export's filter chooses the set. The paper used answerable questions:
 

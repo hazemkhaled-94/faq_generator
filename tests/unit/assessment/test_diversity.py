@@ -671,6 +671,27 @@ def test_the_command_line_draws_the_curve_by_document(
     assert [row.split()[:3] for row in table[1:]] == [["de", "5", "10"]]
 
 
+@pytest.mark.parametrize(
+    ("language", "text"),
+    [("de", "Frage Nummer {}?"), ("en", "Question number {}?")],
+)
+def test_the_curve_by_document_says_a_workbook_without_citations_has_none(
+    tmp_path, exported, capsys, language, text
+) -> None:
+    """A workbook exported with no citations has no document to count, and no curve."""
+    path = tmp_path / "bare.xlsx"
+    path.write_bytes(
+        workbook([asked(i, text.format(i), language) for i in range(1, 13)], [])
+    )
+
+    code = cli.main(
+        ["--diversity", "--file", str(path), "--by", "document", "--size", "10"]
+    )
+
+    assert code == 0
+    assert f"{language}: the workbook carries no citations" in capsys.readouterr().out
+
+
 def test_documents_sharing_a_title_count_apart_by_their_id(
     tmp_path, exported, capsys
 ) -> None:
