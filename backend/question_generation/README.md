@@ -380,6 +380,15 @@ words, so a third language has to be added to each.
 missing does nothing, silently. Unset, `QUESTIONS_PHRASING_MODEL` falls back to
 `QUESTIONS_VERIFIER_MODEL`.
 
+The rule half of `leaks_source` reads three tables of `gates.py`, one row per
+language, German and English alike: the words naming a document, the
+attributions (`laut`, `gemäß`, `according to`, `in accordance with`), and the
+entity labels of an author. An attribution counts only as an adposition, so the
+adjective in `wie laut` attributes nothing. A year beside a proper noun is a
+citation only for a person or an organisation, and a number after a document
+word is its number only if no unit or range follows it. A language with no row
+settles nothing here.
+
 ## Unanswerable questions
 
 Some questions are written to have no answer, by perturbing a verified fact

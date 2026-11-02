@@ -120,9 +120,9 @@ pipeline named `_sm` or without word vectors loads with a warning.
 
 A language missing from a list means that gate silently never fires for it.
 [`test_language_tables.py`](../../tests/static/test_language_tables.py) holds
-the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
-`_ATTRIBUTIONS`, `_AGENTS`, `_HOW_MANY`, `_ANAPHORIC`, `_ASKING` and
-`_SOURCE`, which hold every language's words in one set or pattern.
+the tables keyed by language code to `NLP_MODELS`. It cannot see `_AGENTS`,
+`_HOW_MANY`, `_ANAPHORIC`, `_ASKING` and `_SOURCE`, which hold every
+language's words in one set or pattern.
 
 | List | Where | What goes in it | Example |
 |---|---|---|---|
@@ -130,6 +130,7 @@ the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
 | `_NORMATIVE` | same | Words naming a unit of what a document lays down | `Artikel`, `clause` |
 | `_DOCUMENTS` | same | Words naming a document type, never a subject | `Richtlinie`, `guideline` |
 | `_ATTRIBUTIONS` | same | Words that attribute what follows to a source | `laut`, `according` |
+| `_AUTHORS` | same | The entity labels of your pipeline for a person and an organisation, which make a proper noun beside a year an author | `PER`, `PERSON` |
 | `_AGENTS` | same | Interrogatives that ask after a party, not a thing | `wer`, `who` |
 | `_HOW_MANY` | same | The opening of a question asking for a count | `wie viele`, `how many` |
 | `_COUNTS` | same | Counts written out, read off `CARDINALS` in [`analysis.py`](analysis.py) | `zwei`, `two` |
@@ -180,7 +181,7 @@ No list is matched as a substring: `Risikobericht` is a thing a corpus is
 about, and `Bericht` is a thing a corpus is. Each list is matched as follows.
 
 - By lemma: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC`, `_ASKING`.
-- By lemma or the word as written: `_ATTRIBUTIONS`, `_SOURCE` and the two
+- By lemma or the word as written, `_ATTRIBUTIONS` only as an adposition: `_ATTRIBUTIONS`, `_SOURCE` and the two
   modifier tables (also with an `_ADJECTIVE_ENDINGS` ending).
 - By the word as written: `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
   `_EXCEPTIVE`, `_POLITE`, `_GENITIVE_DEMONSTRATIVES`,

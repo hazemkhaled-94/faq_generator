@@ -838,9 +838,10 @@ def subject(question: str, language: str | None) -> str:
     return " ".join(named)
 
 
-#: ponytail: `_DOCUMENTS` and `_ATTRIBUTIONS` hold German and English words
-#: only; a third language names its source past them. Upgrade: a
-#: per-language list setting.
+#: ponytail: the tables below hold German and English only, one row per
+#: language, and a language without a row is read by none of them: a newly
+#: configured language supplies its row of each. Upgrade: a per-language
+#: list setting.
 #:
 #: Words that name a part of a document's LAYOUT, by language, and so say
 #: WHERE an answer is once one is numbered. `Abschnitt 2.2` is a citation;
@@ -872,41 +873,64 @@ _NORMATIVE: dict[str, frozenset[str]] = {
     "en": frozenset({"article", "clause", "paragraph", "rule", "law"}),
 }
 
-#: Words naming a document itself. Read by lemma and never as a substring,
-#: because German compounds: `Risikobericht` is a thing the corpus is about
-#: and `Bericht` is a thing the corpus IS, and a substring test cannot tell
-#: them apart.
-_DOCUMENTS = frozenset(
-    {
-        "lehrplan",
-        "norm",
-        "bericht",
-        "dokument",
-        "handbuch",
-        "richtlinie",
-        "verordnung",
-        "rundschreiben",
-        "leitfaden",
-        "vereinbarung",
-        "syllabus",
-        "report",
-        "document",
-        "circular",
-        "regulation",
-        "standard",
-        "guideline",
-        "manual",
-        "agreement",
-        "specification",
-    }
-)
+#: Words naming a document itself, by language. Read by lemma and never as a
+#: substring, because German compounds: `Risikobericht` is a thing the corpus
+#: is about and `Bericht` is a thing the corpus IS, and a substring test
+#: cannot tell them apart. The rows are each other's counterparts, so one
+#: question settles alike in either language.
+_DOCUMENTS: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {
+            "lehrplan",
+            "norm",
+            "bericht",
+            "dokument",
+            "handbuch",
+            "richtlinie",
+            "verordnung",
+            "rundschreiben",
+            "leitfaden",
+            "vereinbarung",
+            "standard",
+            "spezifikation",
+        }
+    ),
+    "en": frozenset(
+        {
+            "syllabus",
+            "standard",
+            "report",
+            "document",
+            "manual",
+            "directive",
+            "regulation",
+            "circular",
+            "guide",
+            "guideline",
+            "agreement",
+            "specification",
+        }
+    ),
+}
 
-#: Lemmas that attribute what follows them to a source. `laut dem
-#: Jahresbericht` says where the answer is whatever the noun turns out to be,
-#: so this one needs nothing beside it.
-#: Read on the lemma and on the word, because spaCy lemmatises `according`
-#: to `accord`.
-_ATTRIBUTIONS = frozenset({"laut", "gemäß", "ausweislich", "according"})
+#: Lemmas that attribute what follows them to a source, by language. `laut
+#: dem Jahresbericht` says where the answer is whatever the noun turns out to
+#: be, so this one needs nothing beside it. Only as an adposition, or the head
+#: of one (`according` to): `Wie laut ist ...` is an adjective and attributes
+#: nothing. Read on the lemma and on the word, because spaCy lemmatises
+#: `according` to `accord`.
+_ATTRIBUTIONS: dict[str, frozenset[str]] = {
+    "de": frozenset({"laut", "gemäß", "ausweislich"}),
+    "en": frozenset({"according", "accordance", "pursuant"}),
+}
+
+#: The entity labels that make a proper noun beside a year an author, by
+#: language: a person or an organisation, in the labels the configured
+#: pipelines give. `Mastercard Gold 2025` is neither.
+_AUTHORS: dict[str, frozenset[str]] = {
+    "de": frozenset({"PER", "ORG"}),
+    "en": frozenset({"PERSON", "ORG"}),
+}
 
 #: A bracketed reference as a bibliography writes one: `[R22]`, `[12]`.
 _BRACKETED = re.compile(r"\[[A-Za-z]{0,3}\s?\d{1,4}[a-z]?\]")
@@ -926,14 +950,41 @@ def _identifier(token) -> bool:
 _ATTRIBUTED_WITHIN = 4
 
 
-def _names_something(following: Sequence) -> bool:
+def _names_something(following: Sequence, documents: frozenset[str]) -> bool:
     """Whether what an attribution points at is named rather than pointed at."""
     for token in following[:_ATTRIBUTED_WITHIN]:
         if token.pos_ == "PROPN" or _identifier(token):
             return True
-        if token.lemma_.casefold() in _DOCUMENTS:
+        if token.lemma_.casefold() in documents:
             return True
     return False
+
+
+def _adposition(token) -> bool:
+    """Whether a token is an adposition or the head of one: `laut`, `according` to."""
+    return token.pos_ == "ADP" or any(child.pos_ == "ADP" for child in token.children)
+
+
+#: How a figure hangs off the noun it counts, in the English and German pipelines.
+_COUNTS_A_NOUN = frozenset({"nummod", "nk"})
+
+
+def _numbers_a_document(token, following) -> bool:
+    """Whether a digit token numbers the document noun before it.
+
+    Not where a unit sticks to it (`24h`), a range runs on from it (`3-5`), or
+    it counts a noun that comes after it (`Standard 2 plan`): that is a
+    service level, a size or a tariff, and the document word is its name.
+    """
+    if re.search(r"\d[^\W\d_]", token.text):
+        return False
+    if len(following) > 1 and following[0].text in "-–" and is_number(following[1]):
+        return False
+    return not (
+        token.dep_ in _COUNTS_A_NOUN
+        and token.head.i > token.i
+        and token.head.pos_ in ("NOUN", "PROPN")
+    )
 
 
 def cites_source(question: str, language: str | None) -> bool | None:
@@ -958,6 +1009,9 @@ def cites_source(question: str, language: str | None) -> bool | None:
     code = (language or "").strip().lower()
     divisions = _DIVISIONS.get(code, frozenset())
     normative = _NORMATIVE.get(code, frozenset())
+    documents = _DOCUMENTS.get(code, frozenset())
+    attributions = _ATTRIBUTIONS.get(code, frozenset())
+    authors = _AUTHORS.get(code, frozenset())
     names_a_rule = False
     tokens = list(document)
     for position, token in enumerate(tokens):
@@ -969,8 +1023,12 @@ def cites_source(question: str, language: str | None) -> bool | None:
         # question points at and never names, which is a question failing to
         # stand on its own rather than one citing a source, and the two are
         # different gates.
-        attributes = lemma in _ATTRIBUTIONS or token.lower_ in _ATTRIBUTIONS
-        if attributes and _names_something(tokens[position + 1 :]):
+        attributes = lemma in attributions or token.lower_ in attributions
+        if (
+            attributes
+            and _adposition(token)
+            and _names_something(tokens[position + 1 :], documents)
+        ):
             return True
         # `Abschnitt 2.2`, `Kapitel 5`, `section 4`.
         numbered = following is not None and _identifier(following)
@@ -987,15 +1045,23 @@ def cites_source(question: str, language: str | None) -> bool | None:
         # 2026` is a date, which the entity reading marks and a citation is not.
         if (
             token.pos_ == "PROPN"
-            and token.ent_type_ != "DATE"
+            and token.ent_type_ in authors
             and following is not None
             and _CITED_YEAR.match(following.text.strip())
         ):
             return True
         # A noun: `the standard 48-hour window` uses the word as an adjective.
-        if lemma in _DOCUMENTS and token.pos_ in ("NOUN", "PROPN"):
+        if lemma in documents and (
+            token.pos_ in ("NOUN", "PROPN")
+            # A tagger reads a capitalised `Directive` mid-sentence as a verb.
+            or (token.pos_ in ("VERB", "X") and position and token.text.istitle())
+        ):
             # `die Norm ISO/IEC 20246`: the document named and numbered.
-            if following is not None and _identifier(following):
+            if (
+                following is not None
+                and _identifier(following)
+                and _numbers_a_document(following, tokens[position + 2 :])
+            ):
                 return True
             # `in diesem Lehrplan`: the question pointing at the corpus it
             # is asked of. Only for a word that names a document - `in
