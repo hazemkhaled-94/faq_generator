@@ -261,7 +261,7 @@ SETTINGS: tuple[Setting, ...] = (
         "and kind and over the facts of another kind one passage already "
         "kept; a fact naming other numbers is never a twin. Near identity, "
         "because bare statements on one subject score high. 0 turns the gate "
-        "off and writes no vectors. Raised, `make extract-dedup` gives back the "
+        "off; the vectors are written all the same. Raised, `make extract-dedup` gives back the "
         "refusals it no longer makes, without calling the model; lowered, only "
         "`make extract-rerun` refuses the new twins.",
     ),
