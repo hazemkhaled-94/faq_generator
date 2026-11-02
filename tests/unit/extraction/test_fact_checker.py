@@ -2657,3 +2657,60 @@ def test_a_german_month_is_a_unit_whatever_the_tagger_calls_it() -> None:
 
     assert "mai" in claim("Der Bericht vom Mai ist fertig.", "de").units
     assert "montag" in claim("Die Filiale ist montags geöffnet.", "de").units
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        ("de", "Die Gebühr beträgt 5 EUR.", "Die Gebühr beträgt 5 USD."),
+        ("en", "The fee is 5 EUR.", "The fee is 5 USD."),
+        ("de", "Die Gebühr beträgt 5 €.", "Die Gebühr beträgt 5 $."),
+        ("en", "The fee is €5.", "The fee is $5."),
+        ("de", "Die Gebühr beträgt 5 Euro.", "Die Gebühr beträgt 5 Franken."),
+        ("en", "The fee is 5 euros.", "The fee is 5 dollars."),
+    ],
+)
+def test_a_fact_in_another_currency_is_refused(language, text, statement) -> None:
+    """Whichever way each language's tagger reads a code, a sign or a name."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        ("de", "Die Gebühr beträgt 5 EUR.", "Die Gebühr beträgt 5 Euro."),
+        ("de", "Die Gebühr beträgt 5 Euro.", "Die Gebühr beträgt 5 €."),
+        ("de", "Die Gebühr beträgt 5 $.", "Die Gebühr beträgt 5 USD."),
+        ("en", "The fee is €5.", "The fee is 5 euros."),
+        ("en", "The fee is 5 dollars.", "The fee is $5."),
+        ("en", "The fee is 5 GBP.", "The fee is 5 pounds."),
+    ],
+)
+def test_the_same_currency_in_another_spelling_is_validated(
+    language, text, statement
+) -> None:
+    """A code, a sign and a name of one currency are one unit."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "unit"),
+    [
+        ("fr", "La redevance est de 5 $ par mois.", "usd"),
+        ("fr", "La redevance est de 5 € par mois.", "eur"),
+        ("el", "Η χρέωση είναι 5 $ τον μήνα.", "usd"),
+        ("el", "Η χρέωση είναι 5 € τον μήνα.", "eur"),
+        ("fr", "La redevance est de 5 CHF par mois.", "chf"),
+    ],
+)
+def test_a_sign_or_code_reads_the_same_in_a_language_without_a_currency_row(
+    language, text, unit
+) -> None:
+    """Signs and ISO codes are no language's words; only the names need a row."""
+    from nlp.analysis import claim
+
+    assert unit in claim(text, language).currencies

@@ -628,12 +628,34 @@ CALENDAR_NAMES: dict[str, dict[str, str]] = {
 }
 
 
-def _folded(token: Token, language: str | None) -> str | None:
+def _calendar(token: Token, language: str | None) -> str | None:
     """The form a month or weekday name is folded to, or None for any other token."""
     names = CALENDAR_NAMES.get((language or token.doc.lang_).strip().lower(), {})
     return next(
         (
             names[form]
+            for form in (token.lower_, token.lemma_.casefold())
+            if form in names
+        ),
+        None,
+    )
+
+
+def _currency(token: Token, language: str | None) -> str | None:
+    """The lower-case ISO code a currency token is folded to, or None for any other token.
+
+    A code, a sign and one of the language's `CURRENCY_NAMES` fold to the same
+    code, whatever the tagger calls the token.
+    """
+    bare = token.text.strip(".,;:()")
+    if bare in ISO_4217:
+        return bare.lower()
+    if len(bare) == 1 and unicodedata.category(bare) == "Sc":
+        return _SIGN_CODES.get(bare, bare).lower()
+    names = CURRENCY_NAMES.get((language or token.doc.lang_).strip().lower(), {})
+    return next(
+        (
+            names[form].lower()
             for form in (token.lower_, token.lemma_.casefold())
             if form in names
         ),
@@ -671,7 +693,7 @@ def _units(span: Doc | Span, language: str | None = None) -> tuple[str, ...]:
         if is_number(token):
             # An ordinal keeps what marks it, so `3.` is not the count 3.
             found.add((token.text if ordinal(token) else _bare(token.text)).casefold())
-        elif name := _folded(token, language):
+        elif name := _calendar(token, language):
             found.add(name)
         elif token.pos_ == "PROPN":
             if (
@@ -820,6 +842,28 @@ CARDINALS: dict[str, dict[str, int]] = {
 #: A language missing here reads three digits after either mark as thousands.
 DECIMAL_MARK: dict[str, str] = {"de": ",", "en": "."}
 
+#: The names each language gives its currencies, by ISO 639-1 code, as lower
+#: case, each with the ISO 4217 code it names. The fact check folds a name, a
+#: code and a sign to that code, so `5 Euro`, `5 EUR` and `5 €` are one
+#: amount and `5 USD` is another. A language missing here has no names to
+#: fold: its codes and signs still are. A newly configured language
+#: supplies the names it writes, plurals included.
+CURRENCY_NAMES: dict[str, dict[str, str]] = {
+    "de": {"euro": "EUR", "dollar": "USD", "pfund": "GBP", "franken": "CHF"},
+    "en": {
+        "euro": "EUR",
+        "euros": "EUR",
+        "dollar": "USD",
+        "dollars": "USD",
+        "pound": "GBP",
+        "pounds": "GBP",
+    },
+}
+
+#: The code each of the commonest currency signs stands for. A sign missing
+#: here is its own form.
+_SIGN_CODES = {"€": "EUR", "$": "USD", "£": "GBP", "¥": "JPY"}
+
 #: The words that mark an amount of money, by ISO 639-1 code, as lower case:
 #: codes and names. A number grouped by a space - `5 000 Euro`,
 #: `EUR 100 000`, `12 500.00 GBP` (DIN 5008 and SI) - is read as one figure
@@ -836,32 +880,8 @@ DECIMAL_MARK: dict[str, str] = {"de": ",", "en": "."}
 #: yearly 120) is read as 5120. Upgrade: read a longer run where a currency
 #: stands beside each of its numbers, and a row by its table cells.
 AMOUNT_WORDS: dict[str, frozenset[str]] = {
-    "de": frozenset(
-        [
-            "eur",
-            "euro",
-            "usd",
-            "dollar",
-            "gbp",
-            "pfund",
-            "chf",
-            "franken",
-        ]
-    ),
-    "en": frozenset(
-        [
-            "eur",
-            "euro",
-            "euros",
-            "usd",
-            "dollar",
-            "dollars",
-            "gbp",
-            "pound",
-            "pounds",
-            "chf",
-        ]
-    ),
+    language: frozenset(names) | {code.lower() for code in names.values()}
+    for language, names in CURRENCY_NAMES.items()
 }
 
 #: The currency codes of ISO 4217: a static international standard, the same
@@ -2682,7 +2702,11 @@ def vocabulary(text: str, language: str | None) -> frozenset[str]:
         for variant in (form, _bare(form))
         # An ordinal figure, `3.`, is no bare 3 as well.
         if variant and not (variant != form and ordinal(token))
-    ) | {name for token in document if (name := _folded(token, language))}
+    ) | {
+        name
+        for token in document
+        if (name := _calendar(token, language) or _currency(token, language))
+    }
 
 
 def content(text: str, language: str | None) -> frozenset[str]:
@@ -2797,6 +2821,9 @@ def claim(
     return Claim(
         predicates=_predicates(document) or int(_untagged_claim(document)),
         units=_units(document, language),
+        currencies=tuple(
+            sorted({one for token in document if (one := _currency(token, language))})
+        ),
         references=_references(document, passages, title),
         verbs=_verbs(document),
         figures=_figures(document),

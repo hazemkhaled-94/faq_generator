@@ -170,7 +170,7 @@ class Judged:
         """
         added = tuple(
             unit
-            for unit in self.claim.units + self.claim.figures
+            for unit in self.claim.units + self.claim.figures + self.claim.currencies
             if unit not in self.evidence_vocabulary and unit not in self.supported
         )
         return added + tuple(unit for unit, _ in self.swaps if unit not in added)
@@ -578,7 +578,11 @@ class FactChecker:
             claim=said,
             evidence_vocabulary=frozenset(known),
             supported=_supported_units(
-                said.units + said.figures, known, numbers, anchor.language, statement
+                said.units + said.figures + said.currencies,
+                known,
+                numbers,
+                anchor.language,
+                statement,
             ),
             citations=tuple(one for _, one in rested),
             labels=tuple(
@@ -658,7 +662,7 @@ class FactChecker:
         language = passage.language
         statement = candidate.statement.strip()
         said = claim(statement, language, (passage.text,), passage.title)
-        units = said.units + said.figures
+        units = said.units + said.figures + said.currencies
         known, numbers = _carried(evidence, passage)
         known |= numbers
         supported = _supported_units(units, known, numbers, language, statement)

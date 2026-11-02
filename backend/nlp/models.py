@@ -37,6 +37,11 @@ class Claim:
     #: score, a figure glued to its unit - `08:00`, `2.5x`. Apart from
     #: `units` because only the checks for an invented value read them.
     figures: tuple[str, ...] = ()
+    #: The currencies the statement names, each folded to its lower-case ISO
+    #: code whether written as the code, a sign or a name. Apart from `units`
+    #: because only the fact check compares them: a question's key and its
+    #: recovery are not asked for the currency.
+    currencies: tuple[str, ...] = ()
 
 
 #: What each configured language is called, for a prompt that has to name it.
