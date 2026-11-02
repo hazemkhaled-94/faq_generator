@@ -916,20 +916,6 @@ def is_currency(word: str, language: str | None) -> bool:
     )
 
 
-#: The words of a language that name a share, by ISO 639-1 code, as lower
-#: case: `%` is one in every language. A newly configured language supplies
-#: its own word, or reads a share written out as a word of its own kind.
-SHARE_WORDS: dict[str, frozenset[str]] = {
-    "de": frozenset({"%", "prozent"}),
-    "en": frozenset({"%", "percent"}),
-}
-
-#: The symbols of the SI units of mass, length and volume, as lower case:
-#: an international standard, the same in every language. `4 g` is not `4 kg`.
-MEASURES = frozenset(
-    {"mg", "g", "kg", "t", "mm", "cm", "dm", "m", "km", "ml", "cl", "dl", "l"}
-)
-
 #: The words that label a reference by a number, by ISO 639-1 code, as lower
 #: case: `Section 3 100 customers` is a section and a count, whatever stands
 #: after it.
@@ -1351,35 +1337,11 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
     return tuple(sorted(found))
 
 
-#: A pair of digits a dot apart that a clock may write: `18.00`, `8.30`.
-_DOTTED_CLOCK = re.compile(r"([01]?\d|2[0-4])\.([0-5]\d)")
-
-
-def _measured(document: Doc, at: int, language: str | None) -> bool:
-    """Whether a currency, a share or an SI unit stands right before or after the figure at `at`."""
-    code = (language or document.lang_).strip().lower()
-    for near in (at - 1, at + 1):
-        if 0 <= near < len(document):
-            word = document[near].text.strip(".,;:()")
-            if (
-                is_currency(word, language)
-                or word == "%"
-                or word.casefold() in SHARE_WORDS.get(code, ())
-                or word.casefold() in MEASURES
-            ):
-                return True
-    return False
-
-
 def numerals(text: str, language: str | None) -> frozenset[str]:
     """The digit runs and number-word values a text carries, in any spelling.
 
     A run is read as the number it is, its leading zeros dropped, so
     `08:00` carries the 8 and the 0 that `8:00` does and `09:00` does not.
-
-    A dotted pair of digits a clock may write, `18.00`, carries its hour and
-    its minute beside its decimal value, unless a currency, a share or an
-    SI unit stands beside it: `EUR 12.30` has no 30.
     """
     document = _read(text, language)
     found: set[str] = set()
@@ -1390,10 +1352,6 @@ def numerals(text: str, language: str | None) -> frozenset[str]:
             found.update(
                 _PADDING.sub("", _value(one, document.lang_)) for one in digits
             )
-        if (clock := _DOTTED_CLOCK.fullmatch(token.text.strip(".,;:()"))) and not (
-            _measured(document, token.i, language)
-        ):
-            found.update(_PADDING.sub("", group) for group in clock.groups())
     return frozenset(
         found | {one for one in _spoken(document).values() if one and one.isdigit()}
     )
