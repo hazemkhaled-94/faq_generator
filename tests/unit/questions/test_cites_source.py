@@ -39,6 +39,17 @@ def test_an_author_and_year_is_still_one(question, language):
     assert cites_source(question, language) is True
 
 
+# Known limits of the author-and-year rule: it follows the tagger's entities.
+def test_a_surname_the_german_tagger_gives_no_entity_is_left_to_the_judge():
+    """No person or organisation entity, no citation here: the phrasing judge reads it."""
+    assert cites_source("Was schlägt Müller 2003 vor?", "de") is None
+
+
+def test_a_product_led_by_a_brand_the_english_tagger_calls_an_organisation_still_cites():
+    """A product the tagger reads as an organisation is read as an author."""
+    assert cites_source("What is the price of the Samsung Galaxy 2024?", "en") is True
+
+
 # N-028: a service level named Standard is not a numbered document.
 @pytest.mark.parametrize(
     ("question", "language"),

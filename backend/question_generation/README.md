@@ -385,7 +385,8 @@ language, German and English alike: the words naming a document, the
 attributions (`laut`, `gemäß`, `according to`, `in accordance with`), and the
 entity labels of an author. An attribution counts only as an adposition, so the
 adjective in `wie laut` attributes nothing. A year beside a proper noun is a
-citation only for a person or an organisation, and a number after a document
+citation only for a person or an organisation the tagger reads as one, so a
+product the tagger does not read as an organisation is none, and a number after a document
 word is its number only if no unit or range follows it. A language with no row
 settles nothing here.
 
