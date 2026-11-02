@@ -623,6 +623,12 @@ separately: `types.PROMPT_VERSION` for the thirteen writers,
 `phrasing.PROMPT_VERSION` for the three wording judgements, and
 `verifier.PROMPT_VERSION` for the verifier's reads.
 
+The worked examples in the writers' and the phrasing judge's prompts come from
+subjects neither calibration corpus covers (libraries, permits, leases).
+`tests/static/test_prompts_name_no_domain.py` lists the words of the football and
+shop corpora and of the testing syllabi, in German and English, and fails a
+prompt that carries one.
+
 The stage records what it sends at start-up: [`prompts.py`](prompts.py)
 declares it and `stages.prompts` writes it to the `prompts` table, with the
 system message, the user message as its template, and the JSON schema. Read one

@@ -1602,8 +1602,8 @@ def test_every_writer_is_told_the_reader_never_sees_the_passage() -> None:
         flat = " ".join(system.split())
         assert "THE READER NEVER SEES THE PASSAGE" in system
         assert "never refer to the document, the article" in flat
-        assert "an online shop refund a returned purchase" in flat
-        assert "Kreditvertrag" in system
+        assert "a borrower return a library book" in flat
+        assert "Entleiher ein Buch" in system
 
 
 def test_an_unanswerable_slot_has_no_key_to_name_a_case_for() -> None:

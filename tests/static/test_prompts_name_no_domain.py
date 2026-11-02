@@ -89,6 +89,25 @@ SUBJECTS = (
     "arbeitslosenquote",
     "liquiditätsmanagement",
     "bankensektor",
+    # The football rules and the shop corpus the calibrations run on, in both
+    # languages. A worked example drawn from either biases the leg that
+    # measures a change against it.
+    "syllab",
+    "examinable",
+    "schiedsrichter",
+    "referee",
+    "offside",
+    "abseits",
+    "handspiel",
+    "elfmeter",
+    "yellow card",
+    "gelbe karte",
+    "kreditvertrag",
+    "widerruf",
+    "online shop refund",
+    "cooling-off",
+    "distance contract",
+    "fernabsatz",
 )
 
 
@@ -248,3 +267,24 @@ def test_the_guide_names_no_list_that_has_been_deleted() -> None:
 
     assert named, "the guide's table of lists was not found"
     assert not stale, f"named but no longer defined: {stale}"
+
+
+#: What a person reaching for the nearest real example pastes in, from the
+#: corpora the guard is aimed at.
+PASTED = [
+    # The syllabi corpus, in English: the German form is listed.
+    'Name the thing instead: "between these two syllabi" is unanswerable.',
+    # The football corpus, both languages.
+    "WRONG: Wann zeigt der Schiedsrichter bei einem Handspiel die Gelbe Karte?",
+    "RIGHT: When is a player in an offside position penalised by the referee?",
+    # The shop corpus, both languages.
+    'RIGHT "Binnen welcher Frist kann ein Kunde einen Kreditvertrag widerrufen?"',
+    'RIGHT "How long is the cooling-off period for a distance contract?"',
+    'RIGHT "Within how many days must an online shop refund a returned purchase?"',
+]
+
+
+@pytest.mark.parametrize("prompt", PASTED)
+def test_the_guard_names_a_word_of_every_corpus_it_was_aimed_at(prompt: str) -> None:
+    """The list names the football and shop corpora as well as the syllabi, in both languages."""
+    assert [one for one in SUBJECTS if one in prompt.casefold()]

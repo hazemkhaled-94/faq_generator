@@ -31,7 +31,7 @@ from database.qa_generator import (
 #: Recorded in the log beside every question written with the prompts below.
 #: Bumped whenever one changes what a question is: two prompts are two
 #: datasets, as with extraction.
-PROMPT_VERSION = "32"
+PROMPT_VERSION = "33"
 
 #: Every gate, in the order `checker.check` applies them, cheapest first.
 #: What `CheckedQuestion.gates_ran` and `questions.gates_ran` are a subset
@@ -139,7 +139,7 @@ READS = """Rules, all of them mandatory:
 - POINT AT NOTHING THE ASKER CANNOT SEE. No "this", "these", "that one", "the
   said", "the two above", "the aforementioned" - the reader has no passage in
   front of them, so a word pointing outside the question points at nothing.
-  Name the thing instead: "between these two syllabi" is unanswerable, "between
+  Name the thing instead: "between these two leaflets" is unanswerable, "between
   the 2022 and 2024 editions" is a question. This applies to every question
   asked cold; only a follow-up in a conversation may lean on what came before.
 
@@ -148,12 +148,10 @@ READS = """Rules, all of them mandatory:
   article, the section or the regulation: "the article" and "the regulation"
   mean nothing to somebody who has not read it.
 
-    WRONG  "Within what period does the regulation require the refund?"
-    RIGHT  "Within how many days must an online shop refund a returned
-            purchase?"
-    WRONG  "Welche Frist nennt der Artikel für den Widerruf?"
-    RIGHT  "Binnen welcher Frist kann ein Kunde einen Kreditvertrag
-            widerrufen?"
+    WRONG  "Within what period does the regulation require the book back?"
+    RIGHT  "Within how many days must a borrower return a library book?"
+    WRONG  "Welche Frist nennt der Artikel für die Rückgabe?"
+    RIGHT  "Binnen welcher Frist muss ein Entleiher ein Buch zurückgeben?"
 
 - NO PADDING WORDS. Nobody typing a question into a search box writes the
   equivalent of "specific", "concrete" or "particular" - in any language they
@@ -300,13 +298,13 @@ THIS CALL HAS AN EXTRA REQUIREMENT:
   and `Document B`, they are different material and may simply disagree. A
   claim from one is not a claim about the other, and the two do not average.
 
-    WRONG  "How many chapters with examinable content does the syllabus
-            have?" answered "once three, once eight"
+    WRONG  "How many reading rooms does the library have?" answered
+            "once three, once eight"
            (two documents answering differently is not one answer; the
             question has no single truth and nobody can be marked on it)
 
-    RIGHT  "How do the two syllabi differ in the number of chapters with
-            examinable content?"
+    RIGHT  "How do the two annual reports differ in the number of reading
+            rooms?"
            (asks about the difference, which IS one thing, and is true)
     RIGHT  ask about one document and cite only its fact
 
