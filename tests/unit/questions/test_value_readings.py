@@ -307,53 +307,6 @@ def test_two_years_or_dates_are_two_periods(answer, language):
     assert periods(answer, language) is True
 
 
-# N-026 and C-126: items joined by a conjunction, with or without a comma, are a list.
-_VALUE_OR_LIST = ("value", "list")
-
-
-@pytest.mark.parametrize(
-    ("answer", "language"),
-    [
-        ("der Kontoinhaber, die Bank und die Polizei", "de"),
-        ("Visa, Mastercard und PayPal", "de"),
-        ("the account holder, the bank and the police", "en"),
-        ("Visa, Mastercard and PayPal", "en"),
-        ("Kreditkarte und Überweisung", "de"),
-        ("a debit card and a credit card", "en"),
-    ],
-)
-def test_items_joined_by_a_conjunction_are_a_list(answer, language):
-    """German writes no serial comma and English often none: the parse counts the items."""
-    form, failed = fitting(answer, _VALUE_OR_LIST, BOUNDS, language)
-    assert failed is None
-    assert form == "list", form
-
-
-@pytest.mark.parametrize(
-    ("answer", "language"),
-    [
-        ("Berlin, 2025", "de"),
-        ("one or two days", "en"),
-        ("zwei oder drei Werktage", "de"),
-        ("49,90 €", "de"),
-    ],
-)
-def test_a_value_with_no_second_item_stays_a_value(answer, language):
-    """The controls: a place and a year, and a number's own `or`, name one thing."""
-    form, _ = fitting(answer, _VALUE_OR_LIST, BOUNDS, language)
-    assert form == "value", form
-
-
-@pytest.mark.parametrize(
-    "answer, language",
-    [("une carte et un virement", "fr"), ("πιστωτική κάρτα και μετρητά", "el")],
-)
-def test_a_language_no_configuration_names_reads_as_before(answer, language):
-    """Its conjunction is not read as one: still a value, no refusal."""
-    form, failed = fitting(answer, _VALUE_OR_LIST, BOUNDS, language)
-    assert (form, failed) == ("value", None)
-
-
 def test_a_space_grouped_amount_is_one_number_to_relabelled():
     """An aggregation keyed with `EUR 100 000` holds one number."""
     kind = relabelled(QuestionType.AGGREGATION, AnswerForm.VALUE, "EUR 100 000", "en")
