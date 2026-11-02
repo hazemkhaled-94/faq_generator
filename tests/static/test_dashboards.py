@@ -224,3 +224,15 @@ def test_no_panel_matches_a_run_by_suffix() -> None:
             for run in ("a", "b-a", "a_b", "4-extraction", "a__b"):
                 taken = re.sub(prefix, "", pipeline.project(stage, run))
                 assert taken == run, (sql, stage, run)
+
+
+def test_the_filebeat_template_keeps_no_replica_on_a_single_node() -> None:
+    """One node cannot place a replica, so the cluster would read yellow for good.
+
+    A permanent yellow trains an operator to ignore the health that would show
+    a real fault. The template is reinstalled on every start, so the setting is
+    applied to the index it creates.
+    """
+    shipper = yaml.safe_load(FILEBEAT.read_text())
+
+    assert shipper["setup.template.settings"]["index.number_of_replicas"] == 0

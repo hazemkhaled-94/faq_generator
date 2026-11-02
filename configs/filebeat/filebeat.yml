@@ -90,6 +90,13 @@ setup.ilm.enabled: false
 # before the first event.
 setup.template.overwrite: true
 
+# No replica. There is one Elasticsearch node, which cannot hold a replica of
+# its own shard, so the default of one left the cluster yellow for good, and a
+# permanent yellow is a health nobody reads. Applied by the template above, on
+# every start.
+setup.template.settings:
+  index.number_of_replicas: 0
+
 # The fields the application adds beside ECS, so they arrive as something
 # aggregatable. Left to dynamic mapping a string becomes `text` with a
 # `.keyword` under it, and a Grafana panel grouping by `stage` then finds
