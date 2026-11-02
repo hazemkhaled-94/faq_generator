@@ -237,6 +237,33 @@ class TestCommandLine:
         assert run.main(["--bridge"]) == 3, "a refused start, which no unit restarts"
         assert bridged == []
 
+    @pytest.mark.parametrize(
+        ("flags", "orphaned"), [([], False), (["--orphaned"], True)]
+    )
+    def test_a_dedup_replay_reads_every_refusal_or_the_orphans_alone(
+        self, monkeypatch, flags, orphaned
+    ) -> None:
+        """`--orphaned` is the replay a deletion needs: nothing else is re-decided."""
+        import os
+
+        from extraction import run
+
+        asked: list[dict] = []
+
+        def replayed(*_, **kwargs) -> int:
+            asked.append(kwargs)
+            return 0
+
+        monkeypatch.setattr(run, "snapshot", lambda *_: (dict(os.environ), "v1"))
+        monkeypatch.setattr(run, "dedup", replayed)
+        monkeypatch.setattr(run, "PassageQueue", lambda: None)
+        monkeypatch.setattr(run, "FactCatalog", lambda version: None)
+        monkeypatch.setattr("stages.cli.telemetry.configure", lambda *_, **__: None)
+
+        run.main(["--dedup", *flags])
+
+        assert [one["orphaned"] for one in asked] == [orphaned]
+
 
 def test_the_digest_reader_shares_the_passage_reader_by_default() -> None:
     """One model for both, which is what it was before it could be two."""

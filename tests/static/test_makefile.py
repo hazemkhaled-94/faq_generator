@@ -230,6 +230,7 @@ def test_the_corpus_replays_the_dedup_before_a_bridge_or_a_question_needs_the_fa
 
     assert dedup, "the corpus never replays the dedup"
     assert dedup[0] < bridged < questions
+    assert "--orphaned" in lines[dedup[0]], "only the refusals whose twin is gone"
 
 
 def test_the_corpus_writes_the_bridges_its_topics_are_missing() -> None:

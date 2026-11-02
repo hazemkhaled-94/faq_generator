@@ -1025,7 +1025,7 @@ extract-recap:
 extract-dedup:
 	@$(call IDLE,extract-worker)
 	@$(BANNER)
-	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --dedup $(ONLY)
+	$(LOADENV) && PYTHONPATH=backend poetry run python -m extraction.run --dedup $(if $(ORPHANED),--orphaned) $(ONLY)
 
 # Write the vectors onto passages and facts already stored. No model is
 # called - a vector is read off a statement that is already written - so a
@@ -2369,8 +2369,9 @@ all:
 # The dedup replay after the digests, so a refusal whose twin went with a
 # document deleted through the API or the pages is given back before a bridge
 # or a question reads the facts: no extraction worker runs on this profile to
-# do it. It touches only the refusals that point at no twin, and asks nothing
-# of a served model.
+# do it. ORPHANED=1: only the refusals that point at no twin, so a threshold
+# changed between two runs re-decides nothing, and nothing is asked of a served
+# model.
 #
 # The judge last, and unconditionally: `assessment.run` reads
 # ASSESSMENT_ENABLED itself, says so and exits 0 when it is off. A `case`
@@ -2385,7 +2386,7 @@ corpus:
 	$(MAKE) chunk-start $(CORPUS_PINS)     && $(MAKE) chunk $(CORPUS_PINS)
 	$(MAKE) extract-start $(CORPUS_PINS)   && $(MAKE) extract $(CORPUS_PINS)
 	$(MAKE) extract-digests $(CORPUS_PINS)
-	$(MAKE) extract-dedup $(CORPUS_PINS)
+	$(MAKE) extract-dedup ORPHANED=1 $(CORPUS_PINS)
 	$(MAKE) topics-discover ENSURE=1 $(CORPUS_PINS)
 	$(MAKE) topics-status $(CORPUS_PINS)
 	$(MAKE) extract-bridge MISSING=1 $(CORPUS_PINS)

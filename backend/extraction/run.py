@@ -45,6 +45,8 @@ def main(argv: list[str] | None = None) -> int:
     # arguments beside its own actions.
     force = "--force" in argv
     missing = "--missing" in argv
+    # --dedup's own: the refusals pointing at no twin alone.
+    orphaned = "--orphaned" in argv
     # And the pass that digests what the drain could not, a drain of its own.
     digests = "--digests" in argv
     if digests and any(
@@ -143,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     def run_dedup(within) -> int:
         """Re-decides every stored duplicate refusal under today's rule.
 
-        Then re-judges and re-caps the passages of the ones it gave back,
+        With `--orphaned`, only those pointing at no twin. Then re-judges and re-caps the passages of the ones it gave back,
         under the same settings.
         """
         _, settings, version = configured()
@@ -154,6 +156,7 @@ def main(argv: list[str] | None = None) -> int:
             floor=settings.duplicate_floor,
             checker=FactChecker(settings.digest_share),
             cap=settings.atomic_cap,
+            orphaned=orphaned,
         )
 
     def run_embed(within) -> int:
@@ -214,7 +217,9 @@ def main(argv: list[str] | None = None) -> int:
         module="extraction.run",
         repository=PassageQueue,
         build_service=build,
-        argv=[one for one in argv if one not in ("--missing", "--digests")],
+        argv=[
+            one for one in argv if one not in ("--missing", "--digests", "--orphaned")
+        ],
         extra=extra,
         preflight=preflight,
         prompts=record_prompts,
