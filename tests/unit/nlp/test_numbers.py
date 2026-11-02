@@ -393,3 +393,26 @@ def test_a_fraction_one_space_from_its_whole_number_reads_like_the_glued_one(
 
     assert numbers(spaced, language) == numbers(glued, language) == ("1.5",)
     assert numerals(spaced, language) == numerals(glued, language) == frozenset({"1.5"})
+
+
+@pytest.mark.parametrize(
+    ("text", "language"),
+    [
+        ("Die Leuchte muss mindestens 1 250 lm betragen.", "de"),
+        (
+            "Die Leuchte muss mindestens 1 250 lm mit einer Garantie von zwei Jahren haben.",
+            "de",
+        ),
+        ("Das Gerät verbraucht höchstens 1 250 kWh im Jahr.", "de"),
+        ("The lamp must give at least 1 250 lm.", "en"),
+        ("The lamp must give at least 1 250 lm with a guarantee of two years.", "en"),
+    ],
+)
+def test_a_unit_symbol_the_tagger_gives_any_tag_merges_in_every_sentence(
+    text, language
+) -> None:
+    """The tag of an unknown unit moves with the sentence; the reading must not."""
+    from nlp.analysis import figures
+
+    read = figures(text, language)
+    assert 1250.0 in read and 1.0 not in read and 250.0 not in read

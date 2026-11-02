@@ -34,6 +34,7 @@ from nlp.analysis import (
     normalised,
     numerals,
     parse,
+    spaced_runs,
     spoken_numbers,
     vocabulary,
     written_in,
@@ -672,6 +673,7 @@ class FactChecker:
         said = claim(statement, language, (passage.text,), passage.title)
         units = said.asserted
         known, numbers = _carried(evidence, passage)
+        numbers |= _shared_runs(statement, evidence, language)
         known |= numbers
         supported = _supported_units(units, known, numbers, language, statement)
         swaps, matched = _currency_swaps(said, evidence, language)
@@ -719,6 +721,22 @@ class FactChecker:
 def _evidence_vocabulary(text: str, language: str | None) -> frozenset[str]:
     """Every form a word of the evidence appears in, with the folded names the fact check adds."""
     return vocabulary(text, language) | folds(text, language)
+
+
+def _shared_runs(statement: str, evidence: str, language: str | None) -> frozenset[str]:
+    """The numerals of a space-grouped run the statement and the evidence write alike.
+
+    `1 500 lx` is one figure in both however each tagger reads the unit, which
+    is a preposition in one sentence and an adverb in the next: its parts and
+    its whole all count as the evidence's.
+    """
+    return frozenset(
+        one
+        for run in spaced_runs(statement) & spaced_runs(evidence)
+        for one in numerals(run, language).union(
+            *(numerals(part, language) for part in run.split())
+        )
+    )
 
 
 def _carried(evidence: str, passage: PassageToExtract) -> tuple[set[str], set[str]]:

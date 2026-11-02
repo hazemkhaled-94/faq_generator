@@ -1107,29 +1107,39 @@ _WORD_AFTER = re.compile(r"\s?[^\W\d_]")
 _MODIFYING = frozenset({"ADJ", "ADV", "VERB", "AUX"})
 
 
+def _could_count(document: Doc, end: int, language: str | None) -> Token | None:
+    """The word after the run when it could be what the run counts, in the language's own pipeline, else None.
+
+    A word, not a stop word: not the `for` of `Call 100 000 for help`. Read off
+    the word's own entry.
+    """
+    code = (language or "").strip().lower()
+    if code and document.lang_ != code:
+        return None
+    following = next((token for token in document if token.idx >= end), None)
+    return (
+        following
+        if following is not None
+        and following.text[:1].isalpha()
+        and not following.is_stop
+        else None
+    )
+
+
 def _counts(document: Doc, end: int, language: str | None) -> bool:
-    """Whether a noun, name or unit that is no stop word follows the run, in the language's own pipeline.
+    """Whether a noun, name or unit follows the run, so that it is one figure.
 
     Never an adjective, an adverb or a verb: `Es sind 1 000 fällig` reads two
-    figures. Not the `for` of `Call 100 000 for help` either. A stop word is
-    read off the word's own entry, and the open classes off its tag, because a
-    unit the tagger has no noun for (a symbol such as `lm`) is tagged a
-    preposition in one sentence and a noun in the next, and must merge in both.
+    figures. A unit symbol the tagger has no class for is given a different tag
+    in each sentence (a preposition in one, an adverb in the next), so a run
+    both texts write the same way is the same figure, see `spaced_runs`.
 
     shortcut: a label the language has no `REFERENCE_LABELS` entry for does
     not stop a flattened table row `Tarif 5 100 Minuten` reading as 5100;
     supply the label, or read the row by its table cells.
     """
-    code = (language or "").strip().lower()
-    if code and document.lang_ != code:
-        return False
-    following = next((token for token in document if token.idx >= end), None)
-    return (
-        following is not None
-        and following.text[:1].isalpha()
-        and not following.is_stop
-        and following.pos_ not in _MODIFYING
-    )
+    following = _could_count(document, end, language)
+    return following is not None and following.pos_ not in _MODIFYING
 
 
 #: A figure as either convention writes one: 1.234,56 and 1,234.56 are the
@@ -1290,6 +1300,16 @@ def _fractions(text: str) -> tuple[list[str], list[tuple[int, int]]]:
         values.append(str(int(total)) if total == int(total) else repr(total))
         spans.append(found.span())
     return values, spans
+
+
+def spaced_runs(text: str) -> frozenset[str]:
+    """The runs of one head and one group of three digits a space apart that a text writes, as written.
+
+    What the fact check compares between a statement and its cited text: a run
+    both write the same way is one figure in both, whichever way each tagger
+    read the word after it.
+    """
+    return frozenset(found.group() for found in _SPACED.finditer(text))
 
 
 def fraction_value(token: str) -> float | None:
