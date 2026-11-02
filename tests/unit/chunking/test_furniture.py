@@ -961,29 +961,29 @@ CHAPTERS = {
     "de": [
         "I - Allgemeine Bestimmungen",
         "II - Verfahren",
-        "III - Spiele ohne Zuschauer",
-        "IV - Übernahme von Sanktionen",
+        "III - Pflichten der Händler",
+        "IV - Haftung des Kontoinhabers",
         "V - Schlussbestimmungen",
     ],
     "en": [
         "I - General provisions",
         "II - Procedure",
-        "III - Matches behind closed doors",
-        "IV - Recognition of sanctions",
+        "III - Duties of the traders",
+        "IV - Liability of the account holder",
         "V - Final provisions",
     ],
     "fr": [
         "I - Dispositions générales",
         "II - Procédure",
-        "III - Matches à huis clos",
-        "IV - Reconnaissance des sanctions",
+        "III - Obligations des commerçants",
+        "IV - Responsabilité du titulaire du compte",
         "V - Dispositions finales",
     ],
     "el": [
         "I - Γενικές διατάξεις",
         "II - Διαδικασία",
-        "III - Αγώνες κεκλεισμένων των θυρών",
-        "IV - Αναγνώριση κυρώσεων",
+        "III - Υποχρεώσεις των εμπόρων",
+        "IV - Ευθύνη του δικαιούχου του λογαριασμού",
         "V - Τελικές διατάξεις",
     ],
 }
@@ -1027,3 +1027,71 @@ def test_guide_words_on_consecutive_pages_still_name_no_chapter(language: str) -
     furniture = furniture_of(regulation(chapters, heading_chapters=False))
 
     assert [furniture.chapter(page) for page in (5, 6, 7)] == [(), (), ()]
+
+
+#: A bank's glossary: entry terms, two to a page.
+TERMS = {
+    "de": [
+        "Aval",
+        "Bonität",
+        "Dispo",
+        "Girokonto",
+        "Hypothek",
+        "Kreditlinie",
+        "Sparbrief",
+        "Tilgung",
+    ],
+    "en": [
+        "Annuity",
+        "Balance",
+        "Collateral",
+        "Deposit",
+        "Escrow",
+        "Overdraft",
+        "Principal",
+        "Standing order",
+    ],
+    "fr": [
+        "Aval",
+        "Bilan",
+        "Caution",
+        "Découvert",
+        "Épargne",
+        "Hypothèque",
+        "Prêt",
+        "Virement",
+    ],
+    "el": [
+        "Αποταμίευση",
+        "Δάνειο",
+        "Εγγύηση",
+        "Υπόλοιπο",
+        "Υπερανάληψη",
+        "Υποθήκη",
+        "Έμβασμα",
+        "Τόκος",
+    ],
+}
+
+
+@pytest.mark.parametrize("language", sorted(TERMS))
+def test_a_glossary_whose_entries_are_headings_names_no_chapter(language: str) -> None:
+    """Its guide words repeat an entry that is itself a heading, one of several on the page."""
+    from preprocessing.chunking.furniture import furniture_of
+
+    terms = TERMS[language]
+    document = paged(6)
+    for page in range(1, 7):
+        foot(document, page, str(page))
+        if page <= 2:
+            foot(document, page, "Guide")
+            continue
+        first = terms[(page - 3) * 2]
+        foot(document, page, first)
+        for term in terms[(page - 3) * 2 : (page - 3) * 2 + 2]:
+            document.add_heading(text=term, level=2, prov=on(page, 60))
+            say(document, page, f"{term}: an entry of the glossary.")
+
+    furniture = furniture_of(document)
+
+    assert [furniture.chapter(page) for page in (3, 4, 5, 6)] == [(), (), (), ()]

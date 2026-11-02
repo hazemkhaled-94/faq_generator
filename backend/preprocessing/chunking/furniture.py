@@ -274,17 +274,27 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             if key not in constant and key not in varying and _lettered(key)
         )
 
-    headings_on: dict[int, list[str]] = defaultdict(list)
+    headings_on: dict[int, list[tuple[str, int]]] = defaultdict(list)
     for item in document.texts:
         if item.label in _HEADINGS and item.prov:
-            headings_on[item.prov[0].page_no].append(item.text)
+            level = item.level if isinstance(item, SectionHeaderItem) else 0
+            headings_on[item.prov[0].page_no].append((item.text, level))
 
     def headed_by_own(page: int, own: tuple[str, ...]) -> bool:
-        """Whether a page holds a heading that says each of its single-page fields."""
-        return all(
-            any(_names(heading, spelled[key]) for heading in headings_on[page])
-            for key in own
-        )
+        """Whether a page holds a heading that says each of its single-page fields.
+
+        It must be the page's only heading of its level: a glossary's entries
+        are many headings of one level on a page, and its guide words say them.
+        """
+        here = headings_on[page]
+
+        def alone(key: str) -> bool:
+            named = [level for heading, level in here if _names(heading, spelled[key])]
+            return bool(named) and all(
+                sum(level == other for _, other in here) == 1 for level in named
+            )
+
+        return all(alone(key) for key in own)
 
     def names_a_chapter(page: int, own: tuple[str, ...]) -> bool:
         """Whether a page's single-page fields name a chapter of one page.
