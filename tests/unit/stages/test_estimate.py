@@ -8,6 +8,7 @@ its actuals back, and one for a corpus ten times larger multiplies them.
 from __future__ import annotations
 
 from dataclasses import asdict
+from typing import ClassVar, Self
 
 import pytest
 
@@ -138,3 +139,69 @@ def test_a_fitted_corpus_keeps_the_topics_still_to_question() -> None:
 
     assert got["topics"].rows == 0
     assert got["questions"].rows == 10
+
+
+class _Counting:
+    """A session that keeps every statement `counted` asks, and counts nothing."""
+
+    asked: ClassVar[list] = []
+
+    def __init__(self, *_args, **_kwargs) -> None:
+        """Takes the engine it is given."""
+
+    def __enter__(self) -> Self:
+        """Opens."""
+        return self
+
+    def __exit__(self, *_exc) -> bool:
+        """Closes."""
+        return False
+
+    def scalar(self, statement):
+        """Keeps the statement, and counts none."""
+        _Counting.asked.append(statement)
+        return 0
+
+
+def _asked(monkeypatch) -> dict[str, str]:
+    """The SQL `counted` sends, by what it counts, with its values written in."""
+    import sqlalchemy.orm
+    from sqlalchemy.dialects import postgresql
+
+    import database.qa_generator as db
+
+    _Counting.asked = []
+    monkeypatch.setattr(sqlalchemy.orm, "Session", _Counting)
+    monkeypatch.setattr(db, "engine", lambda: None)
+
+    estimate.counted()
+
+    sent = [
+        str(
+            one.compile(
+                dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+            )
+        )
+        for one in _Counting.asked
+    ]
+    return {
+        "documents": next(one for one in sent if "FROM documents" in one),
+        "passages": next(
+            one for one in sent if "FROM passages" in one and "extract_status" in one
+        ),
+    }
+
+
+def test_a_refused_or_failed_document_is_not_still_to_do(monkeypatch) -> None:
+    """Parse refused it: nothing is left to parse, chunk or extract for it."""
+    documents = _asked(monkeypatch)["documents"]
+
+    assert "chunk_status IN ('new', 'pending', 'in_progress')" in documents
+    assert "parse_status NOT IN ('failed', 'refused')" in documents
+
+
+def test_only_passages_waiting_for_extraction_are_still_to_do(monkeypatch) -> None:
+    """A passage whose extraction failed is not projected again."""
+    passages = _asked(monkeypatch)["passages"]
+
+    assert "extract_status IN ('new', 'pending', 'in_progress')" in passages
