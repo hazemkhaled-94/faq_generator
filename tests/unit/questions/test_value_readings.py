@@ -260,20 +260,20 @@ def test_a_value_that_starts_with_a_small_digit_is_not_a_count_of_the_facts(
     ("question", "answer", "language", "statements"),
     [
         (
-            "Wie lange ist eine Rückgabe möglich?",
+            "Wie viele Wochen ist eine Rückgabe möglich?",
             "2 – 3 Wochen",
             "de",
             [
-                "Die Rückgabe ist innerhalb von 2 – 3 Wochen möglich.",
+                "Die Rückgabe ist bis zu drei Wochen möglich.",
                 "Die Ware muss unbenutzt sein.",
             ],
         ),
         (
-            "How long does a refund take?",
+            "How many weeks does a refund take?",
             "2 - 3 weeks",
             "en",
             [
-                "A refund takes 2 - 3 weeks on average.",
+                "A refund takes up to three weeks.",
                 "Refunds are paid to the original card.",
             ],
         ),
@@ -282,7 +282,7 @@ def test_a_value_that_starts_with_a_small_digit_is_not_a_count_of_the_facts(
             "2 – 3 semaines",
             "fr",
             [
-                "Un remboursement prend 2 – 3 semaines.",
+                "Un remboursement prend trois semaines au plus.",
                 "Il est versé sur la carte d'origine.",
             ],
         ),
@@ -290,7 +290,10 @@ def test_a_value_that_starts_with_a_small_digit_is_not_a_count_of_the_facts(
             "Πόσο διαρκεί η επιστροφή χρημάτων;",
             "2 – 3 εβδομάδες",
             "el",
-            ["Η επιστροφή διαρκεί 2 – 3 εβδομάδες.", "Καταβάλλεται στην αρχική κάρτα."],
+            [
+                "Η επιστροφή διαρκεί έως τρεις εβδομάδες.",
+                "Καταβάλλεται στην αρχική κάρτα.",
+            ],
         ),
     ],
 )
