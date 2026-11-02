@@ -141,8 +141,8 @@ that is your engine):
 ```bash
 podman compose exec -T elasticsearch sh -c 'curl -sS \
   --cacert /usr/share/elasticsearch/config/certs/ca.crt \
-  -u "elastic:$ELASTIC_PASSWORD" -X PUT "https://localhost:9200/qa-logs*/_settings" \
-  -H "Content-Type: application/json" -d "{\"index\":{\"number_of_replicas\":0}}"'
+  -u "elastic:$ELASTIC_PASSWORD" --request PUT "https://localhost:9200/qa-logs*/_settings" \
+  -H "Content-Type: application/json" --data "{\"index\":{\"number_of_replicas\":0}}"'
 ```
 
 ## The corpus as one thing
