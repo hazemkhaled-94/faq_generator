@@ -12,10 +12,13 @@ the same command line, so the options are the ones the plain command takes:
 
 from __future__ import annotations
 
+from urllib.parse import urlsplit
+
 from starlette.datastructures import Headers
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.websockets import WebSocketClose
 
 #: The names the UI is reached by: from the host, and from the api, which calls
 #: it by its compose service name.
@@ -38,7 +41,15 @@ class SameOrigin:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        """Answers 403, or hands the request on."""
+        """Answers 403, closes a foreign websocket handshake, or hands the request on."""
+        if scope["type"] == "websocket":
+            # A browser applies no same-origin policy to a websocket: its Origin
+            # is the only thing that says which page opened it.
+            headers = Headers(scope=scope)
+            origin = headers.get("origin")
+            if origin is not None and urlsplit(origin).netloc != headers.get("host"):
+                await WebSocketClose(1008)(scope, receive, send)
+                return
         if scope["type"] == "http":
             headers = Headers(scope=scope)
             origin = headers.get("origin")

@@ -122,3 +122,38 @@ def test_a_foreign_host_name_is_refused(client: TestClient) -> None:
     )
 
     assert answer.status_code == 400
+
+
+class _Echo:
+    """An application that accepts a websocket and says hello."""
+
+    async def __call__(self, scope, receive, send) -> None:
+        """Accepts the handshake, sends once, and closes."""
+        await receive()
+        await send({"type": "websocket.accept"})
+        await send({"type": "websocket.send", "text": "hello"})
+        await send({"type": "websocket.close"})
+
+
+def test_a_websocket_opened_from_another_origin_is_closed() -> None:
+    """A browser applies no same-origin policy to a websocket: a page could stream run logs."""
+    from starlette.websockets import WebSocketDisconnect
+
+    from orchestration.serve import SameOrigin
+
+    client = TestClient(SameOrigin(_Echo()))
+    host = {"Host": "localhost:3000"}
+
+    with pytest.raises(WebSocketDisconnect) as refused:
+        with client.websocket_connect(
+            "/graphql", headers={**host, "Origin": "https://evil.example"}
+        ):
+            pass
+    assert refused.value.code == 1008
+
+    with client.websocket_connect(
+        "/graphql", headers={**host, "Origin": "http://localhost:3000"}
+    ) as socket:
+        assert socket.receive_text() == "hello"
+    with client.websocket_connect("/graphql", headers=host) as socket:
+        assert socket.receive_text() == "hello"
