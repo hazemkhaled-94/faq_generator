@@ -492,26 +492,29 @@ def _verbs(span: Doc | Span) -> int:
     return sum(1 for token in span if token.pos_ in ("VERB", "AUX"))
 
 
-#: Tag prefixes of an interrogative word. Penn tags English ones WDT, WP, WP$
-#: and WRB; STTS tags German ones PWS, PWAT and PWAV. Read off the tagger
-#: rather than from a word list per language, so a pipeline added to
-#: NLP_MODELS brings its own.
-_INTERROGATIVE = ("W", "PW")
+#: The fine tags of an interrogative word, by language: Penn tags English ones
+#: WDT, WP, WP$ and WRB; STTS tags German ones PWS, PWAT and PWAV. A pipeline
+#: whose tagset says so in the morphology (`PronType=Int`) needs no row, and a
+#: language added to NLP_MODELS whose tagset does not supplies its own: a tag
+#: prefix would read a Dutch verb (`WW...`) or Polish `powinien` as a question
+#: word.
+_INTERROGATIVES: dict[str, frozenset[str]] = {
+    "en": frozenset({"WDT", "WP", "WP$", "WRB"}),
+    "de": frozenset({"PWS", "PWAT", "PWAV"}),
+}
 
 
 def _interrogative(token) -> bool:
     """Whether a token is a question word, under either naming.
 
     Two readings because no one of them covers every pipeline. Penn and STTS
-    say so in the tag, and the English model leaves the morphology empty;
-    a Universal Dependencies tagset says so in `PronType=Int` and its tags
-    carry no such prefix. Either answer is taken, so a language whose
-    pipeline uses only one of the two conventions still reports its question
-    words.
+    say so in the tag, which is read against the language's own row, and the
+    English model leaves the morphology empty; a Universal Dependencies
+    tagset says so in `PronType=Int`. Either answer is taken.
     """
-    return token.tag_.startswith(_INTERROGATIVE) or "Int" in token.morph.get(
-        "PronType", []
-    )
+    return token.tag_ in _INTERROGATIVES.get(
+        token.doc.lang_, frozenset()
+    ) or "Int" in token.morph.get("PronType", [])
 
 
 def _asking(token) -> bool:

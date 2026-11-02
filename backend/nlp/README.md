@@ -141,6 +141,7 @@ language's words in one set or pattern.
 | `_RELATES` | same | Lemmas by which a question claims a relation. A compound question that says one is refused | `unterscheiden`, `differ` |
 | `_POLARITY` | same | Words answering a yes-or-no question by polarity | `nein`, `not` |
 | `_PURPOSE` | same | How the material says why: what a `reason` slot is dealt | `damit`, `so that` |
+| `_INTERROGATIVES` | [`analysis.py`](analysis.py) | The fine tags your pipeline gives a question word, where its morphology does not say `PronType=Int` | `WP`, `PWS` |
 | `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said | `besagt`, `aforementioned` |
 | `_ASKING` | same | Words a tagger reads as demonstrative that ask rather than point | `wessen`, `whose` |
 | `_SOURCE` | same | Nouns naming the source document, so a demonstrative before one does not point. Title nouns are read from the parse, not listed | `Lehrplan`, `syllabus` |
@@ -184,7 +185,7 @@ about, and `Bericht` is a thing a corpus is. Each list is matched as follows.
 - By lemma: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC`, `_ASKING`.
 - By lemma or the word as written, `_ATTRIBUTIONS` only as an adposition: `_ATTRIBUTIONS`, `_SOURCE` and the two
   modifier tables (also with an `_ADJECTIVE_ENDINGS` ending).
-- By the character: `_QUESTION_MARKS`.
+- By the character: `_QUESTION_MARKS`. By the exact fine tag: `_INTERROGATIVES`.
 - By the word as written: `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
   `_EXCEPTIVE`, `_POLITE`, `_GENITIVE_DEMONSTRATIVES`,
   `_CLAUSE_DEMONSTRATIVES` and the two abbreviation tables.
