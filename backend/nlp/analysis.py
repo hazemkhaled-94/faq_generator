@@ -66,7 +66,7 @@ def _read(text: str, language: str | None) -> Doc:
 
 
 def _grouped(document: Doc, language: str | None) -> Doc:
-    """Merges the digit groups a space joins where the text writes an amount.
+    """Merges the digit groups a space joins where the text writes an amount, and a fraction set off from its whole number.
 
     The tokenizer splits `100 000` and `12 500.00` at the space, so a reader
     of tokens takes each for two figures. A merge keeps every offset and
@@ -80,6 +80,19 @@ def _grouped(document: Doc, language: str | None) -> Doc:
                 found.start(), found.end(), alignment_mode="expand"
             )
             if span is not None and len(span) > 1:
+                spans.append(span)
+    for found in _VULGAR.finditer(document.text):
+        if found[1] and found[2]:
+            span = document.char_span(
+                found.start(), found.end(), alignment_mode="expand"
+            )
+            if (
+                span is not None
+                and len(span) > 1
+                and not any(
+                    span.start < one.end and one.start < span.end for one in spans
+                )
+            ):
                 spans.append(span)
     if spans:
         with document.retokenize() as merger:
@@ -783,7 +796,7 @@ def _units(span: Doc | Span, language: str | None = None) -> tuple[str, ...]:
 #: letters make the digits a number word, which states no figure.
 _FIGURE_TOKEN = re.compile(
     r"[+±−-]?\(?\d{1,3}(?:['’]\d{3})*[\d.,:/()– -]*(?:(?<=\d)[^\W\d_]{1,4})?%?"
-    r"|[\u00bc-\u00be\u2150-\u215e]"
+    r"|(?:\d{1,3} )?[\u00bc-\u00be\u2150-\u215e]"
 )
 
 
@@ -1155,6 +1168,9 @@ def figures(text: str, language: str | None = None) -> list[float]:
     `- 5` is five.
     """
     mark = DECIMAL_MARK.get((language or "").strip().lower())
+    fractions, spans = _fractions(text)
+    for start, end in spans:
+        text = text[:start] + " " * (end - start) + text[end:]
     found: list[float] = []
     for match in FIGURE.finditer(text):
         raw = match.group().replace("'", "").replace("’", "")
@@ -1187,7 +1203,7 @@ def figures(text: str, language: str | None = None) -> list[float]:
                 found.append(sign * float(f"{whole}.{tail}"))
         except ValueError:
             continue
-    return found
+    return found + [float(one) for one in fractions]
 
 
 def _ordinals_past_twelve(language: str) -> dict[str, str]:
@@ -1258,24 +1274,35 @@ _DIGITS = re.compile(
 
 #: A vulgar fraction, with the digits it follows: `2½`, `¾`. Unicode names the
 #: set and each value, so no language is read here.
-_VULGAR = re.compile(r"(\d+)?([\u00bc-\u00be\u2150-\u215e])")
+_VULGAR = re.compile(r"(\d+)?( ?)([\u00bc-\u00be\u2150-\u215e])")
 
 
-def _fractions(token: str) -> tuple[list[str], str]:
-    """The values of the vulgar fractions a token writes, and the token without them.
+def _fractions(text: str) -> tuple[list[str], list[tuple[int, int]]]:
+    """The values of the vulgar fractions a text writes, and where each stands.
 
-    `2½` is 2.5 and a lone `¾` is 0.75, each as the string `_value` gives a
-    figure of that value. Language-free: a value cannot be mistaken for a
-    thousands group here, as `figures` would take `2.125` in German.
+    `2½` and `2 ½` are 2.5 and a lone `¾` is 0.75, each as the string `_value`
+    gives a figure of that value. Language-free: a value cannot be mistaken for
+    a thousands group here, as `figures` would take `2.125` in German.
     """
-    values = []
-
-    def fold(found: re.Match[str]) -> str:
-        total = int(found[1] or 0) + unicodedata.numeric(found[2])
+    values, spans = [], []
+    for found in _VULGAR.finditer(text):
+        total = int(found[1] or 0) + unicodedata.numeric(found[3])
         values.append(str(int(total)) if total == int(total) else repr(total))
-        return " "
+        spans.append(found.span())
+    return values, spans
 
-    return values, _VULGAR.sub(fold, token)
+
+def fraction_value(token: str) -> float | None:
+    """The value of a token that is one vulgar fraction whole, `2½`, `1 ½` or `¾`, else None."""
+    values, spans = _fractions(token)
+    return float(values[0]) if spans == [(0, len(token))] else None
+
+
+def _apart(token: Token, spans: list[tuple[int, int]]) -> bool:
+    """Whether the token stands outside every span."""
+    return not any(
+        start < token.idx + len(token) and token.idx < end for start, end in spans
+    )
 
 
 #: The zeros a run of digits opens with, which are no part of its value.
@@ -1420,12 +1447,13 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
     document = _read(text, language)
     spoken = _spoken(document)
     found: list[str] = []
+    found, spans = _fractions(document.text)
     for token in document:
-        fractions, rest = _fractions(token.text)
-        found += fractions
-        if digits := _DIGITS.findall(rest):
+        if not _apart(token, spans):
+            continue
+        if digits := _DIGITS.findall(token.text):
             found += [_value(one, document.lang_) for one in digits]
-        elif spoken.get(token.i) and not fractions:
+        elif spoken.get(token.i):
             found.append(str(spoken[token.i]))
     return tuple(sorted(found))
 
@@ -1438,10 +1466,10 @@ def numerals(text: str, language: str | None) -> frozenset[str]:
     """
     document = _read(text, language)
     found: set[str] = set()
+    fractions, spans = _fractions(document.text)
+    found.update(fractions)
     for token in document:
-        fractions, rest = _fractions(token.text)
-        found.update(fractions)
-        if digits := _DIGITS.findall(rest):
+        if _apart(token, spans) and (digits := _DIGITS.findall(token.text)):
             found.update(
                 _PADDING.sub("", _value(one, document.lang_)) for one in digits
             )

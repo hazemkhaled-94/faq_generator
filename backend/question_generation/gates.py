@@ -46,6 +46,7 @@ from nlp.analysis import (
     claim,
     content,
     figures,
+    fraction_value,
     interrogatives,
     is_number,
     normalised,
@@ -126,6 +127,8 @@ def _folded(token: str, language: str | None) -> str:
     for suffix in ORDINAL_SUFFIX.get((language or "").lower(), ()):
         if token.lower().endswith(suffix) and token[: -len(suffix)].isdigit():
             return _ordinal_value(token[: -len(suffix)])
+    if (fraction := fraction_value(token)) is not None:
+        return repr(fraction)
     if FIGURE.fullmatch(token) is None:
         return token
     found = figures(token, language)

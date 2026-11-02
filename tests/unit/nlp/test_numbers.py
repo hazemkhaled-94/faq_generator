@@ -355,3 +355,41 @@ def test_a_vulgar_fraction_reads_as_its_value(text, language, value) -> None:
 
     assert numbers(text, language) == value
     assert numerals(text, language) == frozenset(value)
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "value"),
+    [
+        ("The account pays 2½ % interest a year.", "en", [2.5]),
+        ("Das Sparkonto bringt 2½ % Zinsen pro Jahr.", "de", [2.5]),
+        ("Die Lieferung dauert 1 ½ Tage.", "de", [1.5]),
+        ("Delivery takes 1 ½ days.", "en", [1.5]),
+        ("Delivery takes ¾ of a day.", "en", [0.75]),
+        ("Le compte rapporte 2½ % par an.", "fr", [2.5]),
+        ("Ο λογαριασμός αποδίδει 2½ % ετησίως.", "el", [2.5]),
+    ],
+)
+def test_figures_reads_a_vulgar_fraction_as_its_value(text, language, value) -> None:
+    """The regex reader folds the fraction too, glued to its whole number or one space apart."""
+    from nlp.analysis import figures
+
+    assert figures(text, language) == value
+
+
+@pytest.mark.parametrize(
+    ("language", "spaced", "glued"),
+    [
+        ("de", "Die Lieferung dauert 1 ½ Tage.", "Die Lieferung dauert 1½ Tage."),
+        ("en", "Delivery takes 1 ½ days.", "Delivery takes 1½ days."),
+        ("fr", "La livraison prend 1 ½ jours.", "La livraison prend 1½ jours."),
+        ("el", "Η παράδοση διαρκεί 1 ½ ημέρες.", "Η παράδοση διαρκεί 1½ ημέρες."),
+    ],
+)
+def test_a_fraction_one_space_from_its_whole_number_reads_like_the_glued_one(
+    language, spaced, glued
+) -> None:
+    """`1 ½` and `1½` are one number, 1.5."""
+    from nlp.analysis import numbers, numerals
+
+    assert numbers(spaced, language) == numbers(glued, language) == ("1.5",)
+    assert numerals(spaced, language) == numerals(glued, language) == frozenset({"1.5"})

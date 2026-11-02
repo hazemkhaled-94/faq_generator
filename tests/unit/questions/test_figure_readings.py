@@ -336,3 +336,30 @@ def test_a_space_grouped_count_agrees_with_its_other_spelling(
 def test_a_count_missing_a_group_does_not_agree(language, recovered, target) -> None:
     """A key that drops a group of a space-grouped count is another count."""
     assert not agrees(recovered, target, language)
+
+
+@pytest.mark.parametrize(
+    ("language", "recovered", "target"),
+    [
+        ("en", "2.5 % a year", "2½ % a year"),
+        ("de", "2,5 % pro Jahr", "2½ % pro Jahr"),
+        ("de", "1,5 Tage", "1 ½ Tage"),
+    ],
+)
+def test_a_fraction_agrees_with_its_decimal_spelling(
+    language, recovered, target
+) -> None:
+    """A key written with a vulgar fraction agrees with the recovery's decimal."""
+    assert agrees(recovered, target, language)
+
+
+@pytest.mark.parametrize(
+    ("language", "recovered", "target"),
+    [
+        ("en", "2.25 % a year", "2½ % a year"),
+        ("de", "1,75 Tage", "1 ½ Tage"),
+    ],
+)
+def test_another_fraction_does_not_agree(language, recovered, target) -> None:
+    """The fraction is part of the value."""
+    assert not agrees(recovered, target, language)
