@@ -722,10 +722,11 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
 - Postgres as shipped (C-011): `configs/env/deployment.env` ships the
   production row of [Sizing Postgres](#sizing-postgres). `make test-perf` runs
   the 10x load test, which asks a dedup probe and a fact write to stay within
-  twice their time at the reviewed build's size. On the CI runner the
-  single-pass probe p95 ran 2.15x in the first two runs and 5.47x to 7.80x in
-  the last three (up to 32.8 ms). The sizing ships with that limit by
-  decision: the database is about 2% of a drain's time at ten times the build.
+  twice their median and 95th-percentile time at the reviewed build's size,
+  measured after a checkpoint and a warm-up. Before that the single-pass probe
+  p95 swung from 1.99x to 16.61x on one unchanged commit on the CI runner, so
+  its 2x bar measured the runner. The sizing ships with the limit by decision:
+  the database is about 2% of a drain's time at ten times the build.
   If the probe time climbs, raise `POSTGRES_MEMORY` and
   `POSTGRES_SHARED_BUFFERS` to the table's next row.
 - The podman VM's memory is at least the sum of its services' limits
