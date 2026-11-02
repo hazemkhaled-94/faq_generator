@@ -667,6 +667,15 @@ CALENDAR_ABBREVIATIONS: dict[str, dict[str, str]] = {
 }
 
 
+#: The words a language says a minus sign with, by ISO 639-1 code, as lower
+#: case: `minus 5 °C` and `negativ 0,5 %` state `-5` and `-0,5`. A newly
+#: configured language supplies its own, or reads a spoken sign as no sign.
+_SIGN_WORDS: dict[str, frozenset[str]] = {
+    "de": frozenset({"minus", "negativ"}),
+    "en": frozenset({"minus", "negative"}),
+}
+
+
 def _calendar(token: Token, language: str | None) -> str | None:
     """The form a month or weekday name is folded to, or None for any other token."""
     code = (language or token.doc.lang_).strip().lower()
@@ -742,10 +751,19 @@ def _units(span: Doc | Span, language: str | None = None) -> tuple[str, ...]:
     """
     found = set()
     capitalising = span.doc.lang_ in _capitalises_nouns()
+    code = (language or span.doc.lang_).strip().lower()
     for token in span:
         if is_number(token):
             # An ordinal keeps what marks it, so `3.` is not the count 3.
-            found.add((token.text if ordinal(token) else _bare(token.text)).casefold())
+            value = (token.text if ordinal(token) else _bare(token.text)).casefold()
+            # A sign said in words is the sign: `minus 5` is `-5`.
+            if (
+                token.i
+                and token.doc[token.i - 1].lower_ in _SIGN_WORDS.get(code, ())
+                and not value.startswith(("-", "−"))
+            ):
+                value = "-" + value
+            found.add(value)
         elif token.pos_ == "PROPN":
             if (
                 capitalising
@@ -1111,7 +1129,7 @@ def _counts(document: Doc, end: int, language: str | None) -> bool:
 #: figure wherever it stands: a digit and exactly three digits take it, a
 #: possessive (`90's`) never does.
 FIGURE = re.compile(
-    r"(?:(?<!\S)[-−])?(?:"
+    r"(?:(?<![^\s(])[-−])?(?:"
     + _SPACED.pattern
     + r"|(?<![\w.,'’])\d{1,3}(?:['’]\d{3})+(?:[.,]\d+)?(?![\w])"
     r"|(?<![\w.,])\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?(?![\w])"

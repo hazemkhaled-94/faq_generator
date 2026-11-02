@@ -464,3 +464,87 @@ def test_another_fraction_is_another_number_for_the_dedup_gate(lang, text, twin)
     from extraction.service import _counted_alike
 
     assert not _counted_alike(text, twin, lang)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "fact"),
+    [
+        (
+            "en",
+            "The product can be stored at temperatures down to -5 °C.",
+            "The product can be stored at temperatures down to minus 5 °C.",
+        ),
+        (
+            "de",
+            "Das Produkt ist bis −5 °C lagerfähig.",
+            "Das Produkt ist bis minus 5 °C lagerfähig.",
+        ),
+        (
+            "en",
+            "The deposit rate is -0.5 % a year.",
+            "The deposit rate is negative 0.5 % a year.",
+        ),
+        (
+            "de",
+            "Der Einlagezins beträgt -0,5 % im Jahr.",
+            "Der Einlagezins beträgt negativ 0,5 % im Jahr.",
+        ),
+    ],
+)
+def test_a_sign_said_in_words_is_supported_by_the_cited_signed_figure(lang, text, fact):
+    """The word table of the language reads `minus 5` as `-5`."""
+    must_validate(lang, text, fact)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "fact"),
+    [
+        (
+            "en",
+            "The deposit rate is 0.5 % a year.",
+            "The deposit rate is negative 0.5 % a year.",
+        ),
+        (
+            "de",
+            "Der Einlagezins beträgt 0,5 % im Jahr.",
+            "Der Einlagezins beträgt minus 0,5 % im Jahr.",
+        ),
+        (
+            "en",
+            "The deposit rate is -0.5 % a year.",
+            "The deposit rate is 0.5 % a year.",
+        ),
+    ],
+)
+def test_a_sign_in_words_does_not_rescue_a_flipped_figure(lang, text, fact):
+    """The sign said, or dropped, must be the cited one."""
+    must_refuse(lang, text, fact)
+
+
+def test_the_discount_badge_restated_as_a_reduction_stays_refused():
+    """Cost of the sign rule, accepted: `-20 %` restated as `20 % off` is refused, the safe side."""
+    must_refuse(
+        "en",
+        "Summer sale: -20% on all shoes.",
+        "The summer sale takes 20% off all shoes.",
+    )
+    must_refuse(
+        "de",
+        "Im Sommerschlussverkauf gilt: -20 % auf alle Schuhe.",
+        "Im Sommerschlussverkauf gibt es 20 % Rabatt auf alle Schuhe.",
+    )
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "value"),
+    [
+        ("en", "The loss is (-12) EUR.", [-12.0]),
+        ("de", "Der Verlust beträgt (-12) EUR.", [-12.0]),
+        ("fr", "La perte est de (-12) EUR.", [-12.0]),
+        ("el", "Η απώλεια είναι (-12) EUR.", [-12.0]),
+    ],
+)
+def test_a_sign_after_an_opening_parenthesis_is_read_by_figures_too(lang, text, value):
+    """The token reader and the figure reader agree on `(-12)`."""
+    assert figures(text, lang) == value
+    assert numbers(text, lang) == ("-12",)

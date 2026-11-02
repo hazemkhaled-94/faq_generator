@@ -128,7 +128,8 @@ to the units check. An abbreviation in the cited text (`Mo.`,
 in any spelling (`1st` and `1 st`, `two` and `2`, `CHF 1'250.50` and
 `CHF 1250.50`, `8 000 Kundinnen` and `8000 Kundinnen`: an apostrophe between a
 digit and three digits groups thousands, and so does a space before a noun),
-keeps its sign (`-0.5` is not `0.5`; a dash between digits, `5-7`, is no sign),
+keeps its sign (`-0.5` is not `0.5`; a dash between digits, `5-7`, is no sign,
+and `minus 5` says the sign of a cited `-5`; the en dash is no sign, it is the range dash),
 reads a vulgar fraction as its value (`2½` is `2.5`),
 and a proper noun is lemmatised. A fact may rest on the sentences it cites, the
 passage's heading trail and the document's title. A name or number found only
