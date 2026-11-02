@@ -2428,6 +2428,18 @@ corpus-database:
 corpus-hosted-stop:
 	@scripts/corpus-hosted.sh --stop
 
+# Asks the api, and says why when it does not answer well: "not answering"
+# only when curl cannot connect (its exit 7), the api's own status and detail
+# when it answered anything but 2xx, and a non-zero exit in both. A body is
+# written only for a 2xx, to the caller's capture. Defined here as a shell
+# function, so a recipe states `$(ASK) && answer=$$(ask <curl arguments>)`.
+ASK = ask() { out=$$(mktemp); code=$$(curl -sS -o "$$out" -w '%{http_code}' "$$@"); rc=$$?; \
+  if [ $$rc -eq 7 ]; then rm -f "$$out"; echo "The api is not answering. Try: make up" >&2; return 1; fi; \
+  if [ $$rc -ne 0 ]; then rm -f "$$out"; return 1; fi; \
+  case $$code in 2??) cat "$$out"; rm -f "$$out"; return 0;; esac; \
+  detail=$$(python3 -c 'import sys, json; b = sys.stdin.read(); print(json.loads(b).get("detail") or b.strip() if b.lstrip().startswith("{") else b.strip())' < "$$out"); \
+  rm -f "$$out"; echo "The api answered $$code: $$detail" >&2; return 1; }
+
 # Every container, whether it is listening, and where to open it.
 #
 # Asked of the api rather than read out of a file, so this and the System
@@ -2438,9 +2450,8 @@ corpus-hosted-stop:
 # BACKEND_URL, which is the host's own: derived from BACKEND_PORT above.
 # The container's is BACKEND_CONTAINER_URL and is not read here.
 services:
-	@$(LOADENV) && answer=$$(curl -sf $$BACKEND_URL/services) \
-	  && printf '%s' "$$answer" | python3 -c 'import sys, json; [print("{:>4}  {:<20}  {}".format({True: "up", False: "DOWN", None: "-"}[r["ok"]], r["name"], r["url"] or "")) for r in json.load(sys.stdin)]' \
-	  || echo "The api is not answering. Try: make up"
+	@$(LOADENV) && $(ASK) && answer=$$(ask $$BACKEND_URL/services) \
+	  && printf '%s' "$$answer" | python3 -c 'import sys, json; [print("{:>4}  {:<20}  {}".format({True: "up", False: "DOWN", None: "-"}[r["ok"]], r["name"], r["url"] or "")) for r in json.load(sys.stdin)]'
 
 # The same, and open the application.
 open: services
@@ -2479,24 +2490,21 @@ pull: review-pull-facts review-pull-topics review-pull-questions
 # Every stage's queue, the run in flight and what is set to start one, in one
 # call. The whole-corpus answer to "where has this got to".
 pipeline-status:
-	@$(LOADENV) && curl -sf $$BACKEND_URL/pipeline \
-	  | python3 -c 'import sys, json; d = json.load(sys.stdin); o = d["orchestration"]; r = o.get("running"); [print("{:>12}  {}".format(s["stage"], ", ".join(f"{n} {k}" for k, n in s["rows"].items()) or "nothing")) for s in d["stages"]]; print("\norchestrator:", "running " + r["id"][:8] if r else ("idle" if o["available"] else "not configured")); print("  automatic:", ", ".join(k for k in ("on_arrival", "nightly") if o["automation"].get(k)) or "no")' \
-	  || echo "The api is not answering. Try: make up"
+	@$(LOADENV) && $(ASK) && answer=$$(ask $$BACKEND_URL/pipeline) \
+	  && printf '%s' "$$answer" | python3 -c 'import sys, json; d = json.load(sys.stdin); o = d["orchestration"]; r = o.get("running"); [print("{:>12}  {}".format(s["stage"], ", ".join(f"{n} {k}" for k, n in s["rows"].items()) or "nothing")) for s in d["stages"]]; print("\norchestrator:", "running " + r["id"][:8] if r else ("idle" if o["available"] else "not configured")); print("  automatic:", ", ".join(k for k in ("on_arrival", "nightly") if o["automation"].get(k)) or "no")'
 
 # Take back everything queued, in every stage, and stop the run behind it.
 # Both halves: emptying the queues while a run is going means the run fills
 # them again at its next stage.
 pipeline-stop:
-	@$(LOADENV) && curl -sf -X POST -H "X-API-Token: $$API_TOKEN" $$BACKEND_URL/pipeline/stop \
-	  | python3 -c 'import sys, json; print(json.load(sys.stdin)["detail"])' \
-	  || echo "The api is not answering. Try: make up"
+	@$(LOADENV) && $(ASK) && answer=$$(ask -X POST -H "X-API-Token: $$API_TOKEN" $$BACKEND_URL/pipeline/stop) \
+	  && printf '%s' "$$answer" | python3 -c 'import sys, json; print(json.load(sys.stdin)["detail"])'
 
 # Return every stage's failures to the queue. What a model outage leaves
 # behind, cleared in one command instead of five.
 pipeline-retry:
-	@$(LOADENV) && curl -sf -X POST -H "X-API-Token: $$API_TOKEN" $$BACKEND_URL/pipeline/retry \
-	  | python3 -c 'import sys, json; print(json.load(sys.stdin)["detail"])' \
-	  || echo "The api is not answering. Try: make up"
+	@$(LOADENV) && $(ASK) && answer=$$(ask -X POST -H "X-API-Token: $$API_TOKEN" $$BACKEND_URL/pipeline/retry) \
+	  && printf '%s' "$$answer" | python3 -c 'import sys, json; print(json.load(sys.stdin)["detail"])'
 
 # ── Dagster, from here rather than from its own UI ─────────────────────────
 #

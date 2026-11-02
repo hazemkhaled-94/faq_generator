@@ -6,10 +6,15 @@ stand-in for compose.
 
 from __future__ import annotations
 
+import json
 import os
+import socket
 import subprocess
 import sys
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 import yaml
@@ -1434,3 +1439,119 @@ def test_down_volumes_refuses_without_confirm_all_volumes() -> None:
         if "down -v" in one
     ]
     assert ran, "the command is still there once confirmed"
+
+
+# ── The targets that ask the api ───────────────────────────────────────────
+
+
+class _Answering(BaseHTTPRequestHandler):
+    """A stand-in for the api: one status and one body for every request."""
+
+    status = 200
+    body = b"{}"
+    seen: ClassVar[list[str]] = []
+
+    def _answer(self) -> None:
+        """Records the request and answers it."""
+        _Answering.seen.append(f"{self.command} {self.path}")
+        self.send_response(self.status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(self.body)))
+        self.end_headers()
+        self.wfile.write(self.body)
+
+    do_GET = do_POST = _answer
+
+    def log_message(self, *args: object) -> None:
+        """Keeps the test output clean."""
+
+
+def _ask(target: str, tmp_path: Path, port: int) -> subprocess.CompletedProcess:
+    """Runs one make target against the stand-in on `port`."""
+    env_file = tmp_path / "scratch.env"
+    env_file.write_text("API_TOKEN=not-the-apis-token\n")
+    return subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            target,
+            f"ENV_FILE={env_file}",
+            f"BACKEND_PORT={port}",
+        ],
+        check=False,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={
+            k: v for k, v in os.environ.items() if k not in ("API_TOKEN", "BACKEND_URL")
+        },
+    )
+
+
+@pytest.fixture
+def api():
+    """Serves `_Answering` on a free port, and gives the port."""
+    _Answering.seen, _Answering.status, _Answering.body = [], 200, b"{}"
+    server = HTTPServer(("127.0.0.1", 0), _Answering)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield server.server_address[1]
+    server.shutdown()
+    server.server_close()
+
+
+ASKING = ["pipeline-stop", "pipeline-retry", "pipeline-status", "services"]
+
+
+@pytest.mark.parametrize("target", ASKING)
+@pytest.mark.parametrize(
+    ("status", "detail"),
+    [
+        (401, "send the deployment's API_TOKEN as X-API-Token"),
+        (409, "Eine Abfrage läuft bereits"),
+        (500, "internal failure of the bank's ledger"),
+    ],
+)
+def test_a_target_the_api_refuses_fails_and_names_the_detail(
+    target, status, detail, api, tmp_path
+) -> None:
+    """Not 'not answering': the api did answer, and said no."""
+    _Answering.status = status
+    _Answering.body = json.dumps({"detail": detail}).encode()
+
+    done = _ask(target, tmp_path, api)
+
+    assert _Answering.seen, "the stand-in was never asked"
+    assert done.returncode != 0, done.stdout + done.stderr
+    said = done.stdout + done.stderr
+    assert detail in said
+    assert str(status) in said
+    assert "not answering" not in said
+    assert "Traceback" not in said
+
+
+@pytest.mark.parametrize("target", ASKING)
+def test_a_target_with_no_api_to_reach_says_it_is_not_answering(
+    target, tmp_path
+) -> None:
+    """Only a refused connection is 'not answering'."""
+    with socket.socket() as one:
+        one.bind(("127.0.0.1", 0))
+        port = one.getsockname()[1]
+
+    done = _ask(target, tmp_path, port)
+
+    assert done.returncode != 0
+    assert "The api is not answering. Try: make up" in done.stdout + done.stderr
+    assert "Traceback" not in done.stdout + done.stderr
+
+
+def test_a_target_the_api_answers_prints_what_it_said(api, tmp_path) -> None:
+    """The 2xx path is as it was."""
+    _Answering.body = b'{"detail": "Took back 3 rows and stopped the run"}'
+
+    done = _ask("pipeline-stop", tmp_path, api)
+
+    assert done.returncode == 0, done.stderr
+    assert "Took back 3 rows and stopped the run" in done.stdout

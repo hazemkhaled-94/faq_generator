@@ -139,6 +139,12 @@ make logs-prune LOGS_KEEP_DAYS=7
 | `make pipeline-stop` | Take back everything queued, in every stage, and stop the run behind it |
 | `make pipeline-retry` | Return every stage's failures to the queue |
 
+`make services`, `make pipeline-status`, `make pipeline-stop` and `make
+pipeline-retry` ask the api. They exit non-zero when it does not answer, saying
+"The api is not answering" only where nothing connects, and otherwise print the
+status and detail it gave: a 401 means the host's `API_TOKEN` is not the api's,
+so run `make up` after changing `.env`.
+
 `make pipeline-status` (above) shows every stage's queue and the run in
 flight. No `pipeline-start` exists: `make pipeline` starts each stage and
 waits for it to drain before the next. With `WAIT=1`, which `make corpus`
