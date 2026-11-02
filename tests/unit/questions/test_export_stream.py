@@ -90,7 +90,11 @@ def test_a_sheet_that_would_pass_the_row_limit_goes_on_in_a_numbered_one(
         "Citations 2",
         "Citations 3",
     ]
-    heads = {tuple(c.value for c in book[name][1]) for name in book.sheetnames[-2:]}
+    heads = {
+        tuple(c.value for c in book[name][1])
+        for name in book.sheetnames
+        if name.startswith("Citations")
+    }
     assert len(heads) == 1
     column = [one.value for one in book["Citations"][1]].index("Fact ID")
     held = [
@@ -318,3 +322,52 @@ def test_every_long_cell_is_cut_and_marked(language, turn) -> None:
         assert len(value) <= export._CELL_LIMIT + len("… [truncated]")
     why = [row[5] for row in book["Assessment"].iter_rows(min_row=2, values_only=True)]
     assert why and str(why[0]).endswith("[truncated]")
+
+
+def test_a_continuation_sheet_sits_beside_the_sheet_it_continues(monkeypatch) -> None:
+    """Not after the Summary, where nobody looks for it."""
+    monkeypatch.setattr(export, "_SHEET_ROWS", 3)
+
+    book = load_workbook(
+        io.BytesIO(workbook([stored()], [cited(fact_id=one) for one in range(1, 8)]))
+    )
+
+    assert book.sheetnames == [
+        "Questions",
+        "Citations",
+        "Citations 2",
+        "Citations 3",
+        "Assessment",
+        "Summary",
+    ]
+
+
+@pytest.mark.parametrize("language", ["de", "en", "fr", "el"])
+def test_the_diversity_reader_takes_every_part_of_a_sheet(
+    language, monkeypatch, tmp_path
+) -> None:
+    """`make diversity` counts the rows of `Citations 2` and `Citations 3` too."""
+    from assessment.run import _sheets
+
+    monkeypatch.setattr(export, "_SHEET_ROWS", 3)
+    path = tmp_path / "set.xlsx"
+    path.write_bytes(
+        workbook(
+            [stored(language=language)],
+            [cited(fact_id=one) for one in range(1, 8)],
+        )
+    )
+
+    assert len(_sheets(path, "Citations")) == 7
+    assert len(_sheets(path, "Questions")) == 1
+
+
+@pytest.mark.parametrize("sign", ["\t", "\r"])
+def test_a_tab_or_return_before_a_formula_is_marked_as_text(sign) -> None:
+    """OWASP's list of what a spreadsheet may run once the sheet is re-imported."""
+    text = f'{sign}=HYPERLINK("http://example.test")'
+    book = load_workbook(io.BytesIO(workbook([stored(target_answer=text)])))
+    sheet = book["Questions"]
+    head = [one.value for one in sheet[1]]
+
+    assert sheet.cell(row=2, column=head.index("Answer") + 1).quotePrefix is True

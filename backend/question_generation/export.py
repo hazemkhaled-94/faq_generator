@@ -216,7 +216,7 @@ _CHUNK = 500
 
 #: What a cell starting with one of these is to a spreadsheet: a formula, or a
 #: signed number when edited, or re-imported as CSV. Marked as text.
-_FORMULA_STARTS = ("=", "+", "-", "@")
+_FORMULA_STARTS = ("=", "+", "-", "@", "\t", "\r")
 
 #: Beyond this, a cell is truncated. Excel refuses a cell over 32,767
 #: characters outright, and a workbook that raises at the last row is worse
@@ -276,6 +276,7 @@ class _Sheet:
         self._name = name
         self._headings = list(headings)
         self._part = 0
+        self._title = name
         self._rows = 0
         self.total = 0
         self._open()
@@ -284,7 +285,12 @@ class _Sheet:
         """Starts the next sheet: frozen headings, sized columns, bold heading row."""
         self._part += 1
         title = self._name if self._part == 1 else f"{self._name} {self._part}"
-        sheet = self._book.create_sheet(title)
+        # Beside the sheet it continues, not after the Summary.
+        beside = (
+            None if self._part == 1 else self._book.sheetnames.index(self._title) + 1
+        )
+        self._title = title
+        sheet = self._book.create_sheet(title, beside)
         sheet.freeze_panes = "A2"
         for index, heading in enumerate(self._headings, start=1):
             sheet.column_dimensions[get_column_letter(index)].width = _WIDTHS.get(
