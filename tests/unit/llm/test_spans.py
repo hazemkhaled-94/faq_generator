@@ -20,13 +20,6 @@ def test_the_relations_are_prompt_six_s_in_its_order() -> None:
         "parallel",
         "contrast",
     ]
-    assert (
-        RELATIONS["parallel"].answer_from == RELATIONS["contrast"].answer_from == "each"
-    )
-    assert {
-        RELATIONS[n].answer_from
-        for n in ("defines", "limits", "consequence", "applies")
-    } == {"either"}
     flat = " ".join(bridge._SYSTEM.split())
     for relation in RELATIONS.values():
         assert " ".join(relation.meaning.split()) in flat
@@ -54,9 +47,7 @@ def test_a_relation_added_to_the_table_is_one_the_bridge_schema_takes(
     from extraction.extractors import bridge
     from llm import spans
 
-    added = spans.Relation(
-        "requires", "one names what the other's rule needs.", "either"
-    )
+    added = spans.Relation("requires", "one names what the other's rule needs.")
     monkeypatch.setitem(spans.RELATIONS, "requires", added)
     fresh = importlib.reload(bridge)
     try:
