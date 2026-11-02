@@ -491,6 +491,32 @@ class TestBridges:
         assert removed == 1
         assert [row[0] for row in store.rows("statement")] == ["From b."]
 
+    def test_a_topic_is_cleared_of_the_bridges_it_heads_and_no_others(
+        self, store, corpus
+    ) -> None:
+        """A pass replaces a topic's bridges when that topic is answered, not before."""
+        a_anchor, b_anchor = corpus["a"][0], corpus["b"][0]
+        support = store.topic("Support", a_anchor)
+        store.topic("Access", b_anchor)
+        store.bridges(
+            checked(
+                a_anchor,
+                "From a.",
+                kind=FactKind.BRIDGE,
+                passage_ids=[a_anchor, b_anchor],
+            ),
+            checked(
+                b_anchor,
+                "From b.",
+                kind=FactKind.BRIDGE,
+                passage_ids=[b_anchor, a_anchor],
+            ),
+        )
+
+        assert store.catalog.clear_bridges_of([support]) == 1
+        assert [row[0] for row in store.rows("statement")] == ["From b."]
+        assert store.catalog.clear_bridges_of([]) == 0
+
     def test_a_narrowed_pass_clears_every_bridge_of_the_topics_it_reads(
         self, store, corpus
     ) -> None:

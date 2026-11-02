@@ -476,10 +476,12 @@ def bridge(
 ) -> int:
     """Writes the bridge facts a corpus's topics offer.
 
-    One model call per group. Every bridge in scope is deleted once the links
-    are dealt and the model has answered its first call, so a second run
-    replaces what the first wrote instead of adding to it, and one that dies
-    reading the corpus, or finds the model unreachable, deletes nothing.
+    One model call per group. The bridges a topic heads are deleted once the
+    links are dealt and the model has answered the topic's first call, and
+    those of a topic offered nothing when the pass ends, so a second run
+    replaces what the first wrote instead of adding to it. One that dies
+    reading the corpus, or finds the model unreachable, deletes nothing of the
+    topics it never reached.
 
     With `missing`, nothing is deleted and only the topics holding no bridge
     are read: what a whole-corpus run asks for, so a second one neither
@@ -505,8 +507,7 @@ def bridge(
         SpendCapReached: If SPEND_CAP was reached between two topics, or the
             model could not be reached for STOP_AFTER links in a row. The
             facts written so far are kept, and the number is `kept`. The
-            bridges of the earlier pass are deleted only once the model has
-            answered, so a pass that never got an answer deleted none.
+            bridges of a topic the pass never reached stay.
     """
     # ponytail: counted and deleted in two transactions, so a question
     # accepted between them is not counted. Upgrade: count and delete in one
@@ -564,7 +565,6 @@ def bridge(
             frozenset() if missing else done,
             frozenset() if missing else held,
         )
-        kinds = Counter(link.kind for link in links)
         if missing:
             links = [
                 link
@@ -572,6 +572,7 @@ def bridge(
                 if topic_of.get(link.head or 0) not in done
                 and frozenset(one.id for one in link.passages[:2]) not in held
             ]
+        kinds = Counter(link.kind for link in links)
         log.info(
             "offered %d link(s) in %r (%d reference, %d sibling, %d term)",
             len(links),
@@ -581,11 +582,11 @@ def bridge(
             kinds["term"],
         )
         offers.append((language, links))
-    # The old bridges go when the model first answers, after the links are
-    # dealt, which is the long read of the whole corpus and the part that can
-    # run out of memory: a pass that dies there, or finds the model out of
-    # reach, has deleted nothing.
-    cleared = missing
+    # A topic's old bridges go when the model first answers one of its links,
+    # after the links are dealt, which is the long read of the whole corpus and
+    # the part that can run out of memory: a pass that dies there, or finds the
+    # model out of reach, has deleted nothing of the topics it never reached.
+    replaced: set[int] = set()
     outages = 0
     for language, links in offers:
         for link in links:
@@ -626,11 +627,13 @@ def bridge(
                         raise SpendCapReached(reason, written) from exc
                     continue
                 outages = 0
-                if not cleared:
+                if not missing and at is not None and at not in replaced:
                     log.info(
-                        "replacing %d bridge fact(s)", catalog.clear_bridges(within)
+                        "replacing %d bridge fact(s) headed in topic %d",
+                        catalog.clear_bridges_of([at]),
+                        at,
                     )
-                    cleared = True
+                    replaced.add(at)
                 try:
                     written += catalog.add_bridges(
                         [
@@ -653,6 +656,14 @@ def bridge(
                         str(exc.orig).splitlines()[0],
                     )
                     dropped += 1
+    if not missing:
+        # What the pass has not replaced and written: a topic it offered
+        # nothing or got no answer for, and a bridge headed outside every
+        # topic it read. The scope is replaced by what was written.
+        log.info(
+            "replacing %d more bridge fact(s) with none",
+            catalog.clear_bridges(within, replaced),
+        )
     if dropped:
         log.warning(
             "wrote %d bridge fact(s), and %d group(s) were dropped because the "

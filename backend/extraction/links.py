@@ -254,11 +254,7 @@ def _references(
     """Adds the links a passage makes by naming a heading."""
     labels, headings, parents = index.labels, index.headings, index.parents
     for head in partners:
-        own = {
-            label
-            for s in _segments(head)
-            if (label := label_of(s))
-        }
+        own = {label for s in _segments(head) if (label := label_of(s))}
         named = read[head.id].named
         for key in sorted(k for k in named if k not in own):
             # A numbered reference names a section of its own document, or of

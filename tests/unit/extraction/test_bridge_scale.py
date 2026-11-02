@@ -125,10 +125,10 @@ class Ordered(Catalogue):
         super().__init__(**topics)
         self._order = order
 
-    def clear_bridges(self, within=None) -> int:
+    def clear_bridges_of(self, topics) -> int:
         """Notes the deletion."""
         self._order.append("clear")
-        return super().clear_bridges(within)
+        return super().clear_bridges_of(topics)
 
     def bridged_pairs(self, within=None, replaced=False):
         """Notes the read of what stays."""

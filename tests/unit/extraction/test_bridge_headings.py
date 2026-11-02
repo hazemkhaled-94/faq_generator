@@ -352,7 +352,9 @@ def test_a_bridge_naming_a_numbered_tier_is_not_refused_as_a_location(
     language, statement, path, texts
 ) -> None:
     """A heading with a title after its number is no label, so naming the tier is content."""
-    under = passage(texts[0], language=language, section_path=path, id=1, doc_sha256="d")
+    under = passage(
+        texts[0], language=language, section_path=path, id=1, doc_sha256="d"
+    )
     other = passage(
         texts[1], language=language, section_path="Other > Part", id=2, doc_sha256="d"
     )

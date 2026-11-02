@@ -91,7 +91,10 @@ def test_the_previous_pass_is_replaced_rather_than_added_to() -> None:
     catalog = Catalogue(support=pair())
     run(catalog, Model(ANSWER))
 
-    assert catalog.cleared == 1, "the clear happens once, before anything is read"
+    assert catalog.cleared_topics == [1], "the topic's bridges go once it is answered"
+    assert catalog.cleared_besides == [{1}], (
+        "and the rest of the scope when the pass ends"
+    )
 
 
 def test_every_topic_is_read() -> None:
@@ -210,7 +213,7 @@ def test_an_outage_after_the_first_group_still_stops_the_pass() -> None:
 
     assert model.calls == 1 + STOP_AFTER
     assert len(catalog.written) == 1, "what was written is kept"
-    assert catalog.cleared == 1
+    assert catalog.cleared_topics == [1], "the topics never reached keep their bridges"
 
 
 def test_a_refused_bridge_is_stored_with_its_reason() -> None:
