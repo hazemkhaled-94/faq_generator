@@ -240,6 +240,7 @@ def _columns(chunk: Chunk) -> dict:
         "ordinal": chunk.ordinal,
         "text": chunk.text,
         "language": chunk.language,
+        **({} if chunk.extractable else {"extract_status": Status.EXTRACTED}),
         "sentences": chunk.sentences or None,
         "lemmas": chunk.lemmas,
         "page_from": chunk.page_from,

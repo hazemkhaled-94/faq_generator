@@ -815,6 +815,7 @@ class PassageBuilder:
                 replace(
                     passage,
                     language=by_index[index],
+                    extractable=by_index[index] is not None or language is None,
                     sentences=numbered,
                     lemmas=lemmas,
                 )

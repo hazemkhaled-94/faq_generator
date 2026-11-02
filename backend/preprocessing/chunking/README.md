@@ -146,7 +146,10 @@ the passage renders, on the page each is printed on.
 
 `_read` detects each passage's language on its own text and falls back to the
 document's language when the passage is too short. A passage surely in a
-language `NLP_MODELS` does not name is labelled `None`. A chunk ends where its
+language `NLP_MODELS` does not name is labelled `None` and stored as already
+extracted, so extraction never reads it; the chunk log counts them (`make
+chunk-revocabulary` moves the label only, so a re-chunk is what skips a passage
+already stored). A chunk ends where its
 paragraphs or list items change language, a foreign one included. A table passage takes the
 document's language without detection.
 

@@ -190,21 +190,26 @@ def test_what_cannot_be_told_takes_the_documents_language(
     assert passage_language(text, fallback) == (detect(text) or fallback)
 
 
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        # A sentence of the document's language over a signature block.
-        (GERMAN + "\nFür den Vorstand:\nAleksander Čeferin\nPräsident", "de"),
-        (ENGLISH + "\nFor the board:\nAleksander Čeferin\nPresident", "en"),
-    ],
-)
-def test_a_passage_is_read_by_its_prose_not_by_its_names_and_table_rows(
-    text: str, expected: str
-) -> None:
-    """Names, a signature and a table row are not a language of their own."""
-    from nlp.language import passage_language
+SIGNATURES = {
+    "de": "Anna Kowalska Vorsitzende Peter Brandt Schriftführer Hamburg, 29. Juli 2026",
+    "en": "Anna Kowalska Chair Peter Brandt Secretary General Leeds, 29 July 2026",
+    "fr": "Anna Kowalska Présidente Pierre Brandt Secrétaire Général Lyon, 29 juillet 2026",
+    "el": "Άννα Κοβάλσκα Πρόεδρος Πέτρος Μπραντ Γραμματέας Αθήνα, 29 Ιουλίου 2026",
+}
 
-    assert passage_language(text, expected) == expected
+
+@pytest.mark.parametrize("signature", sorted(SIGNATURES))
+@pytest.mark.parametrize(("text", "expected"), [(GERMAN, "de"), (ENGLISH, "en")])
+def test_a_passage_is_read_by_its_prose_not_by_its_names(
+    signature: str, text: str, expected: str
+) -> None:
+    """A signature under a sentence is names, and says nothing against its language."""
+    from nlp.language import outside, passage_language
+
+    assert not outside(SIGNATURES[signature])
+    assert not outside(f"{text}\n{SIGNATURES[signature]}")
+    assert passage_language(f"{text}\n{SIGNATURES[signature]}", expected) is not None
+    assert passage_language(SIGNATURES[signature], expected) is not None
 
 
 def test_a_contents_table_is_not_a_language_of_its_own() -> None:

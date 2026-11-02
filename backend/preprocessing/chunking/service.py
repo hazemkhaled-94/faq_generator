@@ -179,6 +179,15 @@ class ChunkingService(StageService):
             stored,
             sum(len(passage.sentences) for passage in chunking.passages),
         )
+        skipped = sum(not passage.extractable for passage in chunking.passages)
+        current.set_attribute("chunk.unextractable", skipped)
+        if skipped:
+            log.warning(
+                "%d passage(s) of %s are in a language NLP_MODELS does not name: "
+                "kept, left out of extraction and of the topic vocabulary.",
+                skipped,
+                sha256,
+            )
         if chunking.oversized:
             # A passage above the budget means the chunker's split did not
             # happen.

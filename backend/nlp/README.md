@@ -70,10 +70,12 @@ read as a foreign word and left out, unless the text is all lower case.
 The language is detected per passage (`passage_language`). A passage too short
 to judge, and a table, keep the document's language. The detector may answer
 only with a language `NLP_MODELS` names. A passage surely in another language
-reads `None`: it is kept, no topic is fitted over it, and the pipeline of
+reads `None`: it is kept, no topic is fitted over it, extraction never reads it
+(chunking stores it as already extracted and logs how many), and the pipeline of
 `NLP_DEFAULT_LANGUAGE` segments it. It is read line by line over every language,
 at the document gate's confidence (0.7): a line counts for the language it
-reads as, a table row or a line too short to tell for none, and the passage is
+reads as, a table row, a line of names or titles (most words start with a
+capital) or a line too short to tell for none, and the passage is
 outside when more of its characters read as another language than as a
 configured one. `NLP_DEFAULT_LANGUAGE` is also the pipeline for a text whose
 language is unknown or not named there.
