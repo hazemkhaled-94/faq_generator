@@ -11,11 +11,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_every_make_target_that_writes_to_the_api_sends_the_secret() -> None:
-    """A curl with -X, against the backend, carries X-API-Token."""
+    """A curl, or the `ask` wrapper around one, with -X against the backend carries X-API-Token."""
     sent = [
         line
         for line in (ROOT / "Makefile").read_text().splitlines()
-        if "curl" in line and "$$BACKEND_URL" in line and re.search(r"-X \w+", line)
+        if ("curl" in line or "ask " in line)
+        and "$$BACKEND_URL" in line
+        and re.search(r"-X \w+", line)
     ]
 
     assert sent
