@@ -19,15 +19,25 @@ def _pool(name: str, fallback: int) -> int:
     return int(value) if value else fallback
 
 
+#: The query keys that move the connection to another database or server.
+_MOVES = {"dbname", "host", "hostaddr", "port", "service"}
+
+
 def database_url() -> str:
-    """DATABASE_URL, refused when it names no database.
+    """DATABASE_URL, refused when it names no database or moves it in its query.
 
     libpq connects a URL with no database to the one named like the user, which
     is the main database whatever the caller meant.
     """
     url = os.environ["DATABASE_URL"]
-    if not make_url(url).database:
+    parsed = make_url(url)
+    if not parsed.database:
         raise ValueError("DATABASE_URL names no database")
+    if moved := _MOVES & set(parsed.query):
+        raise ValueError(
+            f"DATABASE_URL names {', '.join(sorted(moved))} in the query, which "
+            "overrides the path: write the database and the host in the URL itself"
+        )
     return url
 
 

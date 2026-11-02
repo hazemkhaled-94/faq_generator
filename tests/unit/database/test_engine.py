@@ -44,3 +44,22 @@ def test_the_migrations_read_the_url_through_the_same_refusal():
         Path(engine_module.__file__).parents[1] / "migrations" / "env.py"
     ).read_text()
     assert 'os.environ["DATABASE_URL"]' not in text and "database_url()" in text
+
+
+@pytest.mark.parametrize("key", ["dbname", "host", "hostaddr", "port", "service"])
+def test_a_query_naming_the_database_or_host_is_refused(monkeypatch, key):
+    """The query overrides the path, so the name the guards read is not the one connected to."""
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        f"postgresql+psycopg://u:p@localhost:5432/qa_scratch?{key}=qa_generator",
+    )
+    with pytest.raises(ValueError, match="in the query"):
+        engine_module.engine()
+
+
+def test_a_harmless_query_builds_the_engine(monkeypatch):
+    """`sslmode` is the connection's own option."""
+    monkeypatch.setenv(
+        "DATABASE_URL", "postgresql+psycopg://u:p@localhost:5432/ledger?sslmode=require"
+    )
+    assert engine_module.engine().url.database == "ledger"

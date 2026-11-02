@@ -190,15 +190,22 @@ STORE_DOWN = echo "$(1) is not running: not checked, and $(2) is skipped by the 
 WIPE_STEP = if $(call RUNNING,$(1)); then $(MAKE) $(2); else $(call STORE_DOWN,$(1),$(2)); fi
 
 # Names where a command acts, once the settings are loaded.
-# The database and the host:port DATABASE_URL names, as `db` and `host`.
-RESOLVED_DB = db=$$(printf %s "$$DATABASE_URL" | sed -n 's|^[^:]*://[^/]*/\([^?]*\).*|\1|p') && \
-              host=$$(printf %s "$$DATABASE_URL" | sed -n 's|^[^:]*://\([^/?]*\).*|\1|p' | sed 's|.*@||')
+# The database, the host:port and the query DATABASE_URL names, as `db`, `host`
+# and `query`, split as SQLAlchemy's make_url does: the password ends at the
+# first `@` and may hold `/` and `?`, and the host never carries userinfo.
+URL_PARTS = ^[^:]+://(([^:/]*)(:[^@]*)?@)?([^/:]*)(:([^/]*))?(/([^?]*))?(\?.*)?$$
+RESOLVED_DB = db=$$(printf %s "$$DATABASE_URL" | sed -nE 's|$(URL_PARTS)|\8|p') && \
+              host=$$(printf %s "$$DATABASE_URL" | sed -nE 's|$(URL_PARTS)|\4\5|p') && \
+              query=$$(printf %s "$$DATABASE_URL" | sed -nE 's|$(URL_PARTS)|\9|p')
 
 # One database name everywhere: a DATABASE_URL given by ENV_FILE, the
 # environment or the command line must name the database APP_DB_NAME says, so
 # every reader of either acts on the same one. Not given, DERIVED builds it
 # from APP_DB_NAME and the two agree.
-AGREED = $(RESOLVED_DB) && { [ "$$db" = "$$APP_DB_NAME" ] || \
+AGREED = $(RESOLVED_DB) && \
+         { ! printf %s "$$query" | grep -Eq '[?&](dbname|host|hostaddr|port|service)=' || \
+         { echo "REFUSED: DATABASE_URL names its database, host or port in the query (dbname, host, hostaddr, port or service), which overrides the path: write it in the path and the authority" >&2; exit 2; }; } && \
+         { [ "$$db" = "$$APP_DB_NAME" ] || \
          { echo "REFUSED: DATABASE_URL names $$db but APP_DB_NAME is $$APP_DB_NAME; set APP_DB_NAME=$$db" >&2; exit 2; }; }
 
 # Refuses unless DATABASE_URL names the stack's own postgres, localhost or

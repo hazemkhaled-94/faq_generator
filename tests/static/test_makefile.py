@@ -1817,7 +1817,16 @@ def given_url(where: str) -> dict:
 
 @pytest.mark.parametrize("where", ["env_file", "environment"])
 @pytest.mark.parametrize(
-    "target", ["restore-backup", "dagster-wipe", "backup", "schema", "topics-discover"]
+    "target",
+    [
+        "restore-backup",
+        "dagster-wipe",
+        "backup",
+        "schema",
+        "topics-discover",
+        "review-pull-facts",
+        "eval-score",
+    ],
 )
 def test_a_url_naming_another_database_than_app_db_name_is_refused(
     tmp_path: Path, where: str, target: str
@@ -1950,3 +1959,86 @@ def test_the_refusal_and_the_banner_name_the_host_the_url_names(tmp_path: Path) 
     assert "on database faq_prod on managed.example.net:5432" in shown.stderr, (
         shown.stderr
     )
+
+
+@pytest.mark.parametrize(
+    ("url", "host", "database"),
+    [
+        (
+            "postgresql+psycopg://app:s3cr?t@db.example.net:5432/ledger",
+            "db.example.net:5432",
+            "ledger",
+        ),
+        (
+            "postgresql+psycopg://app:s3/cr@db.example.net/ledger",
+            "db.example.net",
+            "ledger",
+        ),
+        (
+            "postgresql+psycopg://u:hunter7@h@x:5432/db?sslmode=require",
+            "h@x:5432",
+            "db",
+        ),
+        (
+            "postgresql+psycopg://bank:Passwort-für-Konto@kasse.example.net:6432/konten",
+            "kasse.example.net:6432",
+            "konten",
+        ),
+        (
+            "postgresql+psycopg://shop:κωδικός@db.example.gr/παραγγελίες",
+            "db.example.gr",
+            "παραγγελίες",
+        ),
+    ],
+)
+def test_the_url_is_split_as_sqlalchemy_splits_it_and_the_password_is_never_printed(
+    tmp_path: Path, url: str, host: str, database: str
+) -> None:
+    """A `?` or a `/` in a password is the password's, not the end of the authority."""
+    done = probe(
+        tmp_path,
+        '$(LOADENV) && $(RESOLVED_DB) && echo "$$db|$$host"',
+        f"APP_DB_NAME={database}",
+        env_text=f"DATABASE_URL={url}\n",
+    )
+    secret = url.split("//", 1)[1].split("@")[0].split(":", 1)[1]
+
+    assert done.stdout.strip() == f"{database}|{host}", done
+    assert secret not in done.stdout + done.stderr
+
+    refused = probe(
+        tmp_path, GUARDED, f"APP_DB_NAME={database}", env_text=f"DATABASE_URL={url}\n"
+    )
+    assert secret not in refused.stdout + refused.stderr
+
+
+@pytest.mark.parametrize("key", ["dbname", "host", "hostaddr", "port", "service"])
+def test_a_url_naming_its_database_or_host_in_the_query_is_refused(
+    tmp_path: Path, key: str
+) -> None:
+    """The query overrides the path, so the guard would read one database and the engine another."""
+    url = f"postgresql+psycopg://u:p@localhost:5432/qa_scratch?{key}=qa_generator"
+    done = probe(
+        tmp_path,
+        GUARDED,
+        "APP_DB_NAME=qa_scratch",
+        "CONFIRM=qa_scratch",
+        env_text=f"DATABASE_URL={url}\n",
+    )
+
+    assert done.returncode == 2 and "in the query" in done.stderr, done
+    assert "went-on" not in done.stdout
+
+
+def test_a_harmless_query_is_kept(tmp_path: Path) -> None:
+    """`sslmode` and the like are the connection's own options."""
+    url = "postgresql+psycopg://u:p@localhost:5432/qa_scratch?sslmode=require&application_name=faq"
+    done = probe(
+        tmp_path,
+        GUARDED,
+        "APP_DB_NAME=qa_scratch",
+        "CONFIRM=qa_scratch",
+        env_text=f"DATABASE_URL={url}\n",
+    )
+
+    assert "went-on" in done.stdout, done
