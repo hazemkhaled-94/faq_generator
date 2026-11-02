@@ -313,7 +313,7 @@ def test_a_repeated_list_after_a_linking_adverb_names_nothing(
 @pytest.mark.parametrize(
     ("language", "recovered", "target"),
     [
-        ("de", "mindestens 8 000 Zuschauer", "8000 Zuschauer"),
+        ("de", "mindestens 8 000 Kundinnen", "8000 Kundinnen"),
         ("en", "at least 2 300 m²", "2,300 m²"),
         ("en", "serves 12 000 customers", "12000 customers"),
     ],
@@ -328,7 +328,7 @@ def test_a_space_grouped_count_agrees_with_its_other_spelling(
 @pytest.mark.parametrize(
     ("language", "recovered", "target"),
     [
-        ("de", "mindestens 8 000 Zuschauer", "8 Zuschauer"),
+        ("de", "mindestens 8 000 Kundinnen", "8 Kundinnen"),
         ("en", "at least 12 000 customers", "12 customers"),
         ("en", "at least 2 300 m²", "300 m²"),
     ],

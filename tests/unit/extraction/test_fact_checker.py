@@ -2334,18 +2334,18 @@ def test_a_language_no_pipeline_is_configured_for_is_refused_at_parse_not_read(
     [
         (
             "de",
-            "Das Stadion muss mindestens 8 000 Zuschauer fassen.",
-            "Das Stadion muss mindestens 8000 Zuschauer fassen.",
+            "Die Filiale betreut mindestens 8 000 Kundinnen.",
+            "Die Filiale betreut mindestens 8000 Kundinnen.",
         ),
         (
             "de",
-            "Die Beleuchtungsstärke muss mindestens 1 250 lx betragen.",
-            "Die Beleuchtungsstärke muss mindestens 1.250 lx betragen.",
+            "Die Leuchte liefert mindestens 1 250 lm.",
+            "Die Leuchte liefert mindestens 1.250 lm.",
         ),
         (
             "en",
-            "The media area must have at least 2 300 m² of floor space.",
-            "The media area must have at least 2,300 m² of floor space.",
+            "The warehouse must have at least 2 300 m² of floor space.",
+            "The warehouse must have at least 2,300 m² of floor space.",
         ),
         (
             "en",
@@ -2378,8 +2378,8 @@ def test_a_count_in_its_other_spelling_is_supported(
         ),
         (
             "de",
-            "Das Stadion muss mindestens 8 000 Zuschauer fassen.",
-            "Das Stadion muss mindestens 8 Zuschauer fassen.",
+            "Die Filiale betreut mindestens 8 000 Kundinnen.",
+            "Die Filiale betreut mindestens 8 Kundinnen.",
         ),
     ],
 )
@@ -2726,13 +2726,13 @@ def test_a_sign_or_code_reads_the_same_in_a_language_without_a_currency_row(
         ),
         (
             "en",
-            "The goalkeeper must release the ball within 8 seconds. A temporary dismissal lasts 10 minutes.",
-            "The goalkeeper must release the ball within 10 minutes.",
+            "A transfer is credited within 8 seconds. A card block lasts 10 minutes.",
+            "A transfer is credited within 10 minutes.",
         ),
         (
             "de",
-            "Der Torhüter muss den Ball innerhalb von 8 Sekunden freigeben. Eine Zeitstrafe dauert 10 Minuten.",
-            "Der Torhüter muss den Ball innerhalb von 10 Minuten freigeben.",
+            "Eine Überweisung wird innerhalb von 8 Sekunden gutgeschrieben. Eine Kartensperre dauert 10 Minuten.",
+            "Eine Überweisung wird innerhalb von 10 Minuten gutgeschrieben.",
         ),
         (
             "en",
