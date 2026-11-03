@@ -1202,7 +1202,7 @@ Rebuild, `make up`, `make schema` (`20e31b1656f7`, column comments only).
   a digital PDF in the parse warning. Topic naming prompt 2 becomes 3.
 - Topic figures and models move to `topics/<database>/<language>`: the Topics
   page shows no figure until `make topics-discover`.
-- `make audit` also audits `poetry.lock` and runs whole on Linux only.
+- `make audit` also audits `poetry.lock`.
 - Reruns, in order: `make parse-rerun CONFIRM=<database>`, `make chunk-rerun
   CONFIRM=<database>`, `make extract-start` and `make extract`, `make
   extract-revalidate`, `make extract-bridge FORCE=1`, `make topics-discover`,

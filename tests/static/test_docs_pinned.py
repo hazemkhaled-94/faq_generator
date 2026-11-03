@@ -1267,3 +1267,20 @@ def test_role_models_are_said_to_be_set_in_env() -> None:
             assert "| `backend.env` |" not in line, line
     stage = _flat(_section(llm, "## Stage models"))
     assert "`.env`" in stage and "`LLM_CONTAINER_MODEL`" in stage
+
+
+def test_no_doc_says_the_audit_is_linux_only() -> None:
+    """make audit reads every lock as pinned, so it runs whole on any host (N-075).
+
+    `--disable-pip --no-deps` resolves nothing on the machine, so the
+    poetry.lock leg runs on macOS as on Linux; the Makefile and two docs said
+    a Mac audits only the image locks.
+    """
+    makefile = _read("Makefile")
+    recipe = makefile[makefile.index("\naudit:") :].split("\n\n", 1)[0]
+    assert "--disable-pip" in recipe and "--no-deps" in recipe
+
+    for relative in ("Makefile", "docs/make.md", "docs/operations.md"):
+        assert not re.search(r"linux only", _flat(_read(relative)), re.IGNORECASE), (
+            relative
+        )
