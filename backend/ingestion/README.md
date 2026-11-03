@@ -65,7 +65,9 @@ No deletion destroys data. An AFTER DELETE trigger copies the rows into
 
 The input is one born-digital PDF, up to `MAX_FILE_SIZE_MB`, posted to
 `POST /documents` or picked on the Upload page. SeaweedFS keeps the bytes
-unchanged, without expiry, at `documents/{sha[0:2]}/{sha[2:4]}/{sha}.pdf`.
+unchanged, without expiry, at
+`documents/{database}/{sha[0:2]}/{sha[2:4]}/{sha}.pdf`, where `{database}` is
+the database `DATABASE_URL` names.
 
 | Table | Holds |
 |---|---|

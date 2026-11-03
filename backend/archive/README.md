@@ -35,8 +35,8 @@ The downgrade past the paper's scores switches the `assessment_metrics`
 trigger off for its one delete.
 
 The removal paths move objects to the `archive` bucket, keyed
-`{origin}/{key}@{UTC time}` (`{origin}/{key}` for a copy taken before the
-stamp existed).
+`{database}/{origin}/{key}@{UTC time}` (`{database}/{origin}/{key}` for a copy
+taken before the stamp existed).
 
 | Deletion | What it archives |
 |---|---|

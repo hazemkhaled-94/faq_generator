@@ -1206,3 +1206,33 @@ def test_the_split_names_where_its_figures_were_measured() -> None:
     for model in sorted(shipped):
         assert f"`{model}`" in section, model
     assert "extraction" in section and "digest" in section
+
+
+def test_every_documented_object_key_carries_the_database(monkeypatch) -> None:
+    """The READMEs give object keys as the store holds them (N-008).
+
+    Every key has gone under the database's name since keys were prefixed, so
+    a README showing a bare digest key sends an operator to an empty path.
+    """
+    from blob_store.s3.bucket import Bucket
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user@host/acme")
+    digest = "ab" * 32
+    assert Bucket.scoped(Bucket.fanout_key(digest, "pdf")) == (
+        f"acme/ab/ab/{digest}.pdf"
+    )
+
+    for relative in (
+        "backend/ingestion/README.md",
+        "backend/preprocessing/parsing/README.md",
+        "backend/blob_store/README.md",
+    ):
+        heads = re.findall(
+            r"`([^`\s]*)\{sha\[0:2\]\}/\{sha\[2:4\]\}/\{sha\}\.", _read(relative)
+        )
+        assert heads, f"{relative} gives no object key"
+        for head in heads:
+            assert head.endswith("{database}/"), f"{relative}: `{head}...`"
+    assert "`{database}/{origin}/{key}@{UTC time}`" in _flat(
+        _read("backend/archive/README.md")
+    )
