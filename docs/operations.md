@@ -446,8 +446,10 @@ From a fresh clone:
 1. Clone outside any synced folder, and keep the secrets where only the
    operator can read them (see [Keeping the secrets out of the
    checkout](#keeping-the-secrets-out-of-the-checkout)).
-2. `cp .env.example .env`, then `make setup` to fill the passwords. The file
-   ships the production split: `HOST_RUNNER=1`, the seven role models and
+2. `cp .env.example .env` and `chmod 600 .env`, because `cp` keeps the
+   example's mode 644 and `make setup` sets 600 only on a file it creates.
+   Then `make setup` to fill the passwords. The file ships the production
+   split: `HOST_RUNNER=1`, the seven role models and
    `LLM_REASONING_EFFORT=none`
    ([configuration](configuration.md#the-production-split)). Put the
    provider's credentials in `configs/env/provider.env`, which is not in git.
