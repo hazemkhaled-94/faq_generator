@@ -67,10 +67,18 @@ read as a foreign word and left out, unless the text is all lower case.
 
 ### Language detection
 
-The language is detected per passage. A passage too short to judge, and a
-table, keep the document's language. The detector may answer only with a
-language `NLP_MODELS` names. `NLP_DEFAULT_LANGUAGE` is the pipeline for a text
-whose language is unknown or not named there.
+The language is detected per passage (`passage_language`). A passage too short
+to judge, and a table, keep the document's language. The detector may answer
+only with a language `NLP_MODELS` names. A passage surely in another language
+reads `None`: it is kept, no topic is fitted over it, extraction never reads it
+(chunking stores it as already extracted and logs how many), and the pipeline of
+`NLP_DEFAULT_LANGUAGE` segments it. It is read line by line over every language,
+at the document gate's confidence (0.7): a line counts for the language it
+reads as, a table row, a line of names or titles (most words start with a
+capital) or a line too short to tell for none, and the passage is
+outside when more of its characters read as another language than as a
+configured one. `NLP_DEFAULT_LANGUAGE` is also the pipeline for a text whose
+language is unknown or not named there.
 
 A second detector reads the document once at parse (`document_language`). A
 document in a language `NLP_MODELS` does not name is refused, naming its
@@ -281,8 +289,10 @@ only when they are cached.
 ## Limits
 
 - The small spaCy models change what a fact is. Use the medium pipelines.
-- The detector cannot answer with a language `NLP_MODELS` does not name. A
-  French passage in a German corpus is read as German or English.
+- The configured detector cannot answer with a language `NLP_MODELS` does not
+  name. A French passage in a German corpus reads `None` because the
+  all-language reading finds it out first; a passage of a few words, or of
+  figures, still takes the document's language.
 - Sentence numbering is stored, not recomputed. After `NLP_MODELS` changes on
   a chunked corpus, `make chunk-revocabulary` re-reads language and lemmas,
   and the sentence offsets need `chunk-rerun`.

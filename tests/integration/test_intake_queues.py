@@ -8,6 +8,7 @@ reads back.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import timedelta
 
 import pytest
@@ -1056,3 +1057,92 @@ def test_a_row_deleted_while_held_is_gone_not_lost(parsable, engine) -> None:
 
     with pytest.raises(Gone, match="deleted while this worker held it"):
         queue.complete(A, PARSED)
+
+
+# ── A passage in a language no pipeline names ─────────────────────────────
+
+FRENCH = "Les frais de tenue de compte s'élèvent à cinq euros par mois pour tous les clients."
+
+
+def guest(ordinal: int, text_content: str = FRENCH) -> Chunk:
+    """A passage in a language no pipeline names, in a German document."""
+    return replace(chunk(ordinal, text_content), language=None, extractable=False)
+
+
+def host(ordinal: int, text_content: str = "Die Gebühr beträgt fünf Euro.") -> Chunk:
+    """A passage in the document's language."""
+    return replace(chunk(ordinal, text_content), language="de")
+
+
+def statuses(engine) -> list:
+    """Each passage's ordinal and extraction status."""
+    return rows(engine, "SELECT ordinal, extract_status FROM passages ORDER BY ordinal")
+
+
+@pytest.mark.parametrize("first", ["guest", "host"])
+def test_a_first_chunk_and_a_re_chunk_store_a_passage_extraction_may_not_read_as_done(
+    chunkable, engine, first: str
+) -> None:
+    """Whichever order they come in, and when the passage is kept, not replaced."""
+    passages = [guest(1), host(2)] if first == "guest" else [host(1), guest(2)]
+    expected = [
+        (1, "extracted" if first == "guest" else "new"),
+        (2, "new" if first == "guest" else "extracted"),
+    ]
+
+    ChunkQueue().replace(A, Chunking(passages=passages, oversized=0))
+    assert statuses(engine) == expected
+    ChunkQueue().replace(A, Chunking(passages=passages, oversized=0))
+    assert statuses(engine) == expected
+
+
+def test_a_re_chunk_that_newly_reads_a_kept_passage_as_unreadable_stores_it_as_done(
+    chunkable, engine
+) -> None:
+    """The host first and the guest second were both read in German before."""
+    before = [host(1), replace(guest(2), language="de", extractable=True)]
+    ChunkQueue().replace(A, Chunking(passages=before, oversized=0))
+
+    ChunkQueue().replace(A, Chunking(passages=[host(1), guest(2)], oversized=0))
+
+    assert statuses(engine) == [(1, "new"), (2, "extracted")]
+
+
+def test_the_digest_drain_and_a_rerun_leave_a_passage_extraction_may_not_read_alone(
+    chunkable, engine
+) -> None:
+    """Long enough for a digest, extracted, and still not read under German."""
+    from extraction.repository import DigestQueue, PassageQueue
+
+    ChunkQueue().replace(A, Chunking(passages=[guest(1, FRENCH * 20)], oversized=0))
+
+    assert DigestQueue(min_chars=100).claim() is None
+    PassageQueue().reset()
+    assert statuses(engine) == [(1, "extracted")]
+
+
+@pytest.mark.parametrize("drain", ["digest", "rerun"])
+def test_a_document_with_no_language_is_still_read_by_both(
+    engine, database, drain: str
+) -> None:
+    """Nothing is read against a language that was never named."""
+    from extraction.repository import DigestQueue, PassageQueue
+
+    with Session(engine) as session:
+        session.add(
+            document(A, parse_status=Status.PARSED, chunk_status=Status.PENDING)
+        )
+        session.commit()
+    ChunkQueue().replace(
+        A,
+        Chunking(passages=[replace(chunk(1, FRENCH * 20), language=None)], oversized=0),
+    )
+    with Session(engine) as session:
+        session.execute(text("UPDATE passages SET extract_status = 'extracted'"))
+        session.commit()
+
+    if drain == "digest":
+        assert DigestQueue(min_chars=100).claim() is not None
+    else:
+        PassageQueue().reset()
+        assert statuses(engine) == [(1, "pending")]

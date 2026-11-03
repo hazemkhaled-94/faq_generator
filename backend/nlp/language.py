@@ -66,7 +66,8 @@ def _any_detector() -> LanguageDetector:
     Not in low-accuracy mode: that mode reads one rare token of a table, an
     abbreviation or a unit, as another language with full confidence, and a
     document of its own configured language would be refused for it. The
-    detector is built on the first document and asked once per document.
+    detector is built on the first document, and asked once per document and
+    once per line of each passage, so a passage in another language is found.
     """
     return LanguageDetectorBuilder.from_all_languages().build()
 
@@ -107,6 +108,65 @@ def detect(text: str) -> str | None:
         return None
     found = _detector().detect_language_of(prose)
     return found.iso_code_639_1.name.lower() if found else None
+
+
+#: The share of a line's words that start with a capital, over which the line
+#: is names or titles and no sentence: a signature, a heading, a list of places.
+_NAMES = 0.5
+
+
+def _names(line: str) -> bool:
+    """Whether most of a line's words start with a capital."""
+    words = line.split()
+    return bool(words) and sum(word[0].isupper() for word in words) > _NAMES * len(
+        words
+    )
+
+
+def outside(text: str) -> bool:
+    """Whether a text is surely in a language `NLP_MODELS` does not name.
+
+    Read over every language lingua knows, as a whole document is, at the
+    same confidence: the configured detector picks one of its languages
+    whatever the text is, so a French paragraph in a German document reads
+    German there. Read line by line, since the lines of a passage are its
+    items, and a signature or a run of names among them reads as any language
+    at all. The text is outside when more of its characters are in lines
+    surely read as another language than in lines surely read as a configured
+    one; a line too short to tell, a body of figures, a table row and a line
+    of names or titles (most of its words start with a capital) count for
+    neither.
+    """
+    outside_characters = inside_characters = 0
+    for line in text.splitlines():
+        # A table row is terms and figures rather than prose, as a table is
+        # everywhere else a language is read.
+        line = " ".join(line.split())
+        found = (
+            None if line.startswith("|") or _names(line) else document_language(line)
+        )
+        if found is None:
+            continue
+        if found[0] in languages():
+            inside_characters += len(line)
+        else:
+            outside_characters += len(line)
+    return outside_characters > inside_characters
+
+
+def passage_language(text: str, fallback: str | None) -> str | None:
+    """Names the language a passage is read in: a configured one, or None.
+
+    Args:
+        text: The passage's text.
+        fallback: The document's language, for a text too short to tell.
+
+    Returns:
+        None when the passage is surely in a language no pipeline is
+        configured for, so it is read by none of them. Otherwise the
+        configured language it reads as, or `fallback`.
+    """
+    return None if outside(text) else detect(text) or fallback
 
 
 def detect_surely(text: str) -> str | None:

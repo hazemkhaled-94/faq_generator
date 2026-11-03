@@ -955,3 +955,217 @@ def test_a_chapter_of_one_page_after_the_first_still_names_itself() -> None:
     say(document, 5, "A fee table follows.")
 
     assert ("A fee table follows.", ["Annex"]) in trails(document)
+
+
+CHAPTERS = {
+    "de": [
+        "I - Allgemeine Bestimmungen",
+        "II - Verfahren",
+        "III - Pflichten der Händler",
+        "IV - Haftung des Kontoinhabers",
+        "V - Schlussbestimmungen",
+    ],
+    "en": [
+        "I - General provisions",
+        "II - Procedure",
+        "III - Duties of the traders",
+        "IV - Liability of the account holder",
+        "V - Final provisions",
+    ],
+    "fr": [
+        "I - Dispositions générales",
+        "II - Procédure",
+        "III - Obligations des commerçants",
+        "IV - Responsabilité du titulaire du compte",
+        "V - Dispositions finales",
+    ],
+    "el": [
+        "I - Γενικές διατάξεις",
+        "II - Διαδικασία",
+        "III - Υποχρεώσεις των εμπόρων",
+        "IV - Ευθύνη του δικαιούχου του λογαριασμού",
+        "V - Τελικές διατάξεις",
+    ],
+}
+
+
+def regulation(chapters: list[str], heading_chapters: bool) -> DoclingDocument:
+    """Two chapters of two pages, then three of one page, each page footed."""
+    document = paged(7)
+    for page, chapter in enumerate([0, 0, 1, 1, 2, 3, 4], 1):
+        foot(document, page, str(page))
+        foot(document, page, chapters[chapter])
+        if heading_chapters and page > 4 or page in (1, 3):
+            document.add_heading(text=chapters[chapter], level=1, prov=on(page, 40))
+        document.add_heading(text=f"Article {page}", level=2, prov=on(page, 60))
+        say(document, page, f"Body of article {page}.")
+    return document
+
+
+@pytest.mark.parametrize("language", sorted(CHAPTERS))
+def test_one_page_chapters_in_a_row_each_name_their_chapter(language: str) -> None:
+    """A one-page foot over its own chapter heading names the chapter."""
+    from preprocessing.chunking.furniture import furniture_of
+
+    chapters = CHAPTERS[language]
+    furniture = furniture_of(regulation(chapters, heading_chapters=True))
+
+    assert furniture.chapter(1) == (chapters[0],)
+    assert [furniture.chapter(page) for page in (5, 6, 7)] == [
+        (chapters[2],),
+        (chapters[3],),
+        (chapters[4],),
+    ]
+
+
+@pytest.mark.parametrize("language", sorted(CHAPTERS))
+def test_guide_words_on_consecutive_pages_still_name_no_chapter(language: str) -> None:
+    """The same feet with no heading that says them are a glossary's guide words."""
+    from preprocessing.chunking.furniture import furniture_of
+
+    chapters = CHAPTERS[language]
+    furniture = furniture_of(regulation(chapters, heading_chapters=False))
+
+    assert [furniture.chapter(page) for page in (5, 6, 7)] == [(), (), ()]
+
+
+#: A bank's glossary: entry terms, two to a page.
+TERMS = {
+    "de": [
+        "Aval",
+        "Bonität",
+        "Dispo",
+        "Girokonto",
+        "Hypothek",
+        "Kreditlinie",
+        "Sparbrief",
+        "Tilgung",
+    ],
+    "en": [
+        "Annuity",
+        "Balance",
+        "Collateral",
+        "Deposit",
+        "Escrow",
+        "Overdraft",
+        "Principal",
+        "Standing order",
+    ],
+    "fr": [
+        "Aval",
+        "Bilan",
+        "Caution",
+        "Découvert",
+        "Épargne",
+        "Hypothèque",
+        "Prêt",
+        "Virement",
+    ],
+    "el": [
+        "Αποταμίευση",
+        "Δάνειο",
+        "Εγγύηση",
+        "Υπόλοιπο",
+        "Υπερανάληψη",
+        "Υποθήκη",
+        "Έμβασμα",
+        "Τόκος",
+    ],
+}
+
+
+#: The same, its entries opening on a one-letter prefix or on figures.
+PREFIXED = {
+    "de": [
+        "E-Banking",
+        "Einlage",
+        "E-Geld",
+        "Effekten",
+        "0800-Nummer",
+        "Emittent",
+        "3D-Secure",
+        "Euribor",
+    ],
+    "en": [
+        "E-banking",
+        "Escrow",
+        "E-money",
+        "Equity",
+        "0800-number",
+        "Euribor",
+        "3D-Secure",
+        "Exchange",
+    ],
+    "fr": [
+        "E-banking",
+        "Épargne",
+        "E-monnaie",
+        "Escompte",
+        "0800-numéro",
+        "Émission",
+        "3D-Secure",
+        "Euribor",
+    ],
+    "el": [
+        "E-banking",
+        "Εγγύηση",
+        "E-money",
+        "Έμβασμα",
+        "0800-αριθμός",
+        "Έκδοση",
+        "3D-Secure",
+        "Euribor",
+    ],
+}
+
+
+@pytest.mark.parametrize("terms_of", [TERMS, PREFIXED], ids=["terms", "prefixed"])
+@pytest.mark.parametrize("language", sorted(TERMS))
+def test_a_glossary_whose_entries_are_headings_names_no_chapter(
+    language: str, terms_of: dict
+) -> None:
+    """Its guide words repeat an entry that is itself a heading, one of several on the page."""
+    from preprocessing.chunking.furniture import furniture_of
+
+    terms = terms_of[language]
+    document = paged(6)
+    for page in range(1, 7):
+        foot(document, page, str(page))
+        if page <= 2:
+            foot(document, page, "Guide")
+            continue
+        first = terms[(page - 3) * 2]
+        foot(document, page, first)
+        for term in terms[(page - 3) * 2 : (page - 3) * 2 + 2]:
+            document.add_heading(text=term, level=2, prov=on(page, 60))
+            say(document, page, f"{term}: an entry of the glossary.")
+
+    furniture = furniture_of(document)
+
+    assert [furniture.chapter(page) for page in (3, 4, 5, 6)] == [(), (), (), ()]
+
+
+@pytest.mark.parametrize("language", sorted(CHAPTERS))
+def test_numbered_chapter_headings_at_the_level_of_the_articles_name_their_chapter(
+    language: str,
+) -> None:
+    """A chapter heading shares its level with the article headings of its page."""
+    from preprocessing.chunking.furniture import furniture_of
+
+    chapters = CHAPTERS[language]
+    document = paged(7)
+    for page, chapter in enumerate([0, 0, 1, 1, 2, 3, 4], 1):
+        foot(document, page, str(page))
+        foot(document, page, chapters[chapter])
+        if page in (1, 3) or page > 4:
+            document.add_heading(text=chapters[chapter], level=2, prov=on(page, 40))
+        document.add_heading(text=f"Article {page}", level=2, prov=on(page, 60))
+        say(document, page, f"Body of article {page}.")
+
+    furniture = furniture_of(document)
+
+    assert [furniture.chapter(page) for page in (5, 6, 7)] == [
+        (chapters[2],),
+        (chapters[3],),
+        (chapters[4],),
+    ]

@@ -32,7 +32,10 @@ Docling's `HybridChunker` splits on the document's structure first and then
 merges or divides by token count, using the tokenizer of `EMBEDDING_MODEL`.
 `CHUNKING_MERGE_PEERS` decides whether undersized neighbours under one
 heading are combined. Every block, tables included, is serialised into the
-passage text as Markdown, because evidence must be a span of that text.
+passage text as Markdown, because evidence must be a span of that text. A list
+item prints the marker the document prints, and an item with none prints a
+dash: the serializer would otherwise number it by its place in the group, a
+number the document never printed.
 
 A list keeps its lead-in. The chunker can close a chunk between a paragraph
 ending in ":" and the list it introduces. [`lead_ins_kept`](passages.py)
@@ -83,7 +86,10 @@ and `page_footer` items before the cut:
 - A page printing only single-page fields belongs to the chapter on both
   sides of it when both print the same one. Otherwise it names a one-page
   chapter only when its running item is laid out like those of multi-page
-  chapters, and else it is in no chapter.
+  chapters, and else it is in no chapter. Beside a page printing a different
+  single-page field it names one only when each of the two pages holds a
+  heading that says its own field, as a run of one-page chapters does; guide
+  words, which repeat an entry and are not set as a heading, name none.
 
 Fields are compared with whitespace removed and case folded. Heads that
 alternate between title and chapter name no chapters.
@@ -139,8 +145,12 @@ the passage renders, on the page each is printed on.
 ### Step 4: Read the linguistic surface
 
 `_read` detects each passage's language on its own text and falls back to the
-document's language when the passage is too short. A chunk ends where its
-paragraphs or list items change language. A table passage takes the
+document's language when the passage is too short. A passage surely in a
+language `NLP_MODELS` does not name is labelled `None` and stored as already
+extracted, so extraction never reads it; the chunk log counts them (`make
+chunk-revocabulary` moves the label only, so a re-chunk is what skips a passage
+already stored). A chunk ends where its
+paragraphs or list items change language, a foreign one included. A table passage takes the
 document's language without detection.
 
 One spaCy batch per language then produces the numbered units a fact may cite
@@ -303,7 +313,7 @@ Unit tests stand in only for the database and the passage builder
   written beneath its caption, as a table's is.
 - A chapter is only as good as its running heads. Opening pages that print
   none belong to the chapter before. Heads that return out of order, differ on
-  every page, or sit beside guide words name no chapter, and their passages
+  every page, or sit beside guide words that no heading says name no chapter, and their passages
   keep the unprefixed trail. A head whose fields are parted only by single
   spaces (`Preisverzeichnis Kreditkarten Seite 4`) is one field and names no
   chapter.
@@ -319,6 +329,17 @@ Unit tests stand in only for the database and the passage builder
   reads the first block as ending on an article, preposition, conjunction or
   auxiliary and the second as opening with a noun or a figure: `Die Gebühr für
   die` and `Ersatzkarte beträgt 15 EUR.` are one sentence.
+- A heading the converter cut into words is joined. Section headers of one
+  level that follow one another in reading order with no other block between
+  them are one heading when the second is on the first's line, right of it by
+  no more than eight line heights (a justified line's spaces). A header on the
+  line below, within two line heights and under the line it follows, goes on
+  a heading that already has two fragments on its line: a justified `Artikel 9
+  Haftung` `des` `Kontoinhabers` over `bei Missbrauch` heads its passages
+  whole, article number first. A heading of one line under another is a
+  sibling, and so is a column's heading, which its own text follows. Two
+  columns' headings that follow each other with nothing between are not told
+  apart from the fragments of one line.
 - A flattened list is nested again by its indents. An item whose left edge
   lies more than half a line right of the item before it, in the same column
   and page, nests under it. Across a column or page break no level opens. A

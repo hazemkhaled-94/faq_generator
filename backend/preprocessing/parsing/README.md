@@ -96,6 +96,15 @@ layer stays. The count of dropped characters is noted in
 A source pymupdf cannot open, or a page the two readers size differently, is
 left as converted, with a warning.
 
+[`_margined`](pipelines/pdf.py) then reads the source again for numbered
+paragraphs. Regulations print each paragraph's number (`8.01`) in a column
+beside it, and the converter reads it after the paragraph, so the item ends on
+its own number and the next sentence opens on it. A dotted number that closes
+an item's text and that the page prints left of every other word in the item's
+box goes to the front of the item, in the text and in `orig`. A number at the
+end of the printed line, a reference, stays. Only a dotted number is read: a
+paragraph numbered `12.` or `(a)` in the margin is not moved.
+
 [`_mend`](pipelines/pdf.py) then rewrites every string, in the text items and
 the table grid:
 

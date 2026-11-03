@@ -22,11 +22,12 @@ from docling_core.transforms.serializer.common import DocSerializer, create_ser_
 from docling_core.transforms.serializer.markdown import (
     MarkdownPictureSerializer,
     MarkdownTableSerializer,
+    MarkdownTextSerializer,
 )
 from docling_core.types.doc.common.reference import ProvenanceItem, RefItem
 from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.items.group import ListGroup
-from docling_core.types.doc.items.node import DocItem, FloatingItem, NodeItem
+from docling_core.types.doc.items.node import DocItem, FloatingItem
 from docling_core.types.doc.items.picture.picture import PictureItem
 from docling_core.types.doc.items.table.table import TableItem
 from docling_core.types.doc.items.text import ListItem, TextItem
@@ -34,11 +35,18 @@ from docling_core.types.doc.labels import DocItemLabel
 
 from database.qa_generator.passages import trail_of
 from nlp.analysis import read
-from nlp.language import detect, detect_surely
+from nlp.language import detect_surely, outside, passage_language
 from nlp.models import Sentence
 from nlp.text import right_to_left
 from nlp.windows import reserved
-from preprocessing.chunking.furniture import LEAD_IN, furniture_of, headed, tidied
+from preprocessing.chunking.furniture import (
+    _PROSE,
+    LEAD_IN,
+    _resolved,
+    furniture_of,
+    headed,
+    tidied,
+)
 from preprocessing.chunking.models import Chunk, Chunking
 from settings import required
 
@@ -132,6 +140,17 @@ class _Picture(MarkdownPictureSerializer):
         )
 
 
+class _Text(MarkdownTextSerializer):
+    """A list item with no marker of its own is a dash, not its place in the group."""
+
+    @override
+    def serialize(self, *, item: Any, **kwargs: Any) -> SerializationResult:
+        """Serializes the item, a marker-less list item under a dash."""
+        if isinstance(item, ListItem) and not item.marker:
+            item = item.model_copy(update={"marker": "-"})
+        return super().serialize(item=item, **kwargs)
+
+
 class _Markdown(ChunkingSerializerProvider):
     """Renders every kind of block into the passage text, in Markdown."""
 
@@ -141,6 +160,7 @@ class _Markdown(ChunkingSerializerProvider):
             doc=doc,
             table_serializer=_Table(),
             picture_serializer=_Picture(),
+            text_serializer=_Text(),
         )
 
 
@@ -285,8 +305,8 @@ def nested(document: DoclingDocument) -> DoclingDocument:
         under: dict[str, ListGroup] = {}
         for reference, parent in moves:
             if parent not in under:
-                under[parent] = tidy.add_list_group(parent=_node(parent, tidy))
-            item = _node(reference, tidy)
+                under[parent] = tidy.add_list_group(parent=_resolved(parent, tidy))
+            item = _resolved(reference, tidy)
             held = item.parent.resolve(tidy) if item.parent else None
             if held is not None:
                 held.children = [one for one in held.children if one.cref != reference]
@@ -340,11 +360,6 @@ def _ref(reference: str) -> RefItem:
     return RefItem.model_validate({"$ref": reference})
 
 
-def _node(reference: str, document: DoclingDocument) -> NodeItem:
-    """The node a reference names in a document."""
-    return _ref(reference).resolve(document)
-
-
 #: The indent of one level of a nested list, as the converter renders one.
 _INDENT = "    "
 
@@ -368,7 +383,9 @@ def _indented(
             continue
         text, at, pieces = chunk.text, 0, []
         for item, depth in zip(chunk.meta.doc_items, depths, strict=True):
-            rendered = serializer.serialize(item=_node(item.self_ref, document)).text
+            rendered = serializer.serialize(
+                item=_resolved(item.self_ref, document)
+            ).text
             found = text.find(rendered, at) if rendered else -1
             if found < 0:
                 continue
@@ -380,7 +397,7 @@ def _indented(
 
 def _depth(reference: str, document: DoclingDocument) -> int:
     """How many list items a list item is nested under; 0 for anything else."""
-    node = _node(reference, document)
+    node = _resolved(reference, document)
     if not isinstance(node, ListItem):
         return 0
     depth = 0
@@ -389,9 +406,6 @@ def _depth(reference: str, document: DoclingDocument) -> int:
         depth += isinstance(node, ListItem)
     return depth
 
-
-#: What a lead-in is: a paragraph, as the converter labels one.
-_PROSE = frozenset({DocItemLabel.TEXT, DocItemLabel.PARAGRAPH})
 
 #: What is read for its language, and what can end on a lead-in's colon: a
 #: paragraph or a list item.
@@ -496,6 +510,16 @@ def lead_ins_kept(
     return kept
 
 
+#: What an item in a language `NLP_MODELS` does not name is read as, for a cut
+#: between it and its neighbours: it has no code, since it has no pipeline.
+_UNCONFIGURED = "und"
+
+
+def _reading(text: str) -> str | None:
+    """The language an item is surely in, a stand-in for one no pipeline names."""
+    return _UNCONFIGURED if outside(text) else detect_surely(text)
+
+
 def _one_language(chunks: list[DocChunk], document: DoclingDocument) -> list[DocChunk]:
     """Ends a chunk where its prose or list items change language.
 
@@ -503,7 +527,8 @@ def _one_language(chunks: list[DocChunk], document: DoclingDocument) -> list[Doc
     a passage is read as one language, so a bilingual page printing each
     paragraph or list item beside its translation would lose one language's
     vocabulary. An item too short to detect or not surely one language, and
-    any other item, stays with the run it follows.
+    any other item, stays with the run it follows. An item in a language
+    no pipeline is configured for is a run of its own.
 
     Args:
         chunks: What the chunker returned, in order.
@@ -517,9 +542,7 @@ def _one_language(chunks: list[DocChunk], document: DoclingDocument) -> list[Doc
     for chunk in chunks:
         items = chunk.meta.doc_items
         spoken = [
-            detect_surely(text)
-            if (text := _prose_text(item, document, _SPOKEN))
-            else None
+            _reading(text) if (text := _prose_text(item, document, _SPOKEN)) else None
             for item in items
         ]
         first = next((code for code in spoken if code), None)
@@ -574,7 +597,7 @@ def _prose_text(
     """
     if item.label not in labels:
         return None
-    found = RefItem.model_validate({"$ref": item.self_ref}).resolve(document)
+    found = _resolved(item.self_ref, document)
     return found.text.strip() if isinstance(found, TextItem) else None
 
 
@@ -757,7 +780,7 @@ class PassageBuilder:
             The same passages, each carrying its language, units and lemmas.
         """
         spoken = [
-            (index, language if p.table_cells else detect(p.text) or language)
+            (index, language if p.table_cells else passage_language(p.text, language))
             for index, p in enumerate(passages)
         ]
         parsed: dict[int, tuple] = {}
@@ -792,6 +815,7 @@ class PassageBuilder:
                 replace(
                     passage,
                     language=by_index[index],
+                    extractable=by_index[index] is not None or language is None,
                     sentences=numbered,
                     lemmas=lemmas,
                 )
@@ -859,7 +883,7 @@ def _tables_rendered(
             continue
         # Through the alias rather than the field name: it is the serialised
         # form and the only one a checker sees on the constructor.
-        table = RefItem.model_validate({"$ref": reference.self_ref}).resolve(document)
+        table = _resolved(reference.self_ref, document)
         rows = _rendered_rows(table, rendered, numbered)
         tables[reference.self_ref] = (table, rows)
         # A line one table took is no other table's.

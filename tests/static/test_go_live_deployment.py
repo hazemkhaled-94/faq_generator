@@ -38,7 +38,6 @@ HOLDING = {
     "C-114": "make ingest DIR=",
     "C-140": "qa_cal_shop",
     "C-162": "v0.4.2",
-    "C-186": "unknown type",
     "C-200": "nightly schedule",
     "C-245": "EXTRACTION_DUPLICATE_COSINE",
     "C-266": "contact",
@@ -79,6 +78,10 @@ LIFTED = (
     "C-416",
 )
 
+#: The conditions a later release lifts: its fix is in the code, so the row
+#: goes from the list. The release's upgrade notes name each with its fix.
+LIFTED_LATER = {"C-186": "v0.5.3: a PDF header is found in the first kilobyte"}
+
 _SCALED = re.compile(r"--scale[ =]extract-worker=(\d+)")
 
 
@@ -109,8 +112,10 @@ def _row(section: str, item: str) -> str:
 
 def test_the_lists_are_the_gates_forty_eight() -> None:
     """Every condition of the gate is either still holding or lifted, never both."""
-    assert not set(HOLDING) & set(LIFTED)
-    assert len(HOLDING) + len(LIFTED) == 48
+    assert len({*HOLDING, *LIFTED, *LIFTED_LATER}) == len(HOLDING) + len(LIFTED) + len(
+        LIFTED_LATER
+    )
+    assert len(HOLDING) + len(LIFTED) + len(LIFTED_LATER) == 48
 
 
 @pytest.mark.parametrize(("item", "rule"), sorted(HOLDING.items()))
@@ -122,6 +127,14 @@ def test_every_condition_that_holds_is_in_the_go_live_section(
 
     assert row, f"docs/operations.md's Production deployment has no row for {item}"
     assert rule in row, f"{item}'s row does not name {rule!r}: {row}"
+
+
+@pytest.mark.parametrize("item", sorted(LIFTED_LATER))
+def test_a_condition_a_later_release_lifts_is_no_longer_listed(item: str) -> None:
+    """The row is gone from the conditions that hold."""
+    section = _section(_operations(), "## Production deployment")
+
+    assert not _row(section, item), item
 
 
 @pytest.mark.parametrize("item", LIFTED)

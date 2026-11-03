@@ -264,7 +264,12 @@ class PdfPipeline(Pipeline):
                 f"the conversion ended {result.status.value}: {'; '.join(errors)}"
             )
         document = _tabled(
-            _repaired(_rejoined(_unstruck(result.document, source.data), source.data)),
+            _repaired(
+                _margined(
+                    _rejoined(_unstruck(result.document, source.data), source.data),
+                    source.data,
+                )
+            ),
             source.data,
         )
         return Conversion(
@@ -1796,6 +1801,70 @@ def _rejoined(document: DoclingDocument, data: bytes) -> DoclingDocument:
             "raised ordinal suffixes were not rejoined: %s: %s",
             type(exc).__name__,
             exc,
+        )
+    return document
+
+
+#: A dotted paragraph number, `8.01` or `12.3.1`, closing an item's text.
+_TRAILING_NUMBER = re.compile(r"(?<=\S)\s+(\d{1,3}(?:\.\d{1,3})+)$")
+
+
+def _margined(document: DoclingDocument, data: bytes) -> DoclingDocument:
+    """Moves a paragraph number printed in the margin to the front of its item.
+
+    Regulations number each paragraph in a column beside it, and the
+    converter reads that number after the paragraph's text, so an item ends
+    on its own number and the next paragraph's first sentence opens on it.
+    The source is read again with pymupdf: a dotted number that closes an
+    item's text, and that the page prints left of every other word in the
+    item's box, is the paragraph's own and goes in front. A number printed
+    at the end of the line, as a reference is, stays.
+
+    Args:
+        document: The converted document, modified in place.
+        data: The PDF it was converted from.
+
+    Returns:
+        The same document.
+    """
+    found = [
+        (item, ending)
+        for item in document.texts
+        if item.prov and (ending := _TRAILING_NUMBER.search(item.text))
+    ]
+    if not found:
+        return document
+    try:
+        with pymupdf.open(stream=data, filetype="pdf") as pdf:
+            words: dict[int, list[_Word]] = {}
+            for item, ending in found:
+                prov = item.prov[0]
+                size = document.pages.get(prov.page_no)
+                if size is None or prov.page_no > pdf.page_count:
+                    continue
+                page = pdf.load_page(prov.page_no - 1)
+                if abs(page.rect.height - size.size.height) > _PAGE_SLACK:
+                    continue
+                if prov.page_no not in words:
+                    words[prov.page_no] = _words(page, None)
+                box = prov.bbox.to_top_left_origin(page_height=page.rect.height)
+                inside = [
+                    word
+                    for word in words[prov.page_no]
+                    if box.l <= (word.left + word.right) / 2 <= box.r
+                    and box.t <= (word.top + word.bottom) / 2 <= box.b
+                ]
+                number = ending.group(1)
+                others = [word.left for word in inside if word.text != number]
+                if others and any(
+                    word.text == number and word.right <= min(others) for word in inside
+                ):
+                    item.text = f"{number} {item.text[: ending.start()]}"
+                    if item.orig.endswith(number):
+                        item.orig = f"{number} {item.orig[: -len(number)].rstrip()}"
+    except Exception as exc:  # noqa: BLE001 - the conversion already succeeded
+        log.warning(
+            "margin paragraph numbers were not moved: %s: %s", type(exc).__name__, exc
         )
     return document
 

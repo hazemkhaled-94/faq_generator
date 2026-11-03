@@ -35,6 +35,11 @@ class Chunk:
             origin.
         table_cells: The cell grids behind a table passage.
         language: Detected on this passage, not inherited from the document.
+            None for a passage in a language no pipeline is configured for.
+        extractable: Whether extraction may read the passage. False for a
+            passage in a language no pipeline is configured for, in a
+            document that has one: its facts would be judged under the
+            document's language.
         lemmas: Content lemmas, the vocabulary topic modelling is fitted
             over.
         sentences: The units a fact may cite, [{i, start, end, predicates}],
@@ -52,6 +57,7 @@ class Chunk:
     bbox: list[dict] = field(default_factory=list)
     table_cells: list[dict] = field(default_factory=list)
     language: str | None = None
+    extractable: bool = True
     sentences: list[dict] = field(default_factory=list)
     lemmas: list[str] = field(default_factory=list)
 

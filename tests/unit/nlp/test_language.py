@@ -141,3 +141,81 @@ def test_a_body_of_figures_and_abbreviations_is_not_another_language() -> None:
     )
 
     DocumentAnalyser._configured(body)
+
+
+#: A sentence of each language a deployment configured for German and English
+#: does not name: Latin script, one that shares a script with them in common
+#: words, and Greek.
+OTHER = {
+    "fr": "Les frais de tenue de compte s'élèvent à cinq euros par mois pour tous les clients de la banque.",
+    "pl": "Opłata za prowadzenie konta wynosi pięć złotych miesięcznie dla wszystkich klientów banku.",
+    "sv": "Kontoavgiften är fem euro per månad för alla kunder i banken och betalas varje månad.",
+    "nl": "De rekeningkosten bedragen vijf euro per maand voor alle klanten van de bank en worden maandelijks afgeschreven.",
+    "el": "Το τέλος τήρησης λογαριασμού είναι πέντε ευρώ το μήνα για όλους τους πελάτες της τράπεζας.",
+}
+
+#: A row of a price list: figures, units and a few words.
+PRICES = "Adult 12.50 EUR | Child 6.00 EUR | Family 30.00 EUR | Pass 90 EUR"
+
+
+@pytest.mark.parametrize(("text", "expected"), [(GERMAN, "de"), (ENGLISH, "en")])
+def test_a_configured_passage_keeps_its_language(text: str, expected: str) -> None:
+    """The reading is the configured one, and the fallback is not used."""
+    from nlp.language import passage_language
+
+    assert passage_language(text, "fr") == expected
+
+
+@pytest.mark.parametrize("code", sorted(OTHER))
+@pytest.mark.parametrize("fallback", ["de", "en", None])
+def test_a_passage_in_a_language_no_pipeline_is_configured_for_reads_none(
+    code: str, fallback: str | None
+) -> None:
+    """A guest passage is not labelled German or English by the detector's two-way pick."""
+    from nlp.language import passage_language
+
+    assert passage_language(OTHER[code], fallback) is None
+
+
+@pytest.mark.parametrize(
+    ("text", "fallback"),
+    [("Risiko", "de"), ("", "en"), (PRICES, "en"), (PRICES, "de")],
+)
+def test_what_cannot_be_told_takes_the_documents_language(
+    text: str, fallback: str
+) -> None:
+    """A heading or a row of figures says nothing against the document's language."""
+    from nlp.language import detect, passage_language
+
+    assert passage_language(text, fallback) == (detect(text) or fallback)
+
+
+SIGNATURES = {
+    "de": "Anna Kowalska Vorsitzende Peter Brandt Schriftführer Hamburg, 29. Juli 2026",
+    "en": "Anna Kowalska Chair Peter Brandt Secretary General Leeds, 29 July 2026",
+    "fr": "Anna Kowalska Présidente Pierre Brandt Secrétaire Général Lyon, 29 juillet 2026",
+    "el": "Άννα Κοβάλσκα Πρόεδρος Πέτρος Μπραντ Γραμματέας Αθήνα, 29 Ιουλίου 2026",
+}
+
+
+@pytest.mark.parametrize("signature", sorted(SIGNATURES))
+@pytest.mark.parametrize(("text", "expected"), [(GERMAN, "de"), (ENGLISH, "en")])
+def test_a_passage_is_read_by_its_prose_not_by_its_names(
+    signature: str, text: str, expected: str
+) -> None:
+    """A signature under a sentence is names, and says nothing against its language."""
+    from nlp.language import outside, passage_language
+
+    assert not outside(SIGNATURES[signature])
+    assert not outside(f"{text}\n{SIGNATURES[signature]}")
+    assert passage_language(f"{text}\n{SIGNATURES[signature]}", expected) is not None
+    assert passage_language(SIGNATURES[signature], expected) is not None
+
+
+def test_a_contents_table_is_not_a_language_of_its_own() -> None:
+    """Rows of terms and page numbers read as no language, so they are not outside."""
+    from nlp.language import outside
+
+    assert not outside(
+        "| Glossary                         |   194 |\n| Index           |  201 |"
+    )

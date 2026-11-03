@@ -274,8 +274,42 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             if key not in constant and key not in varying and _lettered(key)
         )
 
+    headings_on: dict[int, list[tuple[str, int]]] = defaultdict(list)
+    for item in document.texts:
+        if item.label in _HEADINGS and item.prov:
+            level = item.level if isinstance(item, SectionHeaderItem) else 0
+            headings_on[item.prov[0].page_no].append((item.text, level))
+
+    def headed_by_own(page: int, own: tuple[str, ...]) -> bool:
+        """Whether a page holds a heading that says each of its single-page fields.
+
+        It must be the page's only heading of its level, or open on a
+        numbering (`X`, `IV`, `3.`): a glossary's entries are many headings of
+        one level on a page, none of them numbered, and its guide words say
+        them.
+        """
+        here = headings_on[page]
+
+        def alone(key: str) -> bool:
+            named = [
+                (heading, level)
+                for heading, level in here
+                if _names(heading, spelled[key])
+            ]
+            return any(
+                sum(level == other for _, other in here) == 1 or _numbered(heading)
+                for heading, level in named
+            )
+
+        return all(alone(key) for key in own)
+
     def names_a_chapter(page: int, own: tuple[str, ...]) -> bool:
-        """Whether a page's single-page fields name a chapter of one page."""
+        """Whether a page's single-page fields name a chapter of one page.
+
+        Guide words on pages in a row each differ from the page beside, and
+        no heading says them. A run of one-page chapters differs the same
+        way, but each page holds the heading of its own chapter.
+        """
         if not any(
             shape(keys) in chaptered and any(key in own for key in keys)
             for keys in items_on[page]
@@ -285,6 +319,7 @@ def furniture_of(document: DoclingDocument) -> Furniture:
             single(beside)
             and set(single(beside)) != set(own)
             and not any(key in varying for key in by_page.get(beside, {}))
+            and not (headed_by_own(page, own) and headed_by_own(beside, single(beside)))
             for beside in (page - 1, page + 1)
         )
 
@@ -463,7 +498,7 @@ def tidied(
     debris |= {reference for reference, level in restated if level is None}
     promoted = [(reference, level) for reference, level in restated if level]
     debris |= {reference for reference, _ in promoted}
-    joins = _continued(document, debris, language)
+    joins = _continued(document, debris, language) + _split_headings(document, debris)
     starts = _chapter_starts(document, furniture, debris)
     if not debris and not starts and not joins:
         return document, {}
@@ -505,6 +540,13 @@ def tidied(
         tidy.insert_title(sibling=_resolved(reference, tidy), text=text, after=False)
     return tidy, titles
 
+
+#: How far apart, in points, two boxes' tops are and still one line; how far
+#: a heading's fragment may be from the one before, in line heights, across
+#: a justified line; and how far below, in line heights, its next line is.
+_SAME_LINE = 1.0
+_SPLIT_GAP = 8.0
+_WRAPPED = 2.0
 
 #: How many other pages must print their running items where a paragraph sits
 #: for it to be one, and how near, in points, its left edge and top must be.
@@ -829,6 +871,69 @@ def _continued(
     ]
 
 
+def _split_headings(
+    document: DoclingDocument, skipped: set[str]
+) -> list[tuple[str, str]]:
+    """The pairs of section headers the converter cut one heading into.
+
+    A justified heading comes out as several headers of one level, one after
+    another in reading order with nothing between them, side by side on one
+    line, and siblings replace one another in the trail. Two are one heading
+    when the second is on the first's line, starting right of it no further
+    than `_SPLIT_GAP` line heights (the spaces of a justified line). A header
+    on the line below, within `_WRAPPED` line heights, goes on a heading that
+    already has two fragments on its line and sits under that line: the
+    heading wrapped. A heading of one line under another is a sibling.
+    """
+    pairs: list[tuple[str, str]] = []
+    run: list[SectionHeaderItem] = []
+    for item, _ in document.iterate_items():
+        if (
+            isinstance(item, SectionHeaderItem)
+            and item.content_layer == ContentLayer.BODY
+            and item.self_ref not in skipped
+            and item.prov
+        ):
+            run.append(item)
+            continue
+        pairs += _fragments(run)
+        run = []
+    return pairs + _fragments(run)
+
+
+def _fragments(run: list[SectionHeaderItem]) -> list[tuple[str, str]]:
+    """The pairs of one run of headers that are fragments of one heading."""
+    pairs: list[tuple[str, str]] = []
+    if not run:
+        return pairs
+    # The fragments on the line the heading is on, and where that line spans.
+    on_line, left, right = 1, run[0].prov[0].bbox.l, run[0].prov[0].bbox.r
+    for first, second in pairwise(run):
+        before, after = first.prov[-1], second.prov[0]
+        height = abs(before.bbox.t - before.bbox.b)
+        down = abs(before.bbox.t - after.bbox.t)
+        same = first.level == second.level and before.page_no == after.page_no
+        if same and down <= _SAME_LINE:
+            beside = 0 <= after.bbox.l - before.bbox.r <= _SPLIT_GAP * height
+        else:
+            beside = False
+        below = (
+            same
+            and on_line >= 2
+            and down <= _WRAPPED * height
+            and after.bbox.l < right
+            and after.bbox.r > left
+        )
+        if beside:
+            pairs.append((first.self_ref, second.self_ref))
+            on_line, right = on_line + 1, max(right, after.bbox.r)
+        else:
+            if below:
+                pairs.append((first.self_ref, second.self_ref))
+            on_line, left, right = 1, after.bbox.l, after.bbox.r
+    return pairs
+
+
 def _opens_lower(text: str) -> bool:
     """Whether a block opens with letters in lower case only.
 
@@ -926,14 +1031,13 @@ def _chapter_starts(
     for index, (node, page) in enumerate(blocks):
         label = furniture.chapter(page)
         if label and label != current:
-            opening = next(
-                (
-                    later
-                    for later, there in blocks[index:]
-                    if there == page and _heads(later, label, document)
-                ),
-                node,
-            )
+            # Blocks come in page order, so the page ends where the run does.
+            opening, at = node, index
+            while at < len(blocks) and blocks[at][1] == page:
+                if _heads(blocks[at][0], label, document):
+                    opening = blocks[at][0]
+                    break
+                at += 1
             found.append((opening.self_ref, label))
         current = label
     return found
@@ -984,6 +1088,13 @@ def _names(heading: str, field: str) -> bool:
         == [word.group().casefold() for word in shorter]
         and (_numbering(longer[cut - 1]) or _numbering(longer[cut]))
     )
+
+
+def _numbered(heading: str) -> bool:
+    """Whether a heading opens on a word that numbers a chapter."""
+    first = _WORD.search(heading)
+    # `E-Banking` and `0800-Nummer` open on a prefix, not on a number.
+    return first is not None and _numbering(first) and heading[first.end() :][:1] != "-"
 
 
 def _numbering(word: re.Match[str]) -> bool:

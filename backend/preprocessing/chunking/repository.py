@@ -204,6 +204,18 @@ class ChunkQueue(RowQueue):
                         for chunk in added
                     ],
                 )
+            # Apart from the writes above, which take one set of columns for
+            # every row: a passage extraction may not read is stored as done.
+            unextractable = [one.ordinal for one in chunks if not one.extractable]
+            if unextractable:
+                session.execute(
+                    update(_PASSAGES)
+                    .where(
+                        _PASSAGES.c.doc_sha256 == sha256,
+                        _PASSAGES.c.ordinal.in_(unextractable),
+                    )
+                    .values(extract_status=Status.EXTRACTED)
+                )
             self._finish(sha256, session=session, oversized=chunking.oversized)
         return len(chunks)
 
