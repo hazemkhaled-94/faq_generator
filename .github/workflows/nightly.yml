@@ -67,10 +67,23 @@ jobs:
   # care about, and that judgement is a person's. A harness that runs no mutant
   # is a failure, and fails the job.
   mutation:
-    name: Mutation
+    name: Mutation ${{ matrix.module }}
     needs: setup
     runs-on: ubuntu-24.04
     timeout-minutes: 300
+    # One runner to a mutated file, so the job takes the largest file's share
+    # and not all six. The names are pyproject's [tool.mutmut] source_paths as
+    # mutmut names them, `src.` stripped.
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - question_generation.gates
+          - question_generation.balance
+          - question_generation.selection
+          - question_generation.models
+          - question_generation.planning
+          - extraction.validation
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: ./.github/actions/setup
@@ -80,20 +93,20 @@ jobs:
         with:
           path: ~/.cache/huggingface
           key: huggingface-${{ runner.os }}-${{ github.job }}-${{ steps.setup.outputs.embedding }}
-      # Every line of six files is mutated, some five thousand mutants. A
-      # planning.py run of 253 went at 5.3 mutants a second on three children;
-      # the full run is not measured, so it is boxed: out of time at 270
+      # Every line of one file is mutated: gates.py alone is some two thousand
+      # mutants. A planning.py run of 253 went at 5.3 mutants a second on three
+      # children; a shard is not measured, so it is boxed: out of time at 270
       # minutes it ends with what it covered, and the summary says how much
       # that was. Anything else non-zero is the harness failing, and fails.
       - name: Mutate
         run: |
           status=0
-          timeout 270m make mutation || status=$?
+          timeout 270m make mutation MUTANTS="${{ matrix.module }}.*" || status=$?
           if [ "$status" -eq 124 ]; then
             # Out of time passes only if it got to a mutant: a harness that hung
             # before its first one has run none, and fails.
             ln -sfn backend src
-            checked=$(poetry run mutmut results --all true | grep -vc ': not checked$' || true)
+            checked=$(poetry run mutmut results --all true | grep -F " ${{ matrix.module }}." | grep -vc ': not checked$' || true)
             rm -f src
             if [ "${checked:-0}" -gt 0 ]; then
               echo "::warning::mutation ran out of time after $checked mutants; the summary lists what it covered"
@@ -109,9 +122,9 @@ jobs:
         run: |
           ln -sfn backend src
           {
-            echo '## Mutants that survived'
+            echo '## Mutants of ${{ matrix.module }} that survived'
             echo '```'
-            poetry run mutmut results || true
+            poetry run mutmut results | grep -F "${{ matrix.module }}." || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           rm -f src

@@ -438,3 +438,29 @@ def test_the_mutation_harness_copies_what_its_layers_read_and_selects_no_git_lay
     for path in selected:
         assert path.startswith(("tests/unit/", "tests/property")), path
         assert not path.startswith("tests/static"), path
+
+
+def test_the_mutation_job_runs_one_shard_to_each_mutated_file() -> None:
+    """The matrix lists exactly the files `[tool.mutmut]` mutates, one runner each.
+
+    mutmut names a mutant after its file's path with `src.` stripped, and takes
+    a glob of those names, so a shard is `make mutation MUTANTS=<module>.*` and
+    runs nothing of another file. The job takes the largest file's share of the
+    time, and a shard that checked nothing before its box ran out fails alone.
+    """
+    import tomllib
+
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["mutmut"]
+    mutated = [
+        path.removeprefix("src/").removesuffix(".py").replace("/", ".")
+        for path in config["source_paths"]
+    ]
+    job = loaded(ROOT / ".github/workflows/nightly.yml")["jobs"]["mutation"]
+    (run,) = [one for one in job["steps"] if "make mutation" in one.get("run", "")]
+
+    assert job["strategy"]["matrix"]["module"] == mutated
+    assert job["strategy"]["fail-fast"] is False
+    assert 'MUTANTS="${{ matrix.module }}.*"' in run["run"]
+    assert "matrix.module" in job["name"]
+    makefile = (ROOT / "Makefile").read_text()
+    assert 'mutmut run $(if $(MUTANTS),"$(MUTANTS)")' in makefile

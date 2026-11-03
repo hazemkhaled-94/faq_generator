@@ -520,7 +520,7 @@ could read every span, and never `default`.
 | `make test-eval` | Score the served model against the golden passages. Never gates |
 | `make test-perf` | Time the ceilings the code names. Never gates |
 | `make test-coverage` | The gating layers, with a coverage report |
-| `make mutation` | Whether the tests would notice a gate changing. Takes hours |
+| `make mutation` | Whether the tests would notice a gate changing. Takes hours. `MUTANTS=question_generation.gates.*` runs one file's mutants, which is how the nightly shards it |
 | `make lint` | ruff check and format check |
 | `make format` | Apply every fix ruff can make |
 | `make typecheck` | pyright, at zero |
@@ -539,7 +539,8 @@ what mutation covers: six files, tested by `tests/unit/questions`,
 `tests/unit/extraction` and `tests/property`, run from a copy that takes the
 backend, configs, docs and `compose.yaml`. `make mutation` links `src` to
 `backend` for the run, because mutmut names a function after its file's path.
-A mutation run that cannot start fails the nightly; surviving mutants are
+The nightly runs one runner to each mutated file, so its longest job is the
+largest file's share. A mutation run that cannot start fails its shard; surviving mutants are
 listed in its summary and do not. The run is boxed at 270 minutes: out of time
 it ends as a pass with a warning if it checked a mutant, and fails if it did
 not, and the summary lists what it covered. The

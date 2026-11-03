@@ -2012,10 +2012,11 @@ test-perf:
 # Hours, so nightly rather than per change; `mutmut browse` reads the
 # survivors afterwards, after `ln -sfn backend src`: mutmut names a function
 # after its file's path, so the run links src to backend and the six files are
-# named under src, and the link is removed when the run ends.
+# named under src, and the link is removed when the run ends. MUTANTS is a
+# mutant-name glob, `question_generation.gates.*`; empty, all six files run.
 mutation:
 	@ln -sfn backend src; trap 'rm -f src' EXIT; \
-	  poetry run mutmut run; code=$$?; poetry run mutmut results; exit $$code
+	  poetry run mutmut run $(if $(MUTANTS),"$(MUTANTS)"); code=$$?; poetry run mutmut results; exit $$code
 
 # Everything that gates. Another name for `test`.
 check: test
