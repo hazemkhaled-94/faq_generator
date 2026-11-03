@@ -160,5 +160,10 @@ def test_the_split_step_names_the_azure_address_and_the_login() -> None:
     example = (ROOT / "configs/env/provider.env.example").read_text()
 
     assert "AZURE_API_BASE=" in example
-    for needle in ("`AZURE_API_BASE", "`LLM_BASE_URL`", "`AZURE_API_KEY`", "`az login`"):
+    for needle in (
+        "`AZURE_API_BASE",
+        "`LLM_BASE_URL`",
+        "`AZURE_API_KEY`",
+        "`az login`",
+    ):
         assert needle in configure, needle

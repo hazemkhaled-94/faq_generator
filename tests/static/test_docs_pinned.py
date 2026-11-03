@@ -1270,7 +1270,7 @@ def test_role_models_are_said_to_be_set_in_env() -> None:
 
 
 def test_no_doc_says_the_audit_is_linux_only() -> None:
-    """make audit reads every lock as pinned, so it runs whole on any host (N-075).
+    """The audit reads every lock as pinned, so it runs whole on any host (N-075).
 
     `--disable-pip --no-deps` resolves nothing on the machine, so the
     poetry.lock leg runs on macOS as on Linux; the Makefile and two docs said
