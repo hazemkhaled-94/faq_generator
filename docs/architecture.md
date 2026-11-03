@@ -44,8 +44,9 @@ in `ASSESSMENT_KINDS` and queues them. Unanswerable questions are never
 enrolled. `ASSESSMENT_ENABLED` switches the stage off; the dataset does not
 depend on it.
 
-The five buckets (`S3_BUCKETS` in `configs/env/deployment.env`) are
-`documents`, `parsed`, `models`, `export` and `archive`. See
+The five buckets are `documents`, `parsed`, `models`, `export` and `archive`.
+`S3_BUCKETS` in `configs/env/deployment.env` names each, and every key starts
+with the database's name. See
 [`backend/blob_store/`](../backend/blob_store/README.md).
 
 ## 2. What a worker does with one row
