@@ -559,7 +559,9 @@ doctor:
 	echo; \
 	PYTHONPATH=backend poetry run python -m archive.run --size || say "-" "the archive could not be read"; \
 	echo; \
-	if test $$fail -eq 0; then echo "Ready. Next: make dev"; \
+	if test $$fail -eq 0; then \
+	  if $(GO_LIVE); then echo "Ready. Next: make ingest DIR=<folder of PDFs>, then make corpus-hosted"; \
+	  else echo "Ready. Next: make dev"; fi; \
 	  else echo "Fix the above, then run make doctor again."; exit 1; fi
 
 # Install dependencies, start every service, and create the schema. Then
@@ -2044,11 +2046,6 @@ typecheck:
 # only for linux. Resolving them anywhere else fails, so their advisories
 # are not covered here - `pip-audit -r` inside the built image is what
 # would cover them.
-#
-# It runs whole on Linux only, where the nightly job runs it: poetry.lock
-# also pins CUDA wheels with no macOS build, cuda-bindings among them, so
-# on a Mac its leg fails on a package pip cannot find rather than on an
-# advisory, and only the two image locks are audited.
 #
 # The scratch files live in a temporary directory, removed on any exit, so an
 # interrupted run leaves nothing among the sources. poetry.lock is read with

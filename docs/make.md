@@ -524,7 +524,7 @@ could read every span, and never `default`.
 | `make lint` | ruff check and format check |
 | `make format` | Apply every fix ruff can make |
 | `make typecheck` | pyright, at zero |
-| `make audit` | Known advisories (OSV) against both image locks and the host `poetry.lock`. Fails on one, except an entry in `configs/audit-accepted.txt` (`AUDIT_ACCEPTED=` names another file) whose review-by date has not come. Linux only |
+| `make audit` | Known advisories (OSV) against both image locks and the host `poetry.lock`. Fails on one, except an entry in `configs/audit-accepted.txt` (`AUDIT_ACCEPTED=` names another file) whose review-by date has not come |
 | `make lint-imports` | The two architecture rules, as import-linter contracts |
 | `make deps` | A declared dependency nothing imports, and an import nothing declares |
 | `make lock` | Rewrite `backend/api/requirements.lock` and `frontend/requirements.lock` under the pins of `poetry.lock` |

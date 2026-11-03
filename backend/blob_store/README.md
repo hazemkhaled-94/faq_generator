@@ -10,15 +10,16 @@ different store is one adapter beside `s3/client.py`.
 
 | Bucket | Key | Holds | Expires |
 |---|---|---|---|
-| `documents` | `{sha[0:2]}/{sha[2:4]}/{sha}.pdf` | The uploaded bytes, exactly as they arrived | never |
-| `parsed` | `{sha[0:2]}/{sha[2:4]}/{sha}.json` | The converter's complete output | never |
-| `models` | `topics/{database}/{language}.npz` | The factorisation each language's topics came from | replaced by the next fit |
-| `export` | `topics/{database}/{language}.html` | Each language's pyLDAvis figure | replaced by the next fit |
-| `archive` | `{origin}/{the key it had}@{UTC time}` | What a deletion took from the other four, and the model and figure a fit replaced | `make archive-purge` |
+| `documents` | `{database}/{sha[0:2]}/{sha[2:4]}/{sha}.pdf` | The uploaded bytes, exactly as they arrived | never |
+| `parsed` | `{database}/{sha[0:2]}/{sha[2:4]}/{sha}.json` | The converter's complete output | never |
+| `models` | `{database}/topics/{database}/{language}.npz` | The factorisation each language's topics came from | replaced by the next fit |
+| `export` | `{database}/topics/{database}/{language}.html` | Each language's pyLDAvis figure | replaced by the next fit |
+| `archive` | `{database}/{origin}/{the key it had}@{UTC time}` | What a deletion took from the other four, and the model and figure a fit replaced | `make archive-purge` |
 
-`{database}` is the path of `DATABASE_URL`, so two databases on one store do
-not overwrite each other's figure and model. The older key
-`topics/{language}.*` is not read: run `make topics-discover` again.
+`{database}` is the path of `DATABASE_URL`. Every key starts with it, so two
+databases on one store do not touch each other's objects, and a topic key names
+it a second time. The older key `topics/{language}.*` is not read: run `make
+topics-discover` again.
 
 `models` is durable and `export` is disposable: a figure is drawn from a
 model, and a model comes only from a fit. `parsed` keeps everything the

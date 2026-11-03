@@ -134,3 +134,36 @@ def test_after_a_stop_says_how_to_get_past_rows_that_fail_every_time() -> None:
         "RESET=1",
     ):
         assert needle in section, needle
+
+
+def test_the_copied_secrets_file_is_made_the_operators_alone() -> None:
+    """`cp` keeps the example's mode 644, and `make setup` sets 600 only on a file it creates.
+
+    The runbook walk of the release candidate found the generated secrets in a
+    world-readable `.env`.
+    """
+    (configure,) = [step for step in _steps() if step.startswith("2. ")]
+
+    assert "`chmod 600 .env`" in configure, configure
+    assert configure.index("`chmod 600 .env`") < configure.index("`make setup`")
+
+
+def test_the_split_step_names_the_azure_address_and_the_login() -> None:
+    """An `azure/` split needs its resource's address, and a key or a login.
+
+    litellm reads `AZURE_API_BASE` from `provider.env` unless `LLM_BASE_URL`
+    gives the address, and with no key Entra ID takes its token from `az
+    login`. The walk of the release candidate failed every model in its first
+    `make doctor` for want of the address.
+    """
+    (configure,) = [step for step in _steps() if step.startswith("2. ")]
+    example = (ROOT / "configs/env/provider.env.example").read_text()
+
+    assert "AZURE_API_BASE=" in example
+    for needle in (
+        "`AZURE_API_BASE",
+        "`LLM_BASE_URL`",
+        "`AZURE_API_KEY`",
+        "`az login`",
+    ):
+        assert needle in configure, needle

@@ -14,6 +14,30 @@ container workers built the dataset. The later runs are rebuilds of the *Laws
 of the Game 2026/27* (football rules), German and English, and their figures
 stand on their own.
 
+## The models behind each figure
+
+The go-live split that `.env.example` ships is writer `azure/gpt-5.6-sol`,
+passage reader and phrasing judge `azure/gpt-5.4`, digest reader and assessment
+judge `azure/gpt-4o`, and verifier and topic namer `azure/gpt-4.1`
+([configuration](configuration.md#the-production-split)). It first ran whole in
+the build the final review of v0.5.1 read (2026-10-22), and v0.5.2's bars were
+measured on it. Those figures are in `docs/changelog.md` and `docs/bugs.md`, not
+here.
+
+Every model run on this page predates that split:
+
+| Figures | Writer | Passage reader and digests | Verifier, topic names and judge |
+|---|---|---|---|
+| [The run](#the-run) of 16 syllabi, through [the evaluation phase](#the-evaluation-phase) | `azure/gpt-5.4` | `azure/gpt-5.4` | topic names `azure/gpt-5.4`; verifier and judge `azure/gpt-4.1` |
+| [Every run at a glance](#every-run-at-a-glance): the v0.3.0, v0.4.0 and v0.3.12 rebuilds | `azure/gpt-5.4` | `azure/gpt-4.1` | `azure/gpt-4.1` |
+| [The paper's judge](#the-papers-judge-against-the-review) | none | none | judge `azure/gpt-4.1` |
+| [Unanswerable kinds](#unanswerable-kinds-v050), the DataMorgana calibration links and [the v0.4.3 calibration](#the-v043-calibration) | `azure/gpt-5.4` | `azure/gpt-4.1` | `azure/gpt-4.1` |
+| [The v0.4.4 bars](#the-v044-bars) | none | `azure/gpt-5.4`, digests `azure/gpt-4.1` | none |
+
+Parsing, chunking and the offline replays call no model. So the fact-stage
+figures here, extraction and digests, are those of `azure/gpt-5.4` and
+`azure/gpt-4.1`, and none is of the go-live digest reader.
+
 ## What a generated benchmark can rank
 
 Findings from two studies, which bound how this project's figures are read.

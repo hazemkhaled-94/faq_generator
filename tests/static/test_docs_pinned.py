@@ -1176,3 +1176,111 @@ def test_every_text_on_the_categorization_default_names_the_out_of_corpus_kind()
         flat = _flat(text)
         assert "out-of-corpus" in flat, where
         assert "alone" in flat, where
+
+
+# ── Group 7 of v0.5.3: what the docs say about models, keys and the audit ──
+
+
+def test_the_split_names_where_its_figures_were_measured() -> None:
+    """measurements.md says which models each figure was measured on (C-093).
+
+    The production split ships in .env.example, and a figure read against the
+    wrong split misleads: the page names every model of that split, says the
+    fact-stage figures predate it, and configuration.md's split section links
+    there.
+    """
+    split = _section(_read("docs/configuration.md"), "## The production split")
+    assert "measurements.md#the-models-behind-each-figure" in split
+
+    section = _flat(
+        _section(_read("docs/measurements.md"), "## The models behind each figure")
+    )
+    shipped = {
+        model
+        for model in re.findall(
+            r"^[A-Z][A-Z0-9_]*_MODEL=(\S+)$", _read(".env.example"), re.MULTILINE
+        )
+        if not model.startswith("ollama")
+    }
+    assert shipped, ".env.example ships no hosted model"
+    for model in sorted(shipped):
+        assert f"`{model}`" in section, model
+    assert "extraction" in section and "digest" in section
+
+
+def test_every_documented_object_key_carries_the_database(monkeypatch) -> None:
+    """The READMEs give object keys as the store holds them (N-008).
+
+    Every key has gone under the database's name since keys were prefixed, so
+    a README showing a bare digest key sends an operator to an empty path.
+    """
+    from blob_store.s3.bucket import Bucket
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user@host/acme")
+    digest = "ab" * 32
+    assert Bucket.scoped(Bucket.fanout_key(digest, "pdf")) == (
+        f"acme/ab/ab/{digest}.pdf"
+    )
+
+    for relative in (
+        "backend/ingestion/README.md",
+        "backend/preprocessing/parsing/README.md",
+        "backend/blob_store/README.md",
+    ):
+        heads = re.findall(
+            r"`([^`\s]*)\{sha\[0:2\]\}/\{sha\[2:4\]\}/\{sha\}\.", _read(relative)
+        )
+        assert heads, f"{relative} gives no object key"
+        for head in heads:
+            assert head.endswith("{database}/"), f"{relative}: `{head}...`"
+    assert "`{database}/{origin}/{key}@{UTC time}`" in _flat(
+        _read("backend/archive/README.md")
+    )
+
+
+def test_role_models_are_said_to_be_set_in_env() -> None:
+    """The role models are set in .env on the host, and backend.env leaves them unset (N-066).
+
+    So unset, a role follows LLM_MODEL on the host and LLM_CONTAINER_MODEL in a
+    container. The architecture page and the llm README said backend.env sets
+    them, which it does not.
+    """
+    live = set(
+        re.findall(
+            r"^([A-Z][A-Z0-9_]*)=", _read("configs/env/backend.env"), re.MULTILINE
+        )
+    )
+    assert not live & set(_STAGE_MODELS), live & set(_STAGE_MODELS)
+
+    row = next(
+        line
+        for line in _read("docs/architecture.md").splitlines()
+        if line.startswith("| Which model, or which provider |")
+    )
+    assert "is set in `configs/env/backend.env`" not in row
+    assert "ignore `LLM_MODEL`" not in row
+    assert "`.env`" in row and "`LLM_CONTAINER_MODEL`" in row
+
+    llm = _read("backend/llm/README.md")
+    for line in llm.splitlines():
+        if any(line.startswith(f"| `{name}`") for name in _STAGE_MODELS):
+            assert "| `backend.env` |" not in line, line
+    stage = _flat(_section(llm, "## Stage models"))
+    assert "`.env`" in stage and "`LLM_CONTAINER_MODEL`" in stage
+
+
+def test_no_doc_says_the_audit_is_linux_only() -> None:
+    """The audit reads every lock as pinned, so it runs whole on any host (N-075).
+
+    `--disable-pip --no-deps` resolves nothing on the machine, so the
+    poetry.lock leg runs on macOS as on Linux; the Makefile and two docs said
+    a Mac audits only the image locks.
+    """
+    makefile = _read("Makefile")
+    recipe = makefile[makefile.index("\naudit:") :].split("\n\n", 1)[0]
+    assert "--disable-pip" in recipe and "--no-deps" in recipe
+
+    for relative in ("Makefile", "docs/make.md", "docs/operations.md"):
+        assert not re.search(r"linux only", _flat(_read(relative)), re.IGNORECASE), (
+            relative
+        )

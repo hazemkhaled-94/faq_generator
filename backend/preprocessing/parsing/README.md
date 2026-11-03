@@ -203,7 +203,7 @@ The stage writes only these columns on `documents`: `title`, `language`,
 `content_sha256`, `parse_confidence`, `parse_confidence_low`, `parse_run_id`,
 `parse_trace_id`, `parse_span_id`, `parse_status`, `parse_error`,
 `parse_claimed_at` and `parse_trigger`. The converted document goes to
-`parsed` at `{sha[0:2]}/{sha[2:4]}/{sha}.json`.
+`parsed` at `{database}/{sha[0:2]}/{sha[2:4]}/{sha}.json`.
 
 | Route | Answers |
 |---|---|
