@@ -1459,7 +1459,13 @@ class QuestionCatalog(Repository):
                 .join(FactPassage, FactPassage.fact_id == Fact.id)
                 .join(Passage, Passage.id == FactPassage.passage_id)
                 .join(Document, Document.sha256 == Passage.doc_sha256, isouter=True)
-                .order_by(QuestionFact.question_id, Passage.doc_sha256, Passage.ordinal)
+                # Fact.id last: the order inside a passage is defined, so every export lists its rows alike
+                .order_by(
+                    QuestionFact.question_id,
+                    Passage.doc_sha256,
+                    Passage.ordinal,
+                    Fact.id,
+                )
                 .execution_options(yield_per=_BATCH)
             )
             for row in rows:

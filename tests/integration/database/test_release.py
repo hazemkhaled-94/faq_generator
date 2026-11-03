@@ -518,3 +518,24 @@ def test_a_citation_carries_the_section_its_passage_sits_under(written, engine) 
     assert cited.question_id == ids[0]
     assert cited.section_path == "Terms > Returns"
     assert (cited.first_page, cited.last_page) == (3, 4)
+
+
+def test_the_citations_of_one_passage_come_in_the_order_of_their_facts(
+    written, engine
+) -> None:
+    """Rows that tie on question, document and passage are ordered by fact, so every export lists them alike."""
+    (asked,) = written([("easy", "factoid", True, "accepted")])
+    with Session(engine) as session:
+        at = session.execute(text("SELECT id FROM passages")).scalar_one()
+        more = [fact(at, statement=f"The device holds {n} parts.") for n in (2, 3, 5)]
+        session.add_all(more)
+        session.flush()
+        session.add_all(
+            QuestionFact(question_id=asked, fact_id=one.id) for one in reversed(more)
+        )
+        session.commit()
+
+    cited = [one.fact_id for one in QuestionCatalog().citations(released=None)]
+
+    assert len(cited) == 4
+    assert cited == sorted(cited)
