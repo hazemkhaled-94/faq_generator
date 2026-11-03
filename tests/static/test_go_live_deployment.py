@@ -1,7 +1,7 @@
 """The go-live deployment section carries every condition the gate still relies on.
 
 The final review's go-live gate (2026-10-22) listed what a deployment has to
-hold for its open items to stay out of the way. After v0.5.2 these still hold,
+hold for its open items to stay out of the way. After v0.5.3 these still hold,
 each with the setting or the rule an operator acts on, and docs/operations.md
 says each one with the item it comes from. A condition that leaves the list
 leaves it here too, with its fix named in the upgrade notes.
@@ -21,14 +21,13 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 
-#: Each condition that still holds after v0.5.2, and the setting or rule its
+#: Each condition that still holds after v0.5.3, and the setting or rule its
 #: row in the operations guide has to name.
 HOLDING = {
     "C-026": "--scale extract-worker=2",
     "C-029": "QUESTIONS_RELEASE_DIFFICULTY",
     "C-031": "distant-from-document",
     "C-052": "space-grouped",
-    "C-054": "make extract-dedup",
     "C-056": "image-only",
     "C-066": "make questions-export",
     "C-082": "two model drains",
@@ -39,7 +38,6 @@ HOLDING = {
     "C-140": "qa_cal_shop",
     "C-162": "v0.4.2",
     "C-200": "nightly schedule",
-    "C-245": "EXTRACTION_DUPLICATE_COSINE",
     "C-266": "contact",
     "C-278": "EMBEDDING_MAX_TOKENS",
     "C-295": "re-embed",
@@ -80,7 +78,11 @@ LIFTED = (
 
 #: The conditions a later release lifts: its fix is in the code, so the row
 #: goes from the list. The release's upgrade notes name each with its fix.
-LIFTED_LATER = {"C-186": "v0.5.3: a PDF header is found in the first kilobyte"}
+LIFTED_LATER = {
+    "C-054": "v0.5.3: make corpus replays the dedup before the bridge pass",
+    "C-186": "v0.5.3: a PDF header is found in the first kilobyte",
+    "C-245": "v0.5.3: EXTRACTION_DUPLICATE_COSINE at 0 still writes the vectors",
+}
 
 _SCALED = re.compile(r"--scale[ =]extract-worker=(\d+)")
 
@@ -131,10 +133,15 @@ def test_every_condition_that_holds_is_in_the_go_live_section(
 
 @pytest.mark.parametrize("item", sorted(LIFTED_LATER))
 def test_a_condition_a_later_release_lifts_is_no_longer_listed(item: str) -> None:
-    """The row is gone from the conditions that hold."""
-    section = _section(_operations(), "## Production deployment")
+    """The row is gone from the conditions that hold, and the release names it."""
+    text = _operations()
+    section = _section(text, "## Production deployment")
+    release = LIFTED_LATER[item].split(":", 1)[0]
 
     assert not _row(section, item), item
+    assert _row(_section(text, f"## Upgrading to {release}"), item), (
+        f"Upgrading to {release} does not name {item}"
+    )
 
 
 @pytest.mark.parametrize("item", LIFTED)

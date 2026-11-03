@@ -689,7 +689,7 @@ which known open items stay out of the way. It covers about ten times the
 reviewed build (300 PDFs, 20,000 passages, German and English). Items carry
 the review's number (`C-` and three digits, as `docs/bugs.md` gives them). A
 condition that a release fixes moves to that release's upgrade notes
-([Upgrading to v0.5.2](#upgrading-to-v052) lists the latest). Settings are in
+([Upgrading to v0.5.3](#upgrading-to-v053) lists the latest). Settings are in
 [configuration](configuration.md#production-settings), and [the
 runbook](#the-runbook) reaches the deployment from a fresh clone.
 
@@ -792,9 +792,8 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
 | C-082 | At most two model drains a database on the current Azure quota (six lost 3 of 10 topics to rate limits) | A larger quota, measured first |
 | C-085 | Every published port stays on 127.0.0.1 and one operator uses the host: `API_TOKEN` is shared and the pages have no login | A login on the pages and the API |
 | C-366 | A split across Azure resources names an address per role in `LLM_BASE_URLS`; every role left out is on `LLM_BASE_URL`, and credentials are one set per provider | One credential per resource |
-| C-106 | Ingest only documents the corpus owner authored or controls: document text reaches every prompt as it is, so a planted instruction is read as one | Fencing the material (tried in v0.5.2 and withdrawn: fenced extraction narrowed 10 of 60 facts against 7 unfenced, over the bar of 9) |
+| C-106 | Ingest only documents the corpus owner authored or controls: the writer, verifier, phrasing and judge prompts fence a document's text (v0.5.3), but the extraction, digest, bridge and topic-naming prompts send it as it is, so a planted instruction can still reach a fact | Fencing the extraction prompts (tried in v0.5.2 and withdrawn: fenced extraction narrowed 10 of 60 facts against 7 unfenced, over the bar of 9) |
 | C-114 | Load bulk corpora with `make ingest DIR=`. The Upload page refuses more than 20 files or 200 MB, but Streamlit uploads every picked file into its 1 GB process first, so a large selection can kill it | A check before the upload, which Streamlit cannot make |
-| C-054 | After a deletion through the pages or the API, the next `make corpus` or `make corpus-hosted` replays the dedup before the bridge pass. Run `make extract-dedup` at once if the refusals are wanted sooner. `make delete` and `make delete-derived` run it themselves | |
 | C-066 | `make questions-export` and the pages write the same streamed workbook: the API holds a batch, not the corpus (it failed past about 13,000 questions in v0.5.1). Prefer `make questions-export` for more than 70,000 until it is measured on the go-live copy | A 70,000-question export measured through the API on that copy |
 | C-029 | Report the difficulty band as retrieval spread, never as hardness, and leave `QUESTIONS_RELEASE_DIFFICULTY` unset | A grading of how hard a question is to answer, not built |
 | C-031 | Leave distant-from-document out of per-category reports: most of its released rows use the document's words | A per-question word-distance reading (deferred) |
@@ -806,7 +805,6 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
 | C-278 | Before ingest, compare the widest table rows with the chunk's token budget (`EMBEDDING_MAX_TOKENS` less the embedder's own tokens): a longer row is cut mid-cell. Ship the fix first if any exceeds it | Keeping a row whole in one passage (deferred) |
 | C-295 | Choose the embedding model before production and change it only through a migration and a full re-embed: editing `backend.env` would mix two models' vectors | A guard that refuses vectors of another model |
 | C-419 | Check any tracked-change export before ingest: only a drawn horizontal strike is read as struck-through | A strike reading for tracked changes (deferred) |
-| C-245 | `EXTRACTION_DUPLICATE_COSINE` at 0 turns the duplicate refusal off and the stage still writes passage and fact embeddings (v0.5.3), so no value of it needs leaving | |
 | C-424 | Leave `QA_MODEL` empty, as it ships, until an encoder is calibrated | A calibration of one encoder |
 | C-297 | Build the production images once, record their digests, and rebuild only on purpose: installs are not hash-checked and base images are named by tag | Locked installs, images by digest (deferred) |
 | C-162 | Rolling back `733a3eadef7c`, past v0.4.2, drops every rubric score for good: they are not archived, since a restore would put back rows the narrower CHECK refuses | Archiving them in a form a restore can read |
@@ -825,6 +823,216 @@ Reruns bring stored data up to what a release reads differently. Run only
 those the corpus needs. Each `make *-rerun` drains on the host and refuses
 while the stage's container worker runs. To use the container workers, rerun
 from the stage's page or `POST /{stage}/rerun?confirm=true`.
+
+## Upgrading to v0.5.3
+
+The QA and fix release after v0.5.2. It also puts each infrastructure
+component behind a port, chosen by a setting whose default is today's adapter,
+so an Azure adapter can later replace one without touching its callers
+([Swapping a component](architecture.md#swapping-a-component)). Nothing
+changes by default. `docs/changelog.md` lists each fix and closed item under
+v0.5.3, and `docs/bugs.md` the accepted ones. A build from scratch needs only
+steps 1 and 2.
+
+### 1. Pull, code and images
+
+Before `git pull`, set aside local edits of the committed env files: this
+release adds lines to `backend.env`, `deployment.env` and `review.env`.
+
+```bash
+git pull
+make setup        # replaces any change_me_ value left in .env
+chmod 600 .env configs/env/provider.env
+podman compose --env-file configs/env/deployment.env --env-file .env stop parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker
+make backup DIR=/backups/$(date +%F)
+make upgrade
+```
+
+- No dependency changes: `poetry.lock` and the image locks are v0.5.2's, so
+  `poetry install` is not needed.
+- `make up` and `make upgrade` refuse while `.env` (or `ENV_FILE`) holds a
+  `change_me_` value, and the API treats a `change_me_` `API_TOKEN` as no
+  secret: it refuses every write and settings read (N-076). `make
+  placeholders` runs that check alone.
+- `make setup` creates `.env` and `provider.env` readable by the owner alone,
+  but leaves an existing file's mode as it is: hence the `chmod`. `make doctor`
+  warns while either is readable by group or others (N-073).
+- `compose.yaml` mounts no checkout path: every image runs from its own files.
+  `make up` adds `compose.dev.yaml`, which mounts the source over the images,
+  on the development profile only. On the go-live profile code reaches the
+  containers only through `make upgrade`, which rebuilds the images before it
+  restarts them. A bare `podman compose` command on a development stack needs
+  `COMPOSE_FILE=compose.yaml:compose.dev.yaml`, or it recreates the
+  containers without their mounts ([What compose
+  reads](configuration.md#what-compose-reads)).
+- Every service has a health check. A worker's tests that its first process
+  is Python.
+
+### 2. Two migrations, in order
+
+The head before this release is `4a7c2e91d3b8`. Each revision runs under the
+5-second lock timeout of [Upgrading the schema on a stack with
+data](#upgrading-the-schema-on-a-stack-with-data).
+
+| Revision | What it does |
+|---|---|
+| `5c1e8a3f7d20` | `archive_deleted_row()` skips the tables a transaction names in `qa.archive_skip`. A topic fit names `topics` and `passage_topics`, so a refit archives no topic rows. Every other deletion archives as before (C-420) |
+| `9e3b61d4a2c7` | Adds `passages.nearest_foreign_cosine` and `passages.nearest_foreign_doc`, the cosine to the closest passage of another document in the same language and that document, and fills them for every embedded passage. The backfill commits 500 passages at a time, outside the revision's transaction. Each batch compares its passages with every embedded passage of their language, so time it on a copy of a large corpus first. A stopped backfill leaves the revision unstamped, and the next `make schema` resumes it (C-100). The new head |
+
+`make schema-down CONFIRM=<database>` drops both columns and puts the archive
+function back. A downgrade past `733a3eadef7c` (v0.4.2) now deletes every
+rubric score without archiving it, so a later restore no longer fails on them,
+and the scores are gone for good (C-162).
+
+### 3. Settings
+
+New. Each defaults to what the stack did before, so an env file without its
+line still loads. Most choose the adapter of one port, and where the table
+names one value it is the only adapter there is ([Which
+adapter](configuration.md#which-adapter)):
+
+| Setting | File | Default and values |
+|---|---|---|
+| `OBJECT_STORE` | `deployment.env` | `s3` |
+| `DATABASE_AUTH` | `backend.env` | `url`: the password inside `DATABASE_URL`, asked each time a connection opens |
+| `ORCHESTRATOR` | `deployment.env` | `dagster`, or `none`, which reads as no orchestrator whatever `DAGSTER_URL` is |
+| `API_AUTH` | `backend.env` | `token`: the shared `API_TOKEN` |
+| `LLM_CLIENT` | `backend.env` | `litellm` |
+| `TRACE_STORE` | `deployment.env` | `phoenix`, or `none`: spans still go out over OTLP, annotations and published prompts stay in Postgres alone, and a golden-set upload or experiment is refused |
+| `REVIEW_TOOL` | `review.env` | `argilla` |
+| `LOG_FORMAT` | `deployment.env` | `text`, or `json`: stdout carries one JSON object a record, with the file's fields |
+| `SERVICE_PROBES` | `deployment.env` | What the System health page probes, as `name=host:port` (`name=` for a process with no port). Ships the compose stack's list |
+| `GRAFANA_DB_HOST`, `GRAFANA_DB_SSLMODE`, `GRAFANA_ELASTICSEARCH_URL` | `deployment.env` | `postgres:5432`, `disable` and `https://elasticsearch:9200`: where Grafana's datasources point |
+| `LLM_BASE_URLS` | `.env` | Unset. An address of its own for a role, as `role=address` entries over writer, verifier, phrasing, extraction, digest, topics and judge (C-366) |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | none (the OpenTelemetry variable) | Unset reads `grpc`; `http/protobuf` for a collector behind an HTTPS ingress. Any other value is refused |
+
+None is retired. Changed:
+
+- `S3_BUCKETS` is read: the backend takes its five bucket names from it, where
+  they were fixed in code, and an entry may be `role=bucket`
+  (`documents=acme-docs`). Each bucket is checked by name, and the account's
+  buckets are never listed, so a credential limited to its buckets works
+  (N-063).
+- `LLM_BASE_URL` serves every role that `LLM_BASE_URLS` leaves out. Credentials
+  stay one set per provider.
+- `DATABASE_URL`, `BACKEND_URL`, `S3_ENDPOINT`, `PHOENIX_BASE_URL`,
+  `OTEL_EXPORTER_OTLP_ENDPOINT` and `ARGILLA_API_URL`: a host command keeps the
+  value `ENV_FILE` or the environment gives, and builds it from `localhost`
+  and the published port only when it is unset (N-064). A `DATABASE_URL`
+  exported in a shell used to be overwritten and is now used. A given
+  `DATABASE_URL` must name the database `APP_DB_NAME` names, or every target
+  that loads the settings refuses, naming both. One that names no database is
+  refused (N-070).
+- `API_TOKEN`: a `change_me_` value counts as no secret (step 1).
+- `PHOENIX_DB_PASSWORD`, `ARGILLA_DB_PASSWORD` and `ELASTICSEARCH_PASSWORD`:
+  `make doctor` now refuses `@ / : # ? %` in them, as in `APP_DB_PASSWORD`,
+  because compose writes each into a URL. A quote in a role password no longer
+  breaks the first boot (N-072).
+- `LOG_DIR`: an unwritable directory is reported as a record on stdout, where
+  it was a bare line on stderr. With `LOG_FORMAT=json` it may be left empty,
+  and no file is written (N-065).
+- `EXTRACTION_DUPLICATE_COSINE` at 0 turns the duplicate refusal off and still
+  writes the vectors (C-245).
+
+### 4. Prompts and model calls
+
+- Writer 32 becomes 35, verifier 15 becomes 17, `verifier: stated` 1 becomes
+  3, phrasing 5 becomes 8, and the assessment judge 4 becomes 5. Unchanged:
+  atomic extraction 12, repair-1, digest 5, bridge 6, topic naming 3. Stored
+  rows keep their version.
+- The writer, verifier, phrasing and judge prompts send a document's text
+  between material tags, under a line saying it is never an instruction
+  (C-106). Their worked examples come from libraries, permits, leases and
+  catalogues (N-052). The extraction, digest, bridge and topic-naming prompts
+  send the text as before.
+- The first `make questions-rejudge` asks again about every stored accepted
+  unanswerable question, because its verdicts were given under verifier 15:
+  one `settles` reading each, and a second where the passages are silent and
+  the probe is on.
+- The two-passage readings stored under `verifier: stated` 1 keep that version,
+  and the prompts table keeps the text they were read under, so they stay told
+  apart from readings under 3. No command reads them again: only a question
+  written from now on is read under 3.
+- No model call is added or removed.
+
+### 5. Reruns, in order
+
+None is needed to start v0.5.3. Each brings stored data up to what this
+release reads differently. A rerun without `SHA` refuses unless `CONFIRM`
+names the database, and a re-chunk over questions refuses unless `FORCE=1`.
+The counts are of the 30 football and 50 shop calibration PDFs and their
+stored rows.
+
+| Step | Command | Needed because of |
+|---|---|---|
+| Ingest again | `make ingest DIR=<folder>` | A PDF refused `unsupported_type` because its header followed a few leading bytes (C-186), and a folder whose run stopped at a file name that is not UTF-8 (N-007). A file already stored is refused as `duplicate_bytes`, so the run is safe to repeat |
+| Parse | `make parse-rerun CONFIRM=<database>` | A paragraph number printed in the left margin now opens its paragraph (N-057): 819 lines in three football documents |
+| Chunk | `make chunk-rerun CONFIRM=<database> FORCE=1` | List markers the document does not print (N-003, 83 in 35 passages), a passage in an unconfigured language reads no language (N-004, none of the stored passages), one-page chapters (N-005, 6 passages) and heading fragments (N-006, 2 passages), all football |
+| Extract new passages | `make extract-start`, then `make extract` | Re-chunked passages have no facts yet |
+| Judge facts again | `make extract-revalidate` | The fact check's figure, unit, date, list-line and reference fixes (N-012, N-013, N-016, N-017, N-019, N-020, N-037, N-042, N-043, N-046, N-049, N-051, N-055, N-056, N-062). No model call. On the stored facts only N-037 moves a verdict: 15 refusals become valid |
+| Cap again | `make extract-recap` | Lettered, roman and en-dash list items count toward the cap (N-021): 7 stored passages count more items |
+| Dedup | `make extract-dedup` | A refusal whose twin went in a deletion through the pages or the API before this release. `make corpus` now replays it itself (C-054) |
+| Vectors | `make extract-embed` | Passages and facts a stage left without vectors at `EXTRACTION_DUPLICATE_COSINE=0` (C-245), and restored questions with none (C-331) |
+| Stored questions | `make questions-reverify` | The structural and type gates: amounts, counts, periods, question words and marks, and the language check (N-022, N-023, N-029, N-039, N-040, N-045). No stored verdict changes. The `leaks_source` fixes (N-027, N-047, N-054) act on new questions only, since this re-check does not run that gate |
+| Unanswerables | `make questions-rejudge` | Verifier 17 (step 4). Calls the verifier |
+| Release | `make questions-balance` | Rejected rows leave it |
+| Export | `make questions-export` | The workbook is streamed. Text opening with `=`, `+`, `-` or `@` is stored as text, long cells are cut and marked, Citations gives first and last page as integers, a sheet past Excel's row limit continues in a numbered one, and the Kind heading says what Kind means (C-066, C-071, C-175, C-239, C-240, C-241, N-025) |
+
+### 6. What else changes
+
+- `make doctor` fails where the API refuses this host's `API_TOKEN`: run `make
+  up` after changing `.env` (N-074). `make services`, `make pipeline-status`,
+  `make pipeline-stop` and `make pipeline-retry` exit non-zero when the API
+  refuses them, and print its status and detail (N-068).
+- `CONFIRM` is compared with the database `DATABASE_URL` names. `make backup`,
+  `make restore-backup` and `make restore-backup-stack` refuse a
+  `DATABASE_URL` that names another host than the stack's postgres. `make
+  logs-wipe` takes every database's log stream only under `ALL_DATABASES=1`
+  (N-070, N-071).
+- The Dagster web UI answers only as `localhost`, `127.0.0.1` or
+  `dagster-webserver`. It refuses a GraphQL request sent by GET, and a write
+  from another site or origin, with 403 (N-067).
+- `GET /pipeline` waits 3 seconds for Dagster, then reports the queues with
+  orchestration unavailable (C-081). A supplied run name is 1 to 80 letters,
+  digits or `._:-`, and any other answers 422 (C-257).
+- A stage's unexpected failure stores the exception's type and a trace id on
+  the row, and the traceback goes to the log under that id (N-069).
+- A topic refit archives no topics or memberships (C-420), and reads its
+  passages by document and position, so the same passages give the same fit
+  in any insert order (C-221). Rows that earlier refits archived stay in
+  `archived_rows`, and `make archive` counts them.
+- The Filebeat template keeps no replica, so a single Elasticsearch node reads
+  green. Indices made before stay yellow until they age out, or until the one
+  call under [Logs](make.md#logs) (C-244).
+- A worker that receives a second stop within 2 seconds of the first still
+  finishes its row. `--wait` exits 75, naming the worker, when rows are
+  pending and the worker has not moved them for the queue lease (C-006).
+- `make corpus` (and `make corpus-hosted`) replays the dedup for orphaned
+  refusals after the digests and before the bridge pass (C-054).
+- The link pass reads a section number after a document label, as in `Ziffer
+  4 und 5 AGB` (C-190). It changed no stored link, so no bridge pass is needed
+  for it.
+- The nightly's Model quality job is skipped until the repository variable
+  `LLM_MODEL` and the secrets `AZURE_API_KEY`, `AZURE_API_BASE` and
+  `AZURE_API_VERSION` are set (N-036).
+
+### 7. Deployment conditions this release lifts
+
+Each fix ships in v0.5.3, so each condition has left [Production
+deployment](#production-deployment).
+
+| Item | The condition was | What lifts it |
+|---|---|---|
+| C-054 | After a deletion through the pages or the API, run `make extract-dedup`: no extraction worker runs on this profile | `make corpus` replays the dedup before the bridge pass |
+| C-186 | Check the refusal count of a first batch: a PDF whose header follows a few leading bytes is refused as unknown type | The header is looked for in the first kilobyte |
+| C-245 | Leave `EXTRACTION_DUPLICATE_COSINE` at its shipped value: 0 also stops writing passage embeddings | 0 turns the refusal off and the vectors are still written |
+
+Four conditions still hold in a narrower form. C-066: the pages write the same
+streamed workbook as `make questions-export`, which stays the way past 70,000
+questions. C-106: the question-side prompts fence the document's text, and the
+extraction prompts do not. C-162: a downgrade past v0.4.2 drops the rubric
+scores for good. C-366: `LLM_BASE_URLS` gives each role its own address, and
+credentials stay one set per provider.
 
 ## Upgrading to v0.5.2
 
