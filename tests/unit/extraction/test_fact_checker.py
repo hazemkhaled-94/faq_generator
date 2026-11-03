@@ -2240,3 +2240,882 @@ def test_a_dotted_amount_or_rate_does_not_support_its_minute_part(
     judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
 
     assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "de",
+            "Das Privatkonto kostet CHF 1'250.50 pro Jahr.",
+            "Das Privatkonto kostet CHF 250.50 pro Jahr.",
+        ),
+        (
+            "de",
+            "Das Privatkonto kostet CHF 1’250.50 pro Jahr.",
+            "Das Privatkonto kostet CHF 250.50 pro Jahr.",
+        ),
+        (
+            "de",
+            "Das Limit beträgt CHF 1'000'000 pro Kunde.",
+            "Das Limit beträgt CHF 1'000 pro Kunde.",
+        ),
+        (
+            "en",
+            "The private account costs CHF 1'250.50 a year.",
+            "The private account costs CHF 250.50 a year.",
+        ),
+    ],
+)
+def test_a_fact_dropping_the_thousands_of_an_apostrophe_grouped_amount_is_refused(
+    language, evidence, statement
+) -> None:
+    """The Swiss grouping is one figure: dropping its thousands changes the amount."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert not judged.validated, "a wrong amount was validated"
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "de",
+            "Das Privatkonto kostet CHF 1'250.50 pro Jahr.",
+            "Das Privatkonto kostet CHF 1250.50 pro Jahr.",
+        ),
+        (
+            "en",
+            "The private account costs CHF 1’250.50 a year.",
+            "The private account costs CHF 1250.50 a year.",
+        ),
+        (
+            "en",
+            "The private account costs CHF 1250.50 a year.",
+            "The private account costs CHF 1’250.50 a year.",
+        ),
+    ],
+)
+def test_an_apostrophe_grouped_amount_and_its_plain_spelling_support_each_other(
+    language, evidence, statement
+) -> None:
+    """The same amount in another grouping is no addition, in any language."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "fr",
+            "Le compte privé coûte CHF 1'250.50 par an.",
+            "Le compte privé coûte CHF 250.50 par an.",
+        ),
+        (
+            "el",
+            "Ο λογαριασμός κοστίζει 1.250,50 EUR.",
+            "Ο λογαριασμός κοστίζει 1.250,50 EUR.",
+        ),
+    ],
+)
+def test_a_language_no_pipeline_is_configured_for_is_refused_at_parse_not_read(
+    language, evidence, statement
+) -> None:
+    """No predicate is read in such a language, so the amount is never judged."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.ASSERTS_NOTHING
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "en",
+            "The promotional rate is 5 % for 12 months.",
+            "The promotional rate is 12 % for 5 months.",
+        ),
+        (
+            "de",
+            "Der Aktionszins beträgt 5 % für 12 Monate.",
+            "Der Aktionszins beträgt 12 % für 5 Monate.",
+        ),
+        (
+            "en",
+            "Returns are accepted within 30 days for a fee of 14 EUR.",
+            "Returns are accepted within 14 days for a fee of 30 EUR.",
+        ),
+        (
+            "de",
+            "Rücksendungen sind innerhalb von 30 Tagen für 14 Euro möglich.",
+            "Rücksendungen sind innerhalb von 14 Tagen für 30 Euro möglich.",
+        ),
+    ],
+)
+def test_two_figures_traded_between_their_kinds_are_refused(
+    language, evidence, statement
+) -> None:
+    """Each figure is cited, but under the other's kind: the statement says another thing."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "en",
+            "The promotional rate is 5 % for 12 months.",
+            "For 12 months the promotional rate is 5 %.",
+        ),
+        (
+            "de",
+            "Der Aktionszins beträgt 5 % für 12 Monate.",
+            "Für 12 Monate beträgt der Aktionszins 5 %.",
+        ),
+        (
+            "en",
+            "Returns are accepted within 30 days for a fee of 14 EUR.",
+            "A fee of 14 EUR applies to returns within 30 days.",
+        ),
+    ],
+)
+def test_figures_keeping_their_kinds_in_another_order_are_validated(
+    language, evidence, statement
+) -> None:
+    """Moving a figure within the sentence is no swap."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement", "faithful"),
+    [
+        (
+            "fr",
+            "Le taux promotionnel est de 5 % pendant 12 mois.",
+            "Le taux promotionnel est de 12 % pendant 5 mois.",
+            "Le taux promotionnel est de 5 % pendant 12 mois.",
+        ),
+        (
+            "el",
+            "Το επιτόκιο είναι 5 % για 12 μήνες.",
+            "Το επιτόκιο είναι 12 % για 5 μήνες.",
+            "Το επιτόκιο είναι 5 % για 12 μήνες.",
+        ),
+    ],
+)
+def test_a_language_no_pipeline_is_configured_for_never_reaches_the_swap_guard(
+    language, evidence, statement, faithful
+) -> None:
+    """The traded pair and the faithful one get the same verdict: the guard is inert."""
+    read = Checker(passage(evidence, language=language))
+
+    assert (
+        read.atomic(statement, 0).rejection_code
+        == read.atomic(faithful, 0).rejection_code
+    )
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "Since 2024 the account fee is 5 EUR a month. Until 2023 the account fee was 3 EUR a month.",
+            "Since 2023 the account fee is 5 EUR a month.",
+        ),
+        (
+            "de",
+            "Seit 2024 beträgt die Kontogebühr 5 Euro im Monat. Bis 2023 betrug die Kontogebühr 3 Euro im Monat.",
+            "Seit 2023 beträgt die Kontogebühr 5 Euro im Monat.",
+        ),
+        (
+            "en",
+            "The branch opens at 9:00. The branch closes at 17:00.",
+            "The branch opens at 17:00.",
+        ),
+        (
+            "de",
+            "Die Filiale öffnet um 9:00 Uhr. Die Filiale schließt um 17:00 Uhr.",
+            "Die Filiale öffnet um 17:00 Uhr.",
+        ),
+    ],
+)
+def test_a_year_or_time_lifted_from_an_uncited_sentence_is_a_swap(
+    language, text, statement
+) -> None:
+    """A figure with no unit beside it still has a kind: its shape."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement", "cited"),
+    [
+        (
+            "en",
+            "Since 2024 the account fee is 5 EUR a month. Until 2023 the account fee was 3 EUR a month.",
+            "Until 2023 the account fee was 3 EUR a month.",
+            1,
+        ),
+        (
+            "de",
+            "Seit 2024 beträgt die Kontogebühr 5 Euro im Monat. Bis 2023 betrug die Kontogebühr 3 Euro im Monat.",
+            "Bis 2023 betrug die Kontogebühr 3 Euro im Monat.",
+            1,
+        ),
+        (
+            "en",
+            "The branch opens at 9:00. The branch closes at 17:00.",
+            "The branch closes at 17:00.",
+            1,
+        ),
+        (
+            "en",
+            "Orders 100 and 250 are shipped. Order 7 is held.",
+            "Order 7 is held.",
+            1,
+        ),
+    ],
+)
+def test_a_year_or_time_in_the_cited_sentence_is_supported(
+    language, text, statement, cited
+) -> None:
+    """Citing the sentence that states the figure keeps the fact."""
+    judged = Checker(passage(text, language=language)).atomic(statement, cited)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "fr",
+            "Depuis 2024 les frais sont de 5 EUR par mois. Jusqu'en 2023 ils étaient de 3 EUR par mois.",
+            "Depuis 2023 les frais sont de 5 EUR par mois.",
+        ),
+        (
+            "el",
+            "Από το 2024 η χρέωση είναι 5 EUR. Μέχρι το 2023 ήταν 3 EUR.",
+            "Από το 2023 η χρέωση είναι 5 EUR.",
+        ),
+    ],
+)
+def test_a_year_in_a_language_no_pipeline_is_configured_for_is_refused_at_parse(
+    language, text, statement
+) -> None:
+    """Such a language is read by the default pipeline's tags and refused whatever the shape rule does."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert not judged.validated
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Die neuen Preise gelten ab dem 1. Januar 2026.",
+            "Die neuen Preise gelten ab dem 1. Februar 2026.",
+        ),
+        (
+            "de",
+            "Der Antrag muss bis zum 31. März eingereicht werden.",
+            "Der Antrag muss bis zum 31. Mai eingereicht werden.",
+        ),
+        (
+            "de",
+            "Die Filiale ist montags von 9 bis 18 Uhr geöffnet.",
+            "Die Filiale ist dienstags von 9 bis 18 Uhr geöffnet.",
+        ),
+        (
+            "de",
+            "Die Abrechnung erfolgt am Montag.",
+            "Die Abrechnung erfolgt am Freitag.",
+        ),
+        (
+            "en",
+            "The new prices apply from 1 January 2026.",
+            "The new prices apply from 1 February 2026.",
+        ),
+        (
+            "en",
+            "The branch is open on Mondays from 9 am to 6 pm.",
+            "The branch is open on Tuesdays from 9 am to 6 pm.",
+        ),
+    ],
+)
+def test_a_fact_moving_a_date_to_another_month_or_weekday_is_refused(
+    language, text, statement
+) -> None:
+    """A month or a weekday is a name a writer reports, whatever the tagger calls it."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Die neuen Preise gelten ab dem 1. Januar 2026.",
+            "Die neuen Preise gelten ab dem 1. Januar 2026.",
+        ),
+        (
+            "de",
+            "Die Filiale ist montags von 9 bis 18 Uhr geöffnet.",
+            "Die Filiale ist am Montag von 9 bis 18 Uhr geöffnet.",
+        ),
+        (
+            "de",
+            "Die Filiale ist am Montag von 9 bis 18 Uhr geöffnet.",
+            "Die Filiale ist montags von 9 bis 18 Uhr geöffnet.",
+        ),
+        (
+            "en",
+            "The new prices apply from 1 January 2026.",
+            "The new prices apply from 1 January 2026.",
+        ),
+    ],
+)
+def test_a_faithful_date_restatement_is_validated(language, text, statement) -> None:
+    """The same month or weekday, in whichever of its forms, is no addition."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+def test_a_month_or_weekday_is_read_whatever_the_tagger_calls_it() -> None:
+    """German tags `Mai` as a common noun; its row in the calendar table reads it."""
+    from nlp.analysis import claim
+
+    assert "mai" in claim("Der Bericht vom Mai ist fertig.", "de").calendar
+    assert "montag" in claim("Die Filiale ist montags geöffnet.", "de").calendar
+    assert "tuesday" in claim("The branch is closed on Tuesdays.", "en").calendar
+    assert "march" in claim("Fees are due in March.", "en").calendar
+
+
+def test_a_verb_spelled_like_a_month_is_no_month() -> None:
+    """Only a token the tagger reads as a noun or a name is a month or a weekday."""
+    from nlp.analysis import claim
+
+    assert claim("The bank may close on Tuesdays.", "en").calendar == ("tuesday",)
+    assert claim("Clients march to the branch.", "en").calendar == ()
+
+
+def test_the_calendar_names_leave_the_units_the_question_gates_read_alone() -> None:
+    """The fact check reads them from their own field."""
+    from nlp.analysis import claim
+
+    assert "februar" not in claim("Gültig ab dem 1. Februar.", "de").units
+
+
+def test_a_month_read_both_as_a_unit_and_a_calendar_name_is_asserted_once() -> None:
+    """English tags a month as a name, so it is a unit and a calendar name; it is asked for once."""
+    from nlp.analysis import claim
+
+    asserted = claim("The new prices apply from 1 June 2026.", "en").asserted
+
+    assert asserted.count("june") == 1, asserted
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Les prix s'appliquent à partir du 1 janvier 2026.",
+        "Οι τιμές ισχύουν από την 1 Ιανουαρίου 2026.",
+        "La sucursal cierra los lunes.",
+    ],
+)
+def test_a_language_without_a_calendar_row_reads_no_month(text) -> None:
+    """No row, no fold: French, Greek and Spanish names are left to their tags."""
+    from nlp.analysis import claim
+
+    assert claim(text, "fr").calendar == ()
+    assert claim(text, "el").calendar == ()
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "The branch is closed on Mondays.",
+            "The branch is closed on Tuesdays.",
+        ),
+        (
+            "en",
+            "Payments made on Saturdays are booked on Mondays.",
+            "Payments made on Sundays are booked on Mondays.",
+        ),
+        (
+            "en",
+            "Fees are due in March.",
+            "Fees are due in May.",
+        ),
+        (
+            "de",
+            "Die Filiale ist am Montagmorgen geschlossen.",
+            "Die Filiale ist am Dienstag geschlossen.",
+        ),
+    ],
+)
+def test_a_fact_moving_a_weekday_or_month_is_refused_in_the_plural_and_across_tags(
+    language, text, statement
+) -> None:
+    """The English plural weekday is a common noun to the tagger; the table reads it all the same."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Die Hotline ist Mo.–Fr. von 8 bis 20 Uhr erreichbar.",
+            "Die Hotline ist Montag bis Freitag von 8 bis 20 Uhr erreichbar.",
+        ),
+        (
+            "de",
+            "Die Hotline ist Mo-Fr von 8 bis 20 Uhr erreichbar.",
+            "Die Hotline ist montags bis freitags von 8 bis 20 Uhr erreichbar.",
+        ),
+        (
+            "de",
+            "Die Frist endet am 31. Dez. 2025.",
+            "Die Frist endet am 31. Dezember 2025.",
+        ),
+        (
+            "en",
+            "The hotline is open Mon-Fri from 8 to 8.",
+            "The hotline is open Monday to Friday from 8 to 8.",
+        ),
+        (
+            "en",
+            "The deadline is 31 Dec. 2025.",
+            "The deadline is 31 December 2025.",
+        ),
+        (
+            "en",
+            "The bank may close on Tuesdays.",
+            "The bank may close on Tuesdays.",
+        ),
+    ],
+)
+def test_an_abbreviated_date_in_the_evidence_supports_its_full_name(
+    language, text, statement
+) -> None:
+    """An abbreviation can only add support to the cited text, never a refusal."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Die Hotline ist Mo.–Fr. von 8 bis 20 Uhr erreichbar.",
+            "Die Hotline ist Samstag von 8 bis 20 Uhr erreichbar.",
+        ),
+        (
+            "en",
+            "The hotline is open Mon-Fri from 8 to 8.",
+            "The hotline is open Saturday from 8 to 8.",
+        ),
+    ],
+)
+def test_a_weekday_the_abbreviated_evidence_does_not_name_is_refused(
+    language, text, statement
+) -> None:
+    """The folded range names Monday and Friday only."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "Returns are accepted within 14 days. Refunds are paid within 2 weeks.",
+            "Returns are accepted within 2 weeks.",
+        ),
+        (
+            "en",
+            "A transfer is credited within 8 seconds. A card block lasts 10 minutes.",
+            "A transfer is credited within 10 minutes.",
+        ),
+        (
+            "de",
+            "Eine Überweisung wird innerhalb von 8 Sekunden gutgeschrieben. Eine Kartensperre dauert 10 Minuten.",
+            "Eine Überweisung wird innerhalb von 10 Minuten gutgeschrieben.",
+        ),
+        (
+            "en",
+            "The legal guarantee lasts at least 2 years. A repair must be made within 6 months.",
+            "The legal guarantee lasts at least 6 months.",
+        ),
+        (
+            "de",
+            "Die gesetzliche Gewährleistung beträgt mindestens 2 Jahre. Eine Reparatur muss binnen 6 Monaten erfolgen.",
+            "Die gesetzliche Gewährleistung beträgt mindestens 6 Monate.",
+        ),
+        (
+            "en",
+            "A transfer arrives within 24 hours. A cheque clears within 3 days.",
+            "A transfer arrives within 3 days.",
+        ),
+        (
+            "de",
+            "Eine Überweisung dauert 24 Stunden. Ein Scheck wird binnen 3 Tagen gutgeschrieben.",
+            "Eine Überweisung dauert 3 Tage.",
+        ),
+    ],
+)
+def test_a_period_lifted_from_an_uncited_sentence_is_a_swap_across_every_unit_of_time(
+    language, text, statement
+) -> None:
+    """Seconds, minutes, hours, days, weeks, months and years are one kind of figure."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement", "faithful"),
+    [
+        (
+            "fr",
+            "Un virement arrive sous 24 heures. Un chèque est crédité sous 3 jours.",
+            "Un virement arrive sous 3 jours.",
+            "Un virement arrive sous 24 heures.",
+        ),
+        (
+            "el",
+            "Η μεταφορά φτάνει σε 24 ώρες. Η επιταγή πιστώνεται σε 3 ημέρες.",
+            "Η μεταφορά φτάνει σε 3 ημέρες.",
+            "Η μεταφορά φτάνει σε 24 ώρες.",
+        ),
+    ],
+)
+def test_a_period_in_a_language_without_a_time_table_is_never_a_swap(
+    language, text, statement, faithful
+) -> None:
+    """No row, no kind: the swapped pair and the faithful one get the same verdict."""
+    read = Checker(passage(text, language=language))
+
+    assert (
+        read.atomic(statement, 0).rejection_code
+        == read.atomic(faithful, 0).rejection_code
+    )
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "A card costs EUR 2 a month. A text message costs 50 cents.",
+            "A card costs 50 cents a month.",
+        ),
+        (
+            "de",
+            "Eine Karte kostet 2 Euro im Monat. Eine SMS kostet 50 Cent.",
+            "Eine Karte kostet 50 Cent im Monat.",
+        ),
+        (
+            "en",
+            "The overdraft rate is 9.5 per cent. The savings rate is 2 per cent.",
+            "The overdraft rate is 2 per cent.",
+        ),
+        (
+            "en",
+            "The rate rose by 2 percentage points. The fee is 9 %.",
+            "The rate rose by 9 percentage points.",
+        ),
+        (
+            "de",
+            "Der Zins stieg um 2 Prozentpunkte. Die Gebühr beträgt 9 %.",
+            "Der Zins stieg um 9 Prozentpunkte.",
+        ),
+    ],
+)
+def test_a_figure_swapped_across_a_minor_unit_or_a_share_spelling_is_refused(
+    language, text, statement
+) -> None:
+    """A cent is money and a per cent is a share, however many words write it."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "The overdraft rate is 9.5 per cent a year.",
+            "The overdraft rate is 9.5 per cent a year.",
+        ),
+        (
+            "de",
+            "Eine SMS kostet 50 Cent.",
+            "Eine SMS kostet 50 Cent.",
+        ),
+    ],
+)
+def test_a_minor_unit_or_a_share_spelling_kept_is_validated(
+    language, text, statement
+) -> None:
+    """The faithful restatement keeps its kind."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize("language", ["fr", "el"])
+def test_a_minor_unit_in_a_language_without_a_row_names_no_kind(language) -> None:
+    """No table row: `cent` is only a word there."""
+    from extraction.validation import _named_kind
+
+    assert _named_kind("cent", language) is None
+    assert _named_kind("cents", language) is None
+
+
+_UNIT_SWAPS = [
+    ("de", "Die Lieferung dauert 3 Tage.", "Die Lieferung dauert 3 Wochen."),
+    ("en", "Delivery takes 3 days.", "Delivery takes 3 weeks."),
+    ("de", "Das Gerät wiegt 4 kg.", "Das Gerät wiegt 4 g."),
+    ("en", "The device weighs 4 kg.", "The device weighs 4 g."),
+    (
+        "de",
+        "Die Kündigungsfrist beträgt 3 Monate.",
+        "Die Kündigungsfrist beträgt 3 Jahre.",
+    ),
+    ("en", "The notice period is 3 months.", "The notice period is 3 years."),
+]
+
+
+@pytest.mark.parametrize(("language", "text", "statement"), _UNIT_SWAPS)
+def test_a_figure_that_keeps_its_digits_and_changes_its_unit_is_refused(
+    language, text, statement
+) -> None:
+    """The digits are cited, but beside another unit: the statement says another thing."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text"), [(one[0], one[1]) for one in _UNIT_SWAPS]
+)
+def test_the_faithful_statement_keeps_its_unit_and_is_validated(language, text) -> None:
+    """The control: the same figure and unit."""
+    judged = Checker(passage(text, language=language)).atomic(text, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.validation_error)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        ("en", "Delivery takes 3 days.", "Delivery takes 3 working days."),
+        ("en", "The fee is 3 EUR a month.", "The fee is 3 EUR per month."),
+        ("de", "Die Lieferung dauert 3 Tage.", "Die Lieferung dauert 3 Tage lang."),
+        ("en", "The bank serves 3 customers.", "The bank serves 3 customers today."),
+    ],
+)
+def test_a_unit_written_with_a_modifier_or_a_neighbour_is_the_same_unit(
+    language, text, statement
+) -> None:
+    """Only another unit lemma beside the same digits is a swap."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        ("fr", "La livraison prend 3 jours.", "La livraison prend 3 semaines."),
+        ("el", "Η παράδοση διαρκεί 3 ημέρες.", "Η παράδοση διαρκεί 3 εβδομάδες."),
+    ],
+)
+def test_a_unit_in_a_language_no_pipeline_is_configured_for_is_refused_at_parse(
+    language, text, statement
+) -> None:
+    """No predicate is read, so the unit is never compared."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.ASSERTS_NOTHING
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "The daily card limit is 1500. Since 2024 the limit applies to all cards.",
+            "The daily card limit of 1500 applies to all cards.",
+        ),
+        (
+            "de",
+            "Das tägliche Kartenlimit liegt bei 1500. Seit 2024 gilt das Limit für alle Karten.",
+            "Das Limit von 1500 gilt für alle Karten.",
+        ),
+        (
+            "en",
+            "Orders up to 2500 ship free. From 2024 returns are free of charge.",
+            "Returns of orders up to 2500 are free of charge.",
+        ),
+    ],
+)
+def test_a_bare_four_digit_figure_is_no_year(language, text, statement) -> None:
+    """A limit, a count or an amount written bare is not compared with a cited year."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 1)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "In May 2024 the fee is 5 EUR. In June 2023 the fee was 3 EUR.",
+            "In May 2023 the fee is 5 EUR.",
+        ),
+        (
+            "de",
+            "Im Mai 2024 beträgt die Gebühr 5 Euro. Im Juni 2023 betrug die Gebühr 3 Euro.",
+            "Im Mai 2023 beträgt die Gebühr 5 Euro.",
+        ),
+        (
+            "en",
+            "Cards expire in 2026. Cards issued before 2020 expire in 2023.",
+            "Cards expire in 2023.",
+        ),
+    ],
+)
+def test_a_year_after_a_month_or_a_year_preposition_is_still_a_swap(
+    language, text, statement
+) -> None:
+    """The year context is a month name or a word of the language's year prepositions."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Die Hotline ist Montag–Freitag von 8 bis 20 Uhr erreichbar.",
+            "Die Hotline ist Montag bis Freitag von 8 bis 20 Uhr erreichbar.",
+        ),
+        (
+            "de",
+            "Die Aktion läuft Januar–März.",
+            "Die Aktion läuft von Januar bis März.",
+        ),
+        (
+            "de",
+            "Die Filiale ist an Sonn- und Feiertagen geschlossen.",
+            "Die Filiale ist an Sonntagen und Feiertagen geschlossen.",
+        ),
+        (
+            "de",
+            "Die Filiale ist bis Montagabend geschlossen.",
+            "Die Filiale ist bis Montag geschlossen.",
+        ),
+        (
+            "de",
+            "Die Filiale öffnet am Samstagvormittag.",
+            "Die Filiale öffnet am Samstag.",
+        ),
+        (
+            "en",
+            "The hotline is open Monday–Friday from 8 to 8.",
+            "The hotline is open Monday to Friday from 8 to 8.",
+        ),
+    ],
+)
+def test_a_name_inside_a_range_or_a_compound_of_the_cited_text_supports_the_plain_name(
+    language, text, statement
+) -> None:
+    """The cited side reads Montag-Freitag, Samstagvormittag and Sonn- as the names they hold."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Die Filiale ist montags geöffnet, so lange der Vorrat reicht.",
+            "Die Filiale ist montags und sonntags geöffnet.",
+        ),
+        (
+            "en",
+            "The store is open on Mondays when the sun is out.",
+            "The store is open on Sundays.",
+        ),
+    ],
+)
+def test_an_ordinary_word_spelled_like_an_abbreviation_supports_no_day(
+    language, text, statement
+) -> None:
+    """An abbreviation counts only as the text writes one: capitalised, dotted or in a range."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, judged.units_added
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Kartenzahlungen sind ab 1000 möglich. Seit 2024 gilt das für alle Karten.",
+            "Kartenzahlungen ab 1000 gelten für alle Karten.",
+        ),
+        (
+            "en",
+            "Card payments are possible from 1000. Since 2024 this applies to all cards.",
+            "Card payments from 1000 apply to all cards.",
+        ),
+        (
+            "de",
+            "Überweisungen bis 2500 sind kostenlos. Seit 2023 gilt das auch online.",
+            "Überweisungen bis 2500 sind auch online kostenlos.",
+        ),
+        (
+            "en",
+            "Transfers until 2500 are free. Since 2023 this also applies online.",
+            "Transfers until 2500 are also free online.",
+        ),
+    ],
+)
+def test_a_limit_after_a_preposition_that_also_sets_limits_is_no_year(
+    language, text, statement
+) -> None:
+    """From, until, ab and bis introduce an amount as often as a year."""
+    judged = Checker(passage(text, language=language)).atomic(statement, 1)
+
+    assert judged.validated, (judged.rejection_code, judged.units_added)

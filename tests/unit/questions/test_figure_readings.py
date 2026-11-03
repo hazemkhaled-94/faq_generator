@@ -308,3 +308,30 @@ def test_a_repeated_list_after_a_linking_adverb_names_nothing(
 ):
     """The key's own items, behind the same adverb, are named by nobody."""
     assert not unnamed(recovery, key, language, question)
+
+
+@pytest.mark.parametrize(
+    ("language", "recovered", "target"),
+    [
+        ("en", "2.5 % a year", "2½ % a year"),
+        ("de", "2,5 % pro Jahr", "2½ % pro Jahr"),
+        ("de", "1,5 Tage", "1 ½ Tage"),
+    ],
+)
+def test_a_fraction_agrees_with_its_decimal_spelling(
+    language, recovered, target
+) -> None:
+    """A key written with a vulgar fraction agrees with the recovery's decimal."""
+    assert agrees(recovered, target, language)
+
+
+@pytest.mark.parametrize(
+    ("language", "recovered", "target"),
+    [
+        ("en", "2.25 % a year", "2½ % a year"),
+        ("de", "1,75 Tage", "1 ½ Tage"),
+    ],
+)
+def test_another_fraction_does_not_agree(language, recovered, target) -> None:
+    """The fraction is part of the value."""
+    assert not agrees(recovered, target, language)

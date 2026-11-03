@@ -25,8 +25,10 @@ from extraction.models import (
     Provenance,
 )
 from nlp.analysis import (
+    CALENDAR_NAMES,
     as_noun,
     claim,
+    folds,
     is_currency,
     normalised,
     numerals,
@@ -170,7 +172,7 @@ class Judged:
         """
         added = tuple(
             unit
-            for unit in self.claim.units + self.claim.figures
+            for unit in self.claim.asserted
             if unit not in self.evidence_vocabulary and unit not in self.supported
         )
         return added + tuple(unit for unit, _ in self.swaps if unit not in added)
@@ -578,7 +580,11 @@ class FactChecker:
             claim=said,
             evidence_vocabulary=frozenset(known),
             supported=_supported_units(
-                said.units + said.figures, known, numbers, anchor.language, statement
+                said.asserted,
+                known,
+                numbers,
+                anchor.language,
+                statement,
             ),
             citations=tuple(one for _, one in rested),
             labels=tuple(
@@ -658,20 +664,20 @@ class FactChecker:
         language = passage.language
         statement = candidate.statement.strip()
         said = claim(statement, language, (passage.text,), passage.title)
-        units = said.units + said.figures
+        units = said.asserted
         known, numbers = _carried(evidence, passage)
         known |= numbers
         supported = _supported_units(units, known, numbers, language, statement)
         swaps: dict[str, str] = {}
         if candidate.kind == FactKind.ATOMIC:
             alone = known | supported
-            swaps = _swapped(statement, evidence, numbers, passage, language)
-            known |= vocabulary(passage.text, language)
+            swaps |= _swapped(statement, evidence, numbers, passage, language)
+            known |= _evidence_vocabulary(passage.text, language)
             numbers |= numerals(passage.text, language)
             known |= numbers
             valued = {
                 written
-                for written, _, _, kind in _figure_tokens(statement, language)
+                for written, _, _, kind, _ in _figure_tokens(statement, language)
                 if kind in _VALUE_KINDS
             }
             numbered = {
@@ -703,6 +709,11 @@ class FactChecker:
         )
 
 
+def _evidence_vocabulary(text: str, language: str | None) -> frozenset[str]:
+    """Every form a word of the evidence appears in, with the folded names the fact check adds."""
+    return vocabulary(text, language) | folds(text, language)
+
+
 def _carried(evidence: str, passage: PassageToExtract) -> tuple[set[str], set[str]]:
     """Reads what a passage's cited text, heading trail and title carry.
 
@@ -713,11 +724,11 @@ def _carried(evidence: str, passage: PassageToExtract) -> tuple[set[str], set[st
         Every form a word appears in, and the numerals, of all three.
     """
     language = passage.language
-    known = set(vocabulary(evidence, language))
+    known = set(_evidence_vocabulary(evidence, language))
     numbers = set(numerals(evidence, language))
     headings = "\n".join(part for part in (passage.section_path, passage.title) if part)
     if headings:
-        known |= vocabulary(headings, language)
+        known |= _evidence_vocabulary(headings, language)
         numbers |= numerals(headings, language)
     return known, numbers
 
@@ -737,13 +748,34 @@ _SHARE_WORDS: dict[str, frozenset[str]] = {
     "en": frozenset({"%", "percent"}),
 }
 
+#: A currency's minor units, by ISO 639-1 code, as lower case: `50 cents` is
+#: money like `EUR 2`. A newly configured language supplies its own.
+_MINOR_UNITS: dict[str, frozenset[str]] = {
+    "de": frozenset({"cent"}),
+    "en": frozenset({"cent", "cents", "penny", "pence"}),
+}
+
+#: The words a language writes a share with that are not one token, by ISO
+#: 639-1 code, as the lemmas in order: `9.5 per cent`. A newly configured
+#: language supplies its own, or reads only the single words of `_SHARE_WORDS`.
+_SHARE_PHRASES: dict[str, tuple[tuple[str, ...], ...]] = {
+    "de": (),
+    "en": (("per", "cent"),),
+}
+
+#: The symbols of the SI units of mass, length and volume, as lower case:
+#: an international standard, the same in every language. `4 g` is not `4 kg`.
+_MEASURES = frozenset(
+    {"mg", "g", "kg", "t", "mm", "cm", "dm", "m", "km", "ml", "cl", "dl", "l"}
+)
+
 #: The lemmas of a language's units of time that a period is counted in, by
 #: ISO 639-1 code, as lower case: "30 days" and "2 weeks" are two figures of
-#: one kind. A newly configured language supplies its days, weeks and months,
-#: or its periods are compared by the unit as written.
+#: one kind. The whole closed set, second to year. A newly configured language
+#: supplies its seven, or its periods are compared by the unit as written.
 _TIME_UNITS: dict[str, frozenset[str]] = {
-    "de": frozenset({"tag", "woche", "monat"}),
-    "en": frozenset({"day", "week", "month"}),
+    "de": frozenset({"sekunde", "minute", "stunde", "tag", "woche", "monat", "jahr"}),
+    "en": frozenset({"second", "minute", "hour", "day", "week", "month", "year"}),
 }
 
 
@@ -756,11 +788,12 @@ def _named_kind(word: str, language: str | None) -> str | None:
     """The kind a word names whatever its spelling: a currency, a share, a period.
 
     A currency is an ISO 4217 code, a sign or the language's own word, so
-    `EUR`, `€` and `Euro` are one kind; None for any other word.
+    `EUR`, `€` and `Euro` are one kind, and a minor unit (`cents`) is the
+    currency's; None for any other word.
     """
     bare = word.strip(".,;:()")
     code = (language or "").strip().lower()
-    if is_currency(bare, language):
+    if is_currency(bare, language) or bare.casefold() in _MINOR_UNITS.get(code, ()):
         return "currency"
     if bare.casefold() in _SHARE_WORDS.get(code, ()):
         return "share"
@@ -769,20 +802,47 @@ def _named_kind(word: str, language: str | None) -> str | None:
     return None
 
 
+#: What a figure with no unit beside it is, read from its own shape: a clock
+#: time written with a colon. A bare count has no kind, so a count is never
+#: compared with another.
+_CLOCK = re.compile(r"\d{1,2}:\d{2}")
+
+#: A year: four digits and no group mark, which is a year only after a word
+#: that introduces one (`_YEAR_WORDS`) or a month name. A bare four-digit limit
+#: or amount is no year.
+_YEAR = re.compile(r"\d{4}")
+
+#: The words a language puts before a year and before no amount, by ISO 639-1
+#: code, as lower case: `ab 1000` and `from 1000` set a limit as often as a year
+#: begins, so only `since` and `in` introduce one. A newly configured language
+#: supplies its own, or reads a year only after a month name.
+_YEAR_WORDS: dict[str, frozenset[str]] = {
+    "de": frozenset({"seit", "im", "jahr"}),
+    "en": frozenset({"since", "in"}),
+}
+
+
 def _kind_of(tokens: Sequence, at: int, language: str | None) -> str | None:
     """What the figure at `at` measures or counts, from the word beside it.
 
     A sign or unit written on the figure ("5%", "$5"), else the noun or
     sign after it, the last of a run of nouns ("5 working days"), else before it: "EUR" of
-    "EUR 5 per month" and of "5 EUR", "days" of "30 days". None where the
-    parse names none, which is every figure of a language no pipeline is
-    configured for.
+    "EUR 5 per month" and of "5 EUR", "days" of "30 days". Where no word
+    stands beside it, its shape: a year, a clock time; None for a bare count.
+    None too where the parse names none, which is every figure of a language no
+    pipeline is configured for.
     """
     token = tokens[at]
     if any(one.isdigit() for one in token.text) and (
-        attached := re.sub(r"[\d.,:/\s()+\-−±]+", "", token.text)
+        attached := re.sub(
+            r"[\d.,:/\s()+\-−±'’\u00bc-\u00be\u2150-\u215e]+", "", token.text
+        )
     ):
         return _named_kind(attached, language) or attached.casefold()
+    for phrase in _SHARE_PHRASES.get((language or "").strip().lower(), ()):
+        words = tokens[at + 1 : at + 1 + len(phrase)]
+        if tuple(word.lemma_.casefold() for word in words) == phrase:
+            return "share"
     ahead = at + 1
     while ahead < min(at + 3, len(tokens) - 1) and tokens[ahead].pos_ in _MODIFIERS:
         ahead += 1
@@ -800,13 +860,29 @@ def _kind_of(tokens: Sequence, at: int, language: str | None) -> str | None:
                 or _named_kind(word.lemma_, language)
                 or word.lemma_.casefold()
             )
+    bare = token.text.strip(".,;:()")
+    if _CLOCK.fullmatch(bare):
+        return "clock-time"
+    code = (language or "").strip().lower()
+    before = tokens[at - 1].lower_ if at else ""
+    if _YEAR.fullmatch(bare) and (
+        before in _YEAR_WORDS.get(code, ()) or before in CALENDAR_NAMES.get(code, ())
+    ):
+        return "year-number"
     return None
 
 
 def _figure_tokens(
     text: str, language: str | None
-) -> list[tuple[str, frozenset[str], tuple[int, ...], str]]:
-    """The figures of a text as written: with their numerals, their digit runs and kind.
+) -> list[tuple[str, frozenset[str], tuple[int, ...], str, frozenset[str] | None]]:
+    """The figures of a text as written: with their numerals, their digit runs, kind and unit.
+
+    The unit is the lemmas of the units right after a figure written alone,
+    modifiers skipped, which is finer than its kind: `days` and `weeks` are
+    one kind and two units. Only a closed set is read, a language's units of
+    time and the SI symbols, because a noun is as likely another word for the
+    same thing. None where none follows, the unit is glued on, or the kind is
+    a currency or a share, whose spellings the kind already compares.
 
     The digit runs make `23.59` and `23:59`, or `9,95` and `9.95`, one figure
     however it is punctuated. A cardinal written out ("four euros") is a
@@ -824,7 +900,27 @@ def _figure_tokens(
         else:
             continue
         if digits and (kind := _kind_of(tokens, at, language)):
-            found.append((token.text.strip(".,;:()").casefold(), digits, runs, kind))
+            nouns: set[str] = set()
+            for near in tokens[at + 1 : at + 4]:
+                if near.pos_ in _UNIT_WORDS:
+                    if (
+                        word := near.lemma_.strip(".,;:()").casefold()
+                    ) in _MEASURES | _TIME_UNITS.get(
+                        (language or "").strip().lower(), frozenset()
+                    ):
+                        nouns.add(word)
+                elif near.pos_ not in _MODIFIERS:
+                    break
+            unit = (
+                frozenset(nouns)
+                if nouns
+                and not any(one.isalpha() for one in token.text)
+                and kind not in ("currency", "share")
+                else None
+            )
+            found.append(
+                (token.text.strip(".,;:()").casefold(), digits, runs, kind, unit)
+            )
     return found
 
 
@@ -843,25 +939,49 @@ def _swapped(
     the passage supports: "costs EUR 2" for a cited "costs EUR 5". Maps each
     such figure as the statement writes it to the one the evidence writes. A
     cited figure the statement writes too is kept, not swapped out:
-    "EUR 4.95 for orders under EUR 50" keeps the 4.95.
+    "EUR 4.95 for orders under EUR 50" keeps the 4.95. A figure whose digits
+    the cited text gives only beside another named kind (a currency, a share,
+    a period) is a swap too: two figures traded between their kinds, "12 %
+    for 5 months" for a cited "5 % for 12 months". So is a figure whose digits
+    the cited text gives only before another noun: "3 weeks" for "3 days".
     """
     elsewhere = numerals(passage.text, language)
     swaps: dict[str, str] = {}
     own = None
     said = _figure_tokens(statement, language)
-    for unit, digits, runs, kind in said:
+    for unit, digits, runs, kind, _ in said:
         if digits <= cited or not digits <= elsewhere:
             continue
         if own is None:
             own = _figure_tokens(evidence, language)
-        kept = [(one, there) for _, one, there, near in said if near == kind]
-        for written, theirs_digits, theirs, there in own:
+        kept = [(one, there) for _, one, there, near, _ in said if near == kind]
+        for written, theirs_digits, theirs, there, _ in own:
             if there != kind or theirs == runs or theirs_digits == digits:
                 continue
             if any(theirs == run or theirs_digits == one for one, run in kept):
                 continue
             swaps[unit] = written
             break
+    for unit, digits, _, kind, _ in said:
+        if unit in swaps or kind not in _VALUE_KINDS or not digits <= cited:
+            continue
+        if own is None:
+            own = _figure_tokens(evidence, language)
+        there = [
+            (written, near) for written, theirs, _, near, _ in own if theirs == digits
+        ]
+        if there and all(near in _VALUE_KINDS - {kind} for _, near in there):
+            swaps[unit] = there[0][0]
+    for unit, digits, _, _, nouns in said:
+        if unit in swaps or nouns is None or not digits <= cited:
+            continue
+        if own is None:
+            own = _figure_tokens(evidence, language)
+        there = [
+            (written, one) for written, theirs, _, _, one in own if theirs == digits
+        ]
+        if there and all(one and not one & nouns for _, one in there):
+            swaps[unit] = there[0][0]
     return swaps
 
 

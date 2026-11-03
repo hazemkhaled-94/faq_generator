@@ -66,7 +66,7 @@ def _read(text: str, language: str | None) -> Doc:
 
 
 def _grouped(document: Doc, language: str | None) -> Doc:
-    """Merges the digit groups a space joins where the text writes an amount.
+    """Merges the digit groups a space joins where the text writes an amount, and a fraction set off from its whole number.
 
     The tokenizer splits `100 000` and `12 500.00` at the space, so a reader
     of tokens takes each for two figures. A merge keeps every offset and
@@ -80,6 +80,19 @@ def _grouped(document: Doc, language: str | None) -> Doc:
                 found.start(), found.end(), alignment_mode="expand"
             )
             if span is not None and len(span) > 1:
+                spans.append(span)
+    for found in _VULGAR.finditer(document.text):
+        if found[1] and found[2]:
+            span = document.char_span(
+                found.start(), found.end(), alignment_mode="expand"
+            )
+            if (
+                span is not None
+                and len(span) > 1
+                and not any(
+                    span.start < one.end and one.start < span.end for one in spans
+                )
+            ):
                 spans.append(span)
     if spans:
         with document.retokenize() as merger:
@@ -607,12 +620,90 @@ def ordinal(token: Token) -> str | None:
     return _ORDINALS.get(language, {}).get(text)
 
 
+#: The names of the months and of the days of the week, by ISO 639-1 code,
+#: each as the one form it is folded to: German tags them as common nouns
+#: (`Januar`, `montags`), and English its plural weekdays (`Tuesdays`), so a
+#: writer's choice of one is no proper noun to `_units`, and a fact moving a
+#: date to another month or day looks the same. A language missing here reads
+#: them by their tags. A newly configured language supplies its months and
+#: weekdays, with the adverbial and inflected forms it writes, each mapped to
+#: its base form, all lower case, and the tags it gives them in
+#: `_CALENDAR_TAGS`: a month spelled like a verb (`may`) is no month.
+_DE_MONTHS = (
+    "januar februar märz april mai juni juli august september oktober november dezember"
+)
+_DE_WEEKDAYS = "montag dienstag mittwoch donnerstag freitag samstag sonntag"
+_EN_MONTHS = "january february march april may june july august september october november december"
+_EN_WEEKDAYS = "monday tuesday wednesday thursday friday saturday sunday"
+CALENDAR_NAMES: dict[str, dict[str, str]] = {
+    "de": {
+        **{name: name for name in (_DE_MONTHS + " " + _DE_WEEKDAYS).split()},
+        "jänner": "januar",
+        "sonnabend": "samstag",
+        **{f"{day}s": day for day in _DE_WEEKDAYS.split()},
+    },
+    "en": {
+        **{name: name for name in (_EN_MONTHS + " " + _EN_WEEKDAYS).split()},
+        **{f"{day}s": day for day in _EN_WEEKDAYS.split()},
+    },
+}
+
+#: The tags a month or weekday carries in each language's pipeline: nouns and
+#: names, and German's adverbial `montags`.
+_CALENDAR_TAGS: dict[str, frozenset[str]] = {
+    "de": frozenset({"NOUN", "PROPN", "ADV"}),
+    "en": frozenset({"NOUN", "PROPN"}),
+}
+
+
+#: The abbreviations of the same names, with or without a full stop, each
+#: mapped to its base form. Read of the cited text only, so one can only add
+#: support, never a refusal: `Mo.-Fr.` supports `Montag bis Freitag`, and a
+#: two-letter form that is also an ordinary word (`Do`, `so`) supports a name
+#: it may not mean, which is the safe side.
+def _abbreviated(abbreviations: str, names: str) -> dict[str, str]:
+    """Each abbreviation of a space-separated list, mapped to the name at its position."""
+    return dict(zip(abbreviations.split(), names.split(), strict=True))
+
+
+CALENDAR_ABBREVIATIONS: dict[str, dict[str, str]] = {
+    "de": _abbreviated(
+        "jan feb mär apr jun jul aug sep sept okt nov dez",
+        "januar februar märz april juni juli august september september oktober november dezember",
+    )
+    | _abbreviated("mo di mi do fr sa so", _DE_WEEKDAYS)
+    | {"sonn": "sonntag"},
+    "en": _abbreviated(
+        "jan feb mar apr jun jul aug sep sept oct nov dec",
+        "january february march april june july august september september october november december",
+    )
+    | _abbreviated("mon tue wed thu fri sat sun", _EN_WEEKDAYS),
+}
+
+
+def _calendar(token: Token, language: str | None) -> str | None:
+    """The form a month or weekday name is folded to, or None for any other token."""
+    code = (language or token.doc.lang_).strip().lower()
+    if token.pos_ not in _CALENDAR_TAGS.get(code, ()):
+        return None
+    names = CALENDAR_NAMES.get(code, {})
+    return next(
+        (
+            names[form]
+            for form in (token.lower_, token.lemma_.casefold())
+            if form in names
+        ),
+        None,
+    )
+
+
 def _units(span: Doc | Span) -> tuple[str, ...]:
     """Collects the values a statement may not introduce on its own.
 
     Numbers and proper nouns only. Both are things a writer reports rather
     than chooses, so one appearing in a statement and nowhere in the sentence
-    it cites was invented.
+    it cites was invented. The months and weekdays the tagger does not call
+    proper nouns are read apart, in `Claim.calendar`.
 
     Three things are deliberately left out. Common nouns, because a statement
     is supposed to name its subject in its own words. Verbs, because the
@@ -635,7 +726,8 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
     for token in span:
         if is_number(token):
             # An ordinal keeps what marks it, so `3.` is not the count 3.
-            found.add((token.text if ordinal(token) else _bare(token.text)).casefold())
+            value = (token.text if ordinal(token) else _bare(token.text)).casefold()
+            found.add(value)
         elif token.pos_ == "PROPN":
             if (
                 capitalising
@@ -653,7 +745,10 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
 #: past its unit and is a word; a name ending in digits starts with a letter.
 #: The unit follows a digit directly: after a dash - `2-mal`, `3-fach` - the
 #: letters make the digits a number word, which states no figure.
-_FIGURE_TOKEN = re.compile(r"[+±−-]?\(?\d[\d.,:/()– -]*(?:(?<=\d)[^\W\d_]{1,4})?%?")
+_FIGURE_TOKEN = re.compile(
+    r"[+±−-]?\(?\d{1,3}(?:['’]\d{3})*[\d.,:/()– -]*(?:(?<=\d)[^\W\d_]{1,4})?%?"
+    r"|(?:\d{1,3} )?[\u00bc-\u00be\u2150-\u215e]"
+)
 
 
 def _figures(span: Doc | Span) -> tuple[str, ...]:
@@ -935,8 +1030,12 @@ def _amount(text: str, start: int, end: int, language: str | None) -> bool:
 #: is not. The third alternative is a long figure with a fraction and no
 #: thousands mark: `1299,99`, `2500.00`. The first is a number grouped by
 #: spaces, which `figures` reads as one only beside a currency, see `_amount`.
+#: The second is the apostrophe grouping, `1'250.50`, either apostrophe, one
+#: figure wherever it stands: a digit and exactly three digits take it, a
+#: possessive (`90's`) never does.
 FIGURE = re.compile(
-    _SPACED.pattern + r"|(?<![\w.,])\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?(?![\w])"
+    _SPACED.pattern + r"|(?<![\w.,'’])\d{1,3}(?:['’]\d{3})+(?:[.,]\d+)?(?![\w])"
+    r"|(?<![\w.,])\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?(?![\w])"
     r"|(?<![\w.,])\d+(?![\w]|[.,]\d)"
     r"|(?<![\w.,])\d{4,}[.,]\d+(?![\w]|[.,]\d)"
 )
@@ -955,9 +1054,12 @@ def figures(text: str, language: str | None = None) -> list[float]:
     is left out rather than guessed at.
     """
     mark = DECIMAL_MARK.get((language or "").strip().lower())
+    fractions, spans = _fractions(text)
+    for start, end in spans:
+        text = text[:start] + " " * (end - start) + text[end:]
     found: list[float] = []
     for match in FIGURE.finditer(text):
-        raw = match.group()
+        raw = match.group().replace("'", "").replace("’", "")
         if any(char.isspace() for char in raw):
             if _amount(text, match.start(), match.end(), language):
                 raw = "".join(raw.split())
@@ -985,7 +1087,7 @@ def figures(text: str, language: str | None = None) -> list[float]:
                 found.append(float(f"{whole}.{tail}"))
         except ValueError:
             continue
-    return found
+    return found + [float(one) for one in fractions]
 
 
 def _ordinals_past_twelve(language: str) -> dict[str, str]:
@@ -1050,7 +1152,40 @@ _NUMBER_WORDS: dict[str, dict[str, str]] = {
 #: A run of digits, with the decimal or thousands marks inside it. Read off a
 #: token rather than off `like_num`, so a figure glued to its unit - `45m` -
 #: or written as a time - `08:00` - is still a number.
-_DIGITS = re.compile(r"\d+(?: \d{3})*(?:[.,]\d+)*")
+_DIGITS = re.compile(r"\d+(?:['’]\d{3}(?!\d))*(?: \d{3})*(?:[.,]\d+)*")
+
+#: A vulgar fraction, with the digits it follows: `2½`, `¾`. Unicode names the
+#: set and each value, so no language is read here.
+_VULGAR = re.compile(r"(\d+)?( ?)([\u00bc-\u00be\u2150-\u215e])")
+
+
+def _fractions(text: str) -> tuple[list[str], list[tuple[int, int]]]:
+    """The values of the vulgar fractions a text writes, and where each stands.
+
+    `2½` and `2 ½` are 2.5 and a lone `¾` is 0.75, each as the string `_value`
+    gives a figure of that value. Language-free: a value cannot be mistaken for
+    a thousands group here, as `figures` would take `2.125` in German.
+    """
+    values, spans = [], []
+    for found in _VULGAR.finditer(text):
+        total = int(found[1] or 0) + unicodedata.numeric(found[3])
+        values.append(str(int(total)) if total == int(total) else repr(total))
+        spans.append(found.span())
+    return values, spans
+
+
+def fraction_value(token: str) -> float | None:
+    """The value of a token that is one vulgar fraction whole, `2½`, `1 ½` or `¾`, else None."""
+    values, spans = _fractions(token)
+    return float(values[0]) if spans == [(0, len(token))] else None
+
+
+def _apart(token: Token, spans: list[tuple[int, int]]) -> bool:
+    """Whether the token stands outside every span."""
+    return not any(
+        start < token.idx + len(token) and token.idx < end for start, end in spans
+    )
+
 
 #: The zeros a run of digits opens with, which are no part of its value.
 _PADDING = re.compile(r"^0+(?=\d)")
@@ -1194,7 +1329,10 @@ def numbers(text: str, language: str | None) -> tuple[str, ...]:
     document = _read(text, language)
     spoken = _spoken(document)
     found: list[str] = []
+    found, spans = _fractions(document.text)
     for token in document:
+        if not _apart(token, spans):
+            continue
         if digits := _DIGITS.findall(token.text):
             found += [_value(one, document.lang_) for one in digits]
         elif spoken.get(token.i):
@@ -1210,8 +1348,10 @@ def numerals(text: str, language: str | None) -> frozenset[str]:
     """
     document = _read(text, language)
     found: set[str] = set()
+    fractions, spans = _fractions(document.text)
+    found.update(fractions)
     for token in document:
-        if digits := _DIGITS.findall(token.text):
+        if _apart(token, spans) and (digits := _DIGITS.findall(token.text)):
             found.update(
                 _PADDING.sub("", _value(one, document.lang_)) for one in digits
             )
@@ -2559,6 +2699,39 @@ def vocabulary(text: str, language: str | None) -> frozenset[str]:
     )
 
 
+def folds(text: str, language: str | None) -> frozenset[str]:
+    """The folded months and weekdays a text names, for the evidence side of the fact check.
+
+    The base form of each name `Claim.calendar` reads, of each name a word
+    opens with (`Samstagvormittag`, `Montagabend`; a range `Montag-Freitag`
+    splits into its names) and of each abbreviation the text writes as one:
+    capitalised (`Mo`), dotted (`Dez.`), or in a range (`Mo-Fr`), so the
+    ordinary `so` and `sun` are words. Read of the cited text only, so each
+    can only add support.
+    """
+    document = _read(text, language)
+    code = (language or document.lang_).strip().lower()
+    names = CALENDAR_NAMES.get(code, {})
+    abbreviations = CALENDAR_ABBREVIATIONS.get(code, {})
+    found = {name for token in document if (name := _calendar(token, language))}
+    for word in re.finditer(r"[^\W\d_]+", text):
+        lower = word.group().casefold()
+        before, after = (
+            text[word.start() - 1 : word.start()],
+            text[word.end() : word.end() + 1],
+        )
+        if lower in abbreviations and (
+            word.group()[0].isupper() or after in ".-–" or before in "-–"
+        ):
+            found.add(abbreviations[lower])
+        found.update(
+            base
+            for name, base in names.items()
+            if len(name) > 3 and lower.startswith(name)
+        )
+    return frozenset(found)
+
+
 def content(text: str, language: str | None) -> frozenset[str]:
     """The content lemmas of a text: what it is about, and nothing else.
 
@@ -2671,6 +2844,9 @@ def claim(
     return Claim(
         predicates=_predicates(document) or int(_untagged_claim(document)),
         units=_units(document),
+        calendar=tuple(
+            sorted({one for token in document if (one := _calendar(token, language))})
+        ),
         references=_references(document, passages, title),
         verbs=_verbs(document),
         figures=_figures(document),

@@ -154,6 +154,9 @@ the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
 | `CARDINALS` | same | Every cardinal `_SPELLING` spells, each as its value. The fact dedup gate and the question gates read it | `zwei`, `one` |
 | `DECIMAL_MARK` | same | The decimal mark. One such mark before three digits is a fraction, not thousands | `,`, `.` |
 | `AMOUNT_WORDS` | same | Currency codes and names beside which a space-grouped number is one figure (`5 000 Euro`). One group only: `1 000 000 EUR` stays three figures | `EUR`, `Euro`, `pound` |
+| `CALENDAR_NAMES` | [`analysis.py`](analysis.py) | The month and weekday names, plurals and adverbs included, each folded to one base form (`montags` to `montag`, `Tuesdays` to `tuesday`), which the fact check reads as dates whatever the tagger calls them. A language without a row reads them by tag | `Januar`, `montags` |
+| `_CALENDAR_TAGS` | same | The tags a month or weekday carries, so a verb spelled like a month (`may`) is none | `NOUN`, `PROPN` |
+| `CALENDAR_ABBREVIATIONS` | [`analysis.py`](analysis.py) | The abbreviations of the same names (`Mo.`, `Dez.`, `Mon`, and the stem `Sonn-`), read of the cited text only and only as the text writes one: capitalised, dotted or in a range. The cited text's compounds and ranges (`Samstagvormittag`, `Montag-Freitag`) are read for the names they open with. All of it can only add support | `Mo`, `Dec` |
 | `REFERENCE_LABELS` | same | Words that label a reference by a number: no amount follows (`Section 3 100 customers`) | `Abschnitt`, `Section` |
 | `_NUMBER_WORDS` | same | `CARDINALS` and the ordinals, each as its digits. The dedup gate compares numbers by it | `zwei`, `second` |
 | `_ORDINALS` | same | The ordinals `_NUMBER_WORDS` holds. An English hyphenated ordinal (`twenty-first`) is read as its last word | `zweite`, `second` |
@@ -182,7 +185,11 @@ the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
 | `_STEP_LABEL` | [`gates.py`](../question_generation/gates.py) | The word a procedure's steps are numbered with | `Schritt`, `Step` |
 | `_INFLECTIONS` | [`extraction/validation.py`](../extraction/validation.py) | Endings a label word takes ("Sections 7") | `Abschnitte`, `Sections` |
 | `_SHARE_WORDS` | [`extraction/validation.py`](../extraction/validation.py) | Words that name a share. A language missing here compares a share by the word as written | `Prozent`, `percent` |
-| `_TIME_UNITS` | [`extraction/validation.py`](../extraction/validation.py) | Lemmas of the days, weeks and months a period is counted in. A language missing here compares by the unit as written | `Tag`, `week` |
+| `_TIME_UNITS` | [`extraction/validation.py`](../extraction/validation.py) | Lemmas of the seven units a period is counted in, second to year. A language missing here compares by the unit as written | `Stunde`, `week` |
+| `_YEAR_WORDS` | [`extraction/validation.py`](../extraction/validation.py) | The words put before a year and before no amount (`seit`, `since`: not `ab` or `from`, which set limits), so a four-digit figure after one is a year and a bare one is not. A language missing here reads a year only after a month name | `seit`, `since` |
+| `_MEASURES` | [`extraction/validation.py`](../extraction/validation.py) | The SI symbols of mass, length and volume, read as units beside a figure (`4 g` is not `4 kg`). A standard, not a language's words: no row to supply | `kg`, `cm` |
+| `_MINOR_UNITS` | [`extraction/validation.py`](../extraction/validation.py) | A currency's minor units, read as the currency's kind (`50 cents` against `EUR 2`). A language missing here reads them as ordinary nouns | `Cent`, `pence` |
+| `_SHARE_PHRASES` | [`extraction/validation.py`](../extraction/validation.py) | Shares written with more than one word, as lemmas in order. A language missing here reads only `_SHARE_WORDS` | `per cent` |
 
 No list is matched as a substring: `Risikobericht` is a thing a corpus is
 about, and `Bericht` is a thing a corpus is. Each list is matched as follows.

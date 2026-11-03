@@ -349,3 +349,56 @@ def test_a_german_amount_closing_a_sentence_restated_with_a_mark_validates():
         "Die Gebühr beträgt EUR 2.500."
     )
     assert f.validated, f"refused {f.rejection_code}: {f.validation_error}"
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "fact"),
+    [
+        (
+            "en",
+            "The savings account pays 2½ % interest a year.",
+            "The savings account pays 2¼ % interest a year.",
+        ),
+        (
+            "de",
+            "Das Sparkonto bringt 2½ % Zinsen pro Jahr.",
+            "Das Sparkonto bringt 2¼ % Zinsen pro Jahr.",
+        ),
+        (
+            "en",
+            "Express delivery takes 1½ days.",
+            "Express delivery takes 1¾ days.",
+        ),
+    ],
+)
+def test_another_fraction_is_refused(lang, text, fact):
+    """The fraction is part of the figure the passage states."""
+    must_refuse(lang, text, fact)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text"),
+    [
+        ("en", "The savings account pays 2½ % interest a year."),
+        ("de", "Das Sparkonto bringt 2½ % Zinsen pro Jahr."),
+    ],
+)
+def test_a_statement_keeping_its_fraction_validates(lang, text):
+    """The restated figure is the cited one."""
+    must_validate(lang, text)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "twin"),
+    [
+        ("en", "Express delivery takes 1½ days.", "Express delivery takes 1¾ days."),
+        ("de", "Die Lieferung dauert 1½ Tage.", "Die Lieferung dauert 1¾ Tage."),
+        ("fr", "La livraison prend 1½ jours.", "La livraison prend 1¾ jours."),
+        ("el", "Η παράδοση διαρκεί 1½ ημέρες.", "Η παράδοση διαρκεί 1¾ ημέρες."),
+    ],
+)
+def test_another_fraction_is_another_number_for_the_dedup_gate(lang, text, twin):
+    """The two fractions are two numbers, so the statements are no twins."""
+    from extraction.service import _counted_alike
+
+    assert not _counted_alike(text, twin, lang)

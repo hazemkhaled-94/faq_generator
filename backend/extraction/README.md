@@ -117,13 +117,23 @@ kind calls for run, and the first failure wins:
 
 A statement the deterministic reader composed faces only `copied`.
 
-`unsupported_addition` compares numbers and proper nouns only. A number is read
-in any spelling (`1st` and `1 st`, `two` and `2`), and a proper noun is
-lemmatised. A fact may rest on the sentences it cites, the passage's heading
-trail and the document's title. A name or number found only in an uncited
-sentence is an addition. So is a figure only the rest of the passage states,
-when the cited sentences state another of its kind: "costs EUR 2" for a cited
-"costs EUR 5". `not_bridging` also refuses a statement naming the numbered
+`unsupported_addition` compares numbers, proper nouns and the month and weekday
+names a language's `CALENDAR_NAMES` lists. An abbreviation, a range or a compound in the cited text (`Mo.`, `Dez.`,
+`Montag-Freitag`, `Samstagvormittag`, `Sonn-`) supports the full name; the statement's own are never read. A number is read
+in any spelling (`1st` and `1 st`, `two` and `2`, `CHF 1'250.50` and
+`CHF 1250.50`: an apostrophe between a digit and three digits groups
+thousands),
+reads a vulgar fraction as its value (`2½` is `2.5`),
+and a proper noun is lemmatised. A fact may rest on the sentences it cites, the
+passage's heading trail and the document's title. A name or number found only
+in an uncited sentence is an addition. So is a figure only the rest of the
+passage states, when the cited sentences state another of its kind: "costs EUR
+2" for a cited "costs EUR 5". So is a figure the cited sentences give only
+beside another currency, share or period: "12 % for 5 months" for a cited "5 %
+for 12 months". So is a figure that keeps its digits and changes its unit of time
+or SI measure: "3 weeks" for a cited "3 days", "4 g" for "4 kg". A clock time written with a colon, and a four-digit year after a month name or a
+year word (`since`, `seit`), is a kind of its own, so "since 2023" for a
+cited "since 2024" is a swap too; a bare four-digit limit has no kind. `not_bridging` also refuses a statement naming the numbered
 heading of a cited passage ("Section 7"), because that is a claim about the
 document.
 

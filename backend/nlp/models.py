@@ -38,6 +38,17 @@ class Claim:
     #: score, a figure glued to its unit - `08:00`, `2.5x`. Apart from
     #: `units` because only the checks for an invented value read them.
     figures: tuple[str, ...] = ()
+    #: The months and weekdays the statement names, each folded to its base
+    #: form. Apart from `units` because only the fact check compares them: the
+    #: question gates compare units, and a key and its recovery are not asked
+    #: for a date.
+    calendar: tuple[str, ...] = ()
+
+    @property
+    def asserted(self) -> tuple[str, ...]:
+        """What the fact check asks the cited text for by its words: units, figures and dates."""
+        # dict.fromkeys: English tags a month as a name, so it is a unit and a calendar name both
+        return tuple(dict.fromkeys(self.units + self.figures + self.calendar))
 
 
 #: What each configured language is called, for a prompt that has to name it.

@@ -142,3 +142,134 @@ def test_a_space_grouped_amount_beside_an_iso_currency_is_one_figure(
     from nlp.analysis import figures
 
     assert figures(text, language) == value
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "value"),
+    [
+        ("Das Privatkonto kostet CHF 1'250.50 pro Jahr.", "de", [1250.5]),
+        ("The fee is CHF 1’250.50 a year.", "en", [1250.5]),
+        ("Le plafond est de 1'000'000 CHF.", "fr", [1000000.0]),
+        ("Ο λογαριασμός κοστίζει 1’250 EUR.", "el", [1250.0]),
+        ("Ο λογαριασμός κοστίζει 1.250,50 EUR.", "el", [1250.5]),
+        ("Das Limit beträgt 12'5000 CHF.", "de", [12.0, 5000.0]),
+    ],
+)
+def test_an_apostrophe_between_a_digit_and_three_digits_groups_thousands(
+    text, language, value
+) -> None:
+    """The Swiss mark, in either apostrophe, joins the groups into one figure."""
+    from nlp.analysis import figures
+
+    assert figures(text, language) == value
+
+
+@pytest.mark.parametrize(
+    ("text", "language"),
+    [
+        ("The 90's were quiet and Section 5's rule applies.", "en"),
+        ("Die 90's waren ruhig, Artikel 5's Regel gilt.", "de"),
+        ("Les années 90's et l'article 5's.", "fr"),
+        ("Τα 90's και το 5's.", "el"),
+    ],
+)
+def test_a_possessive_apostrophe_next_to_a_digit_is_no_group_mark(
+    text, language
+) -> None:
+    """Only a digit before and exactly three digits after make a group."""
+    from nlp.analysis import figures, numbers
+
+    assert figures(text, language) == [90.0, 5.0]
+    assert numbers(text, language) == ("5", "90")
+
+
+@pytest.mark.parametrize(
+    ("language", "grouped", "plain"),
+    [
+        (
+            "de",
+            "Das Konto kostet CHF 1'250.50 im Jahr.",
+            "Das Konto kostet CHF 1250.50 im Jahr.",
+        ),
+        (
+            "en",
+            "The account costs CHF 1’250.50 a year.",
+            "The account costs CHF 1250.50 a year.",
+        ),
+        (
+            "fr",
+            "Le compte coûte CHF 1'250.50 par an.",
+            "Le compte coûte CHF 1250.50 par an.",
+        ),
+        (
+            "el",
+            "Ο λογαριασμός κοστίζει CHF 1’250.50 τον χρόνο.",
+            "Ο λογαριασμός κοστίζει CHF 1250.50 τον χρόνο.",
+        ),
+    ],
+)
+def test_a_grouped_and_an_ungrouped_amount_are_one_number(
+    language, grouped, plain
+) -> None:
+    """The digits read the same whichever way the thousands are marked."""
+    from nlp.analysis import numbers, numerals
+
+    assert numbers(grouped, language) == numbers(plain, language)
+    assert numerals(grouped, language) == numerals(plain, language)
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "value"),
+    [
+        ("The account pays 2½ % interest.", "en", ("2.5",)),
+        ("Das Sparkonto bringt 2¼ % Zinsen.", "de", ("2.25",)),
+        ("Delivery takes ¾ of a day.", "en", ("0.75",)),
+        ("Die Lieferung dauert 1⅛ Tage.", "de", ("1.125",)),
+        ("Le compte rapporte 2½ % par an.", "fr", ("2.5",)),
+        ("Ο λογαριασμός αποδίδει 2½ % ετησίως.", "el", ("2.5",)),
+    ],
+)
+def test_a_vulgar_fraction_reads_as_its_value(text, language, value) -> None:
+    """A fraction after digits adds to them, and alone is its own value."""
+    from nlp.analysis import numbers, numerals
+
+    assert numbers(text, language) == value
+    assert numerals(text, language) == frozenset(value)
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "value"),
+    [
+        ("The account pays 2½ % interest a year.", "en", [2.5]),
+        ("Das Sparkonto bringt 2½ % Zinsen pro Jahr.", "de", [2.5]),
+        ("Die Lieferung dauert 1 ½ Tage.", "de", [1.5]),
+        ("Delivery takes 1 ½ days.", "en", [1.5]),
+        ("Delivery takes ¾ of a day.", "en", [0.75]),
+        ("Le compte rapporte 2½ % par an.", "fr", [2.5]),
+        ("Ο λογαριασμός αποδίδει 2½ % ετησίως.", "el", [2.5]),
+    ],
+)
+def test_figures_reads_a_vulgar_fraction_as_its_value(text, language, value) -> None:
+    """The regex reader folds the fraction too, glued to its whole number or one space apart."""
+    from nlp.analysis import figures
+
+    assert figures(text, language) == value
+
+
+@pytest.mark.parametrize(
+    ("language", "spaced", "glued"),
+    [
+        ("de", "Die Lieferung dauert 1 ½ Tage.", "Die Lieferung dauert 1½ Tage."),
+        ("en", "Delivery takes 1 ½ days.", "Delivery takes 1½ days."),
+        ("fr", "La livraison prend 1 ½ jours.", "La livraison prend 1½ jours."),
+        ("el", "Η παράδοση διαρκεί 1 ½ ημέρες.", "Η παράδοση διαρκεί 1½ ημέρες."),
+    ],
+)
+def test_a_fraction_one_space_from_its_whole_number_reads_like_the_glued_one(
+    language, spaced, glued
+) -> None:
+    """`1 ½` and `1½` are one number, 1.5."""
+    from nlp.analysis import numbers, numerals
+
+    assert numbers(spaced, language) == numbers(glued, language) == ("1.5",)
+    assert numerals(spaced, language) == numerals(glued, language) == frozenset({"1.5"})
