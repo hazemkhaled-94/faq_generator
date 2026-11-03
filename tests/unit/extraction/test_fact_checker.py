@@ -2618,6 +2618,15 @@ def test_the_calendar_names_leave_the_units_the_question_gates_read_alone() -> N
     assert "februar" not in claim("Gültig ab dem 1. Februar.", "de").units
 
 
+def test_a_month_read_both_as_a_unit_and_a_calendar_name_is_asserted_once() -> None:
+    """English tags a month as a name, so it is a unit and a calendar name; it is asked for once."""
+    from nlp.analysis import claim
+
+    asserted = claim("The new prices apply from 1 June 2026.", "en").asserted
+
+    assert asserted.count("june") == 1, asserted
+
+
 @pytest.mark.parametrize(
     "text",
     [

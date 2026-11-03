@@ -46,7 +46,8 @@ class Claim:
     @property
     def asserted(self) -> tuple[str, ...]:
         """What the fact check asks the cited text for by its words: units, figures and dates."""
-        return self.units + self.figures + self.calendar
+        # dict.fromkeys: English tags a month as a name, so it is a unit and a calendar name both
+        return tuple(dict.fromkeys(self.units + self.figures + self.calendar))
 
 
 #: What each configured language is called, for a prompt that has to name it.
