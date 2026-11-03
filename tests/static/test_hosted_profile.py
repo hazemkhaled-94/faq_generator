@@ -105,9 +105,12 @@ def _project(
         # Its sleep ignores the TERM the group gets, so the wait is always the
         # one interrupted and the handler always runs; a sleep that died first
         # let sh return from the wait and exit before it ran, now and then.
+        # The group's TERM and the one make passes on to its child can both
+        # land, and dash runs the handler again for the second: it ignores
+        # TERM first, as drain_once takes a repeat for the same stop.
         'case "$*" in *"extraction.run") [ -n "$SLOW" ] && {\n'
         '  (trap "" TERM; exec sleep "$SLOW") & held=$!\n'
-        "  trap 'kill -KILL $held; echo stopped >> \"$LOG.stopped\"; exit 75' TERM\n"
+        '  trap \'trap "" TERM; kill -KILL $held; echo stopped >> "$LOG.stopped"; exit 75\' TERM\n'
         '  echo started >> "$LOG.slow"\n'
         "  wait $held; };; esac\n"
         "exit 0\n"
