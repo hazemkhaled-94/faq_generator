@@ -146,3 +146,19 @@ def test_the_copied_secrets_file_is_made_the_operators_alone() -> None:
 
     assert "`chmod 600 .env`" in configure, configure
     assert configure.index("`chmod 600 .env`") < configure.index("`make setup`")
+
+
+def test_the_split_step_names_the_azure_address_and_the_login() -> None:
+    """An `azure/` split needs its resource's address, and a key or a login.
+
+    litellm reads `AZURE_API_BASE` from `provider.env` unless `LLM_BASE_URL`
+    gives the address, and with no key Entra ID takes its token from `az
+    login`. The walk of the release candidate failed every model in its first
+    `make doctor` for want of the address.
+    """
+    (configure,) = [step for step in _steps() if step.startswith("2. ")]
+    example = (ROOT / "configs/env/provider.env.example").read_text()
+
+    assert "AZURE_API_BASE=" in example
+    for needle in ("`AZURE_API_BASE", "`LLM_BASE_URL`", "`AZURE_API_KEY`", "`az login`"):
+        assert needle in configure, needle

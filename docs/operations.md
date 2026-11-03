@@ -452,8 +452,12 @@ From a fresh clone:
    split: `HOST_RUNNER=1`, the seven role models and
    `LLM_REASONING_EFFORT=none`
    ([configuration](configuration.md#the-production-split)). Put the
-   provider's credentials in `configs/env/provider.env`, which is not in git.
-   `APP_DB_PASSWORD` may use only letters, digits, `-`, `_` and `.`: `make
+   provider's credentials in `configs/env/provider.env`, which is not in git,
+   with the Azure resource's address:
+   `AZURE_API_BASE=https://<resource>.openai.azure.com`, or `LLM_BASE_URL` in
+   `.env`, which every role then uses. Without it every model call fails. Give
+   `AZURE_API_KEY` there, or, with no key, run `az login` on the host: Entra
+   ID takes its token from that login. `APP_DB_PASSWORD` may use only letters, digits, `-`, `_` and `.`: `make
    doctor` and `make corpus-hosted` refuse `@ / : # ? %` and name the setting.
 3. `make install`, then `make docling-weights HOST=1`. `make install` sets up
    the host's virtualenv and spaCy pipelines and fetches Docling's weights
