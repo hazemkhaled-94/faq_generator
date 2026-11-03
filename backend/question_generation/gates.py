@@ -28,6 +28,7 @@ import logging
 import re
 from collections.abc import Callable, Mapping, Sequence
 from itertools import combinations, pairwise
+from math import isclose
 from typing import TYPE_CHECKING
 
 from database.qa_generator import (
@@ -55,7 +56,7 @@ from nlp.analysis import (
     phrases,
     vocabulary,
 )
-from nlp.language import detect
+from nlp.language import detect_surely, document_language
 from nlp.pipelines import pipeline
 from question_generation.models import Neighbour
 
@@ -421,9 +422,21 @@ def _count(word: str) -> int | None:
 
 
 def _leading(answer: str | None) -> str:
-    """An answer's first word, in lower case: where a count key says its count."""
-    leading = re.match(r"\s*(\w+)", answer or "")
-    return leading.group(1).lower() if leading else ""
+    """An answer's first word, in lower case: where a count key says its count.
+
+    A figure is read whole, by the one figure pattern: `2.000 EUR`, `2,5 Tage`,
+    `3.5%` and `2–3 Wochen` open on a figure that is no bare count, so they
+    have none.
+    """
+    text = (answer or "").lstrip()
+    figure = FIGURE.match(text)
+    if figure and (
+        not figure.group().isdecimal()
+        or re.match(r"\s?[–-]\s?\d", text[figure.end() :])
+    ):
+        return ""
+    leading = re.match(r"\w+", text)
+    return leading.group().lower() if leading else ""
 
 
 def _stated(count: int, statements: Sequence[str], language: str | None) -> bool:
@@ -585,6 +598,12 @@ def _coordinated(tokens: Sequence, at: int) -> bool:
     return before >= 0 and tokens[before].pos_ == "CCONJ"
 
 
+#: The marks a question is written with, by ISO 639-1 code. A language with no
+#: row is held to no mark: Greek, Arabic and Chinese each write a mark of their
+#: own, and a newly configured language supplies its row here.
+_QUESTION_MARKS: dict[str, str] = {"de": "?", "en": "?"}
+
+
 def structural(
     *,
     question_text: str,
@@ -625,16 +644,18 @@ def structural(
     form = forms[0] if forms else AnswerForm.VALUE
     if not asked:
         return (QuestionRejection.MALFORMED, "the model returned no question"), form
-    if not query and not asked.endswith("?"):
+    marks = _QUESTION_MARKS.get((language or "").strip().lower(), "")
+    marked = sum(asked.count(mark) for mark in marks)
+    if marks and not query and not asked.endswith(tuple(marks)):
         return (
             QuestionRejection.MALFORMED,
             "it does not end in a question mark",
         ), form
-    if asked.count("?") > 1:
+    if marked > 1:
         return (
             QuestionRejection.MALFORMED,
             (
-                f"it asks {asked.count('?')} things; a chatbot answering one of "
+                f"it asks {marked} things; a chatbot answering one of "
                 f"them is neither right nor wrong"
             ),
         ), form
@@ -778,8 +799,14 @@ def structural(
     # Read on the question and its answer together, and only believed when it
     # answers: lingua returns nothing below forty characters of prose, and
     # most questions are shorter than that. A detector that cannot tell is
-    # not evidence of the wrong language.
-    written = detect(f"{asked} {target_answer or ''}".strip())
+    # not evidence of the wrong language, and neither is a pick that merely
+    # tips: a product named in the other language does that.
+    said = f"{asked} {target_answer or ''}".strip()
+    # A language no configuration names is found out over every language
+    # there is: a French or Polish question under German facts. Else only a
+    # sure pick between the configured ones counts.
+    surely = document_language(said)
+    written = surely[0] if surely else detect_surely(said)
     if language and written and written != language:
         return (
             QuestionRejection.MALFORMED,
@@ -829,9 +856,10 @@ def subject(question: str, language: str | None) -> str:
     return " ".join(named)
 
 
-#: ponytail: `_DOCUMENTS` and `_ATTRIBUTIONS` hold German and English words
-#: only; a third language names its source past them. Upgrade: a
-#: per-language list setting.
+#: ponytail: the tables below hold German and English only, one row per
+#: language, and a language without a row is read by none of them: a newly
+#: configured language supplies its row of each. Upgrade: a per-language
+#: list setting.
 #:
 #: Words that name a part of a document's LAYOUT, by language, and so say
 #: WHERE an answer is once one is numbered. `Abschnitt 2.2` is a citation;
@@ -863,41 +891,64 @@ _NORMATIVE: dict[str, frozenset[str]] = {
     "en": frozenset({"article", "clause", "paragraph", "rule", "law"}),
 }
 
-#: Words naming a document itself. Read by lemma and never as a substring,
-#: because German compounds: `Risikobericht` is a thing the corpus is about
-#: and `Bericht` is a thing the corpus IS, and a substring test cannot tell
-#: them apart.
-_DOCUMENTS = frozenset(
-    {
-        "lehrplan",
-        "norm",
-        "bericht",
-        "dokument",
-        "handbuch",
-        "richtlinie",
-        "verordnung",
-        "rundschreiben",
-        "leitfaden",
-        "vereinbarung",
-        "syllabus",
-        "report",
-        "document",
-        "circular",
-        "regulation",
-        "standard",
-        "guideline",
-        "manual",
-        "agreement",
-        "specification",
-    }
-)
+#: Words naming a document itself, by language. Read by lemma and never as a
+#: substring, because German compounds: `Risikobericht` is a thing the corpus
+#: is about and `Bericht` is a thing the corpus IS, and a substring test
+#: cannot tell them apart. The rows are each other's counterparts, so one
+#: question settles alike in either language.
+_DOCUMENTS: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {
+            "lehrplan",
+            "norm",
+            "bericht",
+            "dokument",
+            "handbuch",
+            "richtlinie",
+            "verordnung",
+            "rundschreiben",
+            "leitfaden",
+            "vereinbarung",
+            "standard",
+            "spezifikation",
+        }
+    ),
+    "en": frozenset(
+        {
+            "syllabus",
+            "standard",
+            "report",
+            "document",
+            "manual",
+            "directive",
+            "regulation",
+            "circular",
+            "guide",
+            "guideline",
+            "agreement",
+            "specification",
+        }
+    ),
+}
 
-#: Lemmas that attribute what follows them to a source. `laut dem
-#: Jahresbericht` says where the answer is whatever the noun turns out to be,
-#: so this one needs nothing beside it.
-#: Read on the lemma and on the word, because spaCy lemmatises `according`
-#: to `accord`.
-_ATTRIBUTIONS = frozenset({"laut", "gemäß", "ausweislich", "according"})
+#: Lemmas that attribute what follows them to a source, by language. `laut
+#: dem Jahresbericht` says where the answer is whatever the noun turns out to
+#: be, so this one needs nothing beside it. Only as an adposition, or the head
+#: of one (`according` to): `Wie laut ist ...` is an adjective and attributes
+#: nothing. Read on the lemma and on the word, because spaCy lemmatises
+#: `according` to `accord`.
+_ATTRIBUTIONS: dict[str, frozenset[str]] = {
+    "de": frozenset({"laut", "gemäß", "ausweislich"}),
+    "en": frozenset({"according", "accordance", "pursuant"}),
+}
+
+#: The entity labels that make a proper noun beside a year an author, by
+#: language: a person or an organisation, in the labels the configured
+#: pipelines give. `Mastercard Gold 2025` is neither.
+_AUTHORS: dict[str, frozenset[str]] = {
+    "de": frozenset({"PER", "ORG"}),
+    "en": frozenset({"PERSON", "ORG"}),
+}
 
 #: A bracketed reference as a bibliography writes one: `[R22]`, `[12]`.
 _BRACKETED = re.compile(r"\[[A-Za-z]{0,3}\s?\d{1,4}[a-z]?\]")
@@ -917,14 +968,21 @@ def _identifier(token) -> bool:
 _ATTRIBUTED_WITHIN = 4
 
 
-def _names_something(following: Sequence) -> bool:
+def _names_something(following: Sequence, documents: frozenset[str]) -> bool:
     """Whether what an attribution points at is named rather than pointed at."""
     for token in following[:_ATTRIBUTED_WITHIN]:
         if token.pos_ == "PROPN" or _identifier(token):
             return True
-        if token.lemma_.casefold() in _DOCUMENTS:
+        if token.lemma_.casefold() in documents:
             return True
     return False
+
+
+def _adposition(token) -> bool:
+    """Whether a token is an adposition or the head of one, an adverb never: `laut`, `according` to."""
+    return token.pos_ == "ADP" or (
+        token.pos_ != "ADV" and any(child.pos_ == "ADP" for child in token.children)
+    )
 
 
 def cites_source(question: str, language: str | None) -> bool | None:
@@ -949,6 +1007,9 @@ def cites_source(question: str, language: str | None) -> bool | None:
     code = (language or "").strip().lower()
     divisions = _DIVISIONS.get(code, frozenset())
     normative = _NORMATIVE.get(code, frozenset())
+    documents = _DOCUMENTS.get(code, frozenset())
+    attributions = _ATTRIBUTIONS.get(code, frozenset())
+    authors = _AUTHORS.get(code, frozenset())
     names_a_rule = False
     tokens = list(document)
     for position, token in enumerate(tokens):
@@ -960,8 +1021,12 @@ def cites_source(question: str, language: str | None) -> bool | None:
         # question points at and never names, which is a question failing to
         # stand on its own rather than one citing a source, and the two are
         # different gates.
-        attributes = lemma in _ATTRIBUTIONS or token.lower_ in _ATTRIBUTIONS
-        if attributes and _names_something(tokens[position + 1 :]):
+        attributes = lemma in attributions or token.lower_ in attributions
+        if (
+            attributes
+            and _adposition(token)
+            and _names_something(tokens[position + 1 :], documents)
+        ):
             return True
         # `Abschnitt 2.2`, `Kapitel 5`, `section 4`.
         numbered = following is not None and _identifier(following)
@@ -978,13 +1043,17 @@ def cites_source(question: str, language: str | None) -> bool | None:
         # 2026` is a date, which the entity reading marks and a citation is not.
         if (
             token.pos_ == "PROPN"
-            and token.ent_type_ != "DATE"
+            and token.ent_type_ in authors
             and following is not None
             and _CITED_YEAR.match(following.text.strip())
         ):
             return True
         # A noun: `the standard 48-hour window` uses the word as an adjective.
-        if lemma in _DOCUMENTS and token.pos_ in ("NOUN", "PROPN"):
+        if lemma in documents and (
+            token.pos_ in ("NOUN", "PROPN")
+            # A tagger reads a capitalised `Directive` mid-sentence as a verb.
+            or (token.pos_ in ("VERB", "X") and position and token.text.istitle())
+        ):
             # `die Norm ISO/IEC 20246`: the document named and numbered.
             if following is not None and _identifier(following):
                 return True
@@ -2234,13 +2303,17 @@ def periods(answer: str, language: str | None) -> bool:
     already collects, narrowed to the ones that look like a year or a date:
     a count is a unit too and two counts are not two periods.
     """
-    found = [unit for unit in claim(answer, language).units if _DATED.search(unit)]
+    found = [unit for unit in claim(answer, language).units if _DATED.fullmatch(unit)]
     return len(found) >= 2
 
 
 #: A year, or a number that could be a day or a month beside one. What
 #: separates a period from a quantity in a list of units.
-_DATED = re.compile(r"(1[89]|20)\d{2}|^\d{1,2}[./]\d{1,2}")
+_DATED = re.compile(
+    r"[a-z]{0,2}(?:1[89]|20)\d{2}(?:[/-]\d{2})?"
+    r"|\d{1,2}[./]\d{1,2}(?:[./](?:\d{2}|\d{4}))?"
+    r"|\d{1,2}[./](?:1[89]|20)\d{2}"
+)
 
 
 def typed(
@@ -2860,7 +2933,8 @@ def adds_up(
     # Stated outright is not an aggregation, but it is not wrong arithmetic
     # either; `relabelled` stores a lookup wearing this name as what it is.
     return any(
-        abs(sum(combination) - total) < 1e-9 and not _summed_years(combination, size)
+        isclose(sum(combination), total, rel_tol=1e-14, abs_tol=1e-9)
+        and not _summed_years(combination, size)
         for size in range(1, _TERM_CAP + 1)
         for combination in combinations(available, size)
     )

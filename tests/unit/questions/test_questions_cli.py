@@ -358,3 +358,19 @@ def test_a_release_draw_whose_verifier_does_not_answer_is_a_refused_start(
 
     assert cli.run("--balance") == 3
     assert cli.balanced == []
+
+
+def test_a_rejudge_whose_verifier_does_not_answer_is_a_refused_start(
+    cli, monkeypatch
+) -> None:
+    """3 as well: the re-judge proves its verifier as the release draw does."""
+    from llm.check import Unreachable
+    from question_generation import run as module
+
+    def refused(*_) -> None:
+        raise Unreachable("azure/verifier did not answer")
+
+    monkeypatch.setattr(module, "before_work", refused)
+
+    assert cli.run("--rejudge") == 3
+    assert cli.rejudged == []

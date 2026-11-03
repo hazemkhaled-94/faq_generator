@@ -42,6 +42,13 @@ def main(argv: list[str] | None = None) -> int:
         source, version = snapshot("questions")
         return Settings.load(source), ModelSettings.load(source), version
 
+    def ready() -> tuple[Settings, ModelSettings]:
+        """The settings, and the verifier proved, before the first question is asked."""
+        settings, model, _ = configured()
+        _, verifier, _ = models(settings, model)
+        before_work(verifier)
+        return settings, verifier
+
     def balanced(within) -> int:
         """Draws the release over every accepted question, refusing --only.
 
@@ -50,13 +57,6 @@ def main(argv: list[str] | None = None) -> int:
         """
         if within is not None:
             raise SystemExit("--balance draws the whole release and takes no --only")
-
-        def ready() -> tuple[Settings, ModelSettings]:
-            """The settings, and the verifier proved, before a pair is asked."""
-            settings, model, _ = configured()
-            _, verifier, _ = models(settings, model)
-            before_work(verifier)
-            return settings, verifier
 
         settings, verifier = proved(ready)
         # `queue_main` installs tracing only for a drain, so without this the
@@ -75,9 +75,7 @@ def main(argv: list[str] | None = None) -> int:
         The verifier the workers use, from the same settings, and proved
         before the first question is asked.
         """
-        settings, model, _ = configured()
-        _, verifier, _ = models(settings, model)
-        before_work(verifier)
+        settings, verifier = proved(ready)
         trace("questions")
         return rejudge(
             QuestionCatalog(), settings, Verifier(build_model(verifier)), within

@@ -959,8 +959,9 @@ def test_the_corpus_comment_names_the_verifier_the_balance_calls() -> None:
     drawn = [line for line in _make("-n", "corpus") if "run --balance" in line]
     called = {
         getattr(node.func, "id", None)
+        for name in ("balanced", "ready")
         for node in ast.walk(
-            ast.parse(_function("backend/question_generation/run.py", "balanced"))
+            ast.parse(_function("backend/question_generation/run.py", name))
         )
         if isinstance(node, ast.Call)
     }

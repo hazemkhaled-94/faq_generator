@@ -297,7 +297,7 @@ step, and the free half of `leaks_source` runs in it too.
 
 | Gate | Rejects a question that | Costs |
 |---|---|---|
-| `malformed` | is not a question, carries no target answer when it claims one, is in the wrong language, is one of its own facts handed back, or answers with the number of facts it cites | nothing |
+| `malformed` | is not a question, carries no target answer when it claims one, is in the wrong language where a detector is sure of it (a question merely naming a product of the other language is not, and one in a language no configuration names is refused only where the all-language reading is at least 0.7), is one of its own facts handed back, or answers with the number of facts it cites (a bare integer: an amount, a decimal or a range is a value; a whole percentage still reads as a count) | nothing |
 | `compound` | asks two things | nothing |
 | `answer_too_short` | is scored against an answer below its form's floor | nothing |
 | `answer_too_long` | answers past its form's ceiling | nothing |
@@ -379,6 +379,15 @@ words, so a third language has to be added to each.
 [`backend/nlp/`](../nlp/README.md) lists them. A gate whose language is
 missing does nothing, silently. Unset, `QUESTIONS_PHRASING_MODEL` falls back to
 `QUESTIONS_VERIFIER_MODEL`.
+
+The rule half of `leaks_source` reads three tables of `gates.py`, one row per
+language, German and English alike: the words naming a document, the
+attributions (`laut`, `gemäß`, `according to`, `in accordance with`), and the
+entity labels of an author. An attribution counts only as an adposition, so the
+adjective in `wie laut` attributes nothing. A year beside a proper noun is a
+citation only for a person or an organisation the tagger reads as one, so a
+product the tagger does not read as an organisation is none. A language with no
+row settles nothing here.
 
 ## Unanswerable questions
 
@@ -487,8 +496,9 @@ A follow-up may lean on the conversation (*"And for an urgent one?"*), so it
 skips `unanchored` and the verifier is shown the conversation.
 A follow-up is stored `needs_both` only where its root was dealt `needs_both`.
 `asks_nothing_new` and `off_thread` hold the thread together. Only an accepted,
-answerable root is followed. A thread stops at the first follow-up a gate
-refuses. Each follow-up costs a writer call and a verifier call.
+answerable root is followed, from the facts the root cited widened with unspent
+facts of those passages, not from the root's whole dealt sample. A thread stops
+at the first follow-up a gate refuses. Each follow-up costs a writer call and a verifier call.
 
 ## Coverage
 
@@ -617,6 +627,14 @@ Every question carries `prompt_version`. Three modules declare one, bumped
 separately: `types.PROMPT_VERSION` for the thirteen writers,
 `phrasing.PROMPT_VERSION` for the three wording judgements, and
 `verifier.PROMPT_VERSION` for the verifier's reads.
+
+The worked examples in the writers' and the phrasing judge's prompts come from
+subjects that are not a question either calibration corpus answers (libraries,
+permits, leases); a few compound-writer examples still share a banking or
+shopping subject with the shop corpus.
+`tests/static/test_prompts_name_no_domain.py` lists the words of the football and
+shop corpora and of the testing syllabi, in German and English, and fails a
+prompt that carries one.
 
 The stage records what it sends at start-up: [`prompts.py`](prompts.py)
 declares it and `stages.prompts` writes it to the `prompts` table, with the

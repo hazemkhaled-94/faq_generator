@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 #: every worked example into the neutral domain the rest of the prompts use:
 #: the examples had been taken from the corpus being debugged against, which
 #: is the one thing extraction's own prompt warns about.
-PROMPT_VERSION = "6"
+PROMPT_VERSION = "8"
 
 _SOURCE = grounded("""ROLE
 You are a question reviewer. You judge ONE property of ONE question and
@@ -81,9 +81,9 @@ FALSE: "Which fees does clause 12 allow the bank to raise?"
        (the clause is the rule being asked about. Set it beside "What does
         section 4 say about weekend cover?": a section is where an answer
         is printed, a clause is what it is about)
-FALSE: "Who signs off a refund when the branch follows the complaints
+FALSE: "Who signs off a permit when the office follows the review
         procedure?"
-       (the procedure is what the branch is doing, not where the answer is)
+       (the procedure is what the office is doing, not where the answer is)
 
 FORMAT
 Return `names_its_source`, true or false, and nothing else.""")
@@ -125,14 +125,14 @@ EXAMPLES
 TRUE:  "When are the two instalments of a payment plan due?"
        (pointing word: "two". The question names what is counted and what it
         is of, and the plan fixes the number.)
-TRUE:  "Müssen die beiden Vertragsparteien eines Kreditvertrags unterschreiben?"
+TRUE:  "Müssen die beiden Vertragsparteien eines Mietvertrags unterschreiben?"
        (pointing word: "beiden". The parties are named in the question, and a
         contract has exactly two.)
-TRUE:  "Can a bank charge the same fee for a standing order as for a direct
-        debit?"
+TRUE:  "Can the office charge the same fee for a renewal as for a first
+        permit?"
        (pointing word: "same". The fee is named in the question.)
-TRUE:  "Gilt für Rückgaben im Laden dieselbe Frist wie für Rückgaben im
-        Onlineshop?"
+TRUE:  "Gilt für Verlängerungen im Bürgeramt dieselbe Frist wie für
+        Erstanträge?"
        (pointing word: "dieselbe". The period is named in the question.)
 TRUE:  "If a system meets its target by editing the stored score instead of
         doing the task, how is this behaviour classified?"

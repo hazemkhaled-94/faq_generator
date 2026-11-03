@@ -451,6 +451,9 @@ def _curve(path: Path, only: str | None, n: int) -> int:
         units = [unit for unit, _ in held]
         tags, pipeline = _tags([text for _, text in held], language)
         count = len(set(units))
+        if not count:
+            notes.append(f"{language}: the workbook carries no citations")
+            continue
         ks = sorted({*range(5, count + 1, 5), count})
         curve = few_documents(units, tags, ks, n)
         if not curve:

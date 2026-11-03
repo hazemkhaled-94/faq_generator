@@ -138,9 +138,9 @@ pipeline named `_sm` or without word vectors loads with a warning.
 
 A language missing from a list means that gate silently never fires for it.
 [`test_language_tables.py`](../../tests/static/test_language_tables.py) holds
-the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
-`_ATTRIBUTIONS`, `_AGENTS`, `_HOW_MANY` and `_ASKING`, which hold every
-language's words in one set or pattern.
+the tables keyed by language code to `NLP_MODELS`. It cannot see `_AGENTS`,
+`_HOW_MANY` and `_ASKING`, which hold every language's words in one set or
+pattern.
 
 | List | Where | What goes in it | Example |
 |---|---|---|---|
@@ -148,6 +148,8 @@ language's words in one set or pattern.
 | `_NORMATIVE` | same | Words naming a unit of what a document lays down | `Artikel`, `clause` |
 | `_DOCUMENTS` | same | Words naming a document type, never a subject | `Richtlinie`, `guideline` |
 | `_ATTRIBUTIONS` | same | Words that attribute what follows to a source | `laut`, `according` |
+| `_AUTHORS` | same | The entity labels of your pipeline for a person and an organisation, which make a proper noun beside a year an author | `PER`, `PERSON` |
+| `_QUESTION_MARKS` | same | The mark a question ends with. A language missing here is held to no mark | `?` |
 | `_AGENTS` | same | Interrogatives that ask after a party, not a thing | `wer`, `who` |
 | `_HOW_MANY` | same | The opening of a question asking for a count | `wie viele`, `how many` |
 | `_COUNTS` | same | Counts written out, read off `CARDINALS` in [`analysis.py`](analysis.py) | `zwei`, `two` |
@@ -157,6 +159,7 @@ language's words in one set or pattern.
 | `_RELATES` | same | Lemmas by which a question claims a relation. A compound question that says one is refused | `unterscheiden`, `differ` |
 | `_POLARITY` | same | Words answering a yes-or-no question by polarity | `nein`, `not` |
 | `_PURPOSE` | same | How the material says why: what a `reason` slot is dealt | `damit`, `so that` |
+| `_INTERROGATIVES` | [`analysis.py`](analysis.py) | The fine tags your pipeline gives a question word, where its morphology does not say `PronType=Int` | `WP`, `PWS` |
 | `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said, read by the question side and, as the head of the phrase a fact opens with (`The latter costs 5 EUR`), by the fact check | `besagt`, `aforementioned`, `latter` |
 | `_OTHER` | same | The word for the rest of a set, as a lemma. As a subject with no noun of its own opening a statement (`The others are free`) it stands for a set named before. A language with no row reads none | `anderer`, `other` |
 | `_ASKING` | same | Words a tagger reads as demonstrative that ask rather than point | `wessen`, `whose` |
@@ -210,8 +213,10 @@ about, and `Bericht` is a thing a corpus is. Each list is matched as follows.
 
 - By lemma: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC`, `_OTHER`,
   `_ASKING`.
-- By lemma or the word as written: `_ATTRIBUTIONS` and the two modifier
-  tables (also with an `_ADJECTIVE_ENDINGS` ending).
+- By lemma or the word as written, `_ATTRIBUTIONS` only as an adposition:
+  `_ATTRIBUTIONS` and the two modifier tables (also with an
+  `_ADJECTIVE_ENDINGS` ending).
+- By the character: `_QUESTION_MARKS`. By the exact fine tag: `_INTERROGATIVES`.
 - By the word as written: `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
   `_EXCEPTIVE`, `_POLITE`, `_GENITIVE_DEMONSTRATIVES`,
   `_CLAUSE_DEMONSTRATIVES` and the two abbreviation tables.

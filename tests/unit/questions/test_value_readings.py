@@ -12,9 +12,12 @@ from question_generation.gates import (
     _stated,
     adds_up,
     agrees,
+    counts_a_list,
     explains,
     fitting,
+    periods,
     relabelled,
+    structural,
 )
 
 pytestmark = pytest.mark.nlp
@@ -76,6 +79,463 @@ def test_a_right_total_over_space_grouped_amounts_is_not_refused(
 ):
     """A right total over space-grouped amounts is no wrong sum."""
     assert adds_up(total, passages, language) is not False
+
+
+@pytest.mark.parametrize(
+    ("answer", "passages", "language"),
+    [
+        (
+            "15.211.030,51 EUR",
+            [
+                "Die Bilanzsumme der Sparte A beträgt 6.111.780,03 EUR.",
+                "Die Bilanzsumme der Sparte B beträgt 9.099.250,48 EUR.",
+            ],
+            "de",
+        ),
+        (
+            "USD 15,211,030.51",
+            [
+                "Segment A reported revenue of USD 6,111,780.03.",
+                "Segment B reported revenue of USD 9,099,250.48.",
+            ],
+            "en",
+        ),
+    ],
+)
+def test_a_right_total_of_millions_with_cents_adds_up(answer, passages, language):
+    """Float error past 1e-9 on a total in the millions is no wrong sum."""
+    assert adds_up(answer, passages, language) is True
+
+
+def test_a_wrong_total_of_millions_with_cents_still_does_not_add_up():
+    """The control: a total a cent off is still refused."""
+    assert (
+        adds_up("15.211.030,52 EUR", ["6.111.780,03 EUR", "9.099.250,48 EUR"], "de")
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    ("answer", "passages", "language"),
+    [
+        (
+            "24.691.357.802,47 EUR",
+            [
+                "Sparte A hält 12.345.678.901,23 EUR.",
+                "Sparte B hält 12.345.678.901,23 EUR.",
+            ],
+            "de",
+        ),
+        (
+            "USD 24,691,357,802.47",
+            [
+                "Segment A holds USD 12,345,678,901.23.",
+                "Segment B holds USD 12,345,678,901.23.",
+            ],
+            "en",
+        ),
+    ],
+)
+def test_a_total_one_cent_off_in_the_tens_of_billions_is_still_refused(
+    answer, passages, language
+):
+    """The tolerance is float error, not a share of the amount: a cent is a cent at any size."""
+    assert adds_up(answer, passages, language) is False
+    exact = answer.replace("802,47", "802,46").replace("802.47", "802.46")
+    assert adds_up(exact, passages, language) is True
+
+
+def test_a_total_in_a_language_no_configuration_names_is_not_misread():
+    """French groups by spaces and is left to the model; Greek reads as it did."""
+    assert (
+        adds_up(
+            "15 211 030,51 EUR",
+            ["Sparte A: 6 111 780,03 EUR", "Sparte B: 9 099 250,48 EUR"],
+            "fr",
+        )
+        is None
+    )
+    assert (
+        adds_up(
+            "15.211.030,52 €",
+            ["Filiale A: 6.111.780,03 €", "Filiale B: 9.099.250,48 €"],
+            "el",
+        )
+        is False
+    )
+
+
+# N-023: a key that opens on a figure is a count of the cited facts only where the figure is a bare integer.
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "statements"),
+    [
+        (
+            "Wie hoch ist die Kontoführungsgebühr pro Jahr?",
+            "2.000 EUR",
+            "de",
+            [
+                "Die Kontoführungsgebühr beträgt 2.000 EUR pro Jahr.",
+                "Die Gebühr wird im Januar belastet.",
+            ],
+        ),
+        (
+            "Wie lange dauert die Bearbeitung eines Antrags?",
+            "2,5 Werktage",
+            "de",
+            [
+                "Die Bearbeitung eines Antrags dauert 2,5 Werktage.",
+                "Anträge werden nach Eingang bearbeitet.",
+            ],
+        ),
+        (
+            "Wie lange ist eine Rückgabe möglich?",
+            "2–3 Wochen",
+            "de",
+            [
+                "Die Rückgabe ist innerhalb von 2–3 Wochen möglich.",
+                "Die Ware muss unbenutzt sein.",
+            ],
+        ),
+        (
+            "How much is the annual account fee?",
+            "2,000 USD",
+            "en",
+            [
+                "The annual account fee is 2,000 USD.",
+                "The fee is charged every January.",
+            ],
+        ),
+        (
+            "How long does a refund take?",
+            "2.5 days",
+            "en",
+            [
+                "A refund takes 2.5 days on average.",
+                "Refunds are paid to the original card.",
+            ],
+        ),
+        (
+            "What is the interest rate on the savings account?",
+            "3.5%",
+            "en",
+            [
+                "The savings account pays 3.5% interest.",
+                "Interest is paid quarterly.",
+                "Rates may change monthly.",
+            ],
+        ),
+        # Unconfigured languages: inert today (no count reading), kept as the guard.
+        (
+            "Quel est le montant des frais annuels?",
+            "2.000 EUR",
+            "fr",
+            [
+                "Les frais annuels sont de 2.000 EUR.",
+                "Les frais sont prélevés en janvier.",
+            ],
+        ),
+        (
+            "Πόσο είναι το ετήσιο τέλος?",
+            "2.000 EUR",
+            "el",
+            ["Το ετήσιο τέλος είναι 2.000 EUR.", "Το τέλος χρεώνεται τον Ιανουάριο."],
+        ),
+    ],
+)
+def test_a_value_that_starts_with_a_small_digit_is_not_a_count_of_the_facts(
+    question, answer, language, statements
+):
+    """An amount, a decimal, a range or a percentage is a value, not a count of citations."""
+    refused, _ = structural(
+        question_text=question,
+        target_answer=answer,
+        answerable=True,
+        language=language,
+        statements=statements,
+    )
+    assert refused is None or "number of facts" not in refused[1], refused
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "statements"),
+    [
+        (
+            "Wie viele Wochen ist eine Rückgabe möglich?",
+            "2 – 3 Wochen",
+            "de",
+            [
+                "Die Rückgabe ist bis zu drei Wochen möglich.",
+                "Die Ware muss unbenutzt sein.",
+            ],
+        ),
+        (
+            "How many weeks does a refund take?",
+            "2 - 3 weeks",
+            "en",
+            [
+                "A refund takes up to three weeks.",
+                "Refunds are paid to the original card.",
+            ],
+        ),
+        (
+            "Combien de temps dure un remboursement?",
+            "2 – 3 semaines",
+            "fr",
+            [
+                "Un remboursement prend trois semaines au plus.",
+                "Il est versé sur la carte d'origine.",
+            ],
+        ),
+        (
+            "Πόσο διαρκεί η επιστροφή χρημάτων;",
+            "2 – 3 εβδομάδες",
+            "el",
+            [
+                "Η επιστροφή διαρκεί έως τρεις εβδομάδες.",
+                "Καταβάλλεται στην αρχική κάρτα.",
+            ],
+        ),
+    ],
+)
+def test_a_range_written_with_spaces_is_not_a_count_of_the_facts(
+    question, answer, language, statements
+):
+    """The dash may stand apart from both figures."""
+    refused, _ = structural(
+        question_text=question,
+        target_answer=answer,
+        answerable=True,
+        language=language,
+        statements=statements,
+    )
+    assert refused is None or "number of facts" not in refused[1], refused
+
+
+def test_a_bare_count_equal_to_the_cited_facts_is_still_refused():
+    """The control: the bare key 2 over two cited facts counts its own citations."""
+    refused, _ = structural(
+        question_text="Wie hoch ist die Kontoführungsgebühr pro Jahr?",
+        target_answer="2",
+        answerable=True,
+        language="de",
+        statements=[
+            "Die Gebühr beträgt jährlich 5 EUR.",
+            "Die Gebühr wird im Januar belastet.",
+        ],
+    )
+    assert refused is not None and "number of facts" in refused[1]
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "statement", "language"),
+    [
+        (
+            "Wie viele Tage dauert die Bearbeitung von Anträgen und Beschwerden insgesamt?",
+            "2,5 Tage",
+            "Die Bearbeitung von Anträgen und Beschwerden dauert jeweils 1,25 Tage.",
+            "de",
+        ),
+        (
+            "How many days does handling refunds and complaints take in total?",
+            "2.5 days",
+            "Handling refunds and complaints takes 1.25 days each.",
+            "en",
+        ),
+    ],
+)
+def test_a_decimal_total_is_not_a_count_of_listed_items(
+    question, answer, statement, language
+):
+    """The same leading-figure reading, in the lookup-or-sum check."""
+    assert counts_a_list(question, answer, [statement], language) is False
+
+
+def test_a_true_count_of_listed_items_still_is():
+    """The control: a bare 3 over a statement listing three things."""
+    assert counts_a_list(
+        "Wie viele Gebühren berechnet die Bank?",
+        "3",
+        [
+            (
+                "Die Bank berechnet eine Kontoführungsgebühr, eine Kartengebühr und "
+                "eine Gebühr für Auslandsüberweisungen."
+            )
+        ],
+        "de",
+    )
+
+
+# N-029: a grouped amount or a five-digit figure is no period.
+@pytest.mark.parametrize(
+    "answer, language",
+    [
+        ("Die Gebühr stieg von 1.900 EUR auf 2.050 EUR.", "de"),
+        ("Das Limit stieg von 18.500 EUR auf 20.000 EUR.", "de"),
+        ("The limit went from 12000 to 20000 units.", "en"),
+        ("Les frais sont passés de 1 900 EUR à 2 050 EUR.", "fr"),
+        ("Οι χρεώσεις αυξήθηκαν από 1 900 EUR σε 2 050 EUR.", "el"),
+    ],
+)
+def test_two_amounts_are_not_two_periods(answer, language):
+    """German groups its thousands with a full stop, which is no day and month."""
+    assert periods(answer, language) is False
+
+
+@pytest.mark.parametrize(
+    "answer, language",
+    [
+        ("Von 2024 auf 2025 stieg die Gebühr von 5 auf 7 EUR.", "de"),
+        ("From 2024 to 2025 the fee rose from 5 to 7 EUR.", "en"),
+        ("Vom 01.03.2024 bis zum 15.04.2025 galt der Tarif.", "de"),
+        ("Der Tarif galt von 03/2024 bis 05/2025.", "de"),
+        ("The rate applied from 03/2024 to 05/2025.", "en"),
+        ("FY2023 and FY2024", "en"),
+        ("The rate for 2023/24 and 2024/25.", "en"),
+        ("Der Satz für 2023/24 und 2024/25.", "de"),
+        ("De 2024 à 2025 les frais ont augmenté.", "fr"),
+        ("Από το 2024 στο 2025 αυξήθηκαν οι χρεώσεις.", "el"),
+    ],
+)
+def test_two_years_or_dates_are_two_periods(answer, language):
+    """The controls: years and dated days still count."""
+    assert periods(answer, language) is True
+
+
+# N-040: the question mark is a per-language table, and no language but a configured one is held to it.
+@pytest.mark.parametrize(
+    ("language", "question"),
+    [
+        ("de", "Wie viel kostet die Karte im Jahr?"),
+        ("en", "How much does the card cost per year?"),
+        ("fr", "Combien coûte la carte par an ?"),
+        ("el", "Πόσο κοστίζει η κάρτα τον χρόνο;"),
+        ("ar", "كم تكلفة البطاقة في السنة؟"),
+    ],
+)
+def test_a_question_in_its_own_script_is_not_refused_for_its_mark(language, question):
+    """The ending and the count read the language's own mark, and a language with none is not held to one."""
+    failed, _ = structural(
+        question_text=question,
+        target_answer="5 EUR",
+        answerable=True,
+        language=language,
+    )
+    assert failed is None or "question mark" not in failed[1], failed
+
+
+@pytest.mark.parametrize(
+    ("language", "question"),
+    [
+        ("de", "Wie viel kostet die Karte im Jahr"),
+        ("en", "How much does the card cost per year."),
+    ],
+)
+def test_a_configured_language_still_needs_its_mark(language, question):
+    """The controls: no mark is refused, and so are two."""
+    failed, _ = structural(
+        question_text=question,
+        target_answer="5 EUR",
+        answerable=True,
+        language=language,
+    )
+    assert failed is not None and "question mark" in failed[1]
+
+
+@pytest.mark.parametrize(
+    ("language", "question"),
+    [("de", "Wie viel kostet die Karte? Und wann?"), ("en", "What is it? And when?")],
+)
+def test_two_marks_are_two_questions(language, question):
+    """The count reads the same table."""
+    failed, _ = structural(
+        question_text=question,
+        target_answer="5 EUR",
+        answerable=True,
+        language=language,
+    )
+    assert failed is not None and "2 things" in failed[1]
+
+
+# N-045: only a sure reading of another language refuses a question for its language.
+@pytest.mark.parametrize(
+    ("language", "question", "answer"),
+    [
+        (
+            "de",
+            "Wie hoch ist die monatliche Gebühr für das Girokonto?",
+            "5 EUR pro Monat",
+        ),
+        ("en", "How much is the monthly fee for the current account?", "5 EUR a month"),
+        ("de", "Was kostet die Mastercard Gold Business Edition?", "120 EUR"),
+        ("de", "Wie viel kostet Express Shipping mit Same Day Delivery?", "9,90 EUR"),
+        ("en", "How much is the Girokonto Klassik per month?", "5 EUR"),
+        ("en", "What does the Sparkasse Kreditkarte Gold cost?", "50 EUR a year"),
+    ],
+)
+def test_a_question_naming_a_product_in_another_language_is_not_malformed(
+    language, question, answer
+):
+    """A product name in the other language tips a two-way pick, and no more than that."""
+    failed, _ = structural(
+        question_text=question, target_answer=answer, answerable=True, language=language
+    )
+    assert failed is None or "it is written in" not in failed[1], failed
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "answer"),
+    [
+        (
+            "de",
+            "Does the warranty on the vacuum cleaner also cover the battery?",
+            "Yes, two years in total",
+        ),
+        (
+            "en",
+            "Gilt die Garantie auf den Staubsauger auch für den Akku?",
+            "Ja, insgesamt zwei Jahre lang",
+        ),
+    ],
+)
+def test_a_question_surely_in_another_language_is_still_refused(
+    language, question, answer
+):
+    """The controls: a whole sentence of the other configured language."""
+    failed, _ = structural(
+        question_text=question, target_answer=answer, answerable=True, language=language
+    )
+    assert failed is not None and "it is written in" in failed[1]
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "written"),
+    [
+        (
+            "Quel est le montant des frais annuels de la carte bancaire Gold?",
+            "5 EUR par an",
+            "fr",
+        ),
+        (
+            "Πόσο κοστίζει η ετήσια κάρτα Gold της τράπεζας για κάθε πελάτη?",
+            "5 EUR το χρόνο",
+            "el",
+        ),
+        (
+            "Ile wynoszą roczne opłaty za kartę bankową Gold dla każdego klienta?",
+            "5 EUR rocznie",
+            "pl",
+        ),
+    ],
+)
+def test_a_question_in_a_language_no_configuration_names_is_refused(
+    question, answer, written
+):
+    """A language neither pick can name is found out, as a French question under German facts was."""
+    failed, _ = structural(
+        question_text=question, target_answer=answer, answerable=True, language="de"
+    )
+    assert failed is not None
+    assert f"it is written in {written} and its facts are in de" in failed[1]
 
 
 def test_a_space_grouped_amount_is_one_number_to_relabelled():

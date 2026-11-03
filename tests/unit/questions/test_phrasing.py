@@ -212,9 +212,9 @@ def test_the_self_contained_prompt_teaches_a_set_the_question_fixes() -> None:
 
     for taught in (
         "the two instalments of a payment plan",
-        "Vertragsparteien eines Kreditvertrags",
-        "the same fee for a standing order",
-        "Rückgaben im Onlineshop",
+        "Vertragsparteien eines Mietvertrags",
+        "the same fee for a renewal as for a first permit",
+        "Verlängerungen im Bürgeramt",
     ):
         assert taught in teaching, taught
     assert teaching.count("TRUE:") >= 6
