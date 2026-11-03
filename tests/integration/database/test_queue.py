@@ -33,8 +33,11 @@ def unasked():
     """No run is asking until a claim says one is.
 
     The trigger a claim adopts lives in a ContextVar, so a test that left
-    one set would name the rows of the test after it.
+    one set would name the rows of the test after it. Put back afterwards
+    as well, for the tests of other files that run next.
     """
+    triggered_by(None)
+    yield
     triggered_by(None)
 
 
