@@ -1152,7 +1152,7 @@ _NUMBER_WORDS: dict[str, dict[str, str]] = {
 #: A run of digits, with the decimal or thousands marks inside it. Read off a
 #: token rather than off `like_num`, so a figure glued to its unit - `45m` -
 #: or written as a time - `08:00` - is still a number.
-_DIGITS = re.compile(r"\d+(?:['’]\d{3}(?!\d))*(?:[ \u00a0\u202f]\d{3})*(?:[.,]\d+)*")
+_DIGITS = re.compile(r"\d+(?:['’]\d{3}(?!\d))*(?: \d{3})*(?:[.,]\d+)*")
 
 #: A vulgar fraction, with the digits it follows: `2½`, `¾`. Unicode names the
 #: set and each value, so no language is read here.
