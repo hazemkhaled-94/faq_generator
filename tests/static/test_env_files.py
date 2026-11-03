@@ -610,3 +610,51 @@ def test_the_upload_ceiling_is_not_below_the_frontends_limit() -> None:
     assert found
     assert high is not None
     assert int(found.group(1)) <= high
+
+
+#: The settings v0.5.3's ports added. An env file from before has no line for
+#: them, and compose hands an unset name over as an empty string.
+_PORT_SETTINGS = (
+    "OBJECT_STORE",
+    "DATABASE_AUTH",
+    "ORCHESTRATOR",
+    "API_AUTH",
+    "LLM_CLIENT",
+    "LLM_BASE_URLS",
+    "LOG_FORMAT",
+    "TRACE_STORE",
+    "REVIEW_TOOL",
+    "SERVICE_PROBES",
+    "GRAFANA_DB_HOST",
+    "GRAFANA_DB_SSLMODE",
+    "GRAFANA_ELASTICSEARCH_URL",
+)
+
+
+def test_compose_gives_every_port_setting_its_env_files_default() -> None:
+    """A compose file passes each port setting with the value its env file ships.
+
+    So a deployment.env from v0.5.2, restored after the pull, still starts the
+    stack as before: without a default, OBJECT_STORE reached the api empty and
+    Grafana's datasources reached Grafana blank.
+    """
+    shipped = {
+        name: value
+        for path in sorted((ROOT / "configs/env").glob("*.env"))
+        for name, value in re.findall(
+            r"^([A-Z][A-Z0-9_]*)=(.*)$", path.read_text(), re.MULTILINE
+        )
+    }
+    names = "|".join(_PORT_SETTINGS)
+    passed = []
+    for compose in ("compose.yaml", "compose.dev.yaml"):
+        for name, rest in re.findall(
+            rf"\$\{{({names})([^}}]*)\}}", (ROOT / compose).read_text()
+        ):
+            passed.append(name)
+            assert rest.startswith(":-"), (
+                f"{compose} passes ${{{name}}} with no default"
+            )
+            assert rest[2:] == shipped[name], (compose, name, rest[2:], shipped[name])
+
+    assert passed, "no compose file passes a port setting"

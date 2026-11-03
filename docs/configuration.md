@@ -32,6 +32,8 @@ committed file.
 
 compose hands each file to its services with `env_file`. The Makefile sources
 `backend.env`, `deployment.env`, `provider.env` and `.env` for host commands.
+It reads them as shell, so a value holding `&`, `;`, `#` or a space must be
+quoted in `.env`, as `NAME="value"`.
 `.env.example` stands in for `.env` in git, with a `change_me_*` placeholder
 per secret, and `make setup` copies it and generates the passwords.
 
@@ -214,9 +216,17 @@ The images carry no source mount: `compose.yaml` starts each from its own files 
 the environment, and `make up` adds `compose.dev.yaml` (the source mounted read-only
 over the images) on the development profile only. Every service has a health check.
 
-TLS to the database is part of `DATABASE_URL`: add `?sslmode=verify-full&sslrootcert=/path`
-to it. The adapter is asked for a password each time the pool opens a connection,
-so a token that expires is renewed.
+TLS to the database is part of `DATABASE_URL`, given in `.env` (or `ENV_FILE`) in
+double quotes:
+
+```bash
+DATABASE_URL="postgresql+psycopg://qa:<password>@db.example.net:5432/ledger?sslmode=verify-full&sslrootcert=/etc/ssl/certs/root.crt"
+```
+
+Unquoted, the `&` ends the line where the Makefile reads the file, and a host
+command builds a `localhost` address under the same database name. The adapter
+is asked for a password each time the pool opens a connection, so a token that
+expires is renewed.
 
 ## Production settings
 

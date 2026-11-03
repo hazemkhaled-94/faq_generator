@@ -1284,3 +1284,51 @@ def test_no_doc_says_the_audit_is_linux_only() -> None:
         assert not re.search(r"linux only", _flat(_read(relative)), re.IGNORECASE), (
             relative
         )
+
+
+#: An assignment as a page or an env example writes one: at the start of a
+#: line or of a code span.
+_ASSIGNED = re.compile(
+    r"(?:^|`)[ \t]*(?:export[ \t]+)?([A-Z][A-Z0-9_]*)=([^`\n]*)", re.MULTILINE
+)
+
+#: What ends, splits or redirects an unquoted shell word.
+_SHELL_SPECIAL = re.compile(r"[&;|<>()`]")
+
+#: A placeholder the reader replaces, such as `<folder of PDFs>`.
+_PLACEHOLDER = re.compile(r"<[A-Za-z][^<>]*>")
+
+
+def test_an_env_example_with_a_shell_character_is_quoted() -> None:
+    """The Makefile shell-sources .env, so an unquoted & there ends the line.
+
+    A TLS DATABASE_URL pasted as the configuration page wrote it, with its
+    `?sslmode=...&sslrootcert=...` query bare, lost the query and the address
+    on the host, which then built a localhost URL under the same database
+    name, while compose read the line whole.
+    """
+    listed = subprocess.run(
+        ["git", "ls-files", "*.md", "*.example", ".env.example"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    unquoted, bare = [], []
+    for relative in listed:
+        text = _read(relative)
+        for found in _ASSIGNED.finditer(text):
+            value = found.group(2)
+            if value[:1] in "\"'":
+                continue
+            words = _PLACEHOLDER.sub("x", value).split()
+            if words and _SHELL_SPECIAL.search(words[0]):
+                unquoted.append(f"{relative}: {found.group(0).strip()[:80]}")
+        bare += [
+            f"{relative}: {span}" for span in re.findall(r"`(\?[^`]*&[^`]*)`", text)
+        ]
+
+    assert listed
+    assert not unquoted, unquoted
+    assert not bare, bare
+    assert "must be quoted" in _flat(_read("docs/configuration.md"))

@@ -247,6 +247,21 @@ def test_a_malformed_s3_buckets_entry_is_refused(given) -> None:
         store.bucket_names({"S3_BUCKETS": given})
 
 
+@pytest.mark.parametrize("given", [None, ""])
+def test_unset_or_empty_names_the_s3_adapter(monkeypatch, given) -> None:
+    """Compose hands an unset name over empty, and both read as `s3`."""
+    from blob_store.s3 import client as s3_module
+
+    if given is None:
+        monkeypatch.delenv("OBJECT_STORE", raising=False)
+    else:
+        monkeypatch.setenv("OBJECT_STORE", given)
+    monkeypatch.setattr(s3_module, "s3_client", lambda: "client")
+    monkeypatch.setattr(s3_module, "S3Store", lambda client: ("s3", client))
+
+    assert store.object_store() == ("s3", "client")
+
+
 def test_an_unknown_adapter_is_refused(monkeypatch) -> None:
     """An unknown adapter is refused."""
     monkeypatch.setenv("OBJECT_STORE", "elsewhere")

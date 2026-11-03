@@ -94,6 +94,9 @@ def test_database_auth_names_the_adapter(monkeypatch) -> None:
     """DATABASE_AUTH selects it; `url` is the default and an unknown name is refused."""
     monkeypatch.delenv("DATABASE_AUTH", raising=False)
     assert isinstance(module.credential(), module.UrlCredential)
+    # compose hands an unset name over empty
+    monkeypatch.setenv("DATABASE_AUTH", "")
+    assert isinstance(module.credential(), module.UrlCredential)
 
     monkeypatch.setenv("DATABASE_AUTH", "entra")
     with pytest.raises(ValueError, match="DATABASE_AUTH"):

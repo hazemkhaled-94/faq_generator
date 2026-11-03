@@ -67,7 +67,7 @@ x-service-env: &service-env
   TZ: UTC
   DATABASE_URL: postgresql+psycopg://${APP_DB_USER}:${APP_DB_PASSWORD:?add it to .env; .env.example names every secret}@postgres:5432/${APP_DB_NAME}
   LOG_LEVEL: ${LOG_LEVEL}
-  LOG_FORMAT: ${LOG_FORMAT}
+  LOG_FORMAT: ${LOG_FORMAT:-text}
   LOG_DIR: /var/log/qa
   HF_HOME: /home/app/.cache/huggingface
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_CONTAINER_ENDPOINT}
@@ -88,7 +88,7 @@ x-service-env: &service-env
 x-phoenix-env: &phoenix-env
   OTEL_EXPORTER_OTLP_HEADERS: authorization=Bearer ${PHOENIX_ADMIN_SECRET:?add it to .env; .env.example names every secret}
   PHOENIX_API_KEY: ${PHOENIX_ADMIN_SECRET:?add it to .env; .env.example names every secret}
-  TRACE_STORE: ${TRACE_STORE}
+  TRACE_STORE: ${TRACE_STORE:-phoenix}
 
 # Object store readers and writers.
 x-store-env: &store-env
@@ -104,7 +104,7 @@ x-store-env: &store-env
   S3_REGION: ${S3_REGION}
   S3_ADDRESSING_STYLE: ${S3_ADDRESSING_STYLE}
   S3_BUCKETS: ${S3_BUCKETS}
-  OBJECT_STORE: ${OBJECT_STORE}
+  OBJECT_STORE: ${OBJECT_STORE:-s3}
 
 # Which model, and where it is served. Its mode, temperature, timeout and
 # attempt count are in backend.env; these stay here, because that is one
@@ -245,7 +245,7 @@ x-dagster: &dagster
     BACKEND_URL: ${BACKEND_CONTAINER_URL}
     API_TOKEN: ${API_TOKEN:?add it to .env; .env.example names every secret}
     LOG_LEVEL: ${LOG_LEVEL}
-    LOG_FORMAT: ${LOG_FORMAT}
+    LOG_FORMAT: ${LOG_FORMAT:-text}
     LOG_DIR: /var/log/qa
     OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_CONTAINER_ENDPOINT}
   volumes:
@@ -510,7 +510,7 @@ services:
       # requiring it both ways would be a cycle compose refuses to start.
       DAGSTER_URL: ${DAGSTER_URL:-http://dagster-webserver:3000}
       # Which orchestrator the api asks: dagster, or none.
-      ORCHESTRATOR: ${ORCHESTRATOR}
+      ORCHESTRATOR: ${ORCHESTRATOR:-dagster}
       # The go-live profile, which the pipeline routes read: no orchestrator,
       # and a queue verb for a model stage names the host runner. The api
       # alone is told; a worker never reads it.
@@ -520,7 +520,7 @@ services:
       # browser needs and the ports below are the only place both halves are
       # written down - grafana serves 3000 and is published on 3001. A
       # service left out simply gets no link.
-      SERVICE_PROBES: ${SERVICE_PROBES}
+      SERVICE_PROBES: ${SERVICE_PROBES:-api=api:8000,streamlit=streamlit:8501,parse-worker=,chunk-worker=,extract-worker=,topic-worker=,question-worker=,assess-worker=,dagster-webserver=dagster-webserver:3000,dagster-daemon=,argilla=argilla:6900,phoenix=phoenix:6006,grafana=grafana:3000,adminer=adminer:8080,postgres=postgres:5432,redis=redis:6379,elasticsearch=elasticsearch:9200,filebeat=,seaweedfs-master=seaweedfs-master:9333,seaweedfs-filer=seaweedfs-filer:8888,seaweedfs-s3=seaweedfs-s3:8333,seaweedfs-volume=seaweedfs-volume:8080,seaweedfs-volume2=seaweedfs-volume2:8081}
       SERVICE_URLS: >-
         api=http://localhost:${BACKEND_PORT}/docs,
         streamlit=http://localhost:${STREAMLIT_PORT},
@@ -710,7 +710,7 @@ services:
       API_TOKEN: ${API_TOKEN:?add it to .env; .env.example names every secret}
       PAGE_SIZE: ${PAGE_SIZE}
       LOG_LEVEL: ${LOG_LEVEL}
-      LOG_FORMAT: ${LOG_FORMAT}
+      LOG_FORMAT: ${LOG_FORMAT:-text}
       LOG_DIR: /var/log/qa
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_CONTAINER_ENDPOINT}
       # The HOST's address, deliberately, and the one place in this file
@@ -1000,9 +1000,9 @@ services:
       GRAFANA_DB_USER: ${GRAFANA_DB_USER}
       # Where the datasources point, so a managed database or another log
       # store is a setting and not an edit of the provisioning files.
-      GRAFANA_DB_HOST: ${GRAFANA_DB_HOST}
-      GRAFANA_DB_SSLMODE: ${GRAFANA_DB_SSLMODE}
-      GRAFANA_ELASTICSEARCH_URL: ${GRAFANA_ELASTICSEARCH_URL}
+      GRAFANA_DB_HOST: ${GRAFANA_DB_HOST:-postgres:5432}
+      GRAFANA_DB_SSLMODE: ${GRAFANA_DB_SSLMODE:-disable}
+      GRAFANA_ELASTICSEARCH_URL: ${GRAFANA_ELASTICSEARCH_URL:-https://elasticsearch:9200}
       GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:?add it to .env; .env.example names every secret}
     volumes:
       - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro

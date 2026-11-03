@@ -83,7 +83,8 @@ def review_tool(settings: Settings) -> ReviewTool:
     Raises:
         ValueError: If it names none that exists.
     """
-    adapter = os.environ.get("REVIEW_TOOL", "argilla")
+    # Empty is unset: compose hands an unset name over as "".
+    adapter = os.environ.get("REVIEW_TOOL", "").strip() or "argilla"
     if adapter == "argilla":
         return datasets.ArgillaTool(settings)
     raise ValueError(

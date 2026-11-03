@@ -476,7 +476,8 @@ def build_model(settings: Settings) -> Model:
     Raises:
         ValueError: If it names none that exists.
     """
-    adapter = os.environ.get("LLM_CLIENT", "litellm")
+    # Empty is unset: compose hands an unset name over as "".
+    adapter = os.environ.get("LLM_CLIENT", "").strip() or "litellm"
     if adapter == "litellm":
         return Client(settings)
     raise ValueError(

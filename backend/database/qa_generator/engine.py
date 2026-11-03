@@ -71,7 +71,8 @@ def credential() -> Credential:
     Raises:
         ValueError: If it names none that exists.
     """
-    adapter = os.environ.get("DATABASE_AUTH", "url")
+    # Empty is unset: compose hands an unset name over as "".
+    adapter = os.environ.get("DATABASE_AUTH", "").strip() or "url"
     if adapter == "url":
         return UrlCredential()
     raise ValueError(
