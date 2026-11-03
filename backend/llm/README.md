@@ -52,6 +52,12 @@ Each defaults to `LLM_MODEL`. `EXTRACTION_DIGEST_MODEL`,
 `QUESTIONS_PHRASING_MODEL` and `QUESTIONS_VERIFIER_MODEL` name a model for one
 judgement. `make spend-by-shape` shows what each costs.
 
+These role models are set in `.env` for the host, as `.env.example`'s split
+does. `configs/env/backend.env` documents each and sets none. A role left unset
+follows `LLM_MODEL` on the host and `LLM_CONTAINER_MODEL` in a container, except
+that the digest reader follows `EXTRACTION_MODEL` and the phrasing judge
+`QUESTIONS_VERIFIER_MODEL`.
+
 The structured mode and the patience are shared. So is the address, unless the
 stage's model is on another provider: an `ollama*` model goes to
 `OLLAMA_BASE_URL`, and a hosted model goes to the provider's own address. A
@@ -104,10 +110,12 @@ container, so a `.env` edit reaches a running stack only through
 
 A stage's own model has no container counterpart. `EXTRACTION_MODEL`,
 `EXTRACTION_DIGEST_MODEL`, `TOPIC_MODEL`, `QUESTIONS_MODEL` and
-`QUESTIONS_PHRASING_MODEL` come from
-[`configs/env/backend.env`](../../configs/env/backend.env), which containers
-take unchanged. A line there that names a hosted model sends that stage's
-container calls to it, authenticated only by `provider.env`.
+`QUESTIONS_PHRASING_MODEL` are set in `.env`, which the containers do not read.
+[`configs/env/backend.env`](../../configs/env/backend.env), which they take
+unchanged, leaves each unset, so in a container each follows
+`LLM_CONTAINER_MODEL`, and phrasing the verifier's container model. A line set
+there that names a hosted model would send that stage's container calls to it,
+authenticated only by `provider.env`.
 
 `EMBEDDING_MODEL`, `NLI_MODEL` and `QA_MODEL` are local encoders from the same
 file. They run in the worker, never through Ollama, and the settings API
@@ -178,8 +186,8 @@ last run's latency and spend.
 | `OLLAMA_BASE_URL` | `.env` | Where a self-hosted model is served |
 | `LLM_CONTAINER_MODEL` | `.env` | `LLM_MODEL` as the containers see it |
 | `QUESTIONS_VERIFIER_CONTAINER_MODEL` | `.env` | The verifier as the containers see it |
-| `EXTRACTION_MODEL`, `QUESTIONS_MODEL`, `TOPIC_MODEL` | `backend.env` | One stage calling a different model |
-| `EXTRACTION_DIGEST_MODEL`, `QUESTIONS_PHRASING_MODEL` | `backend.env` | One judgement on a smaller model |
+| `EXTRACTION_MODEL`, `QUESTIONS_MODEL`, `TOPIC_MODEL` | `.env` (host); documented unset in `backend.env` | One stage calling a different model. Unset, `LLM_MODEL` on the host and `LLM_CONTAINER_MODEL` in a container |
+| `EXTRACTION_DIGEST_MODEL`, `QUESTIONS_PHRASING_MODEL` | `.env` (host); documented unset in `backend.env` | One judgement on a smaller model. Unset, the digest follows `EXTRACTION_MODEL` and phrasing `QUESTIONS_VERIFIER_MODEL` |
 
 ## Tests
 

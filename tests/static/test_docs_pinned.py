@@ -1236,3 +1236,34 @@ def test_every_documented_object_key_carries_the_database(monkeypatch) -> None:
     assert "`{database}/{origin}/{key}@{UTC time}`" in _flat(
         _read("backend/archive/README.md")
     )
+
+
+def test_role_models_are_said_to_be_set_in_env() -> None:
+    """The role models are set in .env on the host, and backend.env leaves them unset (N-066).
+
+    So unset, a role follows LLM_MODEL on the host and LLM_CONTAINER_MODEL in a
+    container. The architecture page and the llm README said backend.env sets
+    them, which it does not.
+    """
+    live = set(
+        re.findall(
+            r"^([A-Z][A-Z0-9_]*)=", _read("configs/env/backend.env"), re.MULTILINE
+        )
+    )
+    assert not live & set(_STAGE_MODELS), live & set(_STAGE_MODELS)
+
+    row = next(
+        line
+        for line in _read("docs/architecture.md").splitlines()
+        if line.startswith("| Which model, or which provider |")
+    )
+    assert "is set in `configs/env/backend.env`" not in row
+    assert "ignore `LLM_MODEL`" not in row
+    assert "`.env`" in row and "`LLM_CONTAINER_MODEL`" in row
+
+    llm = _read("backend/llm/README.md")
+    for line in llm.splitlines():
+        if any(line.startswith(f"| `{name}`") for name in _STAGE_MODELS):
+            assert "| `backend.env` |" not in line, line
+    stage = _flat(_section(llm, "## Stage models"))
+    assert "`.env`" in stage and "`LLM_CONTAINER_MODEL`" in stage

@@ -203,7 +203,7 @@ Logs are deleted only by `make logs-retention` and `make logs-prune`.
 | To change | Go to |
 |---|---|
 | Any behaviour setting | [`backend/settings/catalog.py`](../backend/settings/catalog.py) |
-| Which model, or which provider | `LLM_MODEL` in `.env` (host), `LLM_CONTAINER_MODEL` (containers), `QUESTIONS_VERIFIER_MODEL` and `ASSESSMENT_JUDGE_MODEL`. A stage's own model (`EXTRACTION_MODEL`, `EXTRACTION_DIGEST_MODEL`, `TOPIC_MODEL`, `QUESTIONS_MODEL`, `QUESTIONS_PHRASING_MODEL`) is set in `configs/env/backend.env`. The shipped digest, topic-naming and phrasing models ignore `LLM_MODEL`. Credentials: `configs/env/provider.env` |
+| Which model, or which provider | `LLM_MODEL` in `.env` (host), `LLM_CONTAINER_MODEL` (containers), `QUESTIONS_VERIFIER_MODEL` and `ASSESSMENT_JUDGE_MODEL`. A role's own model (`EXTRACTION_MODEL`, `EXTRACTION_DIGEST_MODEL`, `TOPIC_MODEL`, `QUESTIONS_MODEL`, `QUESTIONS_PHRASING_MODEL`) is set in `.env` for the host, as `.env.example`'s split does. `configs/env/backend.env` documents each and sets none, so a role left unset follows `LLM_MODEL` on the host and `LLM_CONTAINER_MODEL` in a container (the digest reader follows the passage reader, and the phrasing judge the verifier). Credentials: `configs/env/provider.env` |
 | Secrets | `.env` |
 | Ports, addresses, role names | `configs/env/deployment.env` |
 | Default pipeline behaviour | `configs/env/backend.env` |
