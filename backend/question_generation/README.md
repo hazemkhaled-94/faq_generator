@@ -536,7 +536,7 @@ serves both. A pair read as one answer joins the twin groups and the release is
 drawn again, up to three times. A fourth round drops the later question of each
 remaining pair, so the release is a little smaller. That is about
 one call per released question. Its scores are in
-[docs/bugs.md](../../docs/bugs.md#found-on-the-v022-rebuild-of-2026-10-14).
+[docs/changelog.md](../../docs/changelog.md#found-on-the-v022-rebuild-of-2026-10-14).
 
 `QUESTIONS_RELEASE_SIZE=0` draws the largest release the pool can fill to
 within `TOLERANCE` of every quota. A kind the pool holds too few of is asked
