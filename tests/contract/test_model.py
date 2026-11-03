@@ -194,6 +194,9 @@ def test_llm_client_names_the_adapter(monkeypatch) -> None:
     )
     monkeypatch.delenv("LLM_CLIENT", raising=False)
     assert isinstance(module.build_model(settings), module.Client)
+    # compose hands an unset name over empty
+    monkeypatch.setenv("LLM_CLIENT", "")
+    assert isinstance(module.build_model(settings), module.Client)
 
     monkeypatch.setenv("LLM_CLIENT", "elsewhere")
     with pytest.raises(ValueError, match="LLM_CLIENT"):

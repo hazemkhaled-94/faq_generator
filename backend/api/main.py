@@ -109,7 +109,8 @@ def authenticator() -> Authenticator:
     Raises:
         ValueError: If it names none that exists.
     """
-    adapter = os.environ.get("API_AUTH", "token")
+    # Empty is unset: compose hands an unset name over as "".
+    adapter = os.environ.get("API_AUTH", "").strip() or "token"
     if adapter == "token":
         return _TOKEN
     raise ValueError(

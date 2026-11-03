@@ -72,6 +72,9 @@ def test_the_middleware_asks_the_adapter_api_auth_names(monkeypatch) -> None:
     """`token` is the default; an unknown name is refused."""
     monkeypatch.delenv("API_AUTH", raising=False)
     assert isinstance(main.authenticator(), TokenAuthenticator)
+    # compose hands an unset name over empty
+    monkeypatch.setenv("API_AUTH", "")
+    assert isinstance(main.authenticator(), TokenAuthenticator)
 
     monkeypatch.setenv("API_AUTH", "entra")
     with pytest.raises(ValueError, match="API_AUTH"):

@@ -123,7 +123,8 @@ def object_store() -> ObjectStore:
     Raises:
         ValueError: If it names none that exists.
     """
-    adapter = os.environ.get("OBJECT_STORE", "s3")
+    # Empty is unset: compose hands an unset name over as "".
+    adapter = os.environ.get("OBJECT_STORE", "").strip() or "s3"
     if adapter == "s3":
         from blob_store.s3.client import S3Store, s3_client
 

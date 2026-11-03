@@ -185,6 +185,9 @@ def test_review_tool_names_the_adapter(monkeypatch) -> None:
     settings = Settings(api_url="u", api_key="k", workspace="w", sample=1)
     monkeypatch.delenv("REVIEW_TOOL", raising=False)
     assert isinstance(service.review_tool(settings), datasets.ArgillaTool)
+    # compose hands an unset name over empty
+    monkeypatch.setenv("REVIEW_TOOL", "")
+    assert isinstance(service.review_tool(settings), datasets.ArgillaTool)
 
     monkeypatch.setenv("REVIEW_TOOL", "elsewhere")
     with pytest.raises(ValueError, match="REVIEW_TOOL"):
