@@ -130,6 +130,9 @@ ships the model split:
   extraction, digest, topics and judge). A role left out keeps the shared
   address, and the phrasing role follows the verifier. A gateway that routes by
   model id still works with one address. Credentials stay one set per provider.
+- [Measurements](measurements.md#the-models-behind-each-figure) names the
+  models behind each figure. Its fact-stage figures (extraction and digests)
+  predate this split.
 
 Every drain logs `split: writer=... effort=...` before it claims a row. With
 `HOST_RUNNER=1`, a drain and `make doctor` refuse a role that resolves to an

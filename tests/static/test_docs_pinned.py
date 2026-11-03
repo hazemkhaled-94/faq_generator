@@ -1176,3 +1176,33 @@ def test_every_text_on_the_categorization_default_names_the_out_of_corpus_kind()
         flat = _flat(text)
         assert "out-of-corpus" in flat, where
         assert "alone" in flat, where
+
+
+# ── Group 7 of v0.5.3: what the docs say about models, keys and the audit ──
+
+
+def test_the_split_names_where_its_figures_were_measured() -> None:
+    """measurements.md says which models each figure was measured on (C-093).
+
+    The production split ships in .env.example, and a figure read against the
+    wrong split misleads: the page names every model of that split, says the
+    fact-stage figures predate it, and configuration.md's split section links
+    there.
+    """
+    split = _section(_read("docs/configuration.md"), "## The production split")
+    assert "measurements.md#the-models-behind-each-figure" in split
+
+    section = _flat(
+        _section(_read("docs/measurements.md"), "## The models behind each figure")
+    )
+    shipped = {
+        model
+        for model in re.findall(
+            r"^[A-Z][A-Z0-9_]*_MODEL=(\S+)$", _read(".env.example"), re.MULTILINE
+        )
+        if not model.startswith("ollama")
+    }
+    assert shipped, ".env.example ships no hosted model"
+    for model in sorted(shipped):
+        assert f"`{model}`" in section, model
+    assert "extraction" in section and "digest" in section
