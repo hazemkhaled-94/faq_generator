@@ -217,14 +217,15 @@ the environment, and `make up` adds `compose.dev.yaml` (the source mounted read-
 over the images) on the development profile only. Every service has a health check.
 
 TLS to the database is part of `DATABASE_URL`, given in `.env` (or `ENV_FILE`) in
-double quotes:
+single quotes:
 
 ```bash
-DATABASE_URL="postgresql+psycopg://qa:<password>@db.example.net:5432/ledger?sslmode=verify-full&sslrootcert=/etc/ssl/certs/root.crt"
+DATABASE_URL='postgresql+psycopg://qa:<password>@db.example.net:5432/ledger?sslmode=verify-full&sslrootcert=/etc/ssl/certs/root.crt'
 ```
 
 Unquoted, the `&` ends the line where the Makefile reads the file, and a host
-command builds a `localhost` address under the same database name. The adapter
+command builds a `localhost` address under the same database name. Single quotes
+keep a `$` in the password as written; double quotes would expand it. The adapter
 is asked for a password each time the pool opens a connection, so a token that
 expires is renewed.
 
