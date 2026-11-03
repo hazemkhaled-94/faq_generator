@@ -6,6 +6,8 @@ failure must reach its own code rather than share a bucket with another.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 from drivers import Checker, group, passage
 
@@ -618,29 +620,68 @@ def test_a_modifier_naming_its_noun_or_the_next_day_is_not_a_reference(
 
 
 @pytest.mark.parametrize(
-    ("statement", "language"),
+    ("statement", "language", "title"),
     [
-        ("This syllabus defines adaptability as the ease of modification.", "en"),
-        ("Each keyword in this training course syllabus is defined.", "en"),
-        ("This section focuses on branch testing.", "en"),
-        ("This chapter discusses black-box test techniques.", "en"),
-        ("Extracts from this document may be copied for non-commercial use.", "en"),
-        ("Dieser Lehrplan behandelt zwei Modelle.", "de"),
-        ("Die Lernziele dieses Lehrplans enden mit einem Aktionsverb.", "de"),
-        ("Dieser Abschnitt behandelt datengetriebenes Testen.", "de"),
-        ("Die in diesem Kapitel behandelten Verfahren sind Black-Box-Verfahren.", "de"),
+        (
+            "This syllabus defines adaptability as the ease of modification.",
+            "en",
+            "Syllabus for Test Analysts",
+        ),
+        (
+            "Each keyword in this training course syllabus is defined.",
+            "en",
+            "Syllabus for Test Analysts",
+        ),
+        (
+            "Extracts from this document may be copied for non-commercial use.",
+            "en",
+            "Document of Terms",
+        ),
+        ("Dieser Lehrplan behandelt zwei Modelle.", "de", "Lehrplan für Testanalysten"),
+        (
+            "Dieses Merkblatt gilt für alle Girokonten.",
+            "de",
+            "Merkblatt zum Girokonto",
+        ),
+        ("This brochure applies to all current accounts.", "en", "Account brochure"),
     ],
 )
 def test_a_demonstrative_naming_the_source_document_is_not_a_reference(
-    statement, language
+    statement, language, title
 ) -> None:
-    """`Dieser Lehrplan` is the document the citation names."""
-    judged = Checker(passage(statement, language=language)).atomic(statement, 0)
+    """The document's own title says what it is: `Dieser Lehrplan` under a Lehrplan."""
+    named = replace(passage(statement, language=language), title=title)
+    judged = Checker(named).atomic(statement, 0)
 
     assert judged.rejection_code != Rejection.UNRESOLVED_REFERENCE, (
         judged.validation_error
     )
     assert not judged.unresolved_references
+
+
+@pytest.mark.parametrize(
+    ("statement", "language"),
+    [
+        ("This section focuses on branch testing.", "en"),
+        ("This clause focuses on branch testing.", "en"),
+        ("This chapter discusses black-box test techniques.", "en"),
+        ("This brochure applies to all current accounts.", "en"),
+        ("This syllabus defines adaptability as the ease of modification.", "en"),
+        ("Dieser Abschnitt behandelt datengetriebenes Testen.", "de"),
+        ("Diese Ziffer behandelt datengetriebenes Testen.", "de"),
+        ("Dieses Kapitel behandelt datengetriebenes Testen.", "de"),
+        ("Dieses Merkblatt gilt für alle Girokonten.", "de"),
+    ],
+)
+def test_a_demonstrative_before_any_noun_points_unless_the_title_names_it(
+    statement, language
+) -> None:
+    """No noun is exempt by itself: a reader cannot tell which section, clause or brochure."""
+    judged = Checker(passage(statement, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.UNRESOLVED_REFERENCE, (
+        judged.validation_error
+    )
 
 
 @pytest.mark.parametrize(

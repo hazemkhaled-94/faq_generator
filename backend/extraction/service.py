@@ -37,7 +37,7 @@ from nlp.analysis import claim, is_currency, normalised, numbers
 from nlp.embedding import Embedder, cosine
 from settings.runs import run_id
 from stages import StageService
-from stages.service import STOP_AFTER, is_outage, stop_at_cap
+from stages.service import STOP_AFTER, SpendCapReached, is_outage, stop_at_cap
 from telemetry import tracer, working
 from telemetry.evaluations import Evaluations, Verdict, current_ids
 
@@ -482,10 +482,12 @@ def bridge(
 ) -> int:
     """Writes the bridge facts a corpus's topics offer.
 
-    One model call per group. Every bridge in scope is deleted once the links
-    are dealt and before the first call, so a second run replaces what the
-    first wrote instead of adding to it, and one that dies reading the corpus
-    deletes nothing.
+    One model call per group. The bridges a topic heads are deleted once the
+    links are dealt and the model has answered the topic's first call, and
+    those of a topic offered nothing when the pass ends, so a second run
+    replaces what the first wrote instead of adding to it. One that dies
+    reading the corpus, or finds the model unreachable, deletes nothing of the
+    topics it never reached.
 
     With `missing`, nothing is deleted and only the topics holding no bridge
     are read: what a whole-corpus run asks for, so a second one neither
@@ -508,8 +510,10 @@ def bridge(
     Raises:
         CitedBridges: If an accepted question cites a bridge in scope and
             `force` is not set. Nothing is deleted.
-        SpendCapReached: If SPEND_CAP was reached between two topics. The
-            facts written so far are kept, and the number is `kept`.
+        SpendCapReached: If SPEND_CAP was reached between two topics, or the
+            model could not be reached for STOP_AFTER links in a row. The
+            facts written so far are kept, and the number is `kept`. The
+            bridges of a topic the pass never reached stay.
     """
     # ponytail: counted and deleted in two transactions, so a question
     # accepted between them is not counted. Upgrade: count and delete in one
@@ -552,6 +556,15 @@ def bridge(
     # What is left after the clear is what this pass must not repeat,
     # whichever side of a cross-topic pair heads it: the bridges that stay.
     held = catalog.bridged_pairs(within, replaced=not missing)
+    # The pairs the bridges this pass will replace rest on, which stand until
+    # their topic is answered or the pass ends. A pass that stops first must
+    # not leave a pair with the old bridge and a new one, so a link dealt one
+    # of them deletes the old bridge before it writes its own.
+    stale = (
+        set(catalog.bridged_pairs(within, replaced=False)) - held
+        if not missing
+        else set()
+    )
     offers: list[tuple[str, list[Link]]] = []
     topic: object = object()  # none yet, so the first link reads the cap too
     for language in sorted({one.language or "" for one in partners}):
@@ -561,9 +574,19 @@ def bridge(
             topic_of,
             groups_per_topic,
             size,
-            done,
-            held,
+            # A pass for the missing deals the links a whole pass deals, and
+            # then drops what is held, so the topic whose group was lost is
+            # offered the very link it was and a second pass adds nothing.
+            frozenset() if missing else done,
+            frozenset() if missing else held,
         )
+        if missing:
+            links = [
+                link
+                for link in links
+                if topic_of.get(link.head or 0) not in done
+                and frozenset(one.id for one in link.passages[:2]) not in held
+            ]
         kinds = Counter(link.kind for link in links)
         log.info(
             "offered %d link(s) in %r (%d reference, %d sibling, %d term)",
@@ -574,11 +597,12 @@ def bridge(
             kinds["term"],
         )
         offers.append((language, links))
-    # After the links are dealt, which is the long read of the whole corpus
-    # and the part that can run out of memory: a pass that dies there has
-    # deleted nothing.
-    if not missing:
-        log.info("replacing %d bridge fact(s)", catalog.clear_bridges(within))
+    # A topic's old bridges go when the model first answers one of its links,
+    # after the links are dealt, which is the long read of the whole corpus and
+    # the part that can run out of memory: a pass that dies there, or finds the
+    # model out of reach, has deleted nothing of the topics it never reached.
+    replaced: set[int] = set()
+    outages = 0
     for language, links in offers:
         for link in links:
             # Between topics, so what is written is kept, nothing is held, and
@@ -606,7 +630,28 @@ def bridge(
                         "link %s: a group failed: %s", [one.id for one in offered], exc
                     )
                     dropped += 1
+                    # As a drain stops: STOP_AFTER unreachable links in a row
+                    # are a deployment down, not groups the model would not read.
+                    outages = outages + 1 if is_outage(exc) else 0
+                    if outages >= STOP_AFTER:
+                        reason = (
+                            f"the model could not be reached for {STOP_AFTER} "
+                            "link(s) in a row; nothing more is asked of it"
+                        )
+                        log.error("%s", reason)
+                        raise SpendCapReached(reason, written) from exc
                     continue
+                outages = 0
+                if not missing and at is not None and at not in replaced:
+                    log.info(
+                        "replacing %d bridge fact(s) headed in topic %d",
+                        catalog.clear_bridges_of([at]),
+                        at,
+                    )
+                    replaced.add(at)
+                if (rests := frozenset(one.id for one in offered[:2])) in stale:
+                    catalog.clear_bridges_on(rests)
+                    stale.discard(rests)
                 try:
                     written += catalog.add_bridges(
                         [
@@ -629,6 +674,14 @@ def bridge(
                         str(exc.orig).splitlines()[0],
                     )
                     dropped += 1
+    if not missing:
+        # What the pass has not replaced and written: a topic it offered
+        # nothing or got no answer for, and a bridge headed outside every
+        # topic it read. The scope is replaced by what was written.
+        log.info(
+            "replacing %d more bridge fact(s) with none",
+            catalog.clear_bridges(within, replaced),
+        )
     if dropped:
         log.warning(
             "wrote %d bridge fact(s), and %d group(s) were dropped because the "

@@ -125,10 +125,10 @@ class Ordered(Catalogue):
         super().__init__(**topics)
         self._order = order
 
-    def clear_bridges(self, within=None) -> int:
+    def clear_bridges_of(self, topics) -> int:
         """Notes the deletion."""
         self._order.append("clear")
-        return super().clear_bridges(within)
+        return super().clear_bridges_of(topics)
 
     def bridged_pairs(self, within=None, replaced=False):
         """Notes the read of what stays."""
@@ -175,4 +175,9 @@ def test_the_bridges_in_scope_are_deleted_only_after_the_links_are_dealt(
         2,
     )
 
-    assert order == ["held replaced=True", "linked", "clear"], order
+    assert order == [
+        "held replaced=True",
+        "held replaced=False",
+        "linked",
+        "clear",
+    ], order

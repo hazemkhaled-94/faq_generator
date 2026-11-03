@@ -16,10 +16,31 @@ import pytest
 from nlp import analysis
 
 
-class _Doc:
-    """A document as far as the rules read it: tokens, slices and a language."""
+class _Morph:
+    """A token's morphology, as `token.morph.get` answers it."""
 
-    def __init__(self, language: str, words: list[str]) -> None:
+    def __init__(self, number: str | None) -> None:
+        self._number = number
+
+    def get(self, name: str, default=None):
+        return [self._number] if name == "Number" and self._number else []
+
+
+class _Doc:
+    """A document as far as the rules read it: tokens, slices and a language.
+
+    `numbers` gives the grammatical number of a token by index, which a token
+    has none of otherwise, and `heads` the index of a token's head, itself
+    otherwise.
+    """
+
+    def __init__(
+        self,
+        language: str,
+        words: list[str],
+        numbers: dict[int, str] | None = None,
+        heads: dict[int, int] | None = None,
+    ) -> None:
         self.lang_ = language
         self.user_data: dict = {}
         self._tokens = [
@@ -28,9 +49,12 @@ class _Doc:
                 text=word,
                 is_punct=not any(c.isalnum() for c in word),
                 doc=self,
+                morph=_Morph((numbers or {}).get(i)),
             )
             for i, word in enumerate(words)
         ]
+        for token in self._tokens:
+            token.head = self._tokens[(heads or {}).get(token.i, token.i)]
 
     def __getitem__(self, index):
         return self._tokens[index]
@@ -42,8 +66,8 @@ class _Doc:
         return iter(self._tokens)
 
 
-def _polite(language: str, words: list[str], at: int) -> bool:
-    doc = _Doc(language, words)
+def _polite(language: str, words: list[str], at: int, **kept) -> bool:
+    doc = _Doc(language, words, **kept)
     return analysis._polite(doc[at])
 
 
@@ -89,6 +113,44 @@ def test_an_opening_sie_is_polite_when_a_polite_form_follows_it(words) -> None:
 def test_an_opening_sie_with_no_polite_form_after_it_stays_a_reference(words) -> None:
     """Capitalised either way at the start, so nothing says it names the reader."""
     assert not _polite("de", words, 0)
+
+
+@pytest.mark.parametrize(
+    ("words", "numbers", "heads", "polite"),
+    [
+        # The pronoun or its finite verb carries the polite form's number.
+        (["Sie", "können", "Ihre", "Karte", "sperren"], {0: "Plur"}, {0: 1}, True),
+        (["Sie", "können", "Ihre", "Karte", "sperren"], {1: "Plur"}, {0: 1}, True),
+        # 'Sie gilt': singular, so the feminine third person, whatever follows.
+        (
+            ["Sie", "gilt", "Ihre", "Karte", "sperren"],
+            {0: "Sing", 1: "Sing"},
+            {0: 1},
+            False,
+        ),
+        (["Sie", "gilt", "Ihre", "Karte", "sperren"], {1: "Sing"}, {0: 1}, False),
+        # Nothing said: as before.
+        (["Sie", "können", "Ihre", "Karte", "sperren"], {}, {0: 1}, True),
+    ],
+)
+def test_an_opening_polite_form_takes_the_number_the_polite_form_takes(
+    words, numbers, heads, polite
+) -> None:
+    """German polite Sie is plural: a singular verb makes it the third person singular."""
+    assert _polite("de", words, 0, numbers=numbers, heads=heads) is polite
+
+
+def test_a_polite_form_inside_a_statement_is_read_whatever_its_number() -> None:
+    """Only an opening form is open to the third person; one in mid-sentence is capitalised for the reader."""
+    words = ["Bitte", "geben", "Sie", "Ihre", "IBAN", "an"]
+    assert _polite("de", words, 2, numbers={2: "Sing"}, heads={2: 1})
+
+
+@pytest.mark.parametrize("language", ["fr", "pl", "el"])
+def test_a_language_with_no_polite_table_row_reads_no_polite_form(language) -> None:
+    """The number table is keyed by language too: a code with no row is no polite form."""
+    words = ["Sie", "können", "Ihre", "Karte", "sperren"]
+    assert not _polite(language, words, 0, numbers={0: "Plur"}, heads={0: 1})
 
 
 def test_punctuation_before_an_opening_sie_does_not_make_it_inside() -> None:

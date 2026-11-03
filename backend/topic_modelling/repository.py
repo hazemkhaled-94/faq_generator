@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -135,15 +135,17 @@ _BEARING = (
 _PLACE = text(
     "UPDATE topics t SET embedding = c.centroid FROM ("
     "  SELECT pt.topic_id AS id, l2_normalize(avg(p.embedding)) AS centroid"
-    "  FROM passage_topics pt JOIN passages p ON p.id = pt.passage_id"
+    "  FROM passage_topics pt"
+    "  JOIN topics ft ON ft.id = pt.topic_id AND ft.language = ANY(:languages)"
+    "  JOIN passages p ON p.id = pt.passage_id"
     "  WHERE p.embedding IS NOT NULL GROUP BY pt.topic_id"
-    ") c WHERE t.id = c.id"
+    ") c WHERE t.id = c.id AND t.language = ANY(:languages)"
 )
 
 
-def _place(session) -> int:
-    """Writes every topic's centroid in the caller's transaction."""
-    return session.execute(_PLACE).rowcount
+def _place(session, languages: Sequence[str]) -> int:
+    """Writes the centroid of every topic of these languages in the caller's transaction."""
+    return session.execute(_PLACE, {"languages": list(languages)}).rowcount
 
 
 #: A passage the fit placed in no topic, put in its language's topic whose
@@ -345,7 +347,7 @@ class TopicQueue(StageQueue):
             )
 
     def passages(self, language: str) -> Iterator[PassageVocabulary]:
-        """Streams one language's passages by id, in batches of `_BATCH`.
+        """Streams one language's passages by document and position, in batches of `_BATCH`.
 
         Only the passages carrying a validated fact, where the language has
         any: a heading, a page number or a contents page extraction found
@@ -363,7 +365,9 @@ class TopicQueue(StageQueue):
             if session.scalar(select(query.where(_BEARING).exists())):
                 query = query.where(_BEARING)
             rows = session.execute(
-                query.order_by(Passage.id).execution_options(yield_per=_BATCH)
+                query.order_by(Passage.doc_sha256, Passage.ordinal).execution_options(
+                    yield_per=_BATCH
+                )
             )
             for row in rows:
                 yield PassageVocabulary(id=row.id, lemmas=list(row.lemmas or []))
@@ -608,12 +612,13 @@ class TopicQueue(StageQueue):
                 memberships = [one for one in memberships if one["passage_id"] in alive]
             if memberships:
                 session.execute(insert(PassageTopic), memberships)
-                _place(session)
+                _place(session, fitted)
                 unplaced = [one for fitting in fittings for one in fitting.unplaced]
                 if unplaced:
                     placed = set(session.scalars(_NEAREST, {"ids": unplaced}).all())
-                    # Their topics' centroids move with them.
-                    _place(session)
+                    # Their topics' centroids move with them, where any did.
+                    if placed:
+                        _place(session, fitted)
                     # And they are in a topic now, which is what the stored
                     # count says of the rest.
                     for fitting in fittings:

@@ -23,7 +23,7 @@ import numpy as np
 
 from database.qa_generator.passages import headings_of, trail_of
 from extraction.models import PassageToExtract
-from extraction.validation import HEADING_LABEL, label_word, numbered
+from extraction.validation import label_of, label_word, numbered
 from nlp.analysis import content, normalised, parse
 
 #: A quoted span, as two patterns by what opens it. A double mark closes at a
@@ -203,10 +203,8 @@ def _headings(partners: Sequence[PassageToExtract]) -> _Headings:
         trail = _segments(p)
         plain = [_plain(s) for s in trail]
         for depth, segment in enumerate(trail):
-            if match := HEADING_LABEL.match(segment):
-                read.labels[(match.group(1).casefold(), match.group(2))].append(
-                    (depth, segment, p)
-                )
+            if label := label_of(segment):
+                read.labels[label].append((depth, segment, p))
             read.headings[plain[depth]].append((segment, p))
             read.parents[plain[depth]].update(plain[:depth])
     return read
@@ -256,11 +254,7 @@ def _references(
     """Adds the links a passage makes by naming a heading."""
     labels, headings, parents = index.labels, index.headings, index.parents
     for head in partners:
-        own = {
-            (m.group(1).casefold(), m.group(2))
-            for s in _segments(head)
-            if (m := HEADING_LABEL.match(s))
-        }
+        own = {label for s in _segments(head) if (label := label_of(s))}
         named = read[head.id].named
         for key in sorted(k for k in named if k not in own):
             # A numbered reference names a section of its own document, or of

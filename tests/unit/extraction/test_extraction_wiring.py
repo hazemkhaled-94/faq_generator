@@ -31,6 +31,20 @@ MODEL = ModelSettings(
 )
 
 
+class _Embedder:
+    """Stands in for the embedding model, which is gigabytes to load."""
+
+
+@pytest.fixture(autouse=True)
+def _no_embedding_model_loaded(monkeypatch):
+    """Every service built here gets a stand-in embedder, and the tests may count them."""
+    built: list[Settings] = []
+    monkeypatch.setattr(
+        "extraction.factory._embedder", lambda one: built.append(one) or _Embedder()
+    )
+    return built
+
+
 @pytest.fixture(autouse=True)
 def _no_engine_left_behind():
     """Forgets the engine building a repository cached, whatever it was.
@@ -69,8 +83,7 @@ def settings(
         bridge_passages=2,
         model=model,
         digest_model=digest_model,
-        # 0, so wiring a service here loads no embedding model: these tests
-        # build the real thing and two gigabytes is not what they are about.
+        # 0: a service built here has no dedup gate. It still gets an embedder.
         duplicate_cosine=0.0,
         duplicate_floor=0.75,
         embedding_model="intfloat/multilingual-e5-large",
@@ -91,6 +104,18 @@ def test_a_deployment_writing_only_atomic_facts_gets_no_digest_reader() -> None:
     built = build_service(MODEL, settings(FactKind.ATOMIC))
 
     assert built._digest is None
+
+
+def test_a_gate_at_zero_still_gets_the_embedder(_no_embedding_model_loaded) -> None:
+    """EXTRACTION_DUPLICATE_COSINE=0 turns the refusal off, not the vectors the stage writes."""
+    zero = settings(FactKind.ATOMIC)
+    assert zero.duplicate_cosine == 0
+
+    built = build_service(MODEL, zero)
+
+    assert isinstance(built._embedder, _Embedder)
+    assert _no_embedding_model_loaded == [zero]
+    assert built._duplicate_cosine == 0
 
 
 def test_the_table_reader_is_claimed_by_name_and_the_model_is_the_default() -> None:
@@ -211,6 +236,33 @@ class TestCommandLine:
 
         assert run.main(["--bridge"]) == 3, "a refused start, which no unit restarts"
         assert bridged == []
+
+    @pytest.mark.parametrize(
+        ("flags", "orphaned"), [([], False), (["--orphaned"], True)]
+    )
+    def test_a_dedup_replay_reads_every_refusal_or_the_orphans_alone(
+        self, monkeypatch, flags, orphaned
+    ) -> None:
+        """`--orphaned` is the replay a deletion needs: nothing else is re-decided."""
+        import os
+
+        from extraction import run
+
+        asked: list[dict] = []
+
+        def replayed(*_, **kwargs) -> int:
+            asked.append(kwargs)
+            return 0
+
+        monkeypatch.setattr(run, "snapshot", lambda *_: (dict(os.environ), "v1"))
+        monkeypatch.setattr(run, "dedup", replayed)
+        monkeypatch.setattr(run, "PassageQueue", lambda: None)
+        monkeypatch.setattr(run, "FactCatalog", lambda version: None)
+        monkeypatch.setattr("stages.cli.telemetry.configure", lambda *_, **__: None)
+
+        run.main(["--dedup", *flags])
+
+        assert [one["orphaned"] for one in asked] == [orphaned]
 
 
 def test_the_digest_reader_shares_the_passage_reader_by_default() -> None:

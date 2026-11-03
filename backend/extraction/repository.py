@@ -1599,7 +1599,7 @@ class FactCatalog(Repository):
                 found[passage].append((fact, statement, tuple(sentences)))
         return dict(found)
 
-    def clear_bridges(self, within=None) -> int:
+    def clear_bridges(self, within=None, besides: Collection[int] = ()) -> int:
         """Deletes the bridge facts a fresh pass is about to replace.
 
         Args:
@@ -1607,13 +1607,67 @@ class FactCatalog(Repository):
                 None for every one of them. Every bridge opening on a passage
                 of a topic holding a selected passage goes, as `by_topic`
                 reads those whole.
+            besides: Topics whose bridges stay: those a pass has replaced and
+                written already.
 
         Returns:
             How many were deleted.
         """
+        gone = _bridges(within)
+        if besides:
+            gone = gone.where(
+                _head().not_in(
+                    select(DOMINANT.c.passage_id).where(
+                        DOMINANT.c.topic_id.in_(besides)
+                    )
+                )
+            )
+        with self._session.begin() as session:
+            return session.execute(delete(Fact).where(Fact.id.in_(gone))).rowcount
+
+    def clear_bridges_of(self, topics: Collection[int]) -> int:
+        """Deletes the bridges headed in some topics, as a pass replaces them one topic at a time.
+
+        Args:
+            topics: The topics' ids. A bridge goes where the passage that
+                headed it sits in one of them.
+
+        Returns:
+            How many were deleted.
+        """
+        if not topics:
+            return 0
+        heads = select(DOMINANT.c.passage_id).where(DOMINANT.c.topic_id.in_(topics))
         with self._session.begin() as session:
             return session.execute(
-                delete(Fact).where(Fact.id.in_(_bridges(within)))
+                delete(Fact).where(
+                    Fact.id.in_(
+                        select(Fact.id).where(
+                            Fact.kind == FactKind.BRIDGE, _head().in_(heads)
+                        )
+                    )
+                )
+            ).rowcount
+
+    def clear_bridges_on(self, pair: Collection[int]) -> int:
+        """Deletes the bridges whose first two passages are this pair.
+
+        Args:
+            pair: The two passages' ids.
+
+        Returns:
+            How many were deleted.
+        """
+        ids = list(pair)
+        opening = (
+            select(FactPassage.fact_id)
+            .where(FactPassage.position < 2, FactPassage.passage_id.in_(ids))
+            .group_by(FactPassage.fact_id)
+            .having(func.count(func.distinct(FactPassage.passage_id)) == len(ids))
+        )
+        with self._session.begin() as session:
+            return session.execute(
+                delete(Fact).where(Fact.kind == FactKind.BRIDGE, Fact.id.in_(opening))
             ).rowcount
 
     def bridged_topics(self, within=None) -> frozenset[int]:

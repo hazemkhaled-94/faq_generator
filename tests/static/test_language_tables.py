@@ -101,3 +101,28 @@ def test_every_configured_language_has_its_rows(name: str) -> None:
     missing = _configured() - set(_table(name))
 
     assert not missing, f"{name} holds no rows for {sorted(missing)}"
+
+
+def test_no_function_of_the_nlp_readers_compares_with_a_language_code() -> None:
+    """A code is a key of a table, never an operand of a comparison.
+
+    The one thing a newly configured language must not have to change is the
+    code that reads it: it supplies rows to the tables.
+    """
+    tree = ast.parse((BACKEND / "nlp" / "analysis.py").read_text())
+    # The configured languages, and the ones a deployment may configure next:
+    # a two-letter label of a dependency, `cc`, is no code.
+    codes = _configured() | {"fr", "pl", "es", "it", "nl", "el"}
+    found = [
+        f"{function.name}:{node.lineno} compares with {one.value!r}"
+        for function in ast.walk(tree)
+        if isinstance(function, ast.FunctionDef)
+        for node in ast.walk(function)
+        if isinstance(node, ast.Compare)
+        for one in ast.walk(node)
+        if isinstance(one, ast.Constant)
+        and isinstance(one.value, str)
+        and one.value in codes
+    ]
+
+    assert not found, found

@@ -315,3 +315,51 @@ def test_a_word_and_a_number_alone_is_a_numbered_section(segment: str) -> None:
     from extraction.validation import HEADING_LABEL
 
     assert HEADING_LABEL.match(segment) is not None
+
+
+@pytest.mark.parametrize(
+    "language,text,paths",
+    [
+        (
+            "en",
+            "The Gold plan costs 9 EUR; see Plan 2.",
+            ("Plan 1 Basic", "Plan 2 Silver", "Plan 3 Gold"),
+        ),
+        (
+            "en",
+            "Delivery to Zone 2 takes four days.",
+            ("Zone 1 Inner city", "Zone 2 Suburbs", "Zone 3 Rural"),
+        ),
+        (
+            "de",
+            "Ab Pflegegrad 2 gilt ein höherer Satz.",
+            ("Pflegegrad 1 Geringe", "Pflegegrad 2 Erhebliche", "Pflegegrad 3 Schwere"),
+        ),
+        (
+            "fr",
+            "Le tarif de la zone 2 s'applique.",
+            ("Zone 1 Centre", "Zone 2 Banlieue", "Zone 3 Rural"),
+        ),
+        (
+            "el",
+            "Η χρέωση της ζώνης 2 ισχύει.",
+            ("Ζώνη 1 Κέντρο", "Ζώνη 2 Προάστια", "Ζώνη 3 Επαρχία"),
+        ),
+        (
+            "en",
+            "Warranty on iPhone 15 is two years.",
+            ("iPhone 15 Pro", "iPhone 16 Pro", "iPhone 17 Pro"),
+        ),
+        (
+            "de",
+            "Der Tarif 2025 gilt für Privatkunden.",
+            ("Tarif 2025 Privatkunden", "Tarif 2026 Geschäftskunden"),
+        ),
+    ],
+)
+def test_an_entity_series_with_a_title_is_no_section_numbering(language, text, paths):
+    """Plan 1 Basic, Zone 2 Suburbs: a numbered tier or product, not the document's parts."""
+    rows = [(text, "Shop > Intro", "d")] + [
+        (f"Passage {i}.", f"Shop > {path}", "d") for i, path in enumerate(paths)
+    ]
+    assert references(language, rows) == []

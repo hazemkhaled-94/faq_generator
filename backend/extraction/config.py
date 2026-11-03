@@ -67,7 +67,7 @@ class Settings:
         digest_model: The model that condenses one, or None to use the same
             one that reads it.
         duplicate_cosine: How alike two statements may be before the second
-            is refused. 0 runs no dedup gate and writes no vectors.
+            is refused. 0 runs no dedup gate; the vectors are written all the same.
         embedding_model: The model the vectors come from.
         embedding_max_tokens: How much of a statement it reads.
     """
@@ -89,8 +89,12 @@ class Settings:
 
     @property
     def embeds(self) -> bool:
-        """Whether a run embeds what it stores."""
-        return self.duplicate_cosine > 0
+        """Whether a run embeds what it stores: whenever an embedding model is named.
+
+        The dedup gate refuses on `duplicate_cosine` alone; at 0 it refuses
+        nothing and the vectors are still written.
+        """
+        return bool(self.embedding_model)
 
     @property
     def digests(self) -> tuple[str, ...]:

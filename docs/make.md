@@ -34,7 +34,7 @@ container may call only Ollama: `doctor` fails when `OLLAMA_CONTAINER_URL` or
 | Target | Does |
 |---|---|
 | `make all` | Bring the stack up, wait for Dagster to list the corpus job, and launch it. The container workers drain every stage but the topic fit, which Fit all on the Topics page asks for |
-| `make corpus` | Drain every stage on the host in order, stopping at the first drain that exits non-zero (3 a failed row, 75 a drain that stopped itself). Waits for `parse-worker` and `chunk-worker` to empty their queues, and refuses beside `extract-worker`, `topic-worker`, `question-worker` and `assess-worker`: stop those first |
+| `make corpus` | Drain every stage on the host in order (the dedup replay runs after the digests, so a deletion through the API or the pages is replayed), stopping at the first drain that exits non-zero (3 a failed row, 75 a drain that stopped itself). Waits for `parse-worker` and `chunk-worker` to empty their queues, and refuses beside `extract-worker`, `topic-worker`, `question-worker` and `assess-worker`: stop those first |
 | `make corpus-hosted` | `make corpus` on the host, detached and supervised. Needs `HOST_RUNNER=1`. See [Production host](operations.md#production-host) |
 | `make corpus-preflight` | What a hosted run proves before it starts: `HOST_RUNNER=1`, no model worker or Dagster up, the split, the database password and the Hugging Face cache |
 | `make corpus-database` | Print the database a corpus run acts on: `APP_DB_NAME` given or exported, else the files' |
@@ -224,7 +224,7 @@ These targets re-derive stored results without the expensive part:
 | `make questions-reverify` | Put every stored question through the gates that need no model |
 | `make questions-rescore` | Rewrite stored scopes and difficulty from what each question cites now. Run it after an `extract-dedup` that removes fold citations, before `questions-reverify`, and after a topic refit, following `questions-reverify`. Not after a re-extraction or deletion, where it would hide `source_changed` |
 | `make extract-recap` | Re-apply the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out to, never below a passage's own sentences and list items |
-| `make extract-dedup` | Re-decide every `duplicate` refusal under today's rule, remove the citations a refusal added, and re-judge and re-cap the passages of refusals given back. No model call |
+| `make extract-dedup` | Re-decide every `duplicate` refusal under today's rule (`ORPHANED=1`: only those whose twin is gone, which is how `make corpus` runs it), remove the citations a refusal added, and re-judge and re-cap the passages of refusals given back. No model call |
 | `make extract-embed` | Write vectors onto stored passages, facts and questions (a restore leaves them without). Does not apply the dedup gate |
 | `make extract-digests` | Give a summary and an outline to passages that finished without them (the digest model failed or refused) or hold none above `EXTRACTION_DIGEST_MIN_CHARS`. One digest-model call per passage. `make corpus` runs it after `extract` |
 | `make extract-bridge` | Read each topic's passage groups for claims spanning passages. Asks the model first. Refuses while an accepted question cites a bridge it would replace: `FORCE=1` replaces them anyway. `MISSING=1` reads only topics with no bridge and deletes nothing (how `make corpus` runs it) |

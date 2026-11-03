@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from itertools import pairwise, takewhile
@@ -13,6 +13,7 @@ from spacy.pipeline import Lemmatizer
 from spacy.tokens import Doc, Span, Token
 
 from nlp.language import URL
+from nlp.markers import BULLET, ENUMERATION
 from nlp.models import Claim, Sentence
 from nlp.pipelines import pipeline
 from settings import optional
@@ -1090,27 +1091,36 @@ def figures(text: str, language: str | None = None) -> list[float]:
     return found + [float(one) for one in fractions]
 
 
-def _ordinals_past_twelve(language: str) -> dict[str, str]:
-    """The ordinals from thirteenth on, each as the digits it names, composed from the cardinals.
-
-    English puts `th` after the cardinal - `thirteenth`, `hundredth` - and
-    `ieth` for `twentieth`. German puts `t` after a cardinal under twenty and
-    `st` after any other, in every ending an ordinal takes. English compounds
-    (`twenty-first`) are tokens of their own words and are not read.
-    """
-    spelled = {
-        word: value for word, value in CARDINALS[language].items() if value >= 13
-    }
-    if language == "en":
-        return {
-            (word[:-1] + "ieth" if word.endswith("y") else word + "th"): str(value)
-            for word, value in spelled.items()
-            if "-" not in word
-        }
-    return {
-        f"{word}{'t' if value < 20 else 'st'}e{ending}": str(value)
-        for word, value in spelled.items()
+#: How a language composes the ordinals from thirteenth on out of a cardinal and
+#: its value, by ISO 639-1 code: every form a written one takes. English puts
+#: `th` after the cardinal - `thirteenth`, `hundredth` - and `ieth` for
+#: `twentieth`; its compounds (`twenty-first`) are tokens of their own words and
+#: are not read. German puts `t` after a cardinal under twenty and `st` after
+#: any other, in every ending an ordinal takes. A language with no row composes
+#: none: a newly configured one supplies its rule here.
+_ORDINAL_FORMS: dict[str, Callable[[str, int], tuple[str, ...]]] = {
+    "de": lambda word, value: tuple(
+        f"{word}{'t' if value < 20 else 'st'}e{ending}"
         for ending in ("", "n", "r", "s", "m")
+    ),
+    "en": lambda word, value: (
+        ()
+        if "-" in word
+        else (word[:-1] + "ieth" if word.endswith("y") else word + "th",)
+    ),
+}
+
+
+def _ordinals_past_twelve(language: str) -> dict[str, str]:
+    """The ordinals from thirteenth on, each as the digits it names, composed from the cardinals."""
+    forms = _ORDINAL_FORMS.get(language)
+    if forms is None:
+        return {}
+    return {
+        form: str(value)
+        for word, value in CARDINALS[language].items()
+        if value >= 13
+        for form in forms(word, value)
     }
 
 
@@ -1504,6 +1514,23 @@ _OWN_SUBJECTS = _SUBJECTS | {"expl", "ep"}
 _CONJUNCT = frozenset({"conj", "cj"})
 
 
+#: The gender the placeholder pronoun that anticipates a clause carries, by
+#: ISO 639-1 code: German `es` is neuter. None where the language's pipeline
+#: marks none on it, English `it`. A language with no row has no placeholder
+#: read here: a newly configured one supplies the gender of its own, French
+#: `il` being masculine.
+_PLACEHOLDER_GENDER: dict[str, str | None] = {"de": "Neut", "en": None}
+
+
+#: The conjunctions that open the clause a placeholder stands for, as lemmas by
+#: ISO 639-1 code: German `dass` and `ob`, against `wenn`, which opens a
+#: condition. A language with no row accepts only an infinitive there.
+_COMPLEMENTIZERS: dict[str, frozenset[str]] = {
+    "de": frozenset({"dass", "ob"}),
+    "en": frozenset(),
+}
+
+
 def _fixed_expletive(token) -> bool:
     """Whether a token opens one of its language's fixed expletive runs."""
     runs = _EXPLETIVE_RUNS.get(token.doc.lang_, ())
@@ -1521,16 +1548,45 @@ def _clausal_correlate(token) -> bool:
     complement clause that its head, or the verb chain under it, governs
     later. Read off the structure, so no word list is involved.
 
-    Only a subject, and only before a complement: an object pronoun before a
-    purpose clause, "The bank asks it to confirm the transfer" or "Der Kunde
-    muss es zurückgeben, um eine Erstattung zu erhalten", still points at
-    something the statement never named.
+    A subject or, where the clause hangs on the pronoun itself, an object
+    ("Er hat es versäumt, die Unterlagen einzureichen"). An object pronoun
+    before a purpose clause, "The bank asks it to confirm the transfer" or
+    "Der Kunde muss es zurückgeben, um eine Erstattung zu erhalten", still
+    points at something the statement never named.
     """
-    if token.dep_ not in _SUBJECTS and token.dep_ not in _EXPLETIVE:
+    language = token.doc.lang_
+    if language not in _PLACEHOLDER_GENDER:
         return False
-    if "Neut" not in token.morph.get("Gender") and token.doc.lang_ != "en":
+    if (gender := _PLACEHOLDER_GENDER[language]) and gender not in token.morph.get(
+        "Gender"
+    ):
         return False
     if "Sing" not in token.morph.get("Number"):
+        return False
+    # A clause hung on the pronoun itself, as a German parse hangs "Es ist
+    # verboten, die PIN zu notieren" and "Er hat es versäumt, ... einzureichen",
+    # subject or object: an infinitive, or a clause a complementizer opens.
+    # The clause's own words decide, not what is nested in it: a condition,
+    # `Es ist kostenlos, wenn ...`, hangs there too and is not what the pronoun
+    # stands for, whatever dass clause it holds.
+    if any(
+        child.i > token.i
+        and child.dep_ in {"oc", "ccomp", "xcomp", "re", "csubj"}
+        and (
+            (
+                "Inf" in child.morph.get("VerbForm", [])
+                and not any(c.dep_ in _SUBORDINATOR for c in child.children)
+            )
+            or any(
+                c.dep_ in _SUBORDINATOR
+                and c.lemma_.casefold() in _COMPLEMENTIZERS.get(language, ())
+                for c in child.children
+            )
+        )
+        for child in token.children
+    ):
+        return True
+    if token.dep_ not in _SUBJECTS and token.dep_ not in _EXPLETIVE:
         return False
     chain, frontier = [token.head], [token.head]
     while frontier:
@@ -1552,6 +1608,55 @@ def _clausal_correlate(token) -> bool:
     )
 
 
+#: The word that names the rest of a set in each language, as a lemma: "the
+#: others", "die anderen". Nominalised, it is a subject with no noun of its own
+#: that stands for what an earlier sentence listed. A newly configured language
+#: supplies its word; a language with no row reads none.
+_OTHER: dict[str, frozenset[str]] = {
+    "de": frozenset({"anderer"}),
+    "en": frozenset({"other"}),
+}
+
+
+def _quantifies(token) -> bool:
+    """Whether a token is the whole subject a statement opens with, standing for a set named before.
+
+    "Both cost 5 EUR a month", "The others are free of charge": nothing but a
+    determiner comes before it and its verb comes after it, past an auxiliary
+    or an adverb at most, so it has no noun of its own. A pronoun counts that is neither personal, interrogative
+    nor relative and not singular, nor a neuter that carries no number
+    (`Nichts`), so a person-generic "Anyone may open an account" or "Jeder kann
+    ..." names nobody earlier. `who` in "Customers who hold a card" is a
+    question word to the tagger. Read off the
+    morphology, but for the word for the other, which a tagger reads as any of
+    three parts of speech.
+    """
+    if token.dep_ not in _SUBJECTS:
+        return False
+    # Its verb follows, past the auxiliaries, adverbs and negation an English
+    # parse puts between a subject and the verb it heads: "Both can cost".
+    if any(
+        one.pos_ not in {"AUX", "PART", "ADV"}
+        for one in token.doc[token.i + 1 : token.head.i]
+    ) or (token.head.i < token.i):
+        return False
+    if any(not (one.is_punct or one.pos_ == "DET") for one in token.doc[: token.i]):
+        return False
+    if token.lemma_.casefold() in _OTHER.get(token.doc.lang_, ()):
+        return True
+    kinds = set(token.morph.get("PronType"))
+    return (
+        token.pos_ == "PRON"
+        # A pronoun's lemma is lower case; a noun the tagger took for one, as
+        # `Zeitschinden` is, keeps its capital.
+        and token.lemma_.islower()
+        and not _interrogative(token)
+        and not kinds & {"Prs", "Rel", "Dem"}
+        and "Sing" not in token.morph.get("Number")
+        and "Neut" not in token.morph.get("Gender")
+    )
+
+
 def _refers(token, passages: Sequence[str] = ()) -> bool:
     """Reports whether a pronoun points at something outside the statement.
 
@@ -1562,6 +1667,8 @@ def _refers(token, passages: Sequence[str] = ()) -> bool:
     further on, "It is easy to close the account". Nor does a polite form,
     read against the passages the statement was drawn from.
     """
+    if _quantifies(token):
+        return True
     if token.pos_ != "PRON" or token.dep_ in _EXPLETIVE:
         return False
     if "Yes" in token.morph.get("Reflex"):
@@ -1584,24 +1691,36 @@ _POLITE: dict[str, frozenset[str]] = {
 }
 
 
+#: The grammatical number a polite form takes with its verb, by ISO 639-1 code:
+#: German `Sie können` is plural however many it addresses, so `Sie gilt` is the
+#: feminine singular third person. Empty for a language with no polite form,
+#: English. A newly configured language with one supplies its number.
+_POLITE_NUMBER: dict[str, str] = {"de": "Plur", "en": ""}
+
+
 def _polite(token, passages: Sequence[str] = ()) -> bool:
     """Whether a pronoun is the polite form of address, which names the reader.
 
     The capitalised form is the signal, so one inside a statement is polite.
     One opening a statement is capitalised either way, and `Sie werden
     geliefert` cannot be told from the third person plural, so it is polite
-    only where the statement also holds a capitalised polite form after it,
+    only where the pronoun or its verb carries the number the polite form
+    takes, and the statement also holds a capitalised polite form after it,
     `Sie können Ihre Karte sperren`, or one of the passages it was drawn from
     holds one inside a sentence, `Bitte geben Sie Ihre IBAN an`, and opens no
     sentence on the form after one whose subject is plural, which the form
     may be the third person of: "Händler werben Kunden. Sie erhalten ...".
-    Otherwise it stays a reference.
+    A singular, `Sie gilt drei Jahre`, is the feminine third person. Otherwise
+    it stays a reference.
     """
     forms = _POLITE.get(token.doc.lang_, frozenset())
     if token.text not in forms:
         return False
     if any(not one.is_punct for one in token.doc[: token.i]):
         return True
+    numbers = {*token.morph.get("Number"), *token.head.morph.get("Number")}
+    if numbers and _POLITE_NUMBER[token.doc.lang_] not in numbers:
+        return False
     if any(one.text in forms for one in token.doc[token.i + 1 :]):
         return True
     return any(
@@ -1612,7 +1731,14 @@ def _polite(token, passages: Sequence[str] = ()) -> bool:
 
 
 def _addresses(document: Doc, forms: frozenset[str], form: str) -> bool:
-    """Whether a passage addresses its reader, and only its reader, as `form`."""
+    """Whether a passage addresses its reader, and only its reader, as `form`.
+
+    Where a sentence opening on `form` follows one whose own subject, the
+    subject of its root clause, is plural, `form` may be the third person
+    plural: "Händler werben Kunden. Sie erhalten ...". A sentence that holds
+    a polite form itself says its subject is the reader, and a plural noun
+    inside one of its clauses says nothing.
+    """
     inside = any(
         one.text in forms
         and any(not before.is_punct for before in document[one.sent.start : one.i])
@@ -1620,9 +1746,11 @@ def _addresses(document: Doc, forms: frozenset[str], form: str) -> bool:
     )
     rival = any(
         next((one.text for one in after if not one.is_punct), None) == form
+        and not any(one.text in forms for one in before)
         and any(
             one.dep_ in _SUBJECTS
             and one.pos_ in _NOMINAL
+            and one.head.i == before.root.i
             and "Plur" in one.morph.get("Number", [])
             for one in before
         )
@@ -2019,33 +2147,19 @@ def _resolved(token) -> bool:
     return any(_agrees(token, noun) for noun in earlier)
 
 
-#: Nouns naming the source document, as lemma or as written.
-_SOURCE = frozenset(
-    {
-        "syllabus",
-        "section",
-        "chapter",
-        "document",
-        "lehrplan",
-        "lehrplans",
-        "abschnitt",
-        "kapitel",
-        "dokument",
-    }
-)
-
-
 def _sourced(token, named: frozenset[str] = frozenset()) -> bool:
     """Whether a determiner's head or next word names the source document.
 
     `named` is what the document's own title calls it, `_titled`: a noun that
     is the last part of a longer one it names, `Bedingungen` of
-    `Geschäftsbedingungen`, names it as well.
+    `Geschäftsbedingungen`, names it as well. No noun is exempt by itself:
+    `This section` points like any other noun, since a reader cannot tell
+    which section.
     """
     nouns = [token.head] + ([token.nbor()] if token.i + 1 < len(token.doc) else [])
     for noun in nouns:
         forms = {noun.lemma_.casefold(), noun.text.casefold()}
-        if forms & (_SOURCE | named) or any(
+        if forms & named or any(
             len(one) >= len(form) + _COMPOUND_PART and one.endswith(form)
             for form in forms
             if form.isalpha()
@@ -2136,14 +2250,33 @@ def _titled(title: str | None, language: str | None) -> frozenset[str]:
 #: code, as lemma or as written, alone or joined to the word before it (`oben
 #: genannt`): `such a card`, `eine solche Karte`, `the aforementioned card`.
 #: Before their noun only, so `Withdrawals above EUR 500` points nowhere. Not
-#: `_ANAPHORIC`, which the question side reads as a measurement that may
-#: over-read: `former customers` names no earlier mention. Nor a bare
-#: `genannt`, for the reason given there.
+#: `_ANAPHORIC` as a whole, which the question side reads as a measurement that
+#: may over-read: `former customers` names no earlier mention, so `former`
+#: points only as the head of its phrase, `The former is free`, see `_opens`.
+#: `latter` is no modifier of anything else. Nor a bare `genannt`, for the
+#: reason given there.
 _ANAPHORIC_MODIFIERS: dict[str, frozenset[str]] = {
     "de": frozenset(
-        {"solcher", "vorgenannt", "obengenannt", "vorstehend", "obig", "besagt"}
+        {
+            "solcher",
+            "vorgenannt",
+            "obengenannt",
+            "vorstehend",
+            "obig",
+            "besagt",
+            "letzterer",
+        }
     ),
-    "en": frozenset({"such", "aforementioned", "abovementioned", "above", "said"}),
+    "en": frozenset(
+        {
+            "such",
+            "aforementioned",
+            "abovementioned",
+            "above",
+            "said",
+            "latter",
+        }
+    ),
 }
 
 #: Modifiers that make a plural noun a list the passage gives after the
@@ -2184,6 +2317,14 @@ def _opens(token, named: frozenset[str] = frozenset()) -> bool:
         and "Dem" in token.morph.get("PronType", [])
         and not _sourced(token, named)
     ) or token.tag_ == "PROAV":
+        return True
+    # The word that points back, `The latter costs 5 EUR`, as the head of the
+    # opening noun phrase: no noun after it for it to modify.
+    if (
+        token.pos_ in _ANAPHORIC_POS | _NOMINAL
+        and token.lemma_.casefold() in _ANAPHORIC.get(language, ())
+        and not (token.head.pos_ in _NOMINAL and token.head.i > token.i)
+    ):
         return True
     # A preposition, or a word heading its object, modifies nothing, whatever
     # the tagger made its own head: `Above EUR 500`, `Following the update`.
@@ -2256,37 +2397,29 @@ def _references(
     )
 
 
-#: Lemmas that point at an earlier mention without any morphology saying so.
-#: Every tagset reads these as ordinary adjectives - `aforementioned` and
-#: `latter` are `ADJ/JJ`, `besagt` and `vorgenannt` likewise - so unlike the
-#: two readings below them there is no feature to test and a list is the only
-#: thing available. Kept short and kept here rather than in a setting: it can
-#: only ever ADD a pointer for the verdict to rule on, so a language whose
-#: triggers are missing loses recall on one measurement and nothing else.
+#: Lemmas that point at an earlier mention without any morphology saying so,
+#: by ISO 639-1 code. Every tagset reads these as ordinary adjectives -
+#: `aforementioned` and `latter` are `ADJ/JJ`, `besagt` and `vorgenannt`
+#: likewise - so unlike the two readings below them there is no feature to
+#: test and a list is the only thing available. Read by the question side,
+#: `pointing`, and by the fact check, `_opens`. Kept short and kept here
+#: rather than in a setting: it can only ever ADD a pointer for the verdict to
+#: rule on, so a language whose triggers are missing loses recall on one
+#: measurement and nothing else.
 #:
 #: Bare `genannt` was here and is deliberately gone. It points at an earlier
 #: mention in `die genannten Anforderungen` and at nothing in `die im
 #: Korrekturverzeichnis genannten Abschnitte`, which says inside the question
 #: where to look. The compounds that carry the pointing in the word itself stay.
 #:
-#: ponytail: German and English only, here and in `_ASKING`, so a third
-#: language loses recall on this measurement. Upgrade: a list per language,
-#: as a setting.
-_ANAPHORIC = frozenset(
-    {
-        "aforementioned",
-        "forementioned",
-        "former",
-        "latter",
-        "said",
-        "besagt",
-        "obig",
-        "obengenannt",
-        "vorgenannt",
-        "letzterer",
-        "ersterer",
-    }
-)
+#: A newly configured language supplies the words it has for the same
+#: things: "the former", "the latter", "the aforesaid".
+_ANAPHORIC: dict[str, frozenset[str]] = {
+    "de": frozenset(
+        {"besagt", "obig", "obengenannt", "vorgenannt", "letzterer", "ersterer"}
+    ),
+    "en": frozenset({"aforementioned", "forementioned", "former", "latter", "said"}),
+}
 
 #: Words a tagger reads as demonstrative that are ASKING rather than
 #: pointing. German `wessen` - "whose" - comes back PDS with
@@ -2372,7 +2505,8 @@ def pointing(text: str, language: str | None) -> tuple[str, ...]:
         if _interrogative(token) or token.lemma_.casefold() in _ASKING:
             continue
         if "Dem" in token.morph.get("PronType", []) or (
-            token.pos_ in _ANAPHORIC_POS and token.lemma_.casefold() in _ANAPHORIC
+            token.pos_ in _ANAPHORIC_POS
+            and token.lemma_.casefold() in _ANAPHORIC.get(token.doc.lang_, ())
         ):
             found.add(token.text.casefold())
         elif token.pos_ in _NOMINAL and (counted := _counted(token)):
@@ -2398,8 +2532,14 @@ def phrases(text: str, language: str | None) -> tuple[str, ...]:
     question opens with the word asking rather than with its subject.
     """
     document = _read(text, language)
+    try:
+        chunks = list(document.noun_chunks)
+    except NotImplementedError:
+        # spaCy has no syntax iterator for the language, and the gates reading
+        # phrases abstain.
+        return ()
     kept = []
-    for chunk in document.noun_chunks:
+    for chunk in chunks:
         content_words = [token for token in chunk if token.pos_ in _CONTENT]
         if not content_words:
             continue
@@ -2563,7 +2703,7 @@ _CLOSING_ABBREVIATIONS: dict[str, frozenset[str]] = {
 
 #: An item's number alone at the start of its line: "2.", "b)", "(iv)", or
 #: one behind a bullet.
-_ENUMERATOR = re.compile(r"[-–•*]?\s*\(?(?:\d{1,3}|[a-zA-Z]|[ivxIVX]{1,4})[.)]")
+_ENUMERATOR = re.compile(rf"(?:{BULLET}\s*)?{ENUMERATION}")
 
 
 def _boundaries(document: Doc) -> list[int]:

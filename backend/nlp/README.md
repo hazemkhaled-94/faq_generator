@@ -99,6 +99,16 @@ gate must be, and `QA_ANSWER_CONFIDENCE` does the same for the extractive
 reader. [`embedding.py`](embedding.py) reads the checkpoint's own `1_Pooling`
 config instead of assuming mean pooling.
 
+### List markers
+
+[`markers.py`](markers.py) is the one pattern for what opens a line of a list:
+a dash or a bullet, or a number, a letter or a roman numeral closed by a full
+stop or a bracket (`3.`, `a)`, `(ii)`, `α)`). Every reader of a list builds on
+it: the sentence splitter, the quote check in `text.py`, and extraction's
+`PassageToExtract.items` and cited list lines. It holds no word of any
+language, so a newly configured language supplies nothing. It sits apart so
+that the api, which counts a passage's items, loads no pipeline.
+
 ### Mending a broken word
 
 [`text.py`](text.py) rejoins a word a converter broke across two lines at a
@@ -129,8 +139,8 @@ pipeline named `_sm` or without word vectors loads with a warning.
 A language missing from a list means that gate silently never fires for it.
 [`test_language_tables.py`](../../tests/static/test_language_tables.py) holds
 the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
-`_ATTRIBUTIONS`, `_AGENTS`, `_HOW_MANY`, `_ANAPHORIC`, `_ASKING` and
-`_SOURCE`, which hold every language's words in one set or pattern.
+`_ATTRIBUTIONS`, `_AGENTS`, `_HOW_MANY` and `_ASKING`, which hold every
+language's words in one set or pattern.
 
 | List | Where | What goes in it | Example |
 |---|---|---|---|
@@ -147,9 +157,9 @@ the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
 | `_RELATES` | same | Lemmas by which a question claims a relation. A compound question that says one is refused | `unterscheiden`, `differ` |
 | `_POLARITY` | same | Words answering a yes-or-no question by polarity | `nein`, `not` |
 | `_PURPOSE` | same | How the material says why: what a `reason` slot is dealt | `damit`, `so that` |
-| `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said | `besagt`, `aforementioned` |
+| `_ANAPHORIC` | [`analysis.py`](analysis.py) | Adjectives pointing back at something already said, read by the question side and, as the head of the phrase a fact opens with (`The latter costs 5 EUR`), by the fact check | `besagt`, `aforementioned`, `latter` |
+| `_OTHER` | same | The word for the rest of a set, as a lemma. As a subject with no noun of its own opening a statement (`The others are free`) it stands for a set named before. A language with no row reads none | `anderer`, `other` |
 | `_ASKING` | same | Words a tagger reads as demonstrative that ask rather than point | `wessen`, `whose` |
-| `_SOURCE` | same | Nouns naming the source document, so a demonstrative before one does not point. Title nouns are read from the parse, not listed | `Lehrplan`, `syllabus` |
 | `_SPELLING` | same | How the language writes a cardinal: nought to nineteen, the tens, hundred, thousand, and how they join. `CARDINALS` is built from it | `fünf`, `twenty` |
 | `CARDINALS` | same | Every cardinal `_SPELLING` spells, each as its value. The fact dedup gate and the question gates read it | `zwei`, `one` |
 | `DECIMAL_MARK` | same | The decimal mark. One such mark before three digits is a fraction, not thousands | `,`, `.` |
@@ -160,8 +170,11 @@ the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
 | `REFERENCE_LABELS` | same | Words that label a reference by a number: no amount follows (`Section 3 100 customers`) | `Abschnitt`, `Section` |
 | `_NUMBER_WORDS` | same | `CARDINALS` and the ordinals, each as its digits. The dedup gate compares numbers by it | `zwei`, `second` |
 | `_ORDINALS` | same | The ordinals `_NUMBER_WORDS` holds. An English hyphenated ordinal (`twenty-first`) is read as its last word | `zweite`, `second` |
+| `_ORDINAL_FORMS` | same | How the ordinals from thirteenth on are composed from a cardinal and its value, each form a written one takes. A language with no row composes none | `dreizehnte`, `thirteenth` |
 | `ORDINAL_SUFFIX` | same | What follows the digits of an ordinal figure: `3rd`, a German `3.` | `st`, `nd`, `rd`, `th`, `.` |
 | `_CORRELATES` | same | Pronouns standing for an object or clause, not a noun | `es` |
+| `_PLACEHOLDER_GENDER` | same | The gender the placeholder pronoun before a clause carries, `None` where the pipeline marks none on it. A language with no row has no placeholder read: French `il` is masculine | `Neut` |
+| `_COMPLEMENTIZERS` | same | The conjunctions, as lemmas, that open the clause a placeholder pronoun stands for, against the one that opens a condition. A language with no row accepts only an infinitive | `dass`, `ob` |
 | `_EXPLETIVE_RUNS` | same | Word runs whose pronoun is part of a fixed phrase and stands for nothing | `es sei denn` |
 | `_GENITIVE_DEMONSTRATIVES` | same | Demonstratives standing as the genitive of a noun (`die Bank und deren Lieferanten`). A language with no row reads none as resolved | `dessen`, `deren` |
 | `_CLAUSE_DEMONSTRATIVES` | same | Demonstratives that carry a clause or participle of their own (`except those related to the price cap`) | `those` |
@@ -170,6 +183,7 @@ the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
 | `_CATAPHORIC_MODIFIERS` | same | Modifiers making a plural noun a list given after the statement. On a singular noun or one a figure counts, they mean the next one (`the following 12 months`) | `folgend`, `following` |
 | `_ADJECTIVE_ENDINGS` | same | Endings an adjective takes, so a modifier above still matches (`Besagter Kunde`) | `-er`, `-en` |
 | `_POLITE` | same | Forms of polite address, read with their capital, since the tagger calls `Sie` third person plural | `Sie`, `Ihre` |
+| `_POLITE_NUMBER` | same | The number a polite form takes with its verb: an opening `Sie` with a singular verb is the feminine third person. Empty where the language has no polite form | `Plur` |
 | `_SINGULAR_THEY` | same | Pronouns standing for one person as well as several | `their` |
 | `_EXCEPTIVE` | same | Word runs opening an exception or condition with no subordinator in the parse. List the language's full closed class of proviso conjunctions | `es sei denn`, `provided` |
 | `_DISJUNCTIVE` | same | Coordinators that offer alternatives, with the first half of a correlative pair. A conjunct one joins is no claim | `oder`, `entweder`, `or`, `either` |
@@ -194,9 +208,10 @@ the tables keyed by language code to `NLP_MODELS`. It cannot see `_DOCUMENTS`,
 No list is matched as a substring: `Risikobericht` is a thing a corpus is
 about, and `Bericht` is a thing a corpus is. Each list is matched as follows.
 
-- By lemma: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC`, `_ASKING`.
-- By lemma or the word as written: `_ATTRIBUTIONS`, `_SOURCE` and the two
-  modifier tables (also with an `_ADJECTIVE_ENDINGS` ending).
+- By lemma: `_DIVISIONS`, `_NORMATIVE`, `_DOCUMENTS`, `_ANAPHORIC`, `_OTHER`,
+  `_ASKING`.
+- By lemma or the word as written: `_ATTRIBUTIONS` and the two modifier
+  tables (also with an `_ADJECTIVE_ENDINGS` ending).
 - By the word as written: `_AGENTS`, `_NUMBER_WORDS`, `_CORRELATES`,
   `_EXCEPTIVE`, `_POLITE`, `_GENITIVE_DEMONSTRATIVES`,
   `_CLAUSE_DEMONSTRATIVES` and the two abbreviation tables.
@@ -230,7 +245,7 @@ A language that fails one of these needs code.
 
 | | Needed by | Without it |
 |---|---|---|
-| `noun_chunks` | `phrases()`, and so `subject`, `enumerates`, `compares` | Raises. Russian, Chinese and Ukrainian have no syntax iterator, and Japanese needs SudachiPy |
+| `noun_chunks` | `phrases()`, and so `subject`, `enumerates`, `compares` | Raises `NotImplementedError` for a language without `spacy/lang/<code>/syntax_iterators.py`: Polish, Czech, Romanian, Croatian, Slovenian, Lithuanian, Korean, Russian, Ukrainian and Chinese have none (Korean untested: its blank pipeline needs mecab), and `phrases()` then returns nothing so the gates abstain. Japanese needs SudachiPy |
 | An NER component with `PER` or `PERSON` | `names_parties`, the credits-page reading | Density is always 0, so the reading never fires and nothing says so |
 | `like_num` on spelled-out numerals | `claim().units` | Uneven: `de_core_news_md` tags `zwei` `like_num` false where `en_core_web_md` gives `two` both |
 

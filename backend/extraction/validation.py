@@ -37,6 +37,7 @@ from nlp.analysis import (
     vocabulary,
     written_in,
 )
+from nlp.markers import LIST_MARKER
 from nlp.models import Claim, Sentence
 from nlp.pipelines import name as pipeline_name
 from nlp.pipelines import pipeline
@@ -50,8 +51,9 @@ from settings import decimal
 _JOIN = "\n"
 
 
-#: A line that opens as a list item: a bullet, or a number and its mark.
-_LIST_LINE = re.compile(r"^\s*(?:[-\u2022*]|\d+[.)])\s", re.MULTILINE)
+#: A line that opens as a list item: a bullet, or a number, a letter or a
+#: roman numeral and its mark.
+_LIST_LINE = re.compile(rf"^\s*{LIST_MARKER}\s", re.MULTILINE)
 
 
 def _lines_of(sentence: Sentence) -> list[Sentence]:
@@ -111,6 +113,17 @@ NUMBER = re.compile(r"\d+(?:\.\d+)*")
 #: A token holding a section number, with any subsection the tokenizer glued
 #: on after it ('7(2'): the section it names is the number before the bracket.
 _SECTION_TOKEN = re.compile(rf"({NUMBER.pattern})(?:\(.*)?")
+
+
+def label_of(segment: str) -> tuple[str, str] | None:
+    """The label word and the number a heading segment is, or None.
+
+    A word and a number alone, the word folded to lower case.
+    """
+    found = HEADING_LABEL.match(segment.strip())
+    if found is None:
+        return None
+    return found.group(1).casefold(), found.group(2)
 
 
 def _section(text: str) -> str | None:
@@ -397,10 +410,28 @@ def numbered(tokens: Sequence, at: int) -> list[str]:
     return found
 
 
+def _is_name(text: str, language: str | None) -> bool:
+    """Whether a word is a document's name in capitals: two letters or more, none lower case.
+
+    A currency code is written so too and names no document.
+    """
+    return (
+        text.isupper()
+        and sum(one.isalpha() for one in text) >= 2
+        and not is_currency(text, language)
+    )
+
+
 def _counts(tokens: Sequence, at: int) -> bool:
-    """Whether the number at `at` counts something after it: "3 other rules"."""
+    """Whether the number at `at` counts something after it: "3 other rules".
+
+    Not a document's name in capitals after it, "Ziffer 4 und 5 AGB": the
+    number is the one the label names.
+    """
     number = tokens[at]
     after = tokens[at + 1] if at + 1 < len(tokens) else None
+    if after is not None and _is_name(after.text, number.doc.lang_):
+        return False
     return (after is not None and after.pos_ in _COUNTED) or (
         number.head.i > number.i and number.head.pos_ in _COUNTED
     )
@@ -425,10 +456,8 @@ def _located(judged: Judged) -> Failure | None:
     """Refuses a bridge naming the numbered heading one of its passages sits under."""
     tokens = list(pipeline(judged.language)(judged.statement))
     for label in judged.labels:
-        match = HEADING_LABEL.match(label.strip())
-        if match and _names(
-            tokens, match.group(1).casefold(), match.group(2), judged.language
-        ):
+        found = label_of(label)
+        if found and _names(tokens, found[0], found[1], judged.language):
             return (
                 Rejection.NOT_BRIDGING,
                 (
@@ -591,7 +620,7 @@ class FactChecker:
                 segment
                 for passage, _ in rested
                 for segment in headings_of(passage.section_path)
-                if HEADING_LABEL.match(segment.strip())
+                if label_of(segment)
             ),
             language=anchor.language,
             claims=2 if candidate.relation in _TWO_SIDED else 1,

@@ -788,7 +788,7 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
 | C-366 | A split across Azure resources names an address per role in `LLM_BASE_URLS`; every role left out is on `LLM_BASE_URL`, and credentials are one set per provider | One credential per resource |
 | C-106 | Ingest only documents the corpus owner authored or controls: document text reaches every prompt as it is, so a planted instruction is read as one | Fencing the material (tried in v0.5.2 and withdrawn: fenced extraction narrowed 10 of 60 facts against 7 unfenced, over the bar of 9) |
 | C-114 | Load bulk corpora with `make ingest DIR=`. The Upload page refuses more than 20 files or 200 MB, but Streamlit uploads every picked file into its 1 GB process first, so a large selection can kill it | A check before the upload, which Streamlit cannot make |
-| C-054 | After a deletion through the pages or the API, run `make extract-dedup`: no extraction worker runs on this profile. `make delete` and `make delete-derived` run it themselves | A replay by the host runner |
+| C-054 | After a deletion through the pages or the API, the next `make corpus` or `make corpus-hosted` replays the dedup before the bridge pass. Run `make extract-dedup` at once if the refusals are wanted sooner. `make delete` and `make delete-derived` run it themselves | |
 | C-066 | Export a large corpus with `make questions-export` on the host, never through the pages: the API builds the workbook in its 512 MB (it failed past about 13,000 questions in v0.5.1) | The streaming export, deferred to v0.5.3 |
 | C-029 | Report the difficulty band as retrieval spread, never as hardness, and leave `QUESTIONS_RELEASE_DIFFICULTY` unset | A grading of how hard a question is to answer, not built |
 | C-031 | Leave distant-from-document out of per-category reports: most of its released rows use the document's words | A per-question word-distance reading (deferred) |
@@ -800,7 +800,7 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
 | C-278 | Before ingest, compare the widest table rows with the chunk's token budget (`EMBEDDING_MAX_TOKENS` less the embedder's own tokens): a longer row is cut mid-cell. Ship the fix first if any exceeds it | Keeping a row whole in one passage (deferred) |
 | C-295 | Choose the embedding model before production and change it only through a migration and a full re-embed: editing `backend.env` would mix two models' vectors | A guard that refuses vectors of another model |
 | C-419 | Check any tracked-change export before ingest: only a drawn horizontal strike is read as struck-through | A strike reading for tracked changes (deferred) |
-| C-245 | Leave `EXTRACTION_DUPLICATE_COSINE` at its shipped value: 0 also stops writing passage embeddings | Building the embedder whatever the threshold (deferred) |
+| C-245 | `EXTRACTION_DUPLICATE_COSINE` at 0 turns the duplicate refusal off and the stage still writes passage and fact embeddings (v0.5.3), so no value of it needs leaving | |
 | C-424 | Leave `QA_MODEL` empty, as it ships, until an encoder is calibrated | A calibration of one encoder |
 | C-297 | Build the production images once, record their digests, and rebuild only on purpose: installs are not hash-checked and base images are named by tag | Locked installs, images by digest (deferred) |
 | C-162 | Rolling back `733a3eadef7c`, past v0.4.2, drops every rubric score for good: they are not archived, since a restore would put back rows the narrower CHECK refuses | Archiving them in a form a restore can read |
@@ -1461,8 +1461,9 @@ passage. After a deletion, `make extract-dedup` (run by `make delete` and
 re-capping only the passages of what it gave back. Every deletion ends with a
 line saying how many duplicate refusals lost their twin. The extraction worker
 gives them back when its queue is empty. Where no extraction worker runs, as
-on the production profile, run `make extract-dedup` after a deletion through
-the pages or the API.
+on the production profile, the next `make corpus` or `make corpus-hosted`
+replays it before the bridge pass; run `make extract-dedup` after a deletion
+through the pages or the API to have it at once.
 
 Both steps refuse beside a running `extract-worker`, and `make delete` asks
 before it deletes, so a refusal leaves the document in place. If the replay

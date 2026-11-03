@@ -317,3 +317,68 @@ def test_a_bridge_names_its_section_in_the_language_of_its_passages(
 
     assert bridged.rejection_code == Rejection.NOT_BRIDGING
     assert "(Regel 5)" in (bridged.validation_error or "")
+
+
+@pytest.mark.parametrize(
+    ("language", "statement", "path", "texts"),
+    [
+        (
+            "en",
+            "The Silver plan costs 9 EUR a month, as Plan 2 says.",
+            "Tariffs > Plan 2 Silver",
+            ("The Silver plan costs 9 EUR a month.", "A card is free of charge."),
+        ),
+        (
+            "de",
+            "Ab Pflegegrad 2 gilt ein höherer Satz.",
+            "Satz > Pflegegrad 2 Erhebliche Beeinträchtigung",
+            ("Ein höherer Satz gilt ab Grad zwei.", "Eine Karte ist kostenlos."),
+        ),
+        (
+            "fr",
+            "Le tarif de la zone 2 est plus élevé.",
+            "Tarifs > Zone 2 Banlieue",
+            ("Le tarif de la banlieue est plus élevé.", "Une carte est gratuite."),
+        ),
+        (
+            "el",
+            "Η χρέωση της ζώνης 2 είναι υψηλότερη.",
+            "Χρεώσεις > Ζώνη 2 Προάστια",
+            ("Η χρέωση των προαστίων είναι υψηλότερη.", "Μια κάρτα είναι δωρεάν."),
+        ),
+    ],
+)
+def test_a_bridge_naming_a_numbered_tier_is_not_refused_as_a_location(
+    language, statement, path, texts
+) -> None:
+    """A heading with a title after its number is no label, so naming the tier is content."""
+    under = passage(
+        texts[0], language=language, section_path=path, id=1, doc_sha256="d"
+    )
+    other = passage(
+        texts[1], language=language, section_path="Other > Part", id=2, doc_sha256="d"
+    )
+
+    judged = Checker().bridge(statement, [under, other])
+
+    assert judged.rejection_code != Rejection.NOT_BRIDGING, judged.validation_error
+
+
+@pytest.mark.parametrize(
+    ("language", "statement", "expected"),
+    [
+        ("de", "Ziffer 4 und 5 AGB regeln die Gebühr", True),
+        ("de", "Die Gebühr regeln Ziffer 4 und 5 AGB", True),
+        ("en", "Clause 4 and 5 GTC set the fee", True),
+        ("de", "Ziffer 4 und 3 Karten regeln die Gebühr", False),
+        ("en", "Clause 4 and 3 cards set the fee", False),
+        ("fr", "Voir article 4, 5 CGV pour les frais", True),
+        ("el", "Το άρθρο 4, 5 ΚΠΔ ορίζουν τη χρέωση", True),
+    ],
+)
+def test_a_number_before_a_name_in_capitals_is_a_section_not_a_count(
+    language, statement, expected
+) -> None:
+    """'Ziffer 4 und 5 AGB' names clause 5; '3 Karten' counts cards."""
+    word = {"de": "ziffer", "en": "clause", "fr": "article", "el": "άρθρο"}[language]
+    assert _names(_read(language, statement), word, "5", language) is expected

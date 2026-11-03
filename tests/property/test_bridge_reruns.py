@@ -9,8 +9,11 @@ pass offers a pair a stored bridge already rests on.
 
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import replace
+from unittest.mock import patch
 
+import litellm
 import pytest
 from drivers import DIGEST_SHARE, Catalogue, Model, passage
 from hypothesis import given
@@ -19,6 +22,8 @@ from hypothesis import strategies as st
 from extraction.extractors.bridge import BridgeExtractor
 from extraction.service import bridge
 from extraction.validation import FactChecker
+from llm.client import ModelUnavailable
+from stages.service import SpendCapReached
 
 pytestmark = pytest.mark.nlp
 
@@ -59,9 +64,25 @@ class Store(Catalogue):
     def _in(self, head: int, within) -> bool:
         return within is None or self.topic_of[head] in within
 
-    def clear_bridges(self, within=None) -> int:
+    def clear_bridges(self, within=None, besides=()) -> int:
         """Deletes the bridges headed in scope, as the repository does."""
-        kept = [one for one in self.bridges if not self._in(one[1], within)]
+        kept = [
+            one
+            for one in self.bridges
+            if not self._in(one[1], within) or self.topic_of[one[1]] in besides
+        ]
+        cleared, self.bridges = len(self.bridges) - len(kept), kept
+        return cleared
+
+    def clear_bridges_on(self, pair) -> int:
+        """Deletes the bridges resting on this pair."""
+        kept = [one for one in self.bridges if frozenset(one[0][:2]) != frozenset(pair)]
+        cleared, self.bridges = len(self.bridges) - len(kept), kept
+        return cleared
+
+    def clear_bridges_of(self, topics) -> int:
+        """Deletes the bridges headed in these topics."""
+        kept = [one for one in self.bridges if self.topic_of[one[1]] not in topics]
         cleared, self.bridges = len(self.bridges) - len(kept), kept
         return cleared
 
@@ -128,19 +149,58 @@ def corpora(draw):
     return {f"t{topic}": ones for topic, ones in by_topic.items()}
 
 
-#: A pass: whole, narrowed to one topic, or for the missing.
+#: A pass: whole, narrowed to one topic, for the missing, or whole and stopped
+#: by an unreachable model after some answers.
 PASSES = st.lists(
     st.one_of(
         st.just(("whole", None)),
         st.just(("missing", None)),
+        st.integers(1, 3).map(lambda answered: ("stopped", answered)),
         st.integers(1, 3).map(lambda topic: ("scoped", frozenset({topic}))),
     ),
     max_size=4,
 )
 
 
+def _unreachable() -> ModelUnavailable:
+    """What the client raises when the deployment cannot be reached."""
+    try:
+        raise litellm.exceptions.APIConnectionError(
+            message="connection refused", llm_provider="azure", model="azure/x"
+        )
+    except litellm.exceptions.APIConnectionError as exc:
+        failure = ModelUnavailable(f"APIConnectionError: {exc}")
+        failure.__cause__ = exc
+        return failure
+
+
+class Dies(Model):
+    """Answers some calls and is then out of reach."""
+
+    def __init__(self, answered: int) -> None:
+        super().__init__(ANSWER)
+        self.answered = answered
+
+    def answer(self, **kwargs):
+        """Answers while it has answers left."""
+        if len(self.asked) < self.answered:
+            return super().answer(**kwargs)
+        self.asked.append(kwargs)
+        raise _unreachable()
+
+
 def run(store: Store, how: str, within, wanted: int) -> None:
-    """Runs one bridge pass, whole, narrowed or missing."""
+    """Runs one bridge pass: whole, narrowed, missing, or whole and stopped (`within` answers)."""
+    if how == "stopped":
+        with patch("extraction.service.STOP_AFTER", 1), suppress(SpendCapReached):
+            bridge(
+                store,  # type: ignore[arg-type]
+                BridgeExtractor(Dies(within)),  # type: ignore[arg-type]
+                FactChecker(DIGEST_SHARE),
+                wanted,
+                2,
+            )
+        return
     bridge(
         store,  # type: ignore[arg-type]
         BridgeExtractor(Model(ANSWER)),  # type: ignore[arg-type]
@@ -169,15 +229,6 @@ def test_no_pair_ever_holds_two_bridges(topics, history, wanted) -> None:
         assert len(pairs) == len(set(pairs)), (how, within, store.held)
 
 
-_TWICE = (
-    "QA-extraction-9: a pass for the missing, run twice, can add a bridge the first "
-    "run left out, when a topic's only pair rests on a bridge headed in another "
-    "topic; the first run counts the pair as held, the second finds the topic "
-    "missing one"
-)
-
-
-@pytest.mark.xfail(strict=False, reason=_TWICE)
 @given(
     topics=corpora(),
     history=PASSES,
@@ -226,7 +277,6 @@ def _placed(i: int, topic_names: str | None = None):
     )
 
 
-@pytest.mark.xfail(strict=True, reason=_TWICE)
 def test_a_pass_for_the_missing_run_twice_adds_nothing() -> None:
     """Two topics, one passage of the second naming a section of the first.
 
@@ -241,3 +291,74 @@ def test_a_pass_for_the_missing_run_twice_adds_nothing() -> None:
     run(store, "missing", None, 1)
 
     assert store.held == once
+
+
+@pytest.mark.parametrize("lost", [1, 2, 3])
+def test_a_pass_for_the_missing_after_a_lost_group_equals_a_clean_pass(lost) -> None:
+    """A topic whose own group was lost is offered the very link it was, partner or not.
+
+    The k-th call fails once, then a pass for the missing runs with the model
+    answering: the store is what one clean pass writes, though the lost
+    topic's passage rests in a bridge another topic headed.
+    """
+    from llm.client import ModelUnavailable
+
+    class Fails(Model):
+        """Refuses the `lost`-th group, answers the rest."""
+
+        def answer(self, **kwargs):
+            """Raises once, on its turn."""
+            if len(self.asked) == lost - 1:
+                self.asked.append(kwargs)
+                raise ModelUnavailable("Timeout: took too long")
+            return super().answer(**kwargs)
+
+    topics = {"t1": [_placed(1), _placed(3)], "t2": [_placed(2, "3")]}
+    clean = fresh(topics, 1)
+    run(clean, "whole", None, 1)
+    store = fresh(topics, 1)
+    bridge(
+        store,  # type: ignore[arg-type]
+        BridgeExtractor(Fails(ANSWER)),  # type: ignore[arg-type]
+        FactChecker(DIGEST_SHARE),
+        1,
+        2,
+    )
+    run(store, "missing", None, 1)
+
+    assert store.held == clean.held
+
+
+def test_one_pair_one_bridge_after_a_narrowed_pass_and_a_stopped_whole_one() -> None:
+    """A topic written before the stop must not rest on the pair an unreached topic's old bridge holds."""
+    topics = {"t1": [_placed(1, "2")], "t2": [_placed(2), _placed(3)]}
+    store = fresh(topics, 1)
+    run(store, "scoped", frozenset({2}), 1)
+    run(store, "stopped", 1, 1)
+
+    pairs = [pair for pair, _ in store.held]
+    assert len(pairs) == len(set(pairs)), store.held
+    run(store, "missing", None, 1)
+    pairs = [pair for pair, _ in store.held]
+    assert len(pairs) == len(set(pairs)), store.held
+
+
+def test_one_pair_one_bridge_after_a_pass_the_spend_cap_stops(monkeypatch) -> None:
+    """The same history, the whole pass stopped between its first and second topic."""
+    import stages.service as stages
+
+    topics = {"t1": [_placed(1, "2")], "t2": [_placed(2), _placed(3)]}
+    store = fresh(topics, 1)
+    run(store, "scoped", frozenset({2}), 1)
+    asked: list[int] = []
+
+    def cap():
+        asked.append(1)
+        return "SPEND_CAP reached" if len(asked) > 1 else None
+
+    monkeypatch.setattr(stages, "spend_stop", cap)
+    with suppress(SpendCapReached):
+        run(store, "whole", None, 1)
+
+    pairs = [pair for pair, _ in store.held]
+    assert len(pairs) == len(set(pairs)), store.held

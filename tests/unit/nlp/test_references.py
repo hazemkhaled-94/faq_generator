@@ -854,3 +854,489 @@ def test_a_title_changes_nothing_in_a_language_no_pipeline_is_configured_for(
     titled = claim(statement, language, title=title)
 
     assert titled.references == claim(statement, language).references
+
+
+# ── Words that point back, read as the question side reads them ──────────
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("en", "The latter costs 5 EUR a month."),
+        ("en", "The former is free of charge."),
+        ("en", "The latter card costs 5 EUR a month."),
+        ("de", "Letztere kosten 5 Euro im Monat."),
+        ("de", "Die letztere Karte kostet 5 Euro im Monat."),
+        ("de", "Der erstere ist kostenlos."),
+        ("de", "Die oben genannte Gebühr gilt für jedes Konto."),
+    ],
+)
+def test_a_word_pointing_back_leaves_a_reference(language: str, statement: str) -> None:
+    """The fact check reads the words the question side reads as the head of its phrase."""
+    from nlp.analysis import claim
+
+    assert claim(statement, language).references, statement
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("en", "The debit card is free, and the latter of the two cards costs 5 EUR."),
+        (
+            "de",
+            "Die Debitkarte ist kostenlos, die letztere der beiden Karten kostet 5 Euro.",
+        ),
+    ],
+)
+def test_a_pointing_word_inside_a_statement_naming_both_leaves_nothing(
+    language: str, statement: str
+) -> None:
+    """Only a word opening the statement, before its verb, points outside it."""
+    from nlp.analysis import claim
+
+    assert not claim(statement, language).references, statement
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("fr", "Le dernier coûte 5 euros par mois."),
+        ("fr", "Les frais mentionnés ci-dessus s'appliquent."),
+        ("pl", "Ten drugi kosztuje 5 euro miesięcznie."),
+        ("el", "Ο τελευταίος κοστίζει 5 ευρώ τον μήνα."),
+    ],
+)
+def test_a_language_with_no_row_in_the_pointing_table_reads_no_such_word(
+    language: str, statement: str
+) -> None:
+    """The table is keyed by language: a word of another one is never read as a pointer."""
+    from nlp.analysis import _ANAPHORIC, _opens, parse
+
+    assert language not in _ANAPHORIC
+    assert not any(_opens(token) for token in parse(statement, language)[:3])
+
+
+# ── A pronoun with no noun of its own opening the statement ──────────────
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("en", "Both cost 5 EUR a month."),
+        ("en", "The others are free of charge."),
+        ("en", "Some require a deposit."),
+        ("de", "Beide kosten 5 Euro im Monat."),
+        ("de", "Die anderen sind kostenlos."),
+        ("de", "Alle zahlen 5 Euro im Monat."),
+        ("en", "Both can cost 5 EUR a month."),
+        ("en", "Both are charged 5 EUR a month."),
+        ("en", "The others have been closed."),
+        ("en", "Both usually cost 5 EUR a month."),
+        ("de", "Beide können 5 Euro im Monat kosten."),
+        ("de", "Alle werden informiert."),
+    ],
+)
+def test_a_bare_quantifier_as_the_subject_is_a_reference(
+    language: str, statement: str
+) -> None:
+    """Both, the others, some: stand for something the statement never named."""
+    from nlp.analysis import claim
+
+    assert claim(statement, language).references, statement
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("en", "Anyone may open an account."),
+        ("en", "Everyone must sign the form."),
+        ("en", "Nobody may withdraw more than 500 EUR."),
+        ("de", "Jeder kann ein Konto eröffnen."),
+        ("de", "Jeder Kunde kann ein Konto eröffnen."),
+        ("de", "Man darf höchstens 500 Euro abheben."),
+        ("de", "Niemand darf mehr abheben."),
+        ("en", "Both cards cost 5 EUR a month."),
+        ("de", "Beide Karten kosten 5 Euro im Monat."),
+        ("en", "Nobody can withdraw more than 500 EUR."),
+        ("en", "Everyone has been informed."),
+        ("en", "Somebody will call back."),
+        ("en", "Anyone who loses a card must call the bank."),
+        ("en", "Both of the cards cost 5 EUR a month."),
+    ],
+)
+def test_a_person_generic_subject_or_one_with_its_noun_is_no_reference(
+    language: str, statement: str
+) -> None:
+    """A singular generic person names nobody earlier, and a quantifier with a noun has one."""
+    from nlp.analysis import claim
+
+    assert not claim(statement, language).references, statement
+
+
+def _quantifier(language: str, lemma: str, pos: str, morph: str):
+    """A subject made by hand, in a language no pipeline here reads."""
+    import spacy
+    from spacy.tokens import Doc
+
+    return Doc(
+        spacy.blank(language).vocab,
+        words=[lemma, "x", "y", "."],
+        lemmas=[lemma, "x", "y", "."],
+        heads=[1, 1, 1, 1],
+        deps=["nsubj", "ROOT", "obj", "punct"],
+        pos=[pos, "VERB", "NOUN", "PUNCT"],
+        morphs=[morph, "", "", ""],
+    )[0]
+
+
+@pytest.mark.nlp
+def test_the_reading_is_by_morphology_so_a_language_not_configured_reads_the_same() -> (
+    None
+):
+    """A plural total pronoun is a reference in French and Greek as in German; its 'other' word is in no table."""
+    from nlp.analysis import _refers
+
+    assert _refers(_quantifier("fr", "tous", "PRON", "Number=Plur|PronType=Tot"))
+    assert _refers(_quantifier("el", "όλοι", "PRON", "Number=Plur|PronType=Tot"))
+    assert not _refers(_quantifier("fr", "chacun", "PRON", "Number=Sing|PronType=Ind"))
+    # 'les autres' is a noun to the tagger and French has no row in the table of
+    # nominalised 'other': inert.
+    assert not _refers(_quantifier("fr", "autre", "NOUN", "Number=Plur"))
+    assert not _refers(_quantifier("el", "άλλος", "NOUN", "Number=Plur"))
+
+
+# ── A German placeholder es before its clause ────────────────────────────
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Es ist verboten, die PIN auf der Karte zu notieren.",
+        "Es ist wichtig, dass der Kunde die PIN geheim hält.",
+        "Es ist kostenlos, Kontoauszüge online abzurufen.",
+        "Es wird empfohlen, die PIN regelmäßig zu ändern.",
+    ],
+)
+def test_a_german_placeholder_before_its_clause_is_no_reference(statement: str) -> None:
+    """The parse hangs the zu-infinitive or dass clause on the pronoun itself."""
+    from nlp.analysis import claim
+
+    assert not claim(statement, "de").references
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Der Verein hat es versäumt, die Unterlagen fristgerecht einzureichen.",
+        "Es ist erlaubt, die Karte zu sperren, damit niemand sie missbraucht.",
+    ],
+)
+def test_an_object_es_before_its_infinitive_and_an_infinitive_holding_a_clause_resolve(
+    statement: str,
+) -> None:
+    """The object correlate, and a clause nested in the infinitive, which is not the pronoun's clause."""
+    from nlp.analysis import claim
+
+    assert not claim(statement, "de").references
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Es ist kostenlos, wenn Sie bestätigen, dass die Karte gültig ist.",
+        "Der Kunde muss es zurückgeben, um eine Erstattung zu erhalten.",
+    ],
+)
+def test_a_condition_holding_a_dass_clause_and_an_object_before_a_purpose_clause_still_point_outside(
+    statement: str,
+) -> None:
+    """The nested dass clause is not the one the placeholder stands for."""
+    from nlp.analysis import claim
+
+    assert claim(statement, "de").references
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement", "refused"),
+    [
+        ("de", "Es kostet 5 Euro im Monat.", True),
+        ("en", "It costs 5 EUR a month.", True),
+        ("en", "It is forbidden to write the PIN on the card.", False),
+        ("en", "It is important that the customer keeps the PIN secret.", False),
+    ],
+)
+def test_a_pronoun_with_no_clause_after_it_still_points_outside(
+    language: str, statement: str, refused: bool
+) -> None:
+    """The English twins are unchanged; a bare es is still a pronoun."""
+    from nlp.analysis import claim
+
+    assert bool(claim(statement, language).references) is refused
+
+
+def _placeholder(language: str, gender: str):
+    """'It is possible to close the account', parsed by hand in a language of its own."""
+    import spacy
+    from spacy.tokens import Doc
+
+    return Doc(
+        spacy.blank(language).vocab,
+        words=["It", "is", "possible", "to", "close", "the", "account", "."],
+        heads=[1, 1, 1, 4, 1, 6, 4, 1],
+        deps=["nsubj", "ROOT", "acomp", "mark", "xcomp", "det", "dobj", "punct"],
+        pos=["PRON", "AUX", "ADJ", "PART", "VERB", "DET", "NOUN", "PUNCT"],
+        morphs=[
+            f"Gender={gender}|Number=Sing|Person=3|PronType=Prs",
+            "",
+            "",
+            "",
+            "VerbForm=Inf",
+            "",
+            "Number=Sing",
+            "",
+        ],
+    )[0]
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "gender", "is_placeholder"),
+    [
+        ("en", "Neut", True),
+        ("en", "Masc", True),
+        ("de", "Neut", True),
+        ("de", "Masc", False),
+        ("fr", "Masc", False),
+        ("pl", "Neut", False),
+        ("el", "Neut", False),
+    ],
+)
+def test_the_gender_a_placeholder_carries_comes_from_the_languages_table(
+    language: str, gender: str, is_placeholder: bool
+) -> None:
+    """No language code is branched on: one with no row reads no placeholder."""
+    from nlp.analysis import _clausal_correlate
+
+    assert _clausal_correlate(_placeholder(language, gender)) is is_placeholder
+
+
+@pytest.mark.nlp
+def test_a_newly_configured_language_supplies_its_row_and_nothing_else(
+    monkeypatch,
+) -> None:
+    """French 'Il est possible de ...': one row of the table makes the pronoun a placeholder."""
+    from nlp import analysis
+
+    monkeypatch.setitem(analysis._PLACEHOLDER_GENDER, "fr", "Masc")
+
+    assert analysis._clausal_correlate(_placeholder("fr", "Masc"))
+    assert not analysis._clausal_correlate(_placeholder("fr", "Fem"))
+
+
+# ── What names the document ──────────────────────────────────────────────
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement"),
+    [
+        ("en", "This section applies to all current accounts."),
+        ("en", "This clause applies to all current accounts."),
+        ("en", "This brochure applies to all current accounts."),
+        ("de", "Dieser Abschnitt gilt für alle Girokonten."),
+        ("de", "Diese Ziffer gilt für alle Girokonten."),
+        ("de", "Dieses Merkblatt gilt für alle Girokonten."),
+    ],
+)
+def test_a_part_of_a_document_or_its_genre_noun_points_like_any_noun(
+    language: str, statement: str
+) -> None:
+    """With no title naming it, 'this section' and 'this clause' are judged alike."""
+    from nlp.analysis import claim
+
+    assert claim(statement, language).references, statement
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement", "title"),
+    [
+        ("en", "This brochure applies to all current accounts.", "Account brochure"),
+        ("de", "Dieses Merkblatt gilt für alle Girokonten.", "Merkblatt zum Girokonto"),
+        ("en", "This policy applies to all current accounts.", "Privacy policy"),
+    ],
+)
+def test_a_demonstrative_naming_the_title_head_noun_still_names_the_document(
+    language: str, statement: str, title: str
+) -> None:
+    """The document's own title says what it is called."""
+    from nlp.analysis import claim
+
+    assert not claim(statement, language, title=title).references
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "statement", "title"),
+    [
+        ("fr", "Cette brochure s'applique à tous les comptes.", "Brochure du compte"),
+        (
+            "el",
+            "Αυτό το φυλλάδιο ισχύει για όλους τους λογαριασμούς.",
+            "Φυλλάδιο λογαριασμού",
+        ),
+    ],
+)
+def test_a_language_no_pipeline_is_configured_for_reads_no_source_noun_either(
+    language: str, statement: str, title: str
+) -> None:
+    """No table of nouns is consulted, so a title changes nothing there."""
+    from nlp.analysis import claim
+
+    assert (
+        claim(statement, language, title=title).references
+        == claim(statement, language).references
+    )
+
+
+# ── Where no language has a noun_chunks iterator ─────────────────────────
+
+
+@pytest.mark.parametrize("language", ["pl", "cs", "ro", "hr", "sl", "lt"])
+def test_phrases_are_none_where_spacy_has_no_noun_chunks_for_the_language(
+    language: str, monkeypatch
+) -> None:
+    """The gates reading phrases() then abstain; a configured Polish does not crash them."""
+    import spacy
+    from spacy.tokens import Doc
+
+    from nlp import analysis
+
+    doc = Doc(
+        spacy.blank(language).vocab,
+        words=["Klient", "składa", "wniosek", "."],
+        heads=[1, 1, 1, 1],
+        deps=["nsubj", "ROOT", "obj", "punct"],
+        pos=["NOUN", "VERB", "NOUN", "PUNCT"],
+    )
+    monkeypatch.setattr(analysis, "_read", lambda text, language: doc)
+
+    assert analysis.phrases("Klient składa wniosek.", language) == ()
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("language", "text"),
+    [
+        ("de", "Der Kunde eröffnet ein Konto."),
+        ("en", "The customer opens an account."),
+    ],
+)
+def test_phrases_are_read_where_the_language_has_noun_chunks(
+    language: str, text: str
+) -> None:
+    """The two configured languages are unchanged."""
+    from nlp.analysis import phrases
+
+    assert phrases(text, language)
+
+
+# ── The reader a polite Sie opens a statement for ────────────────────────
+
+_ADDRESSED = {
+    "de": "Bitte geben Sie Ihre IBAN an. Die Karte ist kostenlos. {statement}",
+}
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "Sie gilt drei Jahre.",
+        "Sie wird monatlich abgebucht.",
+        "Sie dauert zwei Werktage.",
+    ],
+)
+def test_an_opening_sie_with_a_singular_verb_is_the_feminine_third_person(
+    statement: str,
+) -> None:
+    """Polite Sie takes a plural verb: 'Sie gilt' stands for 'die Karte' and dangles."""
+    from drivers import Checker, passage
+
+    text = _ADDRESSED["de"].format(statement=statement)
+    judged = Checker(passage(text, language="de")).atomic(statement, 2)
+
+    assert not judged.validated
+    assert judged.rejection_code == "unresolved_reference"
+
+
+@pytest.mark.nlp
+def test_the_english_twin_of_a_dangling_sie_is_refused_too() -> None:
+    """Control: the same shape in English."""
+    from drivers import Checker, passage
+
+    text = "Please enter your IBAN. The card is free. It is valid for three years."
+    judged = Checker(passage(text, language="en")).atomic(
+        "It is valid for three years.", 2
+    )
+
+    assert judged.rejection_code == "unresolved_reference"
+
+
+@pytest.mark.nlp
+@pytest.mark.parametrize(
+    ("text", "statement", "cites"),
+    [
+        (
+            "Bitte geben Sie Ihre IBAN an. Sie erhalten eine Bestätigung per E-Mail.",
+            "Sie erhalten eine Bestätigung per E-Mail.",
+            1,
+        ),
+        (
+            (
+                "Bei kostenlosen Diensten haben Sie das Recht zu erfahren, wie Ihre Daten "
+                "verwendet werden. Sie sollten auch die Vertragsdauer kennen."
+            ),
+            "Sie sollten die Vertragsdauer kennen.",
+            1,
+        ),
+        (
+            (
+                "Bei kostenlosen Diensten haben Sie das Recht zu erfahren, wie Ihr Konto "
+                "geführt wird. Sie sollten auch die Vertragsdauer kennen."
+            ),
+            "Sie sollten die Vertragsdauer kennen.",
+            1,
+        ),
+    ],
+)
+def test_a_polite_sie_stays_polite_whatever_number_a_clause_before_it_holds(
+    text: str, statement: str, cites: int
+) -> None:
+    """The reader addressed in the sentence before is the reader, embedded plural or not."""
+    from drivers import Checker, passage
+
+    judged = Checker(passage(text, language="de")).atomic(statement, cites)
+
+    assert judged.validated, (judged.rejection_code, judged.validation_error)
+
+
+@pytest.mark.nlp
+def test_a_third_person_plural_after_a_plural_subject_is_still_a_reference() -> None:
+    """The rival reading the rule exists for: 'Händler werben Kunden. Sie erhalten ...'."""
+    from drivers import Checker, passage
+
+    judged = Checker(
+        passage("Händler werben Kunden. Sie erhalten Rabatte.", language="de")
+    ).atomic("Sie erhalten Rabatte.", 1)
+
+    assert not judged.validated

@@ -174,6 +174,7 @@ make parse-start     && make parse       # a stored file becomes a structured do
 make chunk-start     && make chunk       # the document becomes passages
 make extract-start   && make extract     # passages become facts citing a sentence
 make extract-digests                     # a digest for passages that finished without one
+make extract-dedup ORPHANED=1             # gives back a refusal whose twin went with a deleted document
 make topics-discover ENSURE=1            # fits topics when a language has none or they are stale
 make topics-status                       # passages in no topic
 make extract-bridge MISSING=1            # facts joining a topic's passages, for topics without any
