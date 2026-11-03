@@ -687,7 +687,8 @@ and backfill rules.
 This section lists what a production deployment holds and the conditions under
 which known open items stay out of the way. It covers about ten times the
 reviewed build (300 PDFs, 20,000 passages, German and English). Items carry
-the review's number (`C-` and three digits, as `docs/bugs.md` gives them). A
+the review's number (`C-` and three digits, as `docs/bugs.md` and
+`docs/changelog.md` give them). A
 condition that a release fixes moves to that release's upgrade notes
 ([Upgrading to v0.5.3](#upgrading-to-v053) lists the latest). Settings are in
 [configuration](configuration.md#production-settings), and [the
@@ -1038,7 +1039,8 @@ credentials stay one set per provider.
 
 The fix release after the final review of v0.5.1: data safety, the hosted
 model path, drains that stop and say why, scale, and parse, fact and question
-fixes. `docs/bugs.md` lists each fix, what was withdrawn and the known limits.
+fixes. `docs/changelog.md` lists each fix, and `docs/bugs.md` what stays
+accepted, the withdrawn attempts among them.
 A build from scratch needs only steps 1 and 2.
 
 ### 1. Pull, code and images
@@ -1404,7 +1406,7 @@ Rebuild, `make up`, `make schema` (`20e31b1656f7`, column comments only).
 - Image locks resolve under `poetry.lock`'s pins (parse worker Docling
   2.137.0, was 2.132.0). `make lock` writes both image locks: run it after
   changing a `requirements.txt`. Pillow stays at 12.3.0 (its fixes need Pillow
-  13.0.0, which no released Docling allows; `docs/bugs.md`).
+  13.0.0, which no released Docling allows; `docs/changelog.md`).
 - `TOPIC_LABEL_MIN_FACT_SHARE` is deleted. `DATABASE_URL` must name a
   database. `PARSING_OCR_CHAR_THRESHOLD` (100) also names image-only pages of
   a digital PDF in the parse warning. Topic naming prompt 2 becomes 3.
