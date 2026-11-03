@@ -440,6 +440,44 @@ def test_the_mutation_harness_copies_what_its_layers_read_and_selects_no_git_lay
         assert not path.startswith("tests/static"), path
 
 
+def test_the_mutation_layers_name_their_cases_in_ascii() -> None:
+    """Mutmut's clean run cannot find a case whose explicit id holds a non-ASCII letter.
+
+    In the first Nightly of v0.5.3 it found none of the four cases named
+    `außer Acht`, `30 Tage Rückgaberecht` and `die Karte der Überschrift ...`,
+    pytest ran no test, and the shard of question_generation.gates stopped
+    before its first mutant. Ids pytest makes from the values, letters
+    included, ran in the same list.
+    """
+    import ast
+    import tomllib
+
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["mutmut"]
+    found = []
+    for layer in config["pytest_add_cli_args_test_selection"]:
+        for path in sorted((ROOT / layer).rglob("test_*.py")):
+            for node in ast.walk(ast.parse(path.read_text())):
+                if not (
+                    isinstance(node, ast.Call)
+                    and getattr(node.func, "attr", None) == "parametrize"
+                ):
+                    continue
+                for keyword in node.keywords:
+                    if keyword.arg != "ids" or not isinstance(
+                        keyword.value, (ast.List, ast.Tuple)
+                    ):
+                        continue
+                    found += [
+                        f"{path.relative_to(ROOT)}:{one.lineno} {one.value}"
+                        for one in keyword.value.elts
+                        if isinstance(one, ast.Constant)
+                        and isinstance(one.value, str)
+                        and not one.value.isascii()
+                    ]
+
+    assert not found, found
+
+
 def test_the_mutation_job_runs_one_shard_to_each_mutated_file() -> None:
     """The matrix lists exactly the files `[tool.mutmut]` mutates, one runner each.
 

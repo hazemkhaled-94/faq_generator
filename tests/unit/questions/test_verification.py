@@ -1944,7 +1944,7 @@ def test_a_count_written_out_is_the_count_in_digits(
         ("Diese Frist bleibt außer Acht.", "8 Fristen"),
         ("Die Elf des Gastgebers hält die Frist ein.", "11 Fristen"),
     ],
-    ids=["außer Acht", "die Elf"],
+    ids=["ausser Acht", "die Elf"],
 )
 def test_a_word_spelled_like_a_count_is_not_one(recovered: str, target: str) -> None:
     """`außer Acht` is a phrase and `die Elf` a team: neither is tagged NUM."""
@@ -2232,7 +2232,7 @@ def test_a_name_every_heading_carries_need_not_come_back() -> None:
             "de",
         ),
     ],
-    ids=["30-Day Return Policy", "30 Tage Rückgaberecht", "clause 7"],
+    ids=["30-Day Return Policy", "30 Tage Rueckgaberecht", "clause 7"],
 )
 def test_a_number_the_heading_gives_still_has_to_come_back(
     question: str, key: str, recovered: str, given: str, passage: str, language: str
@@ -2455,7 +2455,7 @@ def test_a_verb_does_not_bring_back_the_keys_noun() -> None:
         "gutschreiben",
         "cancel and sign",
         "the heading's card for a debit card",
-        "die Karte der Überschrift für die Debitkarte",
+        "die Karte der Ueberschrift fuer die Debitkarte",
         "a heading one of two passages carries",
     ],
 )
@@ -5223,7 +5223,7 @@ _SEVEN_SETTINGS = tuple(
         ),
         ("Das Gerät sperrt nach einem Update acht Einstellungen.", None),
     ],
-    ids=["außer Acht", "acht Einstellungen"],
+    ids=["ausser Acht", "acht Einstellungen"],
 )
 def test_a_word_spelled_like_a_count_states_no_count(
     eighth: str, expected: str | None
