@@ -112,7 +112,8 @@ def test_the_metadata_is_enough_to_rebuild_the_row(service) -> None:
     """The bucket alone can say what a document was and when it arrived."""
     from urllib.parse import unquote
 
-    from blob_store.s3 import DocumentsBucket, s3_client
+    from blob_store.s3 import DocumentsBucket
+    from blob_store.s3.client import s3_client
 
     result = service.ingest(UploadedFile("Jahresbericht.pdf", PDF))
     assert result.sha256 is not None

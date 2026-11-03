@@ -163,3 +163,11 @@ def test_the_nightly_job_is_the_whole_corpus() -> None:
     """The nightly schedule launches the corpus job."""
     assert nightly.job.name == corpus.name
     assert nightly.cron_schedule == "0 2 * * *"
+
+
+def test_every_job_runs_its_steps_in_the_runs_own_process() -> None:
+    """The steps are thin api clients in a 512M container: a process per step is what killed a run."""
+    assert defs.resolve_job_def(corpus.name).executor_def.name == "in_process"
+    assert (
+        defs.resolve_implicit_global_asset_job_def().executor_def.name == "in_process"
+    )

@@ -24,10 +24,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
 
-import litellm
 from pydantic import BaseModel, Field
 
-from llm.client import Client
+from llm.client import build_model, debug_info
 from llm.config import (
     Settings,
     _self_hosted,
@@ -63,16 +62,15 @@ def quiet() -> Iterator[None]:
     is about the health check, not about the pipeline.
     """
     held = {name: logging.getLogger(name).level for name in QUIET}
-    was = litellm.suppress_debug_info
+    was = debug_info(False)
     for name in QUIET:
         logging.getLogger(name).setLevel(logging.CRITICAL)
-    litellm.suppress_debug_info = True
     try:
         yield
     finally:
         for name, level in held.items():
             logging.getLogger(name).setLevel(level)
-        litellm.suppress_debug_info = was
+        debug_info(was)
 
 
 #: Long enough for a cold local model to load, short enough that a wrong
@@ -110,7 +108,7 @@ def reachable(settings: Settings) -> None:
     )
     try:
         with quiet():
-            Client(once).answer(
+            build_model(once).answer(
                 system="You answer with a JSON object and nothing else.",
                 user="Set ok to true.",
                 shape=Reachable,

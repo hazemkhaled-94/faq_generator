@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from database.qa_generator import FactKind
 from extraction.extractors.base import ExtractionFailed, Extractor
 from extraction.models import BULLET, CandidateFact, PassageToExtract, Provenance
-from llm.client import Client, ModelUnavailable
+from llm.client import Model, ModelUnavailable
 from llm.prompt import fill
 from nlp.models import named, with_language
 
@@ -122,7 +122,7 @@ class DigestExtractor(Extractor):
     block_types: ClassVar[tuple[str, ...]] = ()
     method: ClassVar[str] = "llm"
 
-    def __init__(self, client: Client, kinds: tuple[str, ...]) -> None:
+    def __init__(self, client: Model, kinds: tuple[str, ...]) -> None:
         """Initialises the extractor.
 
         Args:

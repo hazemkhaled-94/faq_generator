@@ -30,11 +30,14 @@ from __future__ import annotations
 import logging
 import os
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from opentelemetry import trace
+
+if TYPE_CHECKING:
+    from telemetry.projects import Project
 
 log = logging.getLogger(__name__)
 
@@ -137,6 +140,7 @@ class Evaluations:
     def __init__(self, base_url: str | None = None, batch: int = BATCH) -> None:
         """Names where Phoenix is. Nothing is connected until asked."""
         self._base_url = base_url or os.getenv(ENDPOINT)
+        self._off = os.getenv("TRACE_STORE", "phoenix").strip() == "none"
         self._batch = max(batch, 1)
         self._held: list[dict[str, Any]] = []
         self._client: Any = None
@@ -146,7 +150,7 @@ class Evaluations:
         #: monotonic clock, and whether this outage has been warned about.
         self._retry_at = 0.0
         self._warned = False
-        if not self._base_url:
+        if not self._base_url and not self._off:
             # The one failure with no other symptom: an unreachable Phoenix
             # warns from flush, and no address at all warned from nowhere.
             log.warning(
@@ -160,6 +164,7 @@ class Evaluations:
         """Whether there is anywhere to post to, and it is worth trying now."""
         return (
             bool(self._base_url)
+            and not self._off
             and not self._broken
             and time.monotonic() >= self._retry_at
         )
@@ -182,11 +187,16 @@ class Evaluations:
         if not self._held or not self.enabled:
             return 0
         held, self._held = self._held, []
-        connected = self._connect()
-        if connected is None:
-            return 0
         try:
-            connected.spans.log_span_annotations(span_annotations=held)
+            self._connect().annotate(held)
+        except TraceStoreUnavailable:
+            self._broken = True
+            log.info(
+                "arize-phoenix-client is not installed, so gate verdicts stay "
+                "in the database and on the span and are not posted as "
+                "annotations"
+            )
+            return 0
         except Exception as exc:  # noqa: BLE001 - any failure is the same answer
             # Not tried again for a while, rather than never: a watch worker
             # outlives a Phoenix restart by days. Warned once per outage,
@@ -207,40 +217,311 @@ class Evaluations:
         log.debug("recorded %d verdict(s) in Phoenix", len(held))
         return len(held)
 
-    def _connect(self):
-        """The Phoenix client, built once."""
-        if self._client is not None:
-            return self._client
-        self._client = client(self._base_url)
+    def _connect(self) -> TraceStore:
+        """The trace store, built once."""
         if self._client is None:
-            self._broken = True
-            log.info(
-                "arize-phoenix-client is not installed, so gate verdicts stay "
-                "in the database and on the span and are not posted as "
-                "annotations"
-            )
+            self._client = trace_store(self._base_url)
         return self._client
 
 
-def client(base_url: str | None = None):
-    """A Phoenix client for this process, or None where there is no package.
+class TraceStoreUnavailable(Exception):
+    """The store cannot do this: its client is not installed, or there is none."""
 
-    Here because the address and the credential are this module's problem
-    already, and they are not only an annotation's: `stages/publish.py`
-    posts a prompt through the same API and must resolve both the same way
-    or a container will authenticate and a host command will not.
 
-    Returns:
-        A `phoenix.client.Client`, or None where arize-phoenix-client is
-        not installed. An absent address is NOT refused here - Phoenix's
-        own default is localhost, which is right for a host command.
+class TraceStore(Protocol):
+    """What the pipeline asks of the place its traces and evaluations are read.
+
+    Spans are not here: they travel by OTLP, which every collector speaks, and
+    `traces.py` follows `OTEL_EXPORTER_OTLP_PROTOCOL`. This is the rest of what
+    Phoenix is used for: the annotations beside a span, the prompts a stage
+    published, the projects a run filed under, the golden datasets and their
+    experiments, and the retention of what it holds. `TRACE_STORE` names the
+    adapter: `phoenix`, or `none` for a deployment that keeps traces somewhere
+    that needs none of it (Azure Monitor).
+
+    A method the store cannot serve raises `TraceStoreUnavailable`.
     """
-    try:
-        from phoenix.client import Client
-    except ImportError:
-        return None
-    key = next((os.getenv(name) for name in API_KEY if os.getenv(name)), None)
-    return Client(
-        base_url=base_url or os.getenv(ENDPOINT),
-        headers={"Authorization": f"Bearer {key}"} if key else None,
-    )
+
+    def annotate(self, annotations: list[dict[str, Any]]) -> None:
+        """Files one annotation per span, a label, a score and an explanation each."""
+        ...
+
+    def publish_prompt(
+        self,
+        name: str,
+        description: str,
+        call: dict[str, Any],
+        version_description: str,
+        provider: str,
+    ) -> None:
+        """Sends one prompt version: an OpenAI-shaped call, as a template."""
+        ...
+
+    def projects(self) -> list[Project]:
+        """Every project, and whether work happened in each."""
+        ...
+
+    def delete_project(self, project_id: str) -> bool:
+        """Deletes one project, and says whether it went."""
+        ...
+
+    def datasets(self) -> list[dict[str, Any]]:
+        """Every dataset, as at least an `id` and a `name`."""
+        ...
+
+    def delete_dataset(self, dataset_id: str) -> bool:
+        """Deletes one dataset and its experiments, and says whether it went."""
+        ...
+
+    def set_retention(self, days: int) -> None:
+        """Sets how long traces are kept.
+
+        Raises:
+            RuntimeError: If the store refuses.
+        """
+        ...
+
+    def create_dataset(
+        self,
+        name: str,
+        inputs: list[dict[str, Any]],
+        outputs: list[dict[str, Any]],
+        description: str,
+    ) -> str:
+        """Uploads a golden set, as a new version if it is there, and returns its id."""
+        ...
+
+    def run_experiment(
+        self,
+        dataset: str,
+        task: Callable[..., Any],
+        evaluators: dict[str, Callable[..., Any]],
+        name: str,
+        description: str,
+        metadata: dict[str, Any],
+    ) -> str:
+        """Runs a task over a dataset, scored by the evaluators, and returns where to read it."""
+        ...
+
+
+class PhoenixStore:
+    """The `TraceStore` over Phoenix: its client for annotations, prompts and experiments, its REST API for the rest.
+
+    `sdk` and `session` are for a test, which hands over a stand-in for each;
+    otherwise the client is built on first use, from PHOENIX_BASE_URL and the
+    credential `API_KEY` names, and the session is `telemetry.projects`'s.
+    """
+
+    def __init__(
+        self, base_url: str | None = None, *, sdk: Any = None, session: Any = None
+    ) -> None:
+        """Names where Phoenix is. Nothing is connected until asked."""
+        self._base_url = base_url or os.getenv(ENDPOINT)
+        self._sdk_client = sdk
+        self._session = session
+
+    def _sdk(self) -> Any:
+        """The Phoenix client, built once.
+
+        An absent address is NOT refused here - Phoenix's own default is
+        localhost, which is right for a host command.
+
+        Raises:
+            TraceStoreUnavailable: Where arize-phoenix-client is not installed.
+        """
+        if self._sdk_client is None:
+            try:
+                from phoenix.client import Client
+            except ImportError as missing:
+                raise TraceStoreUnavailable(
+                    "arize-phoenix-client is not installed"
+                ) from missing
+            key = next((os.getenv(name) for name in API_KEY if os.getenv(name)), None)
+            self._sdk_client = Client(
+                base_url=self._base_url,
+                headers={"Authorization": f"Bearer {key}"} if key else None,
+            )
+        return self._sdk_client
+
+    def _rest(self) -> Any:
+        """The HTTP session on Phoenix's REST API."""
+        if self._session is None:
+            from telemetry import projects
+
+            self._session = projects._client()
+        return self._session
+
+    def annotate(self, annotations: list[dict[str, Any]]) -> None:
+        """See `TraceStore.annotate`."""
+        self._sdk().spans.log_span_annotations(span_annotations=annotations)
+
+    def publish_prompt(
+        self,
+        name: str,
+        description: str,
+        call: dict[str, Any],
+        version_description: str,
+        provider: str,
+    ) -> None:
+        """See `TraceStore.publish_prompt`.
+
+        MUSTACHE, so the `{{name}}` in a user template reads as the variable
+        it is. Safe for the system half: perturb's `{{asks}}` and follow's
+        `{{type}}` are filled in before sending and are variables here too,
+        and the single braces in bridge's worked example are not a
+        substitution.
+        """
+        sdk = self._sdk()
+        from phoenix.client.types import PromptVersion
+
+        sdk.prompts.create(
+            name=name,
+            prompt_description=description,
+            version=PromptVersion.from_openai(
+                call,  # type: ignore[arg-type] - a plain dict of the same keys
+                description=version_description,
+                template_format="MUSTACHE",
+                model_provider=provider,  # type: ignore[arg-type]
+            ),
+        )
+
+    def projects(self) -> list[Project]:
+        """See `TraceStore.projects`."""
+        from telemetry import projects
+
+        return projects.held(self._rest())
+
+    def delete_project(self, project_id: str) -> bool:
+        """See `TraceStore.delete_project`."""
+        answered = self._rest().delete(f"/v1/projects/{project_id}")
+        if not answered.ok:
+            log.warning("could not delete %s: %s", project_id, answered.status_code)
+        return bool(answered.ok)
+
+    def datasets(self) -> list[dict[str, Any]]:
+        """See `TraceStore.datasets`."""
+        from telemetry import projects
+
+        return list(projects.listed(self._rest(), "/v1/datasets"))
+
+    def delete_dataset(self, dataset_id: str) -> bool:
+        """See `TraceStore.delete_dataset`."""
+        answered = self._rest().delete(f"/v1/datasets/{dataset_id}")
+        if not answered.ok:
+            log.warning(
+                "could not delete dataset %s: %s", dataset_id, answered.status_code
+            )
+        return bool(answered.ok)
+
+    def set_retention(self, days: int) -> None:
+        """See `TraceStore.set_retention`."""
+        from telemetry import projects
+
+        projects.set_retention(self._rest(), days)
+
+    def create_dataset(
+        self,
+        name: str,
+        inputs: list[dict[str, Any]],
+        outputs: list[dict[str, Any]],
+        description: str,
+    ) -> str:
+        """See `TraceStore.create_dataset`."""
+        return (
+            self._sdk()
+            .datasets.create_dataset(
+                name=name,
+                inputs=inputs,
+                outputs=outputs,
+                dataset_description=description,
+            )
+            .id
+        )
+
+    def run_experiment(
+        self,
+        dataset: str,
+        task: Callable[..., Any],
+        evaluators: dict[str, Callable[..., Any]],
+        name: str,
+        description: str,
+        metadata: dict[str, Any],
+    ) -> str:
+        """See `TraceStore.run_experiment`."""
+        sdk = self._sdk()
+        held = sdk.datasets.get_dataset(dataset=dataset)
+        experiment = sdk.experiments.run_experiment(
+            dataset=held,
+            task=task,
+            evaluators=evaluators,
+            experiment_name=name,
+            experiment_description=description,
+            experiment_metadata=metadata,
+        )
+        return sdk.experiments.get_experiment_url(
+            dataset_id=held.id, experiment_id=_id_of(experiment)
+        )
+
+
+def _id_of(experiment: Any) -> str:
+    """The experiment's id, however the client hands it back."""
+    if isinstance(experiment, dict):
+        return experiment.get("id") or experiment["experiment_id"]
+    return getattr(experiment, "id", None) or experiment.experiment_id
+
+
+class NoTraceStore:
+    """A deployment that keeps traces elsewhere: nothing is sent, and nothing is held."""
+
+    _WHY = "TRACE_STORE=none, so there is no trace store to ask"
+
+    def annotate(self, annotations: list[dict[str, Any]]) -> None:
+        """Drops them: they are in the database."""
+
+    def publish_prompt(
+        self, name, description, call, version_description, provider
+    ) -> None:
+        """Drops it: it is in the table."""
+
+    def projects(self) -> list[Project]:
+        """None."""
+        return []
+
+    def delete_project(self, project_id: str) -> bool:
+        """Nothing to delete."""
+        return False
+
+    def datasets(self) -> list[dict[str, Any]]:
+        """None."""
+        return []
+
+    def delete_dataset(self, dataset_id: str) -> bool:
+        """Nothing to delete."""
+        return False
+
+    def set_retention(self, days: int) -> None:
+        """Retention is the other store's own setting."""
+
+    def create_dataset(self, name, inputs, outputs, description) -> str:
+        """Raises: there is nowhere to upload to."""
+        raise TraceStoreUnavailable(self._WHY)
+
+    def run_experiment(
+        self, dataset, task, evaluators, name, description, metadata
+    ) -> str:
+        """Raises: there is nowhere to run it."""
+        raise TraceStoreUnavailable(self._WHY)
+
+
+def trace_store(base_url: str | None = None) -> TraceStore:
+    """The adapter TRACE_STORE names, `phoenix` unless told otherwise.
+
+    Raises:
+        ValueError: If it names none that exists.
+    """
+    adapter = os.getenv("TRACE_STORE", "phoenix").strip() or "phoenix"
+    if adapter == "phoenix":
+        return PhoenixStore(base_url)
+    if adapter == "none":
+        return NoTraceStore()
+    raise ValueError(f"TRACE_STORE={adapter!r} names no adapter: phoenix or none")

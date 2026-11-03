@@ -47,6 +47,9 @@ class Service:
     #: so there is nothing here to connect to and saying it is down would
     #: be a lie.
     port: int | None = None
+    #: The host to connect to, where it is not the name. A managed service
+    #: has an address of its own.
+    host: str | None = None
 
 
 @dataclass(frozen=True)
@@ -100,6 +103,43 @@ CATALOGUE: tuple[Service, ...] = (
 )
 
 
+def probes() -> tuple[Service, ...]:
+    """What to probe: SERVICE_PROBES, or today's compose list when it is unset.
+
+    `name=host:port` pairs separated by commas, and `name=` for a process
+    that serves no port. The names are the page's rows; their purposes come
+    from the table above where a name is known there and are blank otherwise.
+    A deployment on a platform that reports health itself sets it to the
+    services it has, and lists exactly those.
+
+    Raises:
+        ValueError: If a pair is not `name=host:port` or `name=`.
+    """
+    raw = optional("SERVICE_PROBES")
+    if raw is None:
+        return CATALOGUE
+    purposes = {one.name: one.purpose for one in CATALOGUE}
+    found = []
+    for pair in raw.split(","):
+        if not pair.strip():
+            continue
+        name, _, address = pair.partition("=")
+        host, _, port = address.strip().partition(":")
+        if not name.strip() or (address.strip() and not (host and port.isdigit())):
+            raise ValueError(
+                f"SERVICE_PROBES entry {pair.strip()!r} is not name=host:port or name="
+            )
+        found.append(
+            Service(
+                name.strip(),
+                purposes.get(name.strip(), ""),
+                int(port) if port else None,
+                host or None,
+            )
+        )
+    return tuple(found)
+
+
 def addresses() -> dict[str, str]:
     """Where a person opens each service, read from SERVICE_URLS.
 
@@ -124,19 +164,21 @@ def _listening(service: Service) -> tuple[bool | None, str]:
     """Whether one service accepts a connection, and what to say about it."""
     if service.port is None:
         return None, "Serves no port; it reads a queue. Its stage page reports it."
+    host = service.host or service.name
     try:
-        with socket.create_connection((service.name, service.port), _TIMEOUT):
-            return True, f"Listening on {service.name}:{service.port}."
+        with socket.create_connection((host, service.port), _TIMEOUT):
+            return True, f"Listening on {host}:{service.port}."
     except OSError as exc:
-        log.warning("%s:%s not reachable: %s", service.name, service.port, exc)
-        return False, f"{service.name}:{service.port} refused the connection: {exc}"
+        log.warning("%s:%s not reachable: %s", host, service.port, exc)
+        return False, f"{host}:{service.port} refused the connection: {exc}"
 
 
 def snapshot() -> list[ServiceState]:
     """Probes every service in the catalogue, all at once."""
     urls = addresses()
-    with ThreadPoolExecutor(max_workers=len(CATALOGUE)) as pool:
-        answers = list(pool.map(_listening, CATALOGUE))
+    catalogue = probes()
+    with ThreadPoolExecutor(max_workers=max(len(catalogue), 1)) as pool:
+        answers = list(pool.map(_listening, catalogue))
     return [
         ServiceState(
             name=service.name,
@@ -145,5 +187,5 @@ def snapshot() -> list[ServiceState]:
             detail=detail,
             url=urls.get(service.name),
         )
-        for service, (ok, detail) in zip(CATALOGUE, answers, strict=True)
+        for service, (ok, detail) in zip(catalogue, answers, strict=True)
     ]

@@ -1,5 +1,7 @@
 # Dagster instance configuration.
-# Mounted read-only into DAGSTER_HOME (/opt/dagster/dagster_home) in compose.yaml.
+# Baked into the orchestration image at /opt/dagster/config and copied into
+# DAGSTER_HOME (/opt/dagster/dagster_home) by each container's start command;
+# compose.dev.yaml mounts the checkout's copy there for development.
 # Connection values are injected from the environment — no secrets in this file.
 #
 # The host and port are read from the environment like the rest, because this

@@ -315,44 +315,86 @@ def test_terminate_reports_the_run_it_stopped() -> None:
     assert client.terminate("run-0") is True
 
 
-def test_terminating_a_run_that_already_finished_is_not_a_failure() -> None:
-    """A second press of Stop, and a run that ended while the page polled."""
-    client, _ = dagster(
-        {
-            "data": {
-                "terminateRuns": {
-                    "__typename": "TerminateRunsResult",
-                    "terminateRunResults": [
-                        {
-                            "__typename": "TerminateRunFailure",
-                            "message": "Run has already finished.",
-                        }
-                    ],
-                }
+def failure(message: str) -> dict:
+    """A `terminateRuns` answer carrying one failure, as Dagster words it."""
+    return {
+        "data": {
+            "terminateRuns": {
+                "__typename": "TerminateRunsResult",
+                "terminateRunResults": [
+                    {"__typename": "TerminateRunFailure", "message": message}
+                ],
             }
         }
+    }
+
+
+def status_of(status: str) -> dict:
+    """A `runOrError` answer for a run in that state."""
+    return {
+        "data": {
+            "runOrError": {"__typename": "Run", "runId": "run-0", "status": status}
+        }
+    }
+
+
+@pytest.mark.parametrize("status", ["SUCCESS", "FAILURE", "CANCELED"])
+def test_terminating_a_run_that_already_finished_is_not_a_failure(status) -> None:
+    """A second press of Stop, and a run that ended while the page polled.
+
+    Dagster's own sentence is the one a real server gives, and the answer is
+    read from the run's status, not from that sentence.
+    """
+    client, session = dagster(
+        failure(f"Run run-0 could not be terminated due to having status {status}."),
+        status_of(status),
     )
+
+    assert client.terminate("run-0") is False
+    assert len(session.sent) == 2
+
+
+def test_a_finished_run_is_not_a_failure_whatever_dagster_words_it() -> None:
+    """A reworded message used to read as a refusal."""
+    client, _ = dagster(failure("Kann nicht beendet werden."), status_of("SUCCESS"))
 
     assert client.terminate("run-0") is False
 
 
-def test_a_run_that_could_not_be_stopped_for_another_reason_is_refused() -> None:
-    """Anything but "already finished" is a Stop that did not happen."""
-    client, _ = dagster(
+def test_a_started_run_that_refuses_is_cancelled_once_by_force() -> None:
+    """Its process is gone, so the polite stop has nobody to ask."""
+    client, session = dagster(
+        failure("Run run-0 could not be terminated."),
+        status_of("STARTED"),
         {
             "data": {
                 "terminateRuns": {
                     "__typename": "TerminateRunsResult",
-                    "terminateRunResults": [
-                        {
-                            "__typename": "TerminateRunFailure",
-                            "message": "no run coordinator",
-                        }
-                    ],
+                    "terminateRunResults": [{"__typename": "TerminateRunSuccess"}],
                 }
             }
-        }
+        },
     )
+
+    assert client.terminate("run-0") is True
+    assert session.sent[0]["variables"].get("policy") is None
+    assert session.sent[2]["variables"]["policy"] == "MARK_AS_CANCELED_IMMEDIATELY"
+
+
+def test_a_forced_cancel_that_is_refused_too_is_raised_not_repeated() -> None:
+    """Once, not in a loop."""
+    client, session = dagster(
+        failure("no."), status_of("STARTED"), failure("still no."), status_of("STARTED")
+    )
+
+    with pytest.raises(Refused, match="still no"):
+        client.terminate("run-0")
+    assert len(session.sent) == 4
+
+
+def test_a_run_that_could_not_be_stopped_for_another_reason_is_refused() -> None:
+    """Anything but "already finished" is a Stop that did not happen."""
+    client, _ = dagster(failure("no run coordinator"), status_of("QUEUED"))
 
     with pytest.raises(Refused, match="no run coordinator"):
         client.terminate("run-0")

@@ -307,3 +307,56 @@ def test_the_weights_job_caches_docling_by_its_version_and_keeps_a_failed_conver
     assert kept and kept[0]["if"] == "failure()"
     assert kept[0]["with"]["path"] == "tests/golden/snapshots"
     assert steps.index(refresh[0]) < steps.index(kept[0])
+
+
+def test_the_stack_job_starts_compose_yaml_alone_and_runs_the_orchestrator_smoke_tests() -> (
+    None
+):
+    """C-104's CI half: images without mounts, then the queries against a live Dagster."""
+    ci = loaded(ROOT / ".github/workflows/ci.yml")
+    job = ci["jobs"]["stack"]
+    commands = " ".join(step.get("run", "") for step in job["steps"])
+
+    assert "compose.dev.yaml" not in commands
+    assert "up -d --wait" in commands
+    assert "tests/smoke/test_orchestrator_queries.py" in commands
+    # The path end to end: two PDFs the golden tests hold, uploaded, then parsed
+    # and chunked by the corpus job the api launches.
+    assert "tests/golden/pdfs/shopping_de.pdf" in commands
+    assert "tests/golden/pdfs/shopping_en.pdf" in commands
+    # Launched the way the pages launch it, through the api, never by exec.
+    assert "/pipeline/run" in commands and "/pipeline/stop" in commands
+    assert "asset materialize" not in commands and " exec " not in commands
+    assert "time.monotonic() < deadline" in commands
+    assert "docling-weights" in commands
+    assert (ROOT / "tests/golden/pdfs/shopping_de.pdf").exists()
+    assert (ROOT / "tests/golden/pdfs/shopping_en.pdf").exists()
+    assert job["if"] == "github.event_name != 'pull_request'"
+    assert (ROOT / "tests/smoke/test_orchestrator_queries.py").exists()
+
+
+def test_the_gate_tolerates_the_stack_job_being_skipped_on_a_pull_request() -> None:
+    """Skipped is not a failure; anything else but success is."""
+    gate = loaded(ROOT / ".github/workflows/ci.yml")["jobs"]["gate"]
+    script = " ".join(step.get("run", "") for step in gate["steps"])
+
+    assert "stack" in gate["needs"]
+    assert 'needs.stack.result }}" = "skipped"' in script
+
+
+def test_the_stack_job_runs_every_step_with_pipefail_and_starts_what_an_upload_needs() -> (
+    None
+):
+    """GitHub's `shell: bash` is `bash -eo pipefail`; the volume servers are what a PUT is placed on."""
+    job = loaded(ROOT / ".github/workflows/ci.yml")["jobs"]["stack"]
+    commands = " ".join(step.get("run", "") for step in job["steps"])
+
+    assert job["defaults"]["run"]["shell"] == "bash"
+    compose = yaml.safe_load((ROOT / "compose.yaml").read_text())["services"]
+    first = next(one for one in commands.split("$DC up -d --wait")[1:2])
+    for service in ("seaweedfs-s3", "seaweedfs-volume", "seaweedfs-volume2"):
+        assert service in first, service
+    # Nothing depends on the volume servers, which is why they are named.
+    assert not any(
+        "seaweedfs-volume" in str(one.get("depends_on", "")) for one in compose.values()
+    )

@@ -6,7 +6,7 @@ import logging
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import case, delete, false, func, insert, select, text, update
 
@@ -32,6 +32,9 @@ from topic_modelling.models import (
     TopicFit,
     TopicRemoval,
 )
+
+if TYPE_CHECKING:
+    from blob_store.s3 import ArchiveBucket, ExportBucket, ModelsBucket
 
 log = logging.getLogger(__name__)
 
@@ -1080,3 +1083,49 @@ class TopicCatalog(Repository):
             )
             for row in rows
         ]
+
+
+def archive_fit(
+    languages: list[str],
+    *,
+    export: ExportBucket,
+    models: ModelsBucket,
+    archive: ArchiveBucket,
+    strict: bool = True,
+) -> tuple[int, int]:
+    """Archives the figure and the model of each language whose topics went.
+
+    The one place the pair is named, for the command, the route and a fit that
+    left a language behind. The model goes with the figure: a factorisation of
+    topics that no longer exist describes nothing, and no fit reaches either
+    again.
+
+    Args:
+        languages: The languages whose topics are gone.
+        export: Where the figures are.
+        models: Where the factorisations are.
+        archive: Where they go.
+        strict: Raise the first failure. Off, a failure is logged and the rest
+            go on, which is a fit's way: its rows are already replaced.
+
+    Returns:
+        How many figures and how many models there was something to archive.
+    """
+    figures = kept = 0
+    for language in languages:
+        for source, key in (
+            (export, export.topic_visualisation_key(language)),
+            (models, models.topic_model_key(language)),
+        ):
+            try:
+                taken = archive.take(source.name, key)
+            except Exception:
+                if strict:
+                    raise
+                log.exception("could not archive the %s %s", language, key)
+                continue
+            if source is export:
+                figures += taken
+            else:
+                kept += taken
+    return figures, kept

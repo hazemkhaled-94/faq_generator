@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel, Field
 
-from llm.client import Client, ModelUnavailable
+from llm.client import Model, ModelUnavailable
 from llm.prompt import fill
 from nlp import pipelines
 from topic_modelling.models import FittedTopic
@@ -139,7 +139,7 @@ _TERM_MATCH = 4
 class TopicLabeller:
     """Names a topic from its terms and a few of the passages it holds."""
 
-    def __init__(self, client: Client, languages: dict[str, str]) -> None:
+    def __init__(self, client: Model, languages: dict[str, str]) -> None:
         """Initialises the labeller.
 
         Args:

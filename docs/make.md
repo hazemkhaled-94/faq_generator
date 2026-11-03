@@ -23,7 +23,7 @@ is the long form.
 | `make install` | `make install-python`, then `make docling-weights` |
 | `make doctor` | Check the tools, the configuration (says for each host address whether the env file, the environment, the command line or the ports gave it, and warns when `.env` or `provider.env` is readable by other accounts), the model split, the stored settings, and the pinned models and Docling's weights in the cache (a miss fails with `HF_HUB_OFFLINE=1` or `HOST_RUNNER=1`, else warns). Then ask every model one question. Also lists names `ENV_FILE` sets over a committed file, warns when the checkout or `ENV_FILE` sits in a synced folder, fails on a password a connection string cannot hold (the application, Phoenix, Argilla or Elasticsearch one), and prints the archive's estimated size |
 | `make dev` | `make install` first, then certificates, every service, the schema and the Grafana grants |
-| `make upgrade` | Check the engine has `UPGRADE_FREE_GB` free (20), build, prune orphaned images, stop the workers, `make schema`, `make up`. Stops at the first failing step |
+| `make upgrade` | Refuse a `change_me_` value in `.env`, check the engine has `UPGRADE_FREE_GB` free (20), build, prune orphaned images, stop the workers, `make schema`, `make up`. Stops at the first failing step |
 
 `doctor` ends with a real call to `LLM_MODEL`, as the host calls it. A
 container may call only Ollama: `doctor` fails when `OLLAMA_CONTAINER_URL` or
@@ -109,7 +109,7 @@ use it.
 | `make dev` | `make install` first (needs the network), then certificates, every service, the schema and the grants. Use `make up` for an installed stack |
 | `make install-python` | Dependencies and the spaCy pipelines `NLP_MODELS` names, on the host alone. What CI's setup runs |
 | `make docling-weights` | Download Docling's weights into the `models` volume that parse-worker reads. `HOST=1` fetches them into the host's Hugging Face cache instead, which `make doctor`, the hosted preflight and a host drain read |
-| `make up` | Start services, then grant Grafana's reader the five Phoenix tables its run dashboard queries. On a slow first boot it fails after 150 seconds with the stack up: run `make grafana-grants` again |
+| `make up` | Refuse a `change_me_` value in `.env` (`make placeholders` is that check), start services (on the development profile with `compose.dev.yaml`, which mounts this checkout's source over the images; with `HOST_RUNNER=1`, `compose.yaml` alone), then grant Grafana's reader the five Phoenix tables its run dashboard queries. On a slow first boot it fails after 150 seconds with the stack up: run `make grafana-grants` again |
 | `make grafana-grants` | Those grants alone. Safe to repeat |
 | `make down` | Stop services, keep data, and remove dangling images |
 | `make down-volumes CONFIRM=all-volumes` | Stop services and **delete all data**: every database's volumes on the stack |

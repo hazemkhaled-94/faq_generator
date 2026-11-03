@@ -4,7 +4,9 @@ One configuration, two renderings of the same record: text on stdout, which
 is what `make logs` shows a person, and one JSON object per line in a file,
 which is what the log shipper reads. Neither is a separate set of fields -
 the JSON carries everything the text line does and the fields the text line
-has no room for.
+has no room for. `LOG_FORMAT=json` renders stdout as the JSON too, which is
+what a platform that collects container output wants, and then `LOG_DIR` can
+stay unset: the standard `logging.Handler` is the port, and stdout is enough.
 
 The JSON field names are ECS, which is what Elasticsearch's own template
 maps: `log.level` and `service.name` arrive as keywords a dashboard can group
@@ -49,6 +51,9 @@ _OPINIONATED = ("uvicorn", "uvicorn.error", "uvicorn.access")
 #: compose, the bind-mounted host directory from .env, and unset - which is
 #: any process given neither - means stdout only.
 _LOG_DIR = "LOG_DIR"
+
+#: How stdout is rendered: `text` for a person, `json` for a collector.
+_LOG_FORMAT = "LOG_FORMAT"
 
 #: One file may reach this before it rotates, and this many rotations are
 #: kept. Sized so a worker logging steadily keeps about a day locally; the
@@ -238,25 +243,27 @@ def configure(
     first: the text format references the fields it provides.
 
     A JSON file handler is added when LOG_DIR names a writable directory,
-    which is how a container is run and a host command is not.
+    which is how a container is run and a host command is not. stdout is
+    JSON when LOG_FORMAT says `json`.
 
     `run` goes on every shipped line as `run.id`, so one run's lines can be
     read together across the five processes it crosses.
     """
-    handlers: list[logging.Handler] = [_stream()]
-    shipped = _file(service_name, run)
-    if shipped is not None:
-        handlers.append(shipped)
-
-    for handler in handlers:
-        handler.addFilter(_Bound())
+    stream = _stream(service_name, run)
+    stream.addFilter(_Bound())
 
     # force: replaces the root logger's handlers rather than adding to them.
+    # Installed before the file handler is tried, so what that reports has
+    # a handler to go to.
     logging.basicConfig(
-        handlers=handlers,
+        handlers=[stream],
         level=level or os.getenv("LOG_LEVEL", "INFO").upper(),
         force=True,
     )
+    shipped = _file(service_name, run)
+    if shipped is not None:
+        shipped.addFilter(_Bound())
+        logging.getLogger().addHandler(shipped)
 
     for name in _NOISY:
         logging.getLogger(name).setLevel(logging.WARNING)
@@ -267,10 +274,20 @@ def configure(
         logger.propagate = True
 
 
-def _stream() -> logging.Handler:
-    """Builds the handler a person reads, on stdout."""
+def _stream(service_name: str, run: str | None = None) -> logging.Handler:
+    """Builds the handler on stdout, as text or as the JSON the file holds.
+
+    Raises:
+        ValueError: If LOG_FORMAT names neither.
+    """
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter(_FORMAT, datefmt=_DATE_FORMAT))
+    rendering = os.getenv(_LOG_FORMAT, "text").strip() or "text"
+    if rendering == "json":
+        handler.setFormatter(JsonFormatter(service_name, run))
+    elif rendering == "text":
+        handler.setFormatter(logging.Formatter(_FORMAT, datefmt=_DATE_FORMAT))
+    else:
+        raise ValueError(f"{_LOG_FORMAT}={rendering!r} is neither text nor json")
     return handler
 
 
@@ -287,8 +304,8 @@ def _file(service_name: str, run: str | None = None) -> logging.Handler | None:
     The cost is a file per run, and `make logs-prune` is what sweeps them.
 
     Never raises: an unwritable directory costs the shipped copy, and the
-    line still reaches stdout. That is reported rather than swallowed - the
-    warning is the first thing on the stream handler just installed.
+    line still reaches stdout. That is reported rather than swallowed: the
+    warning is a record on the stream handler `configure` installed first.
     """
     directory = os.getenv(_LOG_DIR, "").strip()
     if not directory:

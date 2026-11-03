@@ -80,3 +80,64 @@ def test_a_dagster_that_answered_no_is_not_called_absent(
     assert answered.status_code == 503
     assert answered.json()["code"] == "orchestrator_refused", answered.json()
     assert "Konto gesperrt" in answered.json()["detail"]
+
+
+class Queue:
+    """A stage queue that reports two rows waiting and no database behind it."""
+
+    def queue_state(self, within=None, *, digests: bool = False):
+        """The counts."""
+        from types import SimpleNamespace
+
+        return SimpleNamespace(working=True, rows={"pending": 2}, digests={})
+
+
+def stalled_server(seconds: float):
+    """A webserver that accepts a request and answers it only after `seconds`."""
+    import threading
+    import time
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class Stall(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            """Sits on the request."""
+            time.sleep(seconds)
+            try:
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"{}")
+            except OSError:
+                pass
+
+        def log_message(self, format, *args) -> None:
+            """Silent."""
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Stall)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+def test_a_dagster_that_stalls_leaves_the_queues_answering_within_four_seconds(
+    api, monkeypatch
+) -> None:
+    """The page waits ten seconds for this route, so a slow Dagster must not take them."""
+    import time
+
+    from api.orchestrator import Dagster
+    from api.routes import pipeline
+
+    server = stalled_server(5)
+    monkeypatch.setattr(pipeline, "STAGES", (("parsing", Queue()),))
+    client = api(Dagster(f"http://127.0.0.1:{server.server_port}"))
+
+    started = time.monotonic()
+    answered = client.get("/pipeline")
+    waited = time.monotonic() - started
+    server.shutdown()
+    server.server_close()
+
+    assert answered.status_code == 200, answered.text
+    assert waited < 4, f"answered after {waited:.1f}s"
+    body = answered.json()
+    assert body["stages"][0]["rows"] == {"pending": 2}
+    assert body["orchestration"]["available"] is False

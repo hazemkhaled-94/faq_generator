@@ -107,6 +107,7 @@ COPY backend/question_generation/ ./question_generation/
 COPY backend/assessment/ ./assessment/
 COPY backend/nlp/ ./nlp/
 COPY backend/llm/ ./llm/
+COPY backend/archive/ ./archive/
 # The one first-party module that is a file rather than a package, and so
 # the one that a line per directory above does not carry. Four packages
 # import it - extraction, question_generation and the two that read a
@@ -118,8 +119,9 @@ COPY pyproject.toml ./
 COPY telemetry/ /shared/telemetry/
 
 # The hash of the lock this image installed, which telemetry/lockcheck.sh
-# compares at every start with the checkout's own, mounted read-only at
-# /app/api. A lock changed without `compose build` stops the container with
+# compares at every start with the checkout's own where the development
+# override mounts it read-only at /app/api (compose.dev.yaml), and with this
+# image's own copy where nothing is mounted. A lock changed without `compose build` stops the container with
 # the command to run, where it used to start on the old packages.
 RUN sha256sum requirements.lock | cut -d' ' -f1 > /app/.lock-sha
 ENV LOCK_SHA=/app/.lock-sha LOCK_FILE=/app/api/requirements.lock

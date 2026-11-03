@@ -3,8 +3,16 @@
 The served model, shared by the four stages that call one: extraction,
 topic modelling, question generation and the assessment judge.
 
-[`client.py`](client.py) loads litellm. Only workers may import it; the API
-loads none of it (`tests/static/test_api_stays_light.py`).
+[`client.py`](client.py) loads litellm and is the only module that does. Only
+workers may import it; the API loads none of it
+(`tests/static/test_api_stays_light.py`). Stages hold a `Model`, a protocol of
+`model`, `temperature` and `answer`, built by `build_model` from `LLM_CLIENT`
+(`litellm`, the only adapter there is). An adapter raises only `ModelRefused`
+and `ModelUnavailable`.
+
+Inline reasoning is removed from the start of a reply only: closed blocks, a
+block that never closed, or text up to a closing tag with no opening one. A
+tag inside the answer is the answer's own text.
 
 ## Structured answers
 
@@ -159,6 +167,7 @@ last run's latency and spend.
 |---|---|---|
 | `LLM_MODEL` | `.env` | LiteLLM model id. The prefix picks the provider |
 | `LLM_BASE_URL` | `.env` | Where that model is served. Leave out for a hosted model |
+| `LLM_BASE_URLS` | `.env` | An address for one role, as `role=address` over writer, verifier, phrasing, extraction, digest, topics and judge. A role left out is served from `LLM_BASE_URL` |
 | `LLM_STRUCTURED_MODE` | `backend.env` | How a typed answer is requested |
 | `LLM_TEMPERATURE` | `backend.env` | Sampling temperature |
 | `LLM_TIMEOUT_SECONDS` | `backend.env` | How long one call may take |
@@ -175,7 +184,7 @@ last run's latency and spend.
 ## Tests
 
 ```sh
-poetry run pytest tests/unit/llm
+poetry run pytest tests/unit/llm tests/contract/test_model.py
 ```
 
 The tests cover retries (`test_client.py`), the preflight (`test_check.py`),

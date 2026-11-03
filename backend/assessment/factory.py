@@ -8,7 +8,7 @@ from assessment.config import MARKING, UNNAMED, Settings, judge_equals, judged_k
 from assessment.judge import Judge
 from assessment.repository import AssessmentQueue
 from assessment.service import AssessmentService
-from llm.client import Client
+from llm.client import build_model
 from llm.config import Settings as ModelSettings
 from settings import Source
 
@@ -30,7 +30,7 @@ def judge_model(settings: Settings, shared: ModelSettings) -> ModelSettings:
     """
     if not settings.judge_model:
         raise ValueError(UNNAMED)
-    return shared.overridden(settings.judge_model)
+    return shared.overridden(settings.judge_model, "judge")
 
 
 def build_service(
@@ -68,5 +68,5 @@ def build_service(
             stratify=settings.stratify,
             version=version,
         ),
-        judge=Judge(Client(asked)),
+        judge=Judge(build_model(asked)),
     )

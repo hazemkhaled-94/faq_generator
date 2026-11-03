@@ -1,0 +1,83 @@
+name: qa_generator
+
+# The development override: this checkout's source, bind-mounted read-only over
+# what each first-party image carries, so an edit is live without a rebuild.
+#
+# compose.yaml alone is the deployment: every image runs from its own files and
+# the environment, and mounts no path of the checkout. The Makefile names this
+# file after compose.yaml on the development profile only (`make up` without
+# HOST_RUNNER); the go-live profile starts the images as they were built.
+#
+# What a mount hides is the image's own copy, so this is also where the lock
+# check (telemetry/lockcheck.sh) means something: LOCK_FILE sits inside the
+# mounted tree here and compares the checkout's lock with the hash baked at
+# build, and in an image run bare it is the file the image installed from.
+# tests/static/test_compose_dev.py holds the mounts to what compose.yaml's
+# images carry.
+
+x-backend-source: &backend-source
+  - ./backend/api:/app/api:ro
+  - ./backend/database:/app/database:ro
+  - ./backend/blob_store:/app/blob_store:ro
+  - ./backend/settings:/app/settings:ro
+  - ./backend/stages:/app/stages:ro
+  - ./backend/ingestion:/app/ingestion:ro
+  - ./backend/preprocessing:/app/preprocessing:ro
+  - ./backend/extraction:/app/extraction:ro
+  - ./backend/topic_modelling:/app/topic_modelling:ro
+  - ./backend/nlp:/app/nlp:ro
+  - ./backend/llm:/app/llm:ro
+  - ./backend/question_generation:/app/question_generation:ro
+  - ./backend/assessment:/app/assessment:ro
+  - ./backend/archive:/app/archive:ro
+  - ./backend/confidence.py:/app/confidence.py:ro
+  - ./telemetry:/shared/telemetry:ro
+
+services:
+  api:
+    volumes:
+      - ./backend/api:/app/api:ro
+      - ./backend/database:/app/database:ro
+      - ./backend/blob_store:/app/blob_store:ro
+      - ./backend/settings:/app/settings:ro
+      - ./backend/stages:/app/stages:ro
+      - ./backend/ingestion:/app/ingestion:ro
+      - ./backend/preprocessing:/app/preprocessing:ro
+      - ./backend/extraction:/app/extraction:ro
+      - ./backend/topic_modelling:/app/topic_modelling:ro
+      - ./backend/question_generation:/app/question_generation:ro
+      - ./backend/assessment:/app/assessment:ro
+      - ./backend/nlp:/app/nlp:ro
+      - ./backend/llm:/app/llm:ro
+      - ./backend/archive:/app/archive:ro
+      - ./backend/confidence.py:/app/confidence.py:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      - ./telemetry:/shared/telemetry:ro
+  parse-worker:
+    volumes: *backend-source
+  chunk-worker:
+    volumes: *backend-source
+  extract-worker:
+    volumes: *backend-source
+  topic-worker:
+    volumes: *backend-source
+  question-worker:
+    volumes: *backend-source
+  assess-worker:
+    volumes: *backend-source
+  streamlit:
+    volumes:
+      - ./frontend:/app:ro
+      - ./telemetry:/shared/telemetry:ro
+  dagster-webserver:
+    volumes:
+      - ./configs/dagster/dagster.yaml:/opt/dagster/config/dagster.yaml:ro
+      - ./configs/dagster/workspace.yaml:/opt/dagster/config/workspace.yaml:ro
+      - ./orchestration:/opt/dagster/app/orchestration:ro
+      - ./telemetry:/shared/telemetry:ro
+  dagster-daemon:
+    volumes:
+      - ./configs/dagster/dagster.yaml:/opt/dagster/config/dagster.yaml:ro
+      - ./configs/dagster/workspace.yaml:/opt/dagster/config/workspace.yaml:ro
+      - ./orchestration:/opt/dagster/app/orchestration:ro
+      - ./telemetry:/shared/telemetry:ro

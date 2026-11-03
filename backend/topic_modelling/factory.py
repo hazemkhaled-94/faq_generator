@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from blob_store.s3 import ArchiveBucket, ExportBucket, ModelsBucket
-from llm.client import Client
+from llm.client import build_model
 from topic_modelling.config import Settings
 from topic_modelling.labels import TopicLabeller
 from topic_modelling.repository import TopicQueue
@@ -32,7 +32,7 @@ def build_service(
     """
     labeller = None
     if settings.model is not None:
-        labeller = TopicLabeller(Client(settings.model), settings.languages)
+        labeller = TopicLabeller(build_model(settings.model), settings.languages)
     else:
         log.warning("no model configured; topics will be named by their terms only")
 

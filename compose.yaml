@@ -67,6 +67,7 @@ x-service-env: &service-env
   TZ: UTC
   DATABASE_URL: postgresql+psycopg://${APP_DB_USER}:${APP_DB_PASSWORD:?add it to .env; .env.example names every secret}@postgres:5432/${APP_DB_NAME}
   LOG_LEVEL: ${LOG_LEVEL}
+  LOG_FORMAT: ${LOG_FORMAT}
   LOG_DIR: /var/log/qa
   HF_HOME: /home/app/.cache/huggingface
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_CONTAINER_ENDPOINT}
@@ -87,6 +88,7 @@ x-service-env: &service-env
 x-phoenix-env: &phoenix-env
   OTEL_EXPORTER_OTLP_HEADERS: authorization=Bearer ${PHOENIX_ADMIN_SECRET:?add it to .env; .env.example names every secret}
   PHOENIX_API_KEY: ${PHOENIX_ADMIN_SECRET:?add it to .env; .env.example names every secret}
+  TRACE_STORE: ${TRACE_STORE}
 
 # Object store readers and writers.
 x-store-env: &store-env
@@ -101,6 +103,8 @@ x-store-env: &store-env
   S3_SECRET_KEY: ${S3_SECRET_KEY?add it to .env; .env.example names every secret}
   S3_REGION: ${S3_REGION}
   S3_ADDRESSING_STYLE: ${S3_ADDRESSING_STYLE}
+  S3_BUCKETS: ${S3_BUCKETS}
+  OBJECT_STORE: ${OBJECT_STORE}
 
 # Which model, and where it is served. Its mode, temperature, timeout and
 # attempt count are in backend.env; these stay here, because that is one
@@ -175,28 +179,25 @@ x-worker: &worker
   extra_hosts:
     - "host.docker.internal:host-gateway"
   volumes:
-    - ./backend/api:/app/api:ro
-    - ./backend/database:/app/database:ro
-    - ./backend/blob_store:/app/blob_store:ro
-    - ./backend/settings:/app/settings:ro
-    - ./backend/stages:/app/stages:ro
-    - ./backend/ingestion:/app/ingestion:ro
-    - ./backend/preprocessing:/app/preprocessing:ro
-    - ./backend/extraction:/app/extraction:ro
-    - ./backend/topic_modelling:/app/topic_modelling:ro
-    - ./backend/nlp:/app/nlp:ro
-    - ./backend/llm:/app/llm:ro
-    - ./backend/question_generation:/app/question_generation:ro
-    - ./backend/assessment:/app/assessment:ro
-    - ./backend/archive:/app/archive:ro
-    # A file rather than a package, so the lines above do not carry it.
-    - ./backend/confidence.py:/app/confidence.py:ro
-    - ./telemetry:/shared/telemetry:ro
     - logs:/var/log/qa
     - models:/home/app/.cache/huggingface
   depends_on:
     postgres:      { condition: service_healthy }
     seaweedfs-s3:  { condition: service_healthy }
+  # A worker serves no port, so what it can say is that it is the worker:
+  # PID 1 is python, which the image's entrypoint becomes by `exec` once the
+  # lock check passes. A container still waiting out a stale lock has `sh`
+  # there, and is reported unhealthy, which is what it is.
+  healthcheck:
+    test:
+      - CMD
+      - python
+      - -c
+      - "import sys; sys.exit(0 if open('/proc/1/cmdline', 'rb').read().split(b'\\0')[0].endswith(b'python') else 1)"
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 60s
   networks: [global]
   logging: *logging
 
@@ -244,14 +245,11 @@ x-dagster: &dagster
     BACKEND_URL: ${BACKEND_CONTAINER_URL}
     API_TOKEN: ${API_TOKEN:?add it to .env; .env.example names every secret}
     LOG_LEVEL: ${LOG_LEVEL}
+    LOG_FORMAT: ${LOG_FORMAT}
     LOG_DIR: /var/log/qa
     OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_CONTAINER_ENDPOINT}
   volumes:
     - dagster_home:/opt/dagster/dagster_home
-    - ./configs/dagster/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
-    - ./configs/dagster/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
-    - ./orchestration:/opt/dagster/app/orchestration:ro
-    - ./telemetry:/shared/telemetry:ro
     - logs:/var/log/qa
   depends_on:
     postgres: { condition: service_healthy }
@@ -511,6 +509,8 @@ services:
       # webserver did - and the webserver already depends on the api, so
       # requiring it both ways would be a cycle compose refuses to start.
       DAGSTER_URL: ${DAGSTER_URL:-http://dagster-webserver:3000}
+      # Which orchestrator the api asks: dagster, or none.
+      ORCHESTRATOR: ${ORCHESTRATOR}
       # The go-live profile, which the pipeline routes read: no orchestrator,
       # and a queue verb for a model stage names the host runner. The api
       # alone is told; a worker never reads it.
@@ -520,6 +520,7 @@ services:
       # browser needs and the ports below are the only place both halves are
       # written down - grafana serves 3000 and is published on 3001. A
       # service left out simply gets no link.
+      SERVICE_PROBES: ${SERVICE_PROBES}
       SERVICE_URLS: >-
         api=http://localhost:${BACKEND_PORT}/docs,
         streamlit=http://localhost:${STREAMLIT_PORT},
@@ -529,24 +530,6 @@ services:
         grafana=http://localhost:${GRAFANA_PORT},
         adminer=http://localhost:${ADMINER_PORT}
     volumes:
-      - ./backend/api:/app/api:ro
-      - ./backend/database:/app/database:ro
-      - ./backend/blob_store:/app/blob_store:ro
-      - ./backend/settings:/app/settings:ro
-      - ./backend/stages:/app/stages:ro
-      - ./backend/ingestion:/app/ingestion:ro
-      - ./backend/preprocessing:/app/preprocessing:ro
-      - ./backend/extraction:/app/extraction:ro
-      - ./backend/topic_modelling:/app/topic_modelling:ro
-      - ./backend/question_generation:/app/question_generation:ro
-      - ./backend/assessment:/app/assessment:ro
-      - ./backend/nlp:/app/nlp:ro
-      - ./backend/llm:/app/llm:ro
-      - ./backend/archive:/app/archive:ro
-      - ./backend/confidence.py:/app/confidence.py:ro
-      # The version stamped on a stored object is read from it.
-      - ./pyproject.toml:/app/pyproject.toml:ro
-      - ./telemetry:/shared/telemetry:ro
       - logs:/var/log/qa
     ports:
       - "127.0.0.1:${BACKEND_PORT}:8000"
@@ -727,6 +710,7 @@ services:
       API_TOKEN: ${API_TOKEN:?add it to .env; .env.example names every secret}
       PAGE_SIZE: ${PAGE_SIZE}
       LOG_LEVEL: ${LOG_LEVEL}
+      LOG_FORMAT: ${LOG_FORMAT}
       LOG_DIR: /var/log/qa
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_CONTAINER_ENDPOINT}
       # The HOST's address, deliberately, and the one place in this file
@@ -740,8 +724,6 @@ services:
       PHOENIX_BASE_URL: http://localhost:${PHOENIX_PORT}
       STREAMLIT_SERVER_FILE_WATCHER_TYPE: poll
     volumes:
-      - ./frontend:/app:ro
-      - ./telemetry:/shared/telemetry:ro
       - logs:/var/log/qa
     ports:
       - "127.0.0.1:${STREAMLIT_PORT}:8501"
@@ -798,6 +780,15 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       postgres: { condition: service_healthy }
+    # The image is distroless (gcr.io/distroless/python3): no /bin/sh, so a
+    # CMD-SHELL check never runs. The exec form names the image's own
+    # interpreter, which is all it holds besides Phoenix.
+    healthcheck:
+      test: ["CMD", "/usr/bin/python3", "-c", "import urllib.request as u; u.urlopen('http://localhost:6006/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks: [global, parsing]
     logging: *logging
     deploy:
@@ -808,7 +799,7 @@ services:
   # schedule and the arrivals sensor are stopped until somebody switches them on.
   dagster-webserver:
     <<: *dagster
-    command: python -m orchestration.serve -h 0.0.0.0 -p 3000 -w /opt/dagster/dagster_home/workspace.yaml
+    command: ["sh", "-c", "for f in dagster workspace; do cp /opt/dagster/config/$$f.yaml \"$$DAGSTER_HOME\"/.$$f.$$$$.$$(hostname) && mv -f \"$$DAGSTER_HOME\"/.$$f.$$$$.$$(hostname) \"$$DAGSTER_HOME\"/$$f.yaml; done && exec python -m orchestration.serve -h 0.0.0.0 -p 3000 -w \"$$DAGSTER_HOME\"/workspace.yaml"]
     ports:
       - "127.0.0.1:${DAGSTER_WEBSERVER_PORT}:3000"
     healthcheck:
@@ -825,15 +816,26 @@ services:
   # What actually ticks the schedule and the sensors. Without it the UI
   # shows them and none ever fires.
   #
+  # Each file is written under a temporary name and renamed over the old one: a
+  # volume from before the config was baked holds them root-owned, from the bind
+  # mounts that used to land there, and the app user may replace a file in a
+  # directory it owns but not open it for writing. The rename is also one step,
+  # so the sibling container never reads a file half written or missing.
   # The workspace is named here as it is for the webserver, and for the
-  # same reason: WORKDIR is /opt/dagster/app and the file is mounted into
-  # DAGSTER_HOME, so a daemon left to find its own looks in the wrong
+  # same reason: WORKDIR is /opt/dagster/app and the file is copied into
+  # DAGSTER_HOME at start, so a daemon left to find its own looks in the wrong
   # directory, finds no `[tool.dagster]` in a pyproject.toml that is not
   # in the image either, prints its usage and exits 0. With
   # `restart: unless-stopped` above that is not a crash but a spin.
   dagster-daemon:
     <<: *dagster
-    command: dagster-daemon run -w /opt/dagster/dagster_home/workspace.yaml
+    command: ["sh", "-c", "for f in dagster workspace; do cp /opt/dagster/config/$$f.yaml \"$$DAGSTER_HOME\"/.$$f.$$$$.$$(hostname) && mv -f \"$$DAGSTER_HOME\"/.$$f.$$$$.$$(hostname) \"$$DAGSTER_HOME\"/$$f.yaml; done && exec dagster-daemon run -w \"$$DAGSTER_HOME\"/workspace.yaml"]
+    healthcheck:
+      test: ["CMD-SHELL", "dagster-daemon liveness-check || exit 1"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 40s
     deploy:
       resources:
         limits: { cpus: "0.5", memory: 512M }
@@ -967,6 +969,12 @@ services:
       # Started rather than healthy on purpose - a shipper that waits for the
       # api to be well cannot ship the logs saying why it is not.
       api: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "filebeat test output --strict.perms=false >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 40s
     networks: [global]
     logging: *logging
     deploy:
@@ -990,6 +998,11 @@ services:
       APP_DB_NAME: ${APP_DB_NAME}
       PHOENIX_DB_NAME: ${PHOENIX_DB_NAME}
       GRAFANA_DB_USER: ${GRAFANA_DB_USER}
+      # Where the datasources point, so a managed database or another log
+      # store is a setting and not an edit of the provisioning files.
+      GRAFANA_DB_HOST: ${GRAFANA_DB_HOST}
+      GRAFANA_DB_SSLMODE: ${GRAFANA_DB_SSLMODE}
+      GRAFANA_ELASTICSEARCH_URL: ${GRAFANA_ELASTICSEARCH_URL}
       GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:?add it to .env; .env.example names every secret}
     volumes:
       - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -1024,6 +1037,11 @@ services:
       - "127.0.0.1:${ADMINER_PORT}:8080"
     depends_on:
       postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     networks: [global]
     logging: *logging
 

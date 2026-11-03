@@ -25,7 +25,7 @@ from api.params import NO_NUL, RowId, RunName
 from api.routes.stage import StageAction, StageStatus, answered, status_of
 from llm.config import host_runner
 from topic_modelling.models import StoredTopic, TopicFit, TopicRemoval
-from topic_modelling.repository import KEEP, QuestionsRunning
+from topic_modelling.repository import KEEP, QuestionsRunning, archive_fit
 
 router = APIRouter(prefix="/topics", tags=["topics"])
 
@@ -206,9 +206,10 @@ def delete(confirm: bool = False) -> TopicRemoval:
         removed = topic_catalog.delete_all()
     except QuestionsRunning as exc:
         raise ApiError(409, "questions_running", str(exc)) from exc
-    for language in removed.languages:
-        archive_bucket.take(
-            export_bucket.name, export_bucket.topic_visualisation_key(language)
-        )
-        archive_bucket.take(models_bucket.name, models_bucket.topic_model_key(language))
+    archive_fit(
+        removed.languages,
+        export=export_bucket,
+        models=models_bucket,
+        archive=archive_bucket,
+    )
     return removed

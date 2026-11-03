@@ -12,7 +12,7 @@ import sys
 import telemetry
 from database.qa_generator import engine
 from llm.check import before_work
-from llm.client import Client
+from llm.client import build_model
 from llm.config import Settings as ModelSettings
 from question_generation import prompts
 from question_generation.catalog import QuestionCatalog
@@ -65,7 +65,9 @@ def main(argv: list[str] | None = None) -> int:
         # verifier that will not answer leaves no Phoenix project behind.
         telemetry.configure("questions", run=run_id(), named=named_run())
         telemetry.trace_engine(engine())
-        return balance(QuestionCatalog(), settings, within, Verifier(Client(verifier)))
+        return balance(
+            QuestionCatalog(), settings, within, Verifier(build_model(verifier))
+        )
 
     def rejudged(within) -> int:
         """Re-judges the accepted unanswerable questions, with the verifier.
@@ -77,7 +79,9 @@ def main(argv: list[str] | None = None) -> int:
         _, verifier, _ = models(settings, model)
         before_work(verifier)
         trace("questions")
-        return rejudge(QuestionCatalog(), settings, Verifier(Client(verifier)), within)
+        return rejudge(
+            QuestionCatalog(), settings, Verifier(build_model(verifier)), within
+        )
 
     #: This stage's own operation. No model is called: it puts the stored
     #: questions through the gates that need none, which is how a fact

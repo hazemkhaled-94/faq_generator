@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from llm.client import Client
+from llm.client import build_model
 from llm.config import Settings as ModelSettings
 from nlp.embedding import Embedder
 from nlp.entailment import Entailment
@@ -30,9 +30,9 @@ def models(
     LLM_MODEL when absent. QUESTIONS_PHRASING_MODEL names the third and is
     the verifier's when absent.
     """
-    writer = shared.overridden(settings.model)
-    verifier = shared.overridden(settings.verifier_model)
-    return writer, verifier, verifier.overridden(settings.phrasing_model)
+    writer = shared.overridden(settings.model, "writer")
+    verifier = shared.overridden(settings.verifier_model, "verifier")
+    return writer, verifier, verifier.overridden(settings.phrasing_model, "phrasing")
 
 
 def build_service(
@@ -69,10 +69,10 @@ def build_service(
             verifier_model=verifier_model.model,
             phrasing_model=phrasing_model.model if judge_phrasing else None,
         ),
-        writer=QuestionWriter(Client(writer_model)),
+        writer=QuestionWriter(build_model(writer_model)),
         checker=QuestionChecker(
             embedder=Embedder(settings.embedding_model, settings.max_tokens),
-            verifier=Verifier(Client(verifier_model)),
+            verifier=Verifier(build_model(verifier_model)),
             nearest=catalog.nearest,
             threshold=settings.duplicate_cosine,
             shared_threshold=settings.duplicate_shared_cosine,
@@ -95,7 +95,7 @@ def build_service(
             elsewhere=catalog.elsewhere,
             elsewhere_passages=settings.elsewhere_passages,
             off_topic_overlap=settings.off_topic_overlap,
-            phrasing=PhrasingJudge(Client(phrasing_model)),
+            phrasing=PhrasingJudge(build_model(phrasing_model)),
             # Nothing is loaded until the pass first runs, so a worker whose
             # questions all pass recall never pays for the weights.
             entailment=(

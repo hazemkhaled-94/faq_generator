@@ -139,3 +139,61 @@ def test_a_list_of_nothing_but_separators_is_missing(monkeypatch) -> None:
     monkeypatch.setenv(NAME, ",,,")
     with pytest.raises(KeyError, match=NAME):
         csv(NAME)
+
+
+@pytest.mark.parametrize(
+    ("reader", "value"),
+    [
+        ("required", "Kontoauszug"),
+        ("required", ""),
+        ("optional", "relevé"),
+        ("optional", " "),
+        ("integer", "12"),
+        ("integer", "twelve"),
+        ("decimal", "0,5"),
+        ("decimal", "0.5"),
+        ("boolean", "yes"),
+        ("boolean", "ναι"),
+        ("csv", "de, en ,"),
+        ("mapping", "de=Jahresbericht,pl=Raport"),
+    ],
+)
+def test_a_reader_gives_the_same_value_or_error_for_the_environment_and_a_plain_dict(
+    reader, value, monkeypatch
+) -> None:
+    """`Source` is the port for secrets and settings: the platform injects the environment.
+
+    A platform's secret store (Key Vault referenced from Container Apps) fills
+    `os.environ`, and a stored override is a dict over it. Every reader must not
+    care which.
+    """
+    from settings import env
+
+    read = getattr(env, reader)
+
+    def outcome(source) -> tuple[str, object]:
+        try:
+            return "value", read("SETTING", source)
+        except Exception as exc:  # noqa: BLE001
+            return "error", (type(exc), str(exc))
+
+    monkeypatch.setenv("SETTING", value)
+
+    assert outcome(None) == outcome({"SETTING": value})
+
+
+def test_an_unset_name_is_the_same_error_from_both_sources(monkeypatch) -> None:
+    """Absent is not empty, and neither source tells them apart differently."""
+    from settings import env
+
+    monkeypatch.delenv("SETTING", raising=False)
+
+    for reader in ("required", "integer", "decimal"):
+        with pytest.raises(Exception) as from_environment:
+            getattr(env, reader)("SETTING")
+        with pytest.raises(Exception) as from_dict:
+            getattr(env, reader)("SETTING", {})
+        assert (type(from_environment.value), str(from_environment.value)) == (
+            type(from_dict.value),
+            str(from_dict.value),
+        )

@@ -21,15 +21,16 @@ every surface; what it takes away is the one control that runs them in order,
 and that control then reports itself missing instead of failing.
 
 GraphQL because that is the only remote surface Dagster has. The queries are
-pinned against 1.13 and `tests/unit/api/test_orchestrator.py` records the
-shapes they expect.
+pinned against 1.13, `tests/unit/api/test_orchestrator.py` records the shapes
+they expect, and `tests/contract/test_orchestrator_port.py` validates every
+document against Dagster's own schema.
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 import requests
 
@@ -55,11 +56,20 @@ SCHEDULE = "nightly_corpus"
 #: Short: every call is a local HTTP round trip to a webserver that answers
 #: from its own database, and a page polls this. A slow orchestrator must
 #: read as "not answering" quickly rather than hold a request open.
-_TIMEOUT = 10.0
+#: Shorter than the page's ten seconds for `GET /pipeline`, so a Dagster that
+#: stalls costs that route three seconds and not its whole wait.
+_TIMEOUT = 3.0
 
 #: Run states Dagster reports for a run that has not finished. A run in any
 #: of them is why `POST /pipeline/run` refuses to start a second.
 LIVE = ("QUEUED", "NOT_STARTED", "STARTING", "STARTED", "MANAGED", "CANCELING")
+
+#: The states a run does not leave. Terminating one is not a failure.
+FINISHED = ("SUCCESS", "FAILURE", "CANCELED")
+
+#: Dagster's own name for cancelling a run whose process is gone without
+#: asking it to stop, which a run stuck in STARTED needs.
+_FORCE = "MARK_AS_CANCELED_IMMEDIATELY"
 
 #: The ones of those Dagster's terminateRuns accepts. It refuses the rest,
 #: a run it is already stopping among them.
@@ -117,6 +127,89 @@ class Orchestration:
     recent: list[Run] = field(default_factory=list)
     automation: Automation = field(default_factory=Automation)
     detail: str | None = None
+
+
+class Orchestrator(Protocol):
+    """What the API asks of whatever decides the order of the stages.
+
+    The stage queue is Postgres and stays so; this is only the control that
+    runs the stages in order. `state` never raises. The others raise
+    `Unavailable` when there is no orchestrator or it is not answering, and
+    `Refused` when it answered no. `ORCHESTRATOR` names the adapter:
+    `dagster`, or `none` for a deployment whose stages are run by something
+    else (`make corpus-hosted`, a platform's own jobs).
+    """
+
+    def state(self) -> Orchestration:
+        """What it is doing, as one answer."""
+        ...
+
+    def runs(self, *, limit: int = 20) -> list[Run]:
+        """Recent runs, newest first."""
+        ...
+
+    def live(self) -> list[Run]:
+        """Every run that has not finished."""
+        ...
+
+    def launch(self) -> Run:
+        """Starts a run of every stage but the topic fit."""
+        ...
+
+    def terminate(self, run_id: str) -> bool:
+        """Stops one run; False when it had already finished."""
+        ...
+
+    def automate(self, *, on_arrival: bool | None, nightly: bool | None) -> Automation:
+        """Switches the two triggers, leaving None alone."""
+        ...
+
+
+class NoOrchestrator:
+    """A deployment that has none, which says so instead of failing."""
+
+    _WHY = (
+        "ORCHESTRATOR=none, so this deployment has no orchestrator. Every "
+        "stage still answers its own routes."
+    )
+
+    def state(self) -> Orchestration:
+        """Unavailable, with the reason."""
+        return Orchestration(detail=self._WHY)
+
+    def runs(self, *, limit: int = 20) -> list[Run]:
+        """Raises: there is no orchestrator."""
+        raise Unavailable(self._WHY)
+
+    def live(self) -> list[Run]:
+        """Raises: there is no orchestrator."""
+        raise Unavailable(self._WHY)
+
+    def launch(self) -> Run:
+        """Raises: there is no orchestrator."""
+        raise Unavailable(self._WHY)
+
+    def terminate(self, run_id: str) -> bool:
+        """Raises: there is no orchestrator."""
+        raise Unavailable(self._WHY)
+
+    def automate(self, *, on_arrival: bool | None, nightly: bool | None) -> Automation:
+        """Raises: there is no orchestrator."""
+        raise Unavailable(self._WHY)
+
+
+def build() -> Orchestrator:
+    """The adapter ORCHESTRATOR names, `dagster` unless told otherwise.
+
+    Raises:
+        ValueError: If it names none that exists.
+    """
+    adapter = optional("ORCHESTRATOR")
+    if adapter in (None, "dagster"):
+        return Dagster()
+    if adapter == "none":
+        return NoOrchestrator()
+    raise ValueError(f"ORCHESTRATOR={adapter!r} names no adapter: dagster or none")
 
 
 class Dagster:
@@ -270,31 +363,42 @@ class Dagster:
     def terminate(self, run_id: str) -> bool:
         """Stops one run, and reports whether it was this call that did.
 
+        A refusal is read against the run's own status, not against what
+        Dagster says: a run that has finished (SUCCESS, FAILURE or CANCELED)
+        is not a failure and answers False, which is what a second press of
+        Stop gets. A run that is STARTED and refuses to stop is cancelled once
+        by force, because its process may be gone.
+
         Returns:
-            True if the run was terminated, False if it had already finished
-            - which is not a failure, and is what a second press of Stop
-            answers with.
+            True if the run was terminated, False if it had already finished.
 
         Raises:
             Unavailable: If the orchestrator is not configured or not up.
             Refused: If Dagster would not stop it for any other reason.
         """
-        data = self._query(_TERMINATE, runId=run_id)
-        answer = data.get("terminateRuns") or {}
-        if answer.get("__typename") != "TerminateRunsResult":
-            raise Refused(_why(answer, f"the orchestrator would not stop {run_id}"))
-        one = (answer.get("terminateRunResults") or [{}])[0]
-        if one.get("__typename") == "TerminateRunSuccess":
-            log.info("pipeline: run %s terminated", run_id)
-            return True
-        # ponytail: "already finished" is read from the failure's message
-        # text, so a reworded Dagster message reads as a refusal; the upgrade
-        # is reading the run's status from Dagster.
-        if one.get("__typename") == "TerminateRunFailure" and "finished" in (
-            one.get("message") or ""
-        ):
-            return False
-        raise Refused(_why(one, f"the orchestrator would not stop {run_id}"))
+        policy = None
+        while True:
+            data = self._query(_TERMINATE, runId=run_id, policy=policy)
+            answer = data.get("terminateRuns") or {}
+            if answer.get("__typename") != "TerminateRunsResult":
+                raise Refused(_why(answer, f"the orchestrator would not stop {run_id}"))
+            one = (answer.get("terminateRunResults") or [{}])[0]
+            if one.get("__typename") == "TerminateRunSuccess":
+                log.info("pipeline: run %s terminated", run_id)
+                return True
+            if one.get("__typename") == "TerminateRunFailure":
+                status = self._status(run_id)
+                if status in FINISHED:
+                    return False
+                if status == "STARTED" and policy is None:
+                    policy = _FORCE
+                    continue
+            raise Refused(_why(one, f"the orchestrator would not stop {run_id}"))
+
+    def _status(self, run_id: str) -> str:
+        """The state Dagster holds one run in, or an empty string when it holds none."""
+        found = self._query(_RUN, runId=run_id).get("runOrError") or {}
+        return found.get("status", "") if found.get("__typename") == "Run" else ""
 
     def automate(self, *, on_arrival: bool | None, nightly: bool | None) -> Automation:
         """Switches the two triggers on or off, leaving None alone.
@@ -460,9 +564,18 @@ mutation Launch($params: ExecutionParams!) {{
 }}
 """
 
+_RUN = """
+query RunStatus($runId: ID!) {
+  runOrError(runId: $runId) {
+    __typename
+    ... on Run { runId status }
+  }
+}
+"""
+
 _TERMINATE = """
-mutation Terminate($runId: String!) {
-  terminateRuns(runIds: [$runId]) {
+mutation Terminate($runId: String!, $policy: TerminateRunPolicy) {
+  terminateRuns(runIds: [$runId], terminatePolicy: $policy) {
     __typename
     ... on TerminateRunsResult {
       terminateRunResults {

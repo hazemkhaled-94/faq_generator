@@ -20,7 +20,7 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel, Field
 
-from llm.client import Client, ModelUnavailable
+from llm.client import Model, ModelUnavailable
 from llm.prompt import fill, grounded
 
 log = logging.getLogger(__name__)
@@ -237,7 +237,7 @@ class _SelfContained(BaseModel):
 class PhrasingJudge:
     """Whatever is left of the phrasing judgements after the rules."""
 
-    def __init__(self, client: Client) -> None:
+    def __init__(self, client: Model) -> None:
         """Initialises the judge with the model it asks."""
         self._client = client
 

@@ -48,9 +48,12 @@ def test_the_example_names_the_seven_roles_and_the_effort() -> None:
     assert {live["QUESTIONS_VERIFIER_MODEL"], live["TOPIC_MODEL"]} == {"azure/gpt-4.1"}
 
 
-def test_the_docs_say_every_role_is_reached_through_one_address() -> None:
-    """C-366: a split across Azure resources needs a gateway."""
+def test_the_docs_say_a_role_may_have_an_address_of_its_own() -> None:
+    """C-366: every role is on `LLM_BASE_URL` unless `LLM_BASE_URLS` names its own."""
     text = " ".join((ROOT / "docs/configuration.md").read_text().split())
 
-    assert "every role model is reached through `LLM_BASE_URL`" in text
+    assert (
+        "every role model is reached through `LLM_BASE_URL` unless `LLM_BASE_URLS`"
+        in text
+    )
     assert "gateway" in text

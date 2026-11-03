@@ -53,7 +53,14 @@ missing port. Export `COMPOSE_ENV_FILES` for it. It cannot be set inside
 
 ```bash
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+export COMPOSE_FILE=compose.yaml:compose.dev.yaml   # the development stack only; leave it out with HOST_RUNNER=1
 ```
+
+The second line matters on a development stack. `make up` starts it with
+`compose.dev.yaml`, which mounts the checkout's source over the images; a compose
+command that names `compose.yaml` alone sees every first-party service's
+configuration changed and recreates them without the mounts. Name both files, as
+above, or use the make targets. The go-live profile starts `compose.yaml` alone.
 
 ## What is derived, and so written nowhere
 
@@ -117,9 +124,12 @@ ships the model split:
   model that does not reason is sent no effort.
 - An assessment build warns when the judge is the writer's or verifier's
   model.
-- The split has one address: every role model is reached through
-  `LLM_BASE_URL`. A split across several Azure resources needs a gateway that
-  routes by model id.
+- The split has one address: every role model is reached through `LLM_BASE_URL`
+  unless `LLM_BASE_URLS` names an address for that role
+  (`writer=https://...,judge=https://...`, over writer, verifier, phrasing,
+  extraction, digest, topics and judge). A role left out keeps the shared
+  address, and the phrasing role follows the verifier. A gateway that routes by
+  model id still works with one address. Credentials stay one set per provider.
 
 Every drain logs `split: writer=... effort=...` before it claims a row. With
 `HOST_RUNNER=1`, a drain and `make doctor` refuse a role that resolves to an
@@ -166,6 +176,44 @@ poetry run hf download <repo> --revision <commit>   # each encoder; make doctor 
 Plain `make docling-weights` fills the containers' volume, which the host does
 not read. With `DOCLING_ARTIFACTS_PATH` set, run `poetry run docling-tools
 models download -o <that folder>`.
+
+## Which adapter
+
+Each infrastructure component the backend reaches through a port has one
+setting that names the adapter. Today's is the default, so nothing changes
+until a deployment sets another. [Swapping a
+component](architecture.md#swapping-a-component) says what each port is.
+
+| Setting | Default | Chooses |
+|---|---|---|
+| `OBJECT_STORE` | `s3` | the object store adapter; `s3` is the only one there is |
+| `LLM_BASE_URLS` | unset | an address for one role, so a split can span several Azure resources; `LLM_BASE_URL` serves the roles left out |
+| `ORCHESTRATOR` | `dagster` | what orders the stages: `dagster`, or `none` for a deployment whose stages run some other way |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | how spans are sent to `OTEL_EXPORTER_OTLP_ENDPOINT`: `grpc`, or `http/protobuf` for a collector behind an HTTPS ingress |
+| `REVIEW_TOOL` | `argilla` | where a person reviews what the models decided; `argilla` is the only one there is |
+| `TRACE_STORE` | `phoenix` | where annotations, published prompts, projects, golden sets and trace retention go: `phoenix`, or `none` where traces live elsewhere and are sent by OTLP alone |
+| `LOG_FORMAT` | `text` | how every service writes stdout: `text`, or `json` for a platform that collects container output (`LOG_DIR` may then be empty) |
+| `LLM_CLIENT` | `litellm` | what asks the model; `litellm` is the only one there is, and reaches Azure OpenAI through an `azure/` model id |
+| `API_AUTH` | `token` | what guards the api's writes and settings reads; `token` is the shared secret `API_TOKEN` |
+| `DATABASE_AUTH` | `url` | where a connection's password comes from; `url` is the one in `DATABASE_URL` |
+| `SERVICE_PROBES` | the compose stack's list | what the System health page probes, as `name=host:port` pairs (`name=` for a worker) |
+| `GRAFANA_DB_HOST`, `GRAFANA_DB_SSLMODE`, `GRAFANA_ELASTICSEARCH_URL` | `postgres:5432`, `disable`, `https://elasticsearch:9200` | where Grafana's datasources point, so a managed database or another log store is a setting |
+| `HF_HOME`, `HF_HUB_CACHE`, `DOCLING_ARTIFACTS_PATH` | the `models` volume | where the weights are read from, offline; an image carries none |
+| `BACKEND_URL` | the compose service name | where the page sends every request, with the token |
+
+`S3_BUCKETS` names the bucket of each role, as `documents,parsed,models,export,archive`
+or as `role=bucket` entries (`documents=acme-docs`) where a deployment names
+one differently. A role not named keeps its own name. The backend asks for each
+configured bucket by name and never lists the account's buckets, because a
+credential limited to one bucket is refused the listing.
+
+The images carry no source mount: `compose.yaml` starts each from its own files and
+the environment, and `make up` adds `compose.dev.yaml` (the source mounted read-only
+over the images) on the development profile only. Every service has a health check.
+
+TLS to the database is part of `DATABASE_URL`: add `?sslmode=verify-full&sslrootcert=/path`
+to it. The adapter is asked for a password each time the pool opens a connection,
+so a token that expires is renewed.
 
 ## Production settings
 

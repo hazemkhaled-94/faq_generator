@@ -92,6 +92,10 @@ verdicts with at least one row per group, and topics whole. `--all` sends
 every unreviewed fact or question. A row with a verdict, or answered in
 Argilla and not yet pulled, is not sent again.
 
+## The port
+
+`ReviewTool` in [`service.py`](service.py) is `check`, `answered`, `push`, `pull` and `drop`. The sample and what is done with an answer stay in `service.py`: the database decides. `datasets.py` is the Argilla adapter and the only module that imports it, which an import contract keeps. Redis is Argilla's own and no code here speaks it. `tests/contract/test_review_tool.py` runs one suite against Argilla over a stand-in client and an in-memory fake.
+
 ## Configuration
 
 From [`configs/env/review.env`](../configs/env/review.env), in git:
@@ -99,6 +103,7 @@ From [`configs/env/review.env`](../configs/env/review.env), in git:
 | Setting | What it does |
 | --- | --- |
 | `REVIEW_SAMPLE_SIZE` | How many records one push puts in front of a reviewer, split across the groups |
+| `REVIEW_TOOL` | Which adapter shows the rows: `argilla`, the only one there is |
 
 From [`configs/env/deployment.env`](../configs/env/deployment.env) and `.env`:
 

@@ -109,7 +109,9 @@ a keyword. An edit to the file does nothing without
 
 [`dagster.yaml`](dagster/dagster.yaml) is the instance, with run storage in
 the `dagster` database. [`workspace.yaml`](dagster/workspace.yaml) names the
-one code location, [`orchestration/`](../orchestration/README.md).
+one code location, [`orchestration/`](../orchestration/README.md). The
+orchestration image copies both to `/opt/dagster/config/`, and the command of
+each Dagster container copies them to `DAGSTER_HOME` when it starts.
 
 ## Certificates
 

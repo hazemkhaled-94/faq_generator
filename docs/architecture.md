@@ -75,6 +75,7 @@ runs at most two drains, the number its duplicate lock was measured with
 
 ```bash
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+export COMPOSE_FILE=compose.yaml:compose.dev.yaml   # the development stack only; leave it out with HOST_RUNNER=1
 podman compose up -d --scale extract-worker=2
 ```
 
@@ -118,6 +119,7 @@ flowchart TD
 |---|---|
 | `layers` | A stage sits above what it shares and below nothing but the api |
 | `stages-are-independent` | No backend service imports another |
+| `sdk-adapters` | Each vendor SDK is imported by its one adapter module |
 
 Two edges are allowed on purpose. `settings.changes` imports `llm.config` and
 every stage's `config` submodule, to call that service's own `Settings.load`.
@@ -207,6 +209,42 @@ Logs are deleted only by `make logs-retention` and `make logs-prune`.
 | Default pipeline behaviour | `configs/env/backend.env` |
 
 See [configuration.md](configuration.md).
+
+### Swapping a component
+
+Every infrastructure component the backend depends on is reached through one
+port, in the module that owns the concern. A different provider is one adapter
+module and one setting (see [Which adapter](configuration.md#which-adapter)),
+with no change to a caller. The contract `sdk-adapters` keeps each vendor SDK
+inside its adapter, and `tests/contract/` runs one suite per port against
+today's adapter and an in-memory fake, so a new adapter passes the same suite.
+
+The one module that imports each SDK, which `sdk-adapters` checks: `boto3` and `botocore` in `blob_store.s3.client`; `litellm` and `instructor` in `llm.client`; `phoenix` in `telemetry.evaluations`; `openinference` in `telemetry.traces`; `argilla` in `review.datasets`; `dagster` in `orchestration`; `sentence_transformers` in `nlp.embedding`; `transformers` and `torch` in `nlp.entailment` and `nlp.qa`; `docling` in `preprocessing.parsing.pipelines.pdf` (`docling_core`, the parsed-document format, is allowed anywhere). `create_engine` cannot be singled out by import-linter, so `tests/static/test_one_engine_builder.py` checks that only `database.qa_generator.engine` and `database/migrations/env.py` build an engine.
+
+| Component | Port | Setting (default) | Today's adapter | An Azure adapter would be |
+|---|---|---|---|---|
+| Object store | `ObjectStore` in `backend/blob_store/store.py` | `OBJECT_STORE` (`s3`) | `S3Store` over boto3, SeaweedFS | Blob Storage, one container per bucket |
+| Database connection | `Credential` in `backend/database/qa_generator/engine.py` | `DATABASE_AUTH` (`url`) | the password inside `DATABASE_URL` | Entra ID token as the password, asked on each connection |
+| Stage order | `Orchestrator` in `backend/api/orchestrator.py`; the queue stays in Postgres | `ORCHESTRATOR` (`dagster`) | Dagster over GraphQL, or `none` | Container Apps jobs, scaled on queue depth |
+| API authentication | `Authenticator` in `backend/api/main.py` | `API_AUTH` (`token`) | the shared secret `API_TOKEN` as `X-API-Token` | Entra ID, through the platform's authentication or JWT validation |
+| Logs | the standard `logging.Handler`; `telemetry/logs.py` | `LOG_FORMAT` (`text`) and `LOG_DIR` | text on stdout, ECS JSON in a rotating file, Filebeat to Elasticsearch | JSON on stdout, collected by Azure Monitor |
+| Traces | OTLP, an open protocol, so the collector is whatever speaks it | `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_PROTOCOL` (`grpc`) | Phoenix over gRPC | Azure Monitor Application Insights over OTLP |
+| Annotations, prompts, projects, datasets | `TraceStore` in `telemetry/evaluations.py` | `TRACE_STORE` (`phoenix`) | `PhoenixStore`: Phoenix's client and REST API | `none`: the verdicts and prompts stay in Postgres |
+| System health | `SERVICE_PROBES`, data read by `api/services.py` | `SERVICE_PROBES` (the compose stack's list) | a TCP probe of each compose host | Container Apps health state, and each managed service's own endpoint |
+| Dashboards | configuration: the provisioned datasources read `GRAFANA_DB_HOST`, `GRAFANA_DB_SSLMODE` and `GRAFANA_ELASTICSEARCH_URL` | those three | Grafana over the compose stack's Postgres and Elasticsearch | Azure Managed Grafana; the log dashboards would be rewritten in KQL |
+| Review tool | `ReviewTool` in `review/service.py`; Redis is Argilla's own and has no code binding | `REVIEW_TOOL` (`argilla`) | `ArgillaTool` in `review/datasets.py`, from the host | none native: Argilla itself on Container Apps with Azure Cache for Redis |
+| Container images | no port: each image runs from its own files and the environment | none | three images; `compose.yaml` mounts no checkout path, `compose.dev.yaml` adds the source mounts on the development profile only | Azure Container Registry and Container Apps |
+| Secrets and settings | `Source = Mapping[str, str]` in `backend/settings/env.py`: every reader takes the environment or a plain mapping | none: the platform injects the environment | `os.environ`, filled by compose's env files and the Makefile, under the stored overlay | Key Vault secrets referenced as Container Apps secrets |
+| Model weights | a path, not code: `HF_HOME`, `HF_HUB_CACHE`, `DOCLING_ARTIFACTS_PATH`; the encoders stay behind `Embedder` and `Entailment` | those paths | the `models` volume | an Azure Files share, or weights baked into an image in Azure Container Registry |
+| The page's API address | the HTTP API; no new port | `BACKEND_URL` | the compose service name | Container Apps internal ingress |
+| Backup and restore | `archive/backup.py` calls `ObjectStore`; the dump stays `pg_dump` | none | `pg_dump` and the object store copied through the port | PostgreSQL automated backups and point-in-time restore; Blob soft delete |
+| Models | `Model` in `backend/llm/client.py`, which alone imports litellm and instructor | `LLM_CLIENT` (`litellm`); the model itself is `LLM_MODEL` and the per-stage models; `LLM_BASE_URLS` gives a role an address of its own | `Client` over litellm and instructor | Azure OpenAI or Foundry deployments, already reachable through an `azure/` model id |
+
+What stays as it is: the stage queue is Postgres (`FOR UPDATE SKIP LOCKED`), because
+Postgres stays the database; `SPEND_LEDGER` is a host file, so a spend cap is per
+host; the pages have no login and the api's reads are open, so neither is exposed
+beyond loopback until an adapter that guards reads exists; and Grafana's log
+dashboards query Elasticsearch, so on Azure Monitor they would be rewritten in KQL.
 
 ## What keeps this page true
 

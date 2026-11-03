@@ -32,6 +32,7 @@ from stages.publish import (
     provider,
     publish,
 )
+from telemetry.evaluations import PhoenixStore
 
 
 def settings(model: str = "ollama/gemma3:12b", **overrides) -> ModelSettings:
@@ -73,7 +74,9 @@ def built(model: ModelSettings, row: Row) -> dict:
     held = Recorder()
     with pytest.MonkeyPatch.context() as patch:
         patch.setenv("PHOENIX_BASE_URL", "http://phoenix.invalid:6006")
-        patch.setattr("stages.publish.client", lambda base_url=None: held)
+        patch.setattr(
+            "stages.publish.trace_store", lambda base_url=None: PhoenixStore(sdk=held)
+        )
         publish(
             row.service,
             [
@@ -232,7 +235,9 @@ def recorder(monkeypatch) -> Recorder:
     """A Phoenix to publish into, and an address to find it at."""
     held = Recorder()
     monkeypatch.setenv("PHOENIX_BASE_URL", "http://phoenix.invalid:6006")
-    monkeypatch.setattr("stages.publish.client", lambda base_url=None: held)
+    monkeypatch.setattr(
+        "stages.publish.trace_store", lambda base_url=None: PhoenixStore(sdk=held)
+    )
     return held
 
 

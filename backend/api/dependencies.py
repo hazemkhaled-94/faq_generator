@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import telemetry
 from api.errors import ApiError
-from api.orchestrator import Dagster
+from api.orchestrator import build as build_orchestrator
 from api.status import Counter, StatusService
 from assessment.repository import AssessmentCatalog, AssessmentQueue
 from blob_store.s3 import ArchiveBucket, ExportBucket, ModelsBucket
@@ -76,7 +76,7 @@ removal_service = build_removal()
 #: DAGSTER_URL is set - without it every call reports itself unavailable,
 #: which is a deployment that has no orchestrator rather than one that is
 #: broken.
-orchestrator = Dagster()
+orchestrator = build_orchestrator()
 
 
 def ingesting() -> IngestService:

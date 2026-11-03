@@ -48,7 +48,7 @@ class _Loaded:
     def load(self, _source=None):
         """The settings, read from nothing."""
         return SimpleNamespace(
-            **{"overridden": lambda model: model, **self._attributes}
+            **{"overridden": lambda model, role=None: model, **self._attributes}
         )
 
 
@@ -90,7 +90,7 @@ def test_the_rejudge_logs_proves_traces_then_judges(monkeypatch, order) -> None:
     monkeypatch.setattr(module, "before_work", lambda *_: order.append(("proved",)))
     monkeypatch.setattr(module, "QuestionCatalog", lambda: object())
     monkeypatch.setattr(module, "Verifier", lambda client: client)
-    monkeypatch.setattr(module, "Client", lambda model: model)
+    monkeypatch.setattr(module, "build_model", lambda model: model)
     monkeypatch.setattr(
         module, "rejudge", lambda *_args: order.append(("worked",)) or 0
     )

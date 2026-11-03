@@ -224,3 +224,66 @@ def test_no_panel_matches_a_run_by_suffix() -> None:
             for run in ("a", "b-a", "a_b", "4-extraction", "a__b"):
                 taken = re.sub(prefix, "", pipeline.project(stage, run))
                 assert taken == run, (sql, stage, run)
+
+
+@pytest.mark.parametrize("name", ["phoenix", "postgres", "elasticsearch"])
+def test_every_datasource_reads_its_address_and_tls_mode_from_a_variable(
+    name: str,
+) -> None:
+    """A managed database or another log store is a setting, not an edit of the provisioning."""
+    (source,) = yaml.safe_load(
+        (PROVISIONING / "datasources" / f"{name}.yml").read_text()
+    )["datasources"]
+
+    assert re.fullmatch(r"\$\{\w+\}", source["url"]), source["url"]
+    if "sslmode" in source.get("jsonData", {}):
+        assert re.fullmatch(r"\$\{\w+\}", source["jsonData"]["sslmode"])
+
+
+def test_every_variable_a_datasource_names_reaches_grafana() -> None:
+    """Named in deployment.env and passed by compose, or the datasource reads an empty string."""
+    named = set()
+    for path in (PROVISIONING / "datasources").glob("*.yml"):
+        named |= set(
+            re.findall(
+                r"^\s*(?:url|sslmode|basicAuthUser|user|database):\s*\$\{(\w+)\}",
+                path.read_text(),
+                re.MULTILINE,
+            )
+        )
+        named |= set(re.findall(r"sslmode: \$\{(\w+)\}", path.read_text()))
+    deployment = (ROOT / "configs/env/deployment.env").read_text()
+    compose = re.split(
+        r"\n  [\w-]+:\n",
+        (ROOT / "compose.yaml").read_text().split("\n  grafana:\n", 1)[1],
+        maxsplit=1,
+    )[0]
+
+    assert {
+        "GRAFANA_DB_HOST",
+        "GRAFANA_DB_SSLMODE",
+        "GRAFANA_ELASTICSEARCH_URL",
+    } <= named
+    for variable in named:
+        assert f"{variable}: " in compose, (
+            f"compose does not hand {variable} to grafana"
+        )
+    for variable in (
+        "GRAFANA_DB_HOST",
+        "GRAFANA_DB_SSLMODE",
+        "GRAFANA_ELASTICSEARCH_URL",
+    ):
+        assert f"{variable}=" in deployment
+
+
+def test_every_dashboard_the_lineage_page_links_exists() -> None:
+    """The one uid the page names is a provisioned dashboard's."""
+    source = (ROOT / "frontend/lib/lineage.py").read_text()
+    uids = set(re.findall(r"d/(qa-[a-z-]+)/", source))
+    provisioned = {
+        json.loads(path.read_text())["uid"]
+        for path in (PROVISIONING / "dashboards").glob("*.json")
+    }
+
+    assert uids, "the lineage page names no dashboard"
+    assert uids <= provisioned, uids - provisioned

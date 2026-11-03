@@ -139,7 +139,7 @@ def test_an_unreachable_object_store_is_reported_rather_than_thrown(
 
 def test_a_missing_bucket_is_named(service, buckets) -> None:
     """A bucket nobody created is a stage that will fail on its first write."""
-    from blob_store.s3 import s3_client
+    from blob_store.s3.client import s3_client
 
     s3_client().delete_bucket(Bucket="export")
 

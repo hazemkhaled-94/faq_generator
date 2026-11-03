@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import ClassVar
 
 from blob_store.s3.bucket import Bucket
+from blob_store.store import bucket_name
 
 
 class ModelsBucket(Bucket):
@@ -26,7 +27,7 @@ class ModelsBucket(Bucket):
     the only durable trace of a fit is what this bucket exists to end.
     """
 
-    name: ClassVar[str] = "models"
+    name: ClassVar[str] = bucket_name("models")
 
     #: What a stored factorisation is written as. `.npz` rather than the
     #: gensim model's own `save()`: that is pickle underneath and a gensim

@@ -25,7 +25,7 @@ import logging
 
 from assessment.models import ArtifactToJudge, Judgement
 from assessment.templates import PROMPT_VERSION, TEMPLATES, Template
-from llm.client import Client, ModelUnavailable
+from llm.client import Model, ModelUnavailable
 from stages.service import is_outage
 
 log = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ class JudgeUnavailable(Exception):
 class Judge:
     """One model, asked each metric an artefact kind declares."""
 
-    def __init__(self, client: Client) -> None:
+    def __init__(self, client: Model) -> None:
         """Initialises the judge with the model it asks."""
         self._client = client
 

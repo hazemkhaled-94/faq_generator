@@ -14,6 +14,7 @@ import logging
 import pytest
 
 from telemetry import pipeline, projects
+from telemetry.evaluations import PhoenixStore
 from telemetry.logs import JsonFormatter
 
 #: Databases of a bank, a shop and a name with characters Argilla refuses.
@@ -104,7 +105,12 @@ def test_a_purge_in_one_database_deletes_only_its_own_projects(monkeypatch) -> N
     client = Phoenix([mine, theirs, legacy, "default"])
 
     use(monkeypatch, "qa_bank")
-    assert projects.prune(client, projects.held(client), everything=True) == 1
+    assert (
+        projects.prune(
+            PhoenixStore(session=client), projects.held(client), everything=True
+        )
+        == 1
+    )
     assert client.deleted == [mine]
 
 
@@ -115,7 +121,10 @@ def test_every_database_is_purged_only_when_asked(monkeypatch) -> None:
     client = Phoenix(names)
 
     taken = projects.prune(
-        client, projects.held(client), everything=True, every_database=True
+        PhoenixStore(session=client),
+        projects.held(client),
+        everything=True,
+        every_database=True,
     )
     assert taken == 2
     assert sorted(client.deleted) == sorted(names[:2])

@@ -36,7 +36,12 @@ from topic_modelling import prompts
 from topic_modelling.config import Settings
 from topic_modelling.factory import build_service
 from topic_modelling.models import TopicFit
-from topic_modelling.repository import QuestionsRunning, TopicCatalog, TopicQueue
+from topic_modelling.repository import (
+    QuestionsRunning,
+    TopicCatalog,
+    TopicQueue,
+    archive_fit,
+)
 from topic_modelling.space import load
 
 log = logging.getLogger(__name__)
@@ -144,18 +149,11 @@ def main(argv: list[str] | None = None) -> int:
         # reports the languages whose figure is now orphaned and this read that
         # list and dropped it, so the command left the pyLDAvis pages in the
         # export bucket describing topics that no longer existed.
-        bucket, archive = ExportBucket(), ArchiveBucket()
-        models = ModelsBucket()
-        figures = sum(
-            archive.take(bucket.name, bucket.topic_visualisation_key(language))
-            for language in removed.languages
-        )
-        # The model goes with the figure. A factorisation of topics that no
-        # longer exist describes nothing, and leaving it is the same orphan
-        # the figures were before this read `removed.languages`.
-        kept = sum(
-            archive.take(models.name, models.topic_model_key(language))
-            for language in removed.languages
+        figures, kept = archive_fit(
+            removed.languages,
+            export=ExportBucket(),
+            models=ModelsBucket(),
+            archive=ArchiveBucket(),
         )
         log.info(
             "archived %d topic(s), %d membership(s), %d figure(s) and %d "

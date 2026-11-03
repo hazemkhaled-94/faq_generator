@@ -435,10 +435,10 @@ def test_the_later_topic_decision_wins_a_pull(database, engine, monkeypatch) -> 
     given = {topic_id: GIVEN}
     dataset = SimpleNamespace(records=lambda with_responses=False: iter([record]))
     monkeypatch.setattr(
-        "review.service.connect",
+        "review.datasets.connect",
         lambda settings: SimpleNamespace(datasets=lambda name, workspace: dataset),
     )
-    monkeypatch.setattr("review.service._given_at", lambda *_: given)
+    monkeypatch.setattr("review.datasets._given_at", lambda *_: given)
     settings = Settings(
         api_url="http://argilla:6900",
         api_key="key",

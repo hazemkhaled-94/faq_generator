@@ -329,10 +329,15 @@ export COMPOSE_PROFILES ?= *
 # profile names, and the profiles `.env`'s COMPOSE_PROFILES asks for (review,
 # logs, tools) - never local-models or orchestrated, which that profile does
 # not run.
+#
+# The development profile also names compose.dev.yaml, which bind-mounts this
+# checkout's source over the images so an edit is live. The go-live profile
+# starts compose.yaml alone: the images as they were built, with no mount.
 UP = $(LOADENV) && if $(GO_LIVE); then \
        profiles=$$(printf %s "$$COMPOSE_PROFILES" | tr , '\n' | grep -vxE '\*|local-models|orchestrated' | paste -sd, -); \
-     else profiles='*'; fi; \
-     COMPOSE_PROFILES="$$profiles" $(COMPOSE_CMD) up -d
+       files=; \
+     else profiles='*'; files='-f compose.yaml -f compose.dev.yaml'; fi; \
+     COMPOSE_PROFILES="$$profiles" $(COMPOSE_CMD) $$files up -d
 
 # ── Help ───────────────────────────────────────────────────────────────────
 
@@ -378,7 +383,7 @@ help:
 	  { reset() } \
 	' $(MAKEFILE_LIST)
 
-.PHONY: help setup doctor upgrade \
+.PHONY: help setup doctor upgrade placeholders \
         dev install install-python docling-weights up grafana-grants down down-volumes logs logs-frontend logs-api \
         logs-shipper logs-retention logs-prune logs-dir logs-orchestration \
         logs-wipe \
@@ -429,7 +434,7 @@ UPGRADE_FREE_GB ?= 20
 # start. Stops at the first step that fails, so a build that did not finish
 # never reaches the migration. The room is read in the engine's VM where it has
 # one (`podman machine`) and on the host otherwise.
-upgrade:
+upgrade: placeholders
 	@[ "$(UPGRADE_FREE_GB)" = 0 ] || { \
 	  free=$$($(CONTAINER) machine ssh -- df -BG --output=avail / 2>/dev/null | tail -1 | tr -dc 0-9); \
 	  [ -n "$$free" ] || free=$$(df -BG --output=avail /var/lib 2>/dev/null | tail -1 | tr -dc 0-9); \
@@ -515,6 +520,8 @@ doctor:
 	  else say MISSING "configs/env/deployment.env - it is in git; git checkout it"; fail=1; fi; \
 	say "-" "compose reads both: make passes them, a bare podman compose needs"; \
 	say "" "  export COMPOSE_ENV_FILES=configs/env/deployment.env,$(ENV_FILE)"; \
+	say "" "  export COMPOSE_FILE=compose.yaml:compose.dev.yaml   (development stack only: without it a bare"; \
+	say "" "  compose command recreates the first-party containers without their source mounts)"; \
 	if $(ASSIGNED) | grep -q change_me; then \
 	  say FAIL "$$($(ASSIGNED) | grep -c change_me) placeholder password(s) left - run: make setup"; fail=1; \
 	  else say ok "no placeholder passwords"; fi; \
@@ -629,8 +636,14 @@ docling-weights:
 logs-dir:
 	@mkdir -p logs
 
+# Refuse to start the stack while .env still holds a change_me_ assignment: the
+# api would take the placeholder as a secret that is printed in the repository.
+placeholders:
+	@if $(ASSIGNED) | grep -q change_me_; then \
+	  echo "$(ENV_FILE) still holds a change_me_ value ($$($(ASSIGNED) | grep -c change_me_) assignment(s)): run make setup" >&2; exit 1; fi
+
 # Start every service, generating the certificates first if they are missing.
-up: certs logs-dir
+up: placeholders certs logs-dir
 	@$(UP)
 	@$(MAKE) --no-print-directory grafana-grants
 	-@$(MAKE) --no-print-directory phoenix-retention

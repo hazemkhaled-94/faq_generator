@@ -6,6 +6,7 @@ import mimetypes
 from typing import ClassVar
 
 from blob_store.s3.bucket import Bucket
+from blob_store.store import bucket_name
 
 
 class DocumentsBucket(Bucket):
@@ -15,7 +16,7 @@ class DocumentsBucket(Bucket):
     always holds the same bytes and rewriting one is harmless.
     """
 
-    name: ClassVar[str] = "documents"
+    name: ClassVar[str] = bucket_name("documents")
 
     @classmethod
     def key_for(cls, sha256: str, media_type: str) -> str:

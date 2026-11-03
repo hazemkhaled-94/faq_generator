@@ -117,6 +117,7 @@ it uses. Logs, dashboards, review, Adminer and Dagster are optional, and the
 ```bash
 make certs logs-dir
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+export COMPOSE_FILE=compose.yaml:compose.dev.yaml   # the development stack only; leave it out with HOST_RUNNER=1
 podman compose up -d api phoenix seaweedfs-volume seaweedfs-volume2
 make schema
 ```
@@ -127,6 +128,7 @@ for the pages. Then bring up one stage worker at a time, queue its stage and
 stop the worker once the queue is drained:
 
 ```bash
+export COMPOSE_FILE=compose.yaml:compose.dev.yaml   # the development stack only; leave it out with HOST_RUNNER=1
 podman compose up -d parse-worker
 make parse-start                 # make parse-status says when it is done
 podman compose stop parse-worker
@@ -181,6 +183,7 @@ a deployment runs no more ([Production deployment](#production-deployment)).
 
 ```bash
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+export COMPOSE_FILE=compose.yaml:compose.dev.yaml   # the development stack only; leave it out with HOST_RUNNER=1
 podman compose up -d --scale extract-worker=2
 ```
 
@@ -301,6 +304,7 @@ the first boot of an empty volume. On an existing volume, run it:
 
 ```bash
 export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+export COMPOSE_FILE=compose.yaml:compose.dev.yaml   # the development stack only; leave it out with HOST_RUNNER=1
 podman compose exec postgres bash /docker-entrypoint-initdb.d/init.sh
 ```
 
@@ -456,7 +460,7 @@ From a fresh clone:
    engine). `make docling-weights HOST=1` fetches the same weights into the
    host's Hugging Face cache, which `make doctor` and host drains read with
    the Hub off.
-4. `make up`. With `HOST_RUNNER=1` it starts postgres, the object store, the
+4. `make up`. With `HOST_RUNNER=1` the containers run the images as built, with no source mounted: a `git pull` changes nothing in them until `make upgrade` rebuilds the images and restarts the containers, so code changes reach the go-live stack only through `make upgrade`, while the host runner already runs the checkout. With `HOST_RUNNER=1` it starts postgres, the object store, the
    API, the parse and chunk workers, the web page and Phoenix. `make
    corpus-hosted` waits for the parse and chunk queues to empty before the
    model stages. This `make up` does not stop model workers (`local-models`)
@@ -496,7 +500,9 @@ From a fresh clone:
 
 Each image bakes the hash of the lock it installed (`requirements.lock` for
 the backend and page, `requirements.txt` for Dagster). Every container
-compares it at start with the checkout's own. After a lock changed, a
+compares it at start with the checkout's own where the development override
+mounts it, and with the image's own copy where nothing is mounted (the go-live
+profile), which passes by construction. After a lock changed, a
 container logs `run compose build, then make up`, waits ten minutes and exits.
 Rebuild, then `make up`:
 
@@ -695,7 +701,7 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
   `azure/gpt-5.4`, digests and judge `azure/gpt-4o`, verifier and topic naming
   `azure/gpt-4.1`.
 - With `HOST_RUNNER=1`, a drain and `make doctor` refuse a role that resolves
-  to an Ollama model (C-006, C-013). Every role uses one endpoint (C-366).
+  to an Ollama model (C-006, C-013). Every role uses `LLM_BASE_URL` unless `LLM_BASE_URLS` names its own (C-366).
 
 ### Settings
 
@@ -779,7 +785,7 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
 | C-026 | At most two `extract-worker` replicas, or two extraction drains, a database: `--scale extract-worker=2` | Measuring three or more drains on a copy |
 | C-082 | At most two model drains a database on the current Azure quota (six lost 3 of 10 topics to rate limits) | A larger quota, measured first |
 | C-085 | Every published port stays on 127.0.0.1 and one operator uses the host: `API_TOKEN` is shared and the pages have no login | A login on the pages and the API |
-| C-366 | Every role model on one endpoint, `LLM_BASE_URL`. A split across Azure resources needs a gateway that routes by model id | An address per role (deferred) |
+| C-366 | A split across Azure resources names an address per role in `LLM_BASE_URLS`; every role left out is on `LLM_BASE_URL`, and credentials are one set per provider | One credential per resource |
 | C-106 | Ingest only documents the corpus owner authored or controls: document text reaches every prompt as it is, so a planted instruction is read as one | Fencing the material (tried in v0.5.2 and withdrawn: fenced extraction narrowed 10 of 60 facts against 7 unfenced, over the bar of 9) |
 | C-114 | Load bulk corpora with `make ingest DIR=`. The Upload page refuses more than 20 files or 200 MB, but Streamlit uploads every picked file into its 1 GB process first, so a large selection can kill it | A check before the upload, which Streamlit cannot make |
 | C-054 | After a deletion through the pages or the API, run `make extract-dedup`: no extraction worker runs on this profile. `make delete` and `make delete-derived` run it themselves | A replay by the host runner |
@@ -1087,6 +1093,9 @@ undone.
    poetry install --with llm,nlp,data,storage,api,pipeline,viz,observability,dev
    podman compose --env-file configs/env/deployment.env --env-file .env build
    make up
+   # development profile, as make up started it:
+   podman compose --env-file configs/env/deployment.env --env-file .env -f compose.yaml -f compose.dev.yaml up -d --remove-orphans
+   # go-live profile (HOST_RUNNER=1), compose.yaml alone:
    podman compose --env-file configs/env/deployment.env --env-file .env up -d --remove-orphans
    ```
 
@@ -1150,6 +1159,9 @@ undone.
 Rebuild and `make up`, then once remove the old `seaweedfs-ui` container:
 
 ```bash
+# development profile, as make up started it:
+podman compose --env-file configs/env/deployment.env --env-file .env -f compose.yaml -f compose.dev.yaml up -d --remove-orphans
+# go-live profile (HOST_RUNNER=1), compose.yaml alone:
 podman compose --env-file configs/env/deployment.env --env-file .env up -d --remove-orphans
 ```
 

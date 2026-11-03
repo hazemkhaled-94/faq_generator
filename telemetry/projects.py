@@ -43,6 +43,7 @@ from dataclasses import dataclass
 import requests
 
 from telemetry import pipeline
+from telemetry.evaluations import TraceStore, trace_store
 
 log = logging.getLogger(__name__)
 
@@ -251,7 +252,7 @@ def own(projects: list[Project], every_database: bool = False) -> list[Project]:
 
 
 def prune(
-    client,
+    store: TraceStore,
     projects: list[Project],
     everything: bool = False,
     every_database: bool = False,
@@ -259,8 +260,8 @@ def prune(
     """Deletes projects, and says how many went.
 
     Args:
-        client: The Phoenix client.
-        projects: Everything Phoenix holds.
+        store: The trace store.
+        projects: Everything it holds.
         every_database: Take other databases' projects too, and any filed before
             names carried one. Without it only this database's go.
         everything: Take all of them bar KEEP, rather than only the spent ones. What
@@ -287,11 +288,8 @@ def prune(
     )
     deleted = 0
     for one in taking:
-        answered = client.delete(f"/v1/projects/{one.id}")
-        if answered.ok:
+        if store.delete_project(one.id):
             deleted += 1
-        else:
-            log.warning("could not delete %s: %s", one.name, answered.status_code)
     return deleted
 
 
@@ -350,7 +348,7 @@ def set_retention(client, days: int) -> None:
         )
 
 
-def purge_datasets(client, every_database: bool = False) -> int:
+def purge_datasets(store: TraceStore, every_database: bool = False) -> int:
     """Deletes this database's datasets, or every one, and says how many went.
 
     A dataset carries its database after its name, as a project does, so
@@ -373,7 +371,7 @@ def purge_datasets(client, every_database: bool = False) -> int:
     """
     taking = [
         one
-        for one in listed(client, "/v1/datasets")
+        for one in store.datasets()
         if every_database or pipeline.owned(one.get("name", ""))
     ]
     if not taking:
@@ -381,15 +379,8 @@ def purge_datasets(client, every_database: bool = False) -> int:
     log.warning("deleting %d dataset(s) and their experiments", len(taking))
     deleted = 0
     for one in taking:
-        answered = client.delete(f"/v1/datasets/{one['id']}")
-        if answered.ok:
+        if store.delete_dataset(one["id"]):
             deleted += 1
-        else:
-            log.warning(
-                "could not delete dataset %s: %s",
-                one.get("name", one["id"]),
-                answered.status_code,
-            )
     return deleted
 
 
@@ -456,27 +447,27 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(sys.argv[1:] if argv is None else argv)
     telemetry.configure("telemetry-projects")
 
-    with _client() as client:
-        if args.retention:
-            days = retention_days()
-            set_retention(client, days)
-            log.info("Phoenix keeps traces for %d day(s)", days)
-            return 0
-        # Only when a project is being read or taken: `held` costs one
-        # request per project, and the dataset flag touches none of them.
-        projects = [] if args.purge_datasets else held(client)
-        for line in report(projects) if not args.purge_datasets else ():
-            log.info("%s", line)
-        if args.prune or args.purge:
-            log.info(
-                "deleted %d project(s)",
-                prune(client, projects, args.purge, args.all_databases),
-            )
-        if args.purge_datasets:
-            log.info(
-                "deleted %d dataset(s)",
-                purge_datasets(client, args.all_databases),
-            )
+    store = trace_store()
+    if args.retention:
+        days = retention_days()
+        store.set_retention(days)
+        log.info("the trace store keeps traces for %d day(s)", days)
+        return 0
+    # Only when a project is being read or taken: `projects` costs one
+    # request per project, and the dataset flag touches none of them.
+    projects = [] if args.purge_datasets else store.projects()
+    for line in report(projects) if not args.purge_datasets else ():
+        log.info("%s", line)
+    if args.prune or args.purge:
+        log.info(
+            "deleted %d project(s)",
+            prune(store, projects, args.purge, args.all_databases),
+        )
+    if args.purge_datasets:
+        log.info(
+            "deleted %d dataset(s)",
+            purge_datasets(store, args.all_databases),
+        )
     return 0
 
 

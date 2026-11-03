@@ -84,7 +84,8 @@ def test_an_unprefixed_object_is_read_but_never_written_or_deleted(
     buckets, monkeypatch
 ) -> None:
     """What a store holds from before the prefix stays readable, by every database."""
-    from blob_store.s3 import ArchiveBucket, DocumentsBucket, s3_client
+    from blob_store.s3 import ArchiveBucket, DocumentsBucket
+    from blob_store.s3.client import s3_client
 
     documents = DocumentsBucket()
     key = documents.key_for(digest("c"), "application/pdf")
@@ -100,18 +101,20 @@ def test_an_unprefixed_object_is_read_but_never_written_or_deleted(
 
 def test_a_purge_raises_when_the_store_refuses_a_delete(buckets, monkeypatch) -> None:
     """DeleteObjects answers 200 with an Errors list; that is not a purge."""
+    from blob_store import store
     from blob_store.s3 import ArchiveBucket
-    from blob_store.s3 import archive as module
 
     use(monkeypatch, "qa_one")
     archive = ArchiveBucket()
     archive.put("documents/ab/cd/x.pdf", b"x", content_type="application/pdf")
 
-    real = module.s3_client()
+    from blob_store.s3.client import S3Store, s3_client
+
+    real = s3_client()
 
     class Refusing:
-        def get_paginator(self, name):
-            return real.get_paginator(name)
+        def __getattr__(self, name):
+            return getattr(real, name)
 
         def delete_objects(self, **_):
             return {
@@ -120,7 +123,7 @@ def test_a_purge_raises_when_the_store_refuses_a_delete(buckets, monkeypatch) ->
                 ]
             }
 
-    monkeypatch.setattr(module, "s3_client", Refusing)
+    monkeypatch.setattr(store, "object_store", lambda: S3Store(Refusing()))
     with pytest.raises(RuntimeError, match="AccessDenied"):
         archive.purge()
 
@@ -132,7 +135,8 @@ def test_the_one_off_copy_puts_bare_keys_under_the_prefix_and_keeps_them(
     from seed import document
     from sqlalchemy.orm import Session
 
-    from blob_store.s3 import DocumentsBucket, s3_client
+    from blob_store.s3 import DocumentsBucket
+    from blob_store.s3.client import s3_client
     from blob_store.s3.rekey import main
 
     documents = DocumentsBucket()
@@ -154,7 +158,8 @@ def test_the_one_off_copy_puts_bare_keys_under_the_prefix_and_keeps_them(
 
 def test_a_taken_topic_figure_is_no_longer_served(buckets, monkeypatch) -> None:
     """A bare `topics/<database>/` key names this database alone, so taking it moves it."""
-    from blob_store.s3 import ArchiveBucket, ExportBucket, s3_client
+    from blob_store.s3 import ArchiveBucket, ExportBucket
+    from blob_store.s3.client import s3_client
 
     use(monkeypatch, "qa_one")
     export = ExportBucket()
@@ -168,7 +173,8 @@ def test_a_taken_topic_figure_is_no_longer_served(buckets, monkeypatch) -> None:
 
 def test_a_taken_shared_key_stays_for_the_other_databases(buckets, monkeypatch) -> None:
     """A content-addressed bare key is another database's too: copied, never moved."""
-    from blob_store.s3 import ArchiveBucket, DocumentsBucket, s3_client
+    from blob_store.s3 import ArchiveBucket, DocumentsBucket
+    from blob_store.s3.client import s3_client
 
     use(monkeypatch, "qa_one")
     documents = DocumentsBucket()

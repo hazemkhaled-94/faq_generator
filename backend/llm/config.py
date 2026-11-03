@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from urllib.parse import urlsplit
 
 from settings import Source, decimal, integer, optional, required
@@ -146,19 +146,29 @@ def _self_hosted(model: str) -> bool:
     return _provider(model).startswith("ollama")
 
 
-def _cannot_reason(model: str) -> bool:
-    """Whether litellm knows a hosted model and knows it does not reason.
+def _role_addresses(raw: str | None) -> dict[str, str]:
+    """Reads LLM_BASE_URLS: `role=address` entries separated by commas.
 
-    Such a model refuses `reasoning_effort` outright, as gpt-4.1 and gpt-4o
-    do. A model litellm does not know, a deployment of its own name among
-    them, may reason, so it is not read as one that cannot.
+    Only the first `=` splits, so an address may carry a query.
+
+    Raises:
+        ValueError: If an entry is not `role=address` or names a role that
+            does not exist, which would otherwise send that role to the
+            shared address in silence.
     """
-    import litellm
-
-    known = litellm.model_cost.get(model) or litellm.model_cost.get(
-        model.split("/", 1)[-1]
-    )
-    return known is not None and not known.get("supports_reasoning")
+    found: dict[str, str] = {}
+    for entry in (raw or "").split(","):
+        if not entry.strip():
+            continue
+        role, equals, address = entry.partition("=")
+        role, address = role.strip(), address.strip()
+        if not equals or role not in {one[0] for one in ROLES} or not address:
+            raise ValueError(
+                f"LLM_BASE_URLS takes role=address entries separated by commas, "
+                f"with a role from {', '.join(one[0] for one in ROLES)}; {entry.strip()!r} is not one"
+            )
+        found[role] = address
+    return found
 
 
 #: The port an Ollama runtime listens on unless told otherwise.
@@ -215,8 +225,11 @@ class Settings:
     #: Where a self-hosted runtime is, for a stage that overrides the model
     #: with one served there. None leaves every override on `base_url`.
     ollama_base_url: str | None = None
+    #: An address of its own for a role, by the role names in `ROLES`. A role left
+    #: out is served from `base_url`, which is how it has always been.
+    base_urls: dict[str, str] = field(default_factory=dict)
 
-    def overridden(self, model: str | None) -> Settings:
+    def overridden(self, model: str | None, role: str | None = None) -> Settings:
         """These settings, calling a named model instead of the shared one.
 
         Returns self when nothing is named, so a caller needs no branch.
@@ -254,11 +267,29 @@ class Settings:
         It is spelled Ollama's way, and a hosted one refuses `off`. Hosted
         providers share their spelling, so one keeps it on the way to another.
 
+        **A role may have an address of its own.** `LLM_BASE_URLS` maps a role to
+        where it is served, for a split across several resources; it wins over
+        everything above, because naming an address for a role is the one
+        thing that says where that role goes. The phrasing role is built on
+        the verifier's settings, so it is served where the verifier is unless
+        it has an address of its own.
+
         Args:
             model: The model to call, or None to keep the shared one.
+            role: Which role this is, one of `ROLES`, or None for one with no
+                address of its own.
         """
-        if not model or _provider(model) == _provider(self.model):
-            return self if not model else replace(self, model=model)
+        moved = self._moved(model)
+        if role in self.base_urls:
+            moved = {**moved, "base_url": self.base_urls[role]}
+        return replace(self, **moved) if moved else self
+
+    def _moved(self, model: str | None) -> dict[str, object]:
+        """What a named model changes besides the model: see `overridden`."""
+        if not model:
+            return {}
+        if _provider(model) == _provider(self.model):
+            return {"model": model}
         moved: dict[str, object] = {"model": model}
         if _self_hosted(model):
             if self.ollama_base_url:
@@ -273,7 +304,7 @@ class Settings:
         # decided here; see `thinking`.
         if _self_hosted(self.model) and not _self_hosted(model):
             moved["reasoning_effort"] = None
-        return replace(self, **moved)
+        return moved
 
     @property
     def window(self) -> int | None:
@@ -331,8 +362,12 @@ class Settings:
         """
         if not self.reasoning_effort:
             return None
-        if not _self_hosted(self.model) and _cannot_reason(self.model):
-            return None
+        if not _self_hosted(self.model):
+            # Deferred: llm.client is the one module that imports litellm.
+            from llm.client import cannot_reason
+
+            if cannot_reason(self.model):
+                return None
         return self.reasoning_effort
 
     @classmethod
@@ -361,4 +396,5 @@ class Settings:
             else None,
             reasoning_effort=optional("LLM_REASONING_EFFORT", source),
             ollama_base_url=ollama_base_url,
+            base_urls=_role_addresses(optional("LLM_BASE_URLS", source)),
         )

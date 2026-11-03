@@ -48,6 +48,8 @@ workers never take the same row. Extraction runs at most two drains side by
 side ([Scaling](../../docs/operations.md#scaling)):
 
 ```bash
+export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+export COMPOSE_FILE=compose.yaml:compose.dev.yaml   # the development stack only; leave it out with HOST_RUNNER=1
 podman compose up -d --scale extract-worker=2
 ```
 

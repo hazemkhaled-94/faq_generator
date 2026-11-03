@@ -13,7 +13,7 @@ from extraction.extractors import (
 from extraction.repository import DigestQueue, FactCatalog, PassageQueue
 from extraction.service import DigestPass, ExtractionService
 from extraction.validation import FactChecker
-from llm.client import Client
+from llm.client import build_model
 from llm.config import Settings as ModelSettings
 
 
@@ -26,10 +26,10 @@ def models(
     EXTRACTION_DIGEST_MODEL names the digest reader and is the reader when
     absent.
     """
-    reading = shared.overridden(settings.model)
+    reading = shared.overridden(settings.model, "extraction")
     if not settings.digest_model:
         return reading, reading
-    return reading, shared.overridden(settings.digest_model)
+    return reading, shared.overridden(settings.digest_model, "digest")
 
 
 def build_reader(model: ModelSettings, settings: Settings) -> LlmExtractor:
@@ -39,7 +39,7 @@ def build_reader(model: ModelSettings, settings: Settings) -> LlmExtractor:
     builds rather than one built beside it.
     """
     reading, _ = models(settings, model)
-    return LlmExtractor(Client(reading), settings.atomic_cap)
+    return LlmExtractor(build_model(reading), settings.atomic_cap)
 
 
 def build_service(
@@ -65,14 +65,14 @@ def build_service(
     """
     settings = settings or Settings.load()
     reading, condensed = models(settings, model)
-    client = Client(reading)
+    client = build_model(reading)
     digests = settings.digests
     cap = settings.atomic_cap
     # Its own client when EXTRACTION_DIGEST_MODEL names one, and the reader's
     # otherwise. Condensing a passage is the cheapest thing asked of a model
     # here and the one a small model is trained for, so it is the first call
     # worth moving; what produced a fact is recorded on the fact either way.
-    condensing = Client(condensed) if settings.digest_model else client
+    condensing = build_model(condensed) if settings.digest_model else client
     return (DigestPass if digests_only else ExtractionService)(
         repository=(
             DigestQueue(version, settings.digest_min_chars)
@@ -119,4 +119,4 @@ def build_bridge(
         The extractor the bridge pass calls once per group.
     """
     settings = settings or Settings.load()
-    return BridgeExtractor(Client(model.overridden(settings.model)))
+    return BridgeExtractor(build_model(model.overridden(settings.model, "extraction")))

@@ -15,8 +15,9 @@ import sys
 
 from sqlalchemy import text
 
+from blob_store import store
 from blob_store.s3.bucket import Bucket
-from blob_store.s3.client import s3_client
+from blob_store.store import bucket_names
 from database.qa_generator import engine
 
 log = logging.getLogger(__name__)
@@ -31,6 +32,11 @@ _DIGEST = re.compile(r"[0-9a-f]{64}")
 _ORIGINS = ("documents", "parsed", "models", "export")
 
 
+def _role(bucket: str) -> str:
+    """The role of a bucket by its configured name, or the name when it has none."""
+    return next((r for r, name in bucket_names().items() if name == bucket), bucket)
+
+
 def is_bare(bucket: str, key: str, database: str) -> bool:
     """Whether a key is one of this database's from before keys were prefixed.
 
@@ -39,9 +45,10 @@ def is_bare(bucket: str, key: str, database: str) -> bool:
     so only the one named is copied. In the archive, an origin bucket's name
     leads the key.
     """
+    bucket = _role(bucket)
     if bucket == "archive":
         origin, _, rest = key.partition("/")
-        return origin in _ORIGINS and is_bare(origin, rest, database)
+        return _role(origin) in _ORIGINS and is_bare(origin, rest, database)
     if bucket in ("models", "export"):
         return key.startswith(f"topics/{database}/")
     return bool(_FANOUT.match(key))
@@ -63,45 +70,30 @@ def digests() -> set[str]:
 
 def named(bucket: str, key: str, held: set[str]) -> bool:
     """Whether this database's rows name the object: a topic key names its own database, a digest key a held digest."""
+    bucket = _role(bucket)
     if bucket in ("models", "export") or (
-        bucket == "archive" and key.partition("/")[0] in ("models", "export")
+        bucket == "archive" and _role(key.partition("/")[0]) in ("models", "export")
     ):
         return True
     found = _DIGEST.search(key)
     return found is not None and found.group() in held
 
 
-def absent(client, bucket: str, key: str) -> bool:
-    """Whether the store holds no object under the key."""
-    try:
-        client.head_object(Bucket=bucket, Key=key)
-    except client.exceptions.ClientError as exc:
-        if Bucket._absent(exc):
-            return True
-        raise
-    return False
-
-
 def main() -> int:
     """Copies this database's bare keys under its prefix where it holds none, and reports the count."""
     database = Bucket.database_name()
-    client = s3_client()
+    objects = store.object_store()
     held = digests()
     copied = 0
-    for bucket in ("documents", "parsed", "models", "export", "archive"):
-        for page in client.get_paginator("list_objects_v2").paginate(Bucket=bucket):
-            for entry in page.get("Contents", []):
-                key = entry["Key"]
-                if not is_bare(bucket, key, database) or not named(bucket, key, held):
-                    continue
-                if not absent(client, bucket, f"{database}/{key}"):
-                    continue
-                client.copy_object(
-                    Bucket=bucket,
-                    Key=f"{database}/{key}",
-                    CopySource={"Bucket": bucket, "Key": key},
-                )
-                copied += 1
+    for bucket in bucket_names().values():
+        for entry in objects.listed(bucket):
+            key = entry.key
+            if not is_bare(bucket, key, database) or not named(bucket, key, held):
+                continue
+            if objects.exists(bucket, f"{database}/{key}"):
+                continue
+            objects.copy(bucket, key, bucket, f"{database}/{key}")
+            copied += 1
     log.info("copied %d object(s) under %s/", copied, database)
     print(f"copied {copied} object(s) under {database}/ (the bare keys stay)")
     return 0

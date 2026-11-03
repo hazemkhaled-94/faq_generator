@@ -11,17 +11,13 @@ from urllib.parse import quote
 
 from sqlalchemy.engine import make_url
 
-from blob_store.s3.client import s3_client
+from blob_store import store
 
 log = logging.getLogger(__name__)
 
 #: S3 user-metadata keys travel as HTTP header suffixes, so they are limited to
 #: token characters. Anything else is rejected rather than silently mangled.
 _METADATA_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
-
-#: The error codes that mean "no such object", across the spellings S3
-#: implementations use for a head request.
-_ABSENT = frozenset({"404", "NoSuchKey", "NotFound"})
 
 #: How long an object count may be reused, in seconds.
 _COUNT_TTL = 30.0
@@ -126,12 +122,12 @@ class Bucket:
         Raises:
             ValueError: If a metadata key is not a valid header token.
         """
-        s3_client().put_object(
-            Bucket=self.name,
-            Key=self.scoped(key),
-            Body=data,
-            ContentType=content_type,
-            Metadata={
+        store.object_store().put(
+            self.name,
+            self.scoped(key),
+            data,
+            content_type=content_type,
+            metadata={
                 self._checked_key(k): quote(v) for k, v in (metadata or {}).items()
             },
         )
@@ -162,11 +158,11 @@ class Bucket:
         may be reading it.
 
         Raises:
-            botocore.exceptions.ClientError: If the object does not exist.
+            FileNotFoundError: If the object does not exist.
         """
         data = self.find(key)
         if data is None:
-            return s3_client().get_object(Bucket=self.name, Key=key)["Body"].read()
+            raise FileNotFoundError(f"{self.name}/{key}")
         return data
 
     def find(self, key: str) -> bytes | None:
@@ -176,17 +172,15 @@ class Bucket:
         holds from before keys were prefixed.
 
         Raises:
-            botocore.exceptions.ClientError: If the store answered with
-                anything other than "no such key". Being unreachable is not
-                the same as holding nothing.
+            Exception: Whatever the store raises for anything other than "no
+                such key". Being unreachable is not the same as holding
+                nothing.
         """
-        client = s3_client()
+        objects = store.object_store()
         for held in (self.scoped(key), key):
-            try:
-                return client.get_object(Bucket=self.name, Key=held)["Body"].read()
-            except client.exceptions.ClientError as exc:
-                if not self._absent(exc):
-                    raise
+            data = objects.get(self.name, held)
+            if data is not None:
+                return data
         return None
 
     def remove(self, key: str) -> bool:
@@ -195,36 +189,27 @@ class Bucket:
         A bare key from before keys were prefixed is not touched: another
         database may be reading it.
 
-        The head request is what makes the answer possible: S3's own delete
-        is silent about a key that was never there.
+        The existence check is what makes the answer possible: a delete is
+        silent about a key that was never there.
 
         Raises:
-            botocore.exceptions.ClientError: If the store answered with
-                anything other than "no such key". Refusing a delete and
-                being unreachable are not the same as being empty, and
-                reporting them as empty left the object in place with
-                nothing recording that it was still there.
+            Exception: Whatever the store raises for anything other than "no
+                such key". Refusing a delete and being unreachable are not
+                the same as being empty, and reporting them as empty left
+                the object in place with nothing recording that it was still
+                there.
         """
-        client = s3_client()
-        try:
-            client.head_object(Bucket=self.name, Key=self.scoped(key))
-        except client.exceptions.ClientError as exc:
-            if self._absent(exc):
-                return False
-            raise
-        client.delete_object(Bucket=self.name, Key=self.scoped(key))
+        objects = store.object_store()
+        if not objects.exists(self.name, self.scoped(key)):
+            return False
+        objects.delete(self.name, self.scoped(key))
         return True
-
-    @staticmethod
-    def _absent(exc: Any) -> bool:
-        """Whether a client error means there was no such object."""
-        return exc.response.get("Error", {}).get("Code") in _ABSENT
 
     def count(self) -> int:
         """Counts the objects the database holds in the bucket.
 
-        Walks every page of the listing, so it costs one request per thousand
-        objects. Answered from a short-lived cache because the status panel
+        Walks the whole listing, so it costs one request per thousand
+        objects on S3. Answered from a short-lived cache because the status panel
         polls it: without one, every render of every open page paid the full
         walk again.
 
@@ -236,11 +221,6 @@ class Bucket:
         cached = _COUNTS.get(self.name + prefix)
         if cached is not None and now - cached[0] < _COUNT_TTL:
             return cached[1]
-        total = sum(
-            len(page.get("Contents", []))
-            for page in s3_client()
-            .get_paginator("list_objects_v2")
-            .paginate(Bucket=self.name, Prefix=prefix)
-        )
+        total = len(store.object_store().listed(self.name, prefix))
         _COUNTS[self.name + prefix] = (now, total)
         return total

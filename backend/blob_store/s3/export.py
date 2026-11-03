@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import ClassVar
 
 from blob_store.s3.bucket import Bucket
+from blob_store.store import bucket_name
 
 
 class ExportBucket(Bucket):
@@ -43,7 +44,7 @@ class ExportBucket(Bucket):
     the store finds it and plans a retention policy around it.
     """
 
-    name: ClassVar[str] = "export"
+    name: ClassVar[str] = bucket_name("export")
 
     #: What a topic visualisation is stored and served as.
     TOPIC_VISUALISATION_TYPE: ClassVar[str] = "text/html; charset=utf-8"

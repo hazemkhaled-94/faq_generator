@@ -17,8 +17,9 @@ import pytest
 pytest.importorskip("argilla", reason="the observability group is not installed")
 
 from review import datasets
+from review.datasets import _answer
 from review.records import Held
-from review.service import Catalogs, _answer, pull
+from review.service import Catalogs, pull
 
 #: When every stub record's answer was submitted.
 ANSWERED = datetime(2026, 10, 1, 9, 0, tzinfo=UTC)
@@ -164,10 +165,10 @@ def settings(monkeypatch):
 def wired(monkeypatch, records: list[Record]) -> Catalogs:
     """Points the service at a stub client holding these records."""
     monkeypatch.setattr(
-        "review.service.connect", lambda settings: Client(Dataset(records))
+        "review.datasets.connect", lambda settings: Client(Dataset(records))
     )
     monkeypatch.setattr(
-        "review.service._given_at",
+        "review.datasets._given_at",
         lambda client, dataset, key: {one.metadata[key]: ANSWERED for one in records},
     )
     return Catalogs(facts=Facts(), questions=Questions(), topics=Topics())
@@ -454,9 +455,9 @@ def item(row_id: int, *responses: tuple[str, str]) -> dict:
 
 def test_when_an_answer_was_given_is_read_off_every_page(monkeypatch) -> None:
     """The latest submitted response, in UTC; a draft or a record without one is absent."""
-    from review.service import _given_at
+    from review.datasets import _given_at
 
-    monkeypatch.setattr("review.service._PAGE", 2)
+    monkeypatch.setattr("review.datasets._PAGE", 2)
     listing = Listing(
         [
             [
@@ -488,7 +489,7 @@ def test_when_an_answer_was_given_is_read_off_every_page(monkeypatch) -> None:
 
 def test_a_missing_dataset_is_not_an_error(monkeypatch, settings) -> None:
     """Pulling before anything was pushed is a reasonable thing to do."""
-    monkeypatch.setattr("review.service.connect", lambda settings: Client(None))
+    monkeypatch.setattr("review.datasets.connect", lambda settings: Client(None))
     catalogs = Catalogs(facts=Facts(), questions=Questions(), topics=Topics())
 
     assert pull(datasets.FACTS, settings, catalogs) == 0
@@ -500,7 +501,7 @@ def test_a_missing_dataset_is_not_an_error(monkeypatch, settings) -> None:
 def asking(monkeypatch, held: list[Record], rows: list) -> tuple[Catalogs, Dataset]:
     """Points a push at a dataset already holding these records."""
     dataset = Dataset(held)
-    monkeypatch.setattr("review.service.connect", lambda settings: Client(dataset))
+    monkeypatch.setattr("review.datasets.connect", lambda settings: Client(dataset))
 
     class Sampled:
         """A repository handing back a fixed sample."""
@@ -633,7 +634,7 @@ def test_an_outdated_dataset_says_to_pull_first_and_what_a_delete_loses(
     monkeypatch, caplog
 ) -> None:
     """`review-status` reads the database, so it cannot see an unpulled answer."""
-    from review.service import _warn_if_stale
+    from review.datasets import _warn_if_stale
 
     def names(*held: str) -> list[SimpleNamespace]:
         return [SimpleNamespace(name=one) for one in held]

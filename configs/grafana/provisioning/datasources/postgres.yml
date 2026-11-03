@@ -17,16 +17,17 @@ datasources:
     uid: qa-pipeline
     type: grafana-postgresql-datasource
     access: proxy
-    url: postgres:5432
+    url: ${GRAFANA_DB_HOST}
     user: ${GRAFANA_DB_USER}
     database: ${APP_DB_NAME}
     # Edits in the UI would be silently reverted on restart, which is worse
     # than not offering them.
     editable: false
     jsonData:
-      # No TLS between two containers on one compose network. The database
-      # publishes a port for the host's own tooling, not for this.
-      sslmode: disable
+      # No TLS between two containers on one compose network, which is what
+      # `disable` is here. A managed database asks for `require` or
+      # `verify-full`, and GRAFANA_DB_SSLMODE says so.
+      sslmode: ${GRAFANA_DB_SSLMODE}
       postgresVersion: 1800
       # The extension the schema needs for embeddings. Declared so Grafana
       # does not warn about a type it cannot map; nothing here selects one.
