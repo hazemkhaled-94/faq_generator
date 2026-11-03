@@ -12,10 +12,12 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from sqlalchemy import (
+    BigInteger,
     Float,
     Select,
     Text,
     and_,
+    any_,
     case,
     cast,
     delete,
@@ -28,7 +30,7 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy import insert as sa_insert
-from sqlalchemy.dialects.postgresql import aggregate_order_by, array_agg, insert
+from sqlalchemy.dialects.postgresql import ARRAY, aggregate_order_by, array_agg, insert
 from sqlalchemy.orm import InstrumentedAttribute
 
 from assessment.models import (
@@ -210,6 +212,15 @@ def _fields_query(kind: str, artifact_id: int) -> Select:
         # claim makes every field a string.
         Question.follows_id.is_(None).label("root"),
     ).where(Question.id == artifact_id)
+
+
+def _among(column: Any, ids: list[int]) -> Any:
+    """`column = ANY(:ids)`: the ids as ONE array parameter.
+
+    `column.in_(ids)` binds one parameter per id, and libpq takes at most
+    65,535 of them in a statement, which an export of every question passes.
+    """
+    return column == any_(literal(ids, ARRAY(BigInteger)))
 
 
 class AssessmentQueue(RowQueue):
@@ -721,7 +732,7 @@ class AssessmentCatalog(Repository):
                 AssessmentMetric.approved,
                 AssessmentMetric.explanation,
             )
-            .where(AssessmentMetric.assessment_id.in_(ids))
+            .where(_among(AssessmentMetric.assessment_id, ids))
             .order_by(AssessmentMetric.assessment_id, AssessmentMetric.metric)
         ).all():
             fields = row._asdict()
@@ -831,7 +842,7 @@ class AssessmentCatalog(Repository):
                     Assessment.assess_status.label("status"),
                 )
                 .join(entity, key == link)
-                .where(Assessment.artifact_kind == kind, link.in_(ids))
+                .where(Assessment.artifact_kind == kind, _among(link, ids))
             ).all()
             metrics = self._metrics(session, [row.id for row in found])
         return {

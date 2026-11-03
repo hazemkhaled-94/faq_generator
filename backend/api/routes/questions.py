@@ -11,11 +11,15 @@ after it, which is what keeps `/questions/status` from being read as
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
 from fastapi import Query, Response
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from starlette.background import BackgroundTask
 
 from api.dependencies import assessment_catalog, question_catalog, questions_queue
 from api.errors import ApiError, ErrorBody
@@ -251,43 +255,42 @@ def export(chosen: Annotated[QuestionExport, Query()]) -> Response:
     Declared before `/{question_id}` so `export` is not read as an id.
     """
     # Imported here rather than at the top of the module: `export` loads
-    # pandas and openpyxl, this process serves JSON, and one route that is
-    # called by hand should not be a cost every other route pays for at
-    # start-up. The same deferral `topic_modelling` uses for pyLDAvis.
+    # openpyxl, this process serves JSON, and one route that is called by
+    # hand should not be a cost every other route pays for at start-up. The
+    # same deferral `topic_modelling` uses for pyLDAvis.
     # `tests/static/test_api_stays_light.py` reads imports as syntax and
     # skips the ones inside a function, which is what makes the two agree.
-    from question_generation.export import workbook
+    from question_generation.export import write
 
     where = _where(chosen)
-    # Unlimited, rather than counting and then asking for a window that
-    # size. Those were two statements with a gap between them: a question
-    # written into the gap did not fit the window the count had already
-    # decided on, and the export quietly came up one row short of the
-    # figure printed on its own Summary sheet.
-    # And the citations and the counts from that same session, one moment.
-    with question_catalog.snapshot() as read:
-        _, rows = question_catalog.page(limit=None, read=read, **where)
-        cited = (
-            question_catalog.citations(read=read, **where) if chosen.citations else ()
-        )
-        quality = question_catalog.quality(read=read, **where)
-        never = question_catalog.never_asked(read=read, **where)
-        earlier = question_catalog.earlier(rows, read=read)
-    # ponytail: the whole workbook is built in memory before the first byte
-    # is sent; the upgrade is a StreamingResponse over openpyxl's write-only
-    # mode.
-    drawn = workbook(
-        rows,
-        cited,
-        quality,
-        assessment_catalog.verdicts_for("question", [one.id for one in rows]),
-        never,
-        earlier,
-    )
-    return Response(
-        content=drawn,
+    # The rows, the citations and the counts from one snapshot, one moment,
+    # and no count-then-window: a question written into the gap between two
+    # statements did not fit the window the count had decided on.
+    #
+    # Written to a temporary file as the rows are read, a batch at a time,
+    # and sent from it, so the 512 MB api holds a batch and not the corpus.
+    drawn = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)  # noqa: SIM115
+    try:
+        with drawn, question_catalog.snapshot() as read:
+            write(
+                drawn,
+                question_catalog.stream(read=read, **where),
+                question_catalog.citations(read=read, **where)
+                if chosen.citations
+                else (),
+                question_catalog.quality(read=read, **where),
+                lambda ids: assessment_catalog.verdicts_for("question", ids),
+                question_catalog.never_asked(read=read, **where),
+                lambda batch: question_catalog.earlier(batch, read=read),
+            )
+    except BaseException:
+        os.unlink(drawn.name)
+        raise
+    return FileResponse(
+        drawn.name,
         media_type=WORKBOOK,
-        headers={"content-disposition": 'attachment; filename="questions.xlsx"'},
+        filename="questions.xlsx",
+        background=BackgroundTask(os.unlink, drawn.name),
     )
 
 

@@ -192,6 +192,60 @@ CROSS: tuple[tuple[str, int, str, str, str, str, str | None], ...] = (
         "The referee takes the final decision.",
         Rejection.DUPLICATE,
     ),
+    (
+        "a refund deadline is not a withdrawal deadline",
+        4101,
+        "A consumer may withdraw from a distance contract within 14 days.",
+        (
+            "The trader must refund all payments received from the consumer "
+            "within 14 days of being told of the decision to withdraw."
+        ),
+        "en",
+        (
+            "The trader must refund the consumer within 14 days of being told "
+            "of the decision to withdraw."
+        ),
+        None,
+    ),
+    (
+        "the withdrawal right in other words is still one fact",
+        4101,
+        "A consumer may withdraw from a distance contract within 14 days.",
+        (
+            "Consumers have the right to withdraw from a distance contract "
+            "within 14 days."
+        ),
+        "en",
+        "Consumers can withdraw from a distance contract within 14 days.",
+        Rejection.DUPLICATE,
+    ),
+    (
+        "eine Erstattungsfrist ist keine Widerrufsfrist",
+        4102,
+        "Der Verbraucher kann einen Fernabsatzvertrag innerhalb von 14 Tagen widerrufen.",
+        (
+            "Der Händler muss alle Zahlungen des Verbrauchers spätestens "
+            "binnen 14 Tagen nach Zugang des Widerrufs erstatten."
+        ),
+        "de",
+        (
+            "Der Händler muss die Zahlungen des Verbrauchers binnen 14 Tagen "
+            "nach Zugang des Widerrufs erstatten."
+        ),
+        None,
+    ),
+    (
+        "das Widerrufsrecht mit anderen Worten ist weiter ein Fakt",
+        4102,
+        "Der Verbraucher kann einen Fernabsatzvertrag innerhalb von 14 Tagen widerrufen.",
+        (
+            "Verbraucher haben das Recht, einen Fernabsatzvertrag binnen 14 "
+            "Tagen zu widerrufen."
+        ),
+        "de",
+        "Ein Verbraucher kann einen Fernabsatzvertrag binnen 14 Tagen widerrufen.",
+        Rejection.DUPLICATE,
+    ),
 )
 
 

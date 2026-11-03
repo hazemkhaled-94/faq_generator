@@ -481,14 +481,28 @@ def wait_for_worker(
     not, naming a worker that has claimed nothing in that time, until nothing
     is pending or in progress. Exits as a drain would: 3 when rows failed
     while it waited, so the chain stops there, and 75 when a stop is asked
-    for, which it obeys at once because it holds nothing.
+    for, which it obeys at once because it holds nothing. Also 75 when nothing
+    is in progress and the pending count has not moved for the queue's lease: a
+    worker that is not draining, which corpus-hosted resumes after.
     """
     shutdown = Shutdown().install()
     try:
         counts = queue.counts_by_status()
         failed = counts.get(Status.FAILED, 0)
         said, said_at = None, clock()
+        seen, moved_at = None, said_at
         while any(left := tuple(counts.get(one, 0) for one in OUTSTANDING)):
+            if left != seen:
+                seen, moved_at = left, clock()
+            elif not left[1] and clock() - moved_at >= queue.lease.total_seconds():
+                log.error(
+                    "%s: its worker is not draining: %d pending, none in progress, "
+                    "nothing moved for the %s lease; stopping so the chain can resume",
+                    name,
+                    left[0],
+                    _for(queue.lease.total_seconds()),
+                )
+                return STOPPED
             idle = clock() - said_at
             if left != said or idle >= _WAIT_REPORT_SECONDS:
                 still = left == said and not left[1]

@@ -730,10 +730,11 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
 - Postgres as shipped (C-011): `configs/env/deployment.env` ships the
   production row of [Sizing Postgres](#sizing-postgres). `make test-perf` runs
   the 10x load test, which asks a dedup probe and a fact write to stay within
-  twice their time at the reviewed build's size. On the CI runner the
-  single-pass probe p95 ran 2.15x in the first two runs and 5.47x to 7.80x in
-  the last three (up to 32.8 ms). The sizing ships with that limit by
-  decision: the database is about 2% of a drain's time at ten times the build.
+  twice their median and 95th-percentile time at the reviewed build's size,
+  measured after a checkpoint and a warm-up. Before that the single-pass probe
+  p95 swung from 1.99x to 16.61x on one unchanged commit on the CI runner, so
+  its 2x bar measured the runner. The sizing ships with the limit by decision:
+  the database is about 2% of a drain's time at ten times the build.
   If the probe time climbs, raise `POSTGRES_MEMORY` and
   `POSTGRES_SHARED_BUFFERS` to the table's next row.
 - The podman VM's memory is at least the sum of its services' limits
@@ -760,6 +761,11 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
   (C-103), applied by `make up`: read its output, because a failure is printed
   and the stack starts anyway.
 - The release draw takes 10.6 s at 21,750 accepted questions (C-089).
+- The nightly's Model quality job is skipped until the repository owner sets
+  the variable `LLM_MODEL` and the secrets `AZURE_API_KEY`, `AZURE_API_BASE`
+  and `AZURE_API_VERSION` in the GitHub repository settings. Until then the
+  run shows it skipped, not green; once set, a model that does not answer
+  fails it.
 
 ### Before the first production release
 
@@ -789,7 +795,7 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
 | C-106 | Ingest only documents the corpus owner authored or controls: document text reaches every prompt as it is, so a planted instruction is read as one | Fencing the material (tried in v0.5.2 and withdrawn: fenced extraction narrowed 10 of 60 facts against 7 unfenced, over the bar of 9) |
 | C-114 | Load bulk corpora with `make ingest DIR=`. The Upload page refuses more than 20 files or 200 MB, but Streamlit uploads every picked file into its 1 GB process first, so a large selection can kill it | A check before the upload, which Streamlit cannot make |
 | C-054 | After a deletion through the pages or the API, the next `make corpus` or `make corpus-hosted` replays the dedup before the bridge pass. Run `make extract-dedup` at once if the refusals are wanted sooner. `make delete` and `make delete-derived` run it themselves | |
-| C-066 | Export a large corpus with `make questions-export` on the host, never through the pages: the API builds the workbook in its 512 MB (it failed past about 13,000 questions in v0.5.1) | The streaming export, deferred to v0.5.3 |
+| C-066 | `make questions-export` and the pages write the same streamed workbook: the API holds a batch, not the corpus (it failed past about 13,000 questions in v0.5.1). Prefer `make questions-export` for more than 70,000 until it is measured on the go-live copy | A 70,000-question export measured through the API on that copy |
 | C-029 | Report the difficulty band as retrieval spread, never as hardness, and leave `QUESTIONS_RELEASE_DIFFICULTY` unset | A grading of how hard a question is to answer, not built |
 | C-031 | Leave distant-from-document out of per-category reports: most of its released rows use the document's words | A per-question word-distance reading (deferred) |
 | C-052 | Before a release from price lists or fee schedules, read by hand the questions whose explanation states a space-grouped amount (`12 500 €`): a wrong total can pass the explanation check | The arithmetic check's model call |

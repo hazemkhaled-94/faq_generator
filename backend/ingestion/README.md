@@ -89,7 +89,11 @@ make delete-derived SHA=<sha256> CONFIRM=<database>
 make wipe CONFIRM=<database>
 ```
 
-`make ingest` sends every PDF in a host directory through this service.
+`make ingest` sends every PDF in a host directory through this service. A file
+whose name no text column can hold (a NUL byte, or the lone surrogate a name
+that is not valid UTF-8 reads back with, such as a Latin-1 `Gebühren.pdf`) is
+refused as `invalid_value` and recorded nowhere. The rest of the folder goes
+on, and the command exits 1. The api answers the same refusal as 400.
 
 ## Configuration
 

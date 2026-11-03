@@ -64,7 +64,8 @@ jobs:
   # Whether a test would notice a gate changing. Line coverage says the
   # line ran; this changes it and asks whether anything fails. Reported and
   # never gated: a surviving mutant is sometimes a mutant nobody should
-  # care about, and that judgement is a person's.
+  # care about, and that judgement is a person's. A harness that runs no mutant
+  # is a failure, and fails the job.
   mutation:
     name: Mutation
     needs: setup
@@ -79,17 +80,41 @@ jobs:
         with:
           path: ~/.cache/huggingface
           key: huggingface-${{ runner.os }}-${{ github.job }}-${{ steps.setup.outputs.embedding }}
-      - run: make mutation
-        continue-on-error: true
+      # Every line of six files is mutated, some five thousand mutants. A
+      # planning.py run of 253 went at 5.3 mutants a second on three children;
+      # the full run is not measured, so it is boxed: out of time at 270
+      # minutes it ends with what it covered, and the summary says how much
+      # that was. Anything else non-zero is the harness failing, and fails.
+      - name: Mutate
+        run: |
+          status=0
+          timeout 270m make mutation || status=$?
+          if [ "$status" -eq 124 ]; then
+            # Out of time passes only if it got to a mutant: a harness that hung
+            # before its first one has run none, and fails.
+            ln -sfn backend src
+            checked=$(poetry run mutmut results --all true | grep -vc ': not checked$' || true)
+            rm -f src
+            if [ "${checked:-0}" -gt 0 ]; then
+              echo "::warning::mutation ran out of time after $checked mutants; the summary lists what it covered"
+              exit 0
+            fi
+            echo "::error::no mutant was checked in 270 minutes"
+            exit 1
+          fi
+          exit "$status"
+      # The link `make mutation` removes is what mutmut finds its files through.
       - name: Put the survivors in the job summary
         if: always()
         run: |
+          ln -sfn backend src
           {
             echo '## Mutants that survived'
             echo '```'
             poetry run mutmut results || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          rm -f src
 
   # The tests that need real weights skip on a laptop with none. Here a
   # missing weight is the failure: the models are fetched at their pinned
@@ -163,11 +188,14 @@ jobs:
       - run: make test-perf
         continue-on-error: true
 
-  # Skips itself while LLM_MODEL is unset; a named model that does not answer
-  # fails it.
+  # Skips itself while LLM_MODEL is unset, so the run shows skipped and not a
+  # success that measured nothing; a named model that does not answer fails
+  # it. Setting the repository variable LLM_MODEL and the three AZURE_*
+  # secrets is the repository owner's step (docs/operations.md).
   evaluate:
     name: Model quality
     needs: setup
+    if: ${{ vars.LLM_MODEL != '' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -176,4 +204,7 @@ jobs:
         env:
           LLM_MODEL: ${{ vars.LLM_MODEL }}
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
+          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
+          AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
         run: poetry run pytest -m eval -s

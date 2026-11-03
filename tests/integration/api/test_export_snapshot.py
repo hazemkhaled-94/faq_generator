@@ -41,20 +41,19 @@ def exported(client, engine, monkeypatch):
         fact_id = cited.id
 
     catalog = routes.question_catalog
-    listed = catalog.page
+    streamed = catalog.stream
 
-    def page_then_a_write(*args, **kwargs):
-        """The listing, and then the worker writing its next question."""
-        found = listed(*args, **kwargs)
+    def stream_then_a_write(*args, **kwargs):
+        """The rows, and then the worker writing its next question."""
+        yield from streamed(*args, **kwargs)
         with Session(engine) as session:
             later = question(question_text="Was kostet eine Rücksendung danach?")
             session.add(later)
             session.flush()
             session.add(link(later.id, fact_id))
             session.commit()
-        return found
 
-    monkeypatch.setattr(catalog, "page", page_then_a_write)
+    monkeypatch.setattr(catalog, "stream", stream_then_a_write)
     answer = client.get("/questions/export")
     assert answer.status_code == 200
     return load_workbook(io.BytesIO(answer.content))

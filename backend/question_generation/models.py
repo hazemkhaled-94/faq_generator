@@ -818,17 +818,12 @@ class Citation:
     document: str
     doc_sha256: str
     ordinal: int
-    #: The page the passage is on, or first–last where it runs over more.
-    page: int | str | None
+    #: The first page the passage is on, and the last where it runs over
+    #: more. Two integers, so a sheet column holds one type and sorts.
+    first_page: int | None
+    last_page: int | None
     #: The heading trail the passage sits under, where the parser found one.
     section_path: str | None = None
-
-
-def pages(first: int | None, last: int | None) -> int | str | None:
-    """A passage's page, or its first and last page where they differ."""
-    if first is None or last in (None, first):
-        return first
-    return f"{first}–{last}"
 
 
 @dataclass(frozen=True)

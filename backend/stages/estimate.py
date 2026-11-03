@@ -188,6 +188,9 @@ def counted() -> Rows:
         engine,
     )
 
+    # Not a failed row either: it is waiting for a retry nobody asked for.
+    WAITING = (Status.NEW, Status.PENDING, Status.IN_PROGRESS)
+
     with Session(engine()) as session:
 
         def count(*conditions) -> int:
@@ -197,13 +200,18 @@ def counted() -> Rows:
             documents=session.scalar(
                 select(func.count())
                 .select_from(Document)
-                .where(Document.chunk_status != Status.CHUNKED)
+                .where(
+                    Document.chunk_status.in_(WAITING),
+                    # Parsing failed it (a refusal is stored as a failure): nothing
+                    # is left to do for it.
+                    Document.parse_status != Status.FAILED,
+                )
             )
             or 0,
             passages=session.scalar(
                 select(func.count())
                 .select_from(Passage)
-                .where(Passage.extract_status != Status.EXTRACTED)
+                .where(Passage.extract_status.in_(WAITING))
             )
             or 0,
             corpus=session.scalar(select(func.count()).select_from(Passage)) or 0,

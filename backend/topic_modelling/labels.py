@@ -354,7 +354,7 @@ def _unshared(
 ) -> dict[int, str]:
     """The names with the trailing words more than half of them share taken off.
 
-    `... im Fussball` on nine names of ten is the domain the corpus shares,
+    `... im Onlinehandel` on nine names of ten is the domain the corpus shares,
     and it tells no topic apart. Two words or more, so a head noun two
     names share - `Debit cards`, `Credit cards` - stays; three names or
     more, so a pair is not read as the whole set; and a name the affix is
@@ -362,7 +362,7 @@ def _unshared(
     topic's subject, not the domain - the domain is in too many passages to
     be a term at all - so `Credit card payment` is not cut to `Credit`.
 
-    Only a prepositional phrase goes, `im Fussball` or `in banking`, which
+    Only a prepositional phrase goes, `im Onlinehandel` or `in banking`, which
     is how a domain is tacked on and leaves a name whole. Any other ending
     is a noun phrase, and cutting it leaves a dangling preposition
     (`Fees for`) or a lone modifier (`Debit`). Read from the language's

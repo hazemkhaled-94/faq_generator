@@ -46,6 +46,7 @@ LANGUAGED = "860d56b11032"
 TWINNED = "7a41c9d2e8b0"
 KEPT_QUESTIONS = "4a7c2e91d3b8"
 UNARCHIVED = "5c1e8a3f7d20"
+SCORED = "9e3b61d4a2c7"
 #: Every revision after the previous head, oldest first.
 LATER = (
     RELEASED,
@@ -74,6 +75,7 @@ LATER = (
     TWINNED,
     KEPT_QUESTIONS,
     UNARCHIVED,
+    SCORED,
 )
 
 #: Three documents, four passages, nine facts and five questions on them.

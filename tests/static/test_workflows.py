@@ -360,3 +360,81 @@ def test_the_stack_job_runs_every_step_with_pipefail_and_starts_what_an_upload_n
     assert not any(
         "seaweedfs-volume" in str(one.get("depends_on", "")) for one in compose.values()
     )
+
+
+def test_the_model_quality_job_runs_only_for_a_named_model_with_its_provider_secrets() -> (
+    None
+):
+    """Unset, it shows skipped rather than green; set, the step can authenticate.
+
+    A job that runs with no model skips all of its tests and reports success,
+    which reads as a quality measure that has been taken. The condition is on
+    the job, so the run says skipped, and the provider's credentials reach the
+    step from secrets, so a named model that does not answer fails.
+    """
+    job = loaded(ROOT / ".github/workflows/nightly.yml")["jobs"]["evaluate"]
+    (step,) = [one for one in job["steps"] if "pytest -m eval" in one.get("run", "")]
+
+    assert "vars.LLM_MODEL" in str(job.get("if", ""))
+    for name in ("AZURE_API_KEY", "AZURE_API_BASE", "AZURE_API_VERSION"):
+        assert f"secrets.{name}" in step["env"][name], name
+
+
+def test_a_mutation_run_that_cannot_start_fails_the_nightly() -> None:
+    """The step that runs mutants is not allowed to fail quietly, nor to time out loudly.
+
+    `continue-on-error` hid a harness that ran no mutant for as long as it was
+    there. Only running out of time (the exit status of `timeout`, 124) ends
+    the step as a pass, with a warning; every other status fails it. The
+    survivors are put in the summary whatever the run did, and the summary
+    step makes the link the survivors are read through, which `make mutation`
+    removes when it ends.
+    """
+    job = loaded(ROOT / ".github/workflows/nightly.yml")["jobs"]["mutation"]
+    (run,) = [one for one in job["steps"] if "make mutation" in one.get("run", "")]
+    (summary,) = [
+        one
+        for one in job["steps"]
+        if one.get("name", "").startswith("Put the survivors")
+    ]
+
+    assert "continue-on-error" not in run
+    assert "timeout" in run["run"]
+    assert 'exit "$status"' in run["run"]
+    # Out of time passes only after a mutant was checked.
+    assert "not checked" in run["run"]
+    assert "::error::no mutant was checked" in run["run"]
+    assert summary["if"] == "always()"
+    assert summary["run"].index("ln -sfn backend src") < summary["run"].index(
+        "mutmut results"
+    )
+
+
+def test_the_mutation_harness_copies_what_its_layers_read_and_selects_no_git_layer() -> (
+    None
+):
+    """Mutmut runs the tests from a copy holding only the files it mutates.
+
+    The layers it runs read configs/env/backend.env at import, the backend
+    packages beside the mutated files and compose.yaml, so the copy takes them.
+    The static layer reads the git checkout and is not selected: a layer that
+    cannot run in the copy fails the whole run before a mutant is tried.
+    """
+    import tomllib
+
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["mutmut"]
+    copied = set(config["also_copy"])
+    selected = config["pytest_add_cli_args_test_selection"]
+
+    assert {"src", "backend", "configs", "compose.yaml"} <= copied
+    assert selected
+    # The files it mutates are named under src, which `make mutation` links to
+    # backend, so mutmut's name for a function is the name the tests import.
+    for path in config["source_paths"]:
+        assert path.startswith("src/"), path
+        assert (ROOT / "backend" / path.removeprefix("src/")).is_file(), path
+    assert "ln -sfn backend src" in (ROOT / "Makefile").read_text()
+    assert "backend" not in config["pytest_add_cli_args"][1].split()
+    for path in selected:
+        assert path.startswith(("tests/unit/", "tests/property")), path
+        assert not path.startswith("tests/static"), path

@@ -9,9 +9,13 @@ database: the dedup probe of `extraction.repository._nearest_fact` and the
 write of a passage's facts through `_write`, on the real schema with its real
 indexes. Vectors are random, which is the hardest case for an HNSW graph.
 
-The bar: the 95th percentile of each is within twice what it was at the
-reviewed size (the probe's of a single pass over a fresh vector, which is what
-a drain pays; the best of three is printed beside it), the index builds finish with no memory notice and the
+The bar: the median and the 95th percentile of each are within twice what
+they were at the reviewed size (the probe's of a single pass over a fresh
+vector, which is what a drain pays; the best of three is printed beside it).
+Each size is measured after a CHECKPOINT, which flushes what the load wrote
+so the timing does not pay for it, and a warm-up of probes and writes whose
+times are dropped; a shared runner swung the p95 of a single pass from 1.99x
+to 16.61x on one commit without both. The index builds finish with no memory notice and the
 parallel build gets the `/dev/shm` it needs, a database time per passage
 stays under 0.37 s, and the pools at their peak stay under 80% of
 `max_connections`. No model is called.
@@ -51,10 +55,11 @@ PROBES_PER_FACT = 2
 #: whole drain's time budget that leaves the model its calls.
 PER_PASSAGE = 0.37
 
-#: Probes and writes timed at each size.
-PROBES = 300
+#: Probes and writes timed at each size, after WARMUP of each that are not.
+PROBES = 600
 PASSES = 3
-WRITES = 100
+WRITES = 200
+WARMUP = 30
 BATCH = 20
 
 
@@ -210,6 +215,17 @@ def _measured(url: str, passages: int) -> dict[str, float]:
     engine = create_engine(url)
     rng = random.Random(11)
     try:
+        # What the load wrote is flushed before anything is timed, so the
+        # first probes do not wait on the checkpointer, and a few probes and
+        # writes are made and dropped so the caches are the ones a drain has.
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as one:
+            one.exec_driver_sql("CHECKPOINT")
+        with Session(engine) as session:
+            for at in range(WARMUP):
+                _nearest_fact(
+                    session, _vector(rng), 1 + at % passages, "de", "atomic", None
+                )
+                session.commit()
         with Session(engine) as session:
             # Fresh vectors, which no row holds: a drain probes each new fact
             # once, and a stored vector would find itself where it sits.
@@ -237,7 +253,7 @@ def _measured(url: str, passages: int) -> dict[str, float]:
                 probes.append(min(times))
                 first.append(times[0])
         writes = []
-        for at in range(WRITES):
+        for at in range(-WARMUP // 5, WRITES):
             cited = 1 + rng.randrange(passages)
             batch = [
                 checked(
@@ -250,7 +266,8 @@ def _measured(url: str, passages: int) -> dict[str, float]:
             started = time.perf_counter()
             with Session(engine) as session, session.begin():
                 _write(session, batch)
-            writes.append(time.perf_counter() - started)
+            if at >= 0:
+                writes.append(time.perf_counter() - started)
     finally:
         engine.dispose()
     print(_plan(url, fresh[0]))
@@ -263,8 +280,10 @@ def _measured(url: str, passages: int) -> dict[str, float]:
     )
     return {
         "probe": _percentile(first),
+        "probe_p50": statistics.median(first),
         "warm": _percentile(probes),
         "write": _percentile(writes),
+        "write_p50": statistics.median(writes),
     }
 
 
@@ -341,14 +360,16 @@ def _bar(container, url, size, notices, connection) -> None:
     print(f"p95 at 1x: {one}")
     print(f"p95 at 10x: {ten}")
     print(
-        f"ratio 10x/1x: single-pass probe {ten['probe'] / one['probe']:.2f}x "
-        f"(bar 2x), warm probe {ten['warm'] / one['warm']:.2f}x, "
-        f"write {ten['write'] / one['write']:.2f}x (bar 2x)"
+        f"ratio 10x/1x: single-pass probe p50 {ten['probe_p50'] / one['probe_p50']:.2f}x, "
+        f"p95 {ten['probe'] / one['probe']:.2f}x (bar 2x), warm probe "
+        f"{ten['warm'] / one['warm']:.2f}x, write p50 "
+        f"{ten['write_p50'] / one['write_p50']:.2f}x, p95 "
+        f"{ten['write'] / one['write']:.2f}x (bar 2x)"
     )
     assert connection.execute("SELECT count(*) FROM facts").fetchone()[0] >= TEN[1]  # type: ignore[index]
     assert not [one for one in notices if "maintenance_work_mem" in one], notices
-    assert ten["probe"] <= 2 * one["probe"], (one, ten)
-    assert ten["write"] <= 2 * one["write"], (one, ten)
+    for name in ("probe_p50", "probe", "write_p50", "write"):
+        assert ten[name] <= 2 * one[name], (name, one, ten)
     per_passage = (
         PROBES_PER_FACT * FACTS_PER_PASSAGE * ten["probe"]
         + ten["write"] * FACTS_PER_PASSAGE / BATCH

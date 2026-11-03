@@ -312,13 +312,32 @@ def _width(by: str | None, groups: dict[tuple[str, str], list[tuple[int, str]]])
     return max([len(by or ""), *(len(label) for _, label in groups)]) + 2
 
 
-def _evidence(path: Path) -> dict[int, str]:
-    """Each question's cited evidence, one sentence a line, by id; empty without the column."""
+def _sheets(path: Path, name: str, **kwargs):
+    """A sheet of an exported workbook, with the numbered sheets it continues in.
+
+    The export goes on in `Citations 2` where a sheet would pass Excel's row
+    limit, so reading only the first would count part of the set.
+    """
+    # Here rather than above: the assess-worker imports this module and never
+    # reads a workbook.
     import pandas as pd
 
-    frame = pd.read_excel(
-        path, sheet_name="Questions", dtype={_EVIDENCE: str}, keep_default_na=False
-    )
+    with pd.ExcelFile(path) as book:
+        names = [
+            one
+            for one in book.sheet_names
+            if one == name
+            or (one.startswith(f"{name} ") and one[len(name) + 1 :].isdigit())
+        ]
+        return pd.concat(
+            [pd.read_excel(book, sheet_name=one, **kwargs) for one in names],
+            ignore_index=True,
+        )
+
+
+def _evidence(path: Path) -> dict[int, str]:
+    """Each question's cited evidence, one sentence a line, by id; empty without the column."""
+    frame = _sheets(path, "Questions", dtype={_EVIDENCE: str}, keep_default_na=False)
     if _EVIDENCE not in frame:
         return {}
     return dict(zip(frame["ID"].astype(int), frame[_EVIDENCE], strict=True))
@@ -382,15 +401,11 @@ def _read(
     passages, which a question without an answer does not have, so every one
     of them would otherwise be counted as `single`.
     """
-    # Here rather than above: the assess-worker imports this module and
-    # never reads a workbook.
-    import pandas as pd
-
     # Text as written: pandas would otherwise read a question "None" or "N/A"
     # as missing, and measure it as the word "nan".
-    frame = pd.read_excel(
+    frame = _sheets(
         path,
-        sheet_name="Questions",
+        "Questions",
         dtype={"Question": str, "Language": str},
         keep_default_na=False,
     ).sort_values("ID")
@@ -427,12 +442,10 @@ def _curve(path: Path, only: str | None, n: int) -> int:
     lower than writing n anew from k documents would: those questions were
     deduplicated against the whole corpus.
     """
-    import pandas as pd
-
     from assessment.diversity import few_documents
 
     groups = _read(path, only)
-    cited = pd.read_excel(path, sheet_name="Citations")
+    cited = _sheets(path, "Citations")
     # The first row citing a question names its document.
     first = {
         int(id): str(document)
@@ -528,8 +541,6 @@ def _conformance(
     read off the Answer form column, so neither counts a question with no
     answer.
     """
-    import pandas as pd
-
     from assessment.diversity import factuality, words
     from question_generation.config import DEFAULT_CATEGORIZATIONS, categorizations
 
@@ -543,8 +554,8 @@ def _conformance(
             )
             for category in one.categories
         }
-    frame = pd.read_excel(
-        path, sheet_name="Questions", dtype={"Answer form": str}, keep_default_na=False
+    frame = _sheets(
+        path, "Questions", dtype={"Answer form": str}, keep_default_na=False
     )
     forms = dict(zip(frame["ID"], frame["Answer form"], strict=True))
     if by == "category":
@@ -595,9 +606,7 @@ def _judged(
     The mean of the stored score, (s - 1) / 2, is the paper's normalised
     mean, as its Table 3 reports it. n is how many of the group were judged.
     """
-    import pandas as pd
-
-    sheet = pd.read_excel(path, sheet_name="Assessment")
+    sheet = _sheets(path, "Assessment")
     scored = sheet.loc[sheet["Judgement"].astype(str).isin(_PAPER_ORDER)]
     if scored.empty:
         return
@@ -716,16 +725,11 @@ def _corrected(
     of a kind (its Status and Answerable) the label was given on, so a key
     label given on accepted rows is not corrected over the rejected ones.
     """
-    import pandas as pd
-
     from assessment import ppi
 
     given, asked = _labels(labels, fields)
-    frame = pd.read_excel(
-        path,
-        sheet_name="Questions",
-        dtype={"Question": str, "Judge": str},
-        keep_default_na=False,
+    frame = _sheets(
+        path, "Questions", dtype={"Question": str, "Judge": str}, keep_default_na=False
     )
     if "Judge" not in frame:
         _refuse(f"{path} has no Judge column to correct by")

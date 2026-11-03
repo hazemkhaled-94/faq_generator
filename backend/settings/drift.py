@@ -66,8 +66,9 @@ def served(url: str) -> dict[str, set[str]]:
     """Reads the setting names the api at `url` serves, by service.
 
     Raises:
-        requests.RequestException: If the api did not answer, or answered
-            with an error that is not an unknown service.
+        requests.RequestException: If the api could not be reached (a
+            ConnectionError), or was and did not answer well (an HTTPError,
+            a timeout).
     """
     found: dict[str, set[str]] = {}
     for service in _services():
@@ -91,8 +92,9 @@ def main(argv: list[str] | None = None) -> int:
         argv: The compose command, or None to read it from sys.argv.
 
     Returns:
-        The process exit code: 1 if the api serves another catalogue, and 0
-        if it serves this one or is not answering.
+        The process exit code: 1 if the api serves another catalogue or
+        refuses or fails the request (a 401 means this host's API_TOKEN is not
+        its), and 0 if it serves this one or cannot be reached.
     """
     telemetry.configure("doctor")
 
@@ -103,13 +105,28 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         differs = missing(served(url))
-    except requests.RequestException as unanswered:
+    except requests.ConnectionError as unanswered:
         log.warning(
             "the api at %s did not serve its settings, so they were not compared: %s",
             url,
             unanswered,
         )
         return 0
+    except requests.RequestException as refused:
+        # The api was reached and did not serve: said no, hung or sent what is
+        # not its settings. Not a first run before `make up`, and not one the
+        # other checks should go past.
+        if (
+            isinstance(refused, requests.HTTPError)
+            and refused.response is not None
+            and refused.response.status_code == 401
+        ):
+            log.error(
+                "the api refused this host's API_TOKEN: run make up after changing .env"
+            )
+        else:
+            log.error("the api did not serve its settings: %s", refused)
+        return 1
 
     if not differs:
         log.info("the api serves this checkout's settings")

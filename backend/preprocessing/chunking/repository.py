@@ -9,7 +9,14 @@ from typing import ClassVar, cast
 from sqlalchemy import Table, bindparam, delete, func, insert, select, update
 from sqlalchemy.orm import InstrumentedAttribute
 
-from database.qa_generator import Document, Fact, FactPassage, Passage, Status
+from database.qa_generator import (
+    Document,
+    Fact,
+    FactPassage,
+    Passage,
+    Status,
+    furniture,
+)
 from database.qa_generator.repository import Repository, lock_reached, matching
 from preprocessing.chunking.models import (
     Chunk,
@@ -135,9 +142,24 @@ class ChunkQueue(RowQueue):
             "span_id": span_id or None,
         }
         with self._session.begin() as session:
+            # The languages this document's passages are in and will be in,
+            # locked before any row is written, in the one order every path
+            # takes them: what is scored against them is read again below.
+            furniture.lock_languages(
+                session,
+                [
+                    *session.scalars(
+                        select(Passage.language)
+                        .where(Passage.doc_sha256 == sha256)
+                        .distinct()
+                    ),
+                    *(chunk.language for chunk in chunks),
+                ],
+            )
             stored = session.execute(
                 select(
                     Passage.id,
+                    Passage.language,
                     Passage.ordinal,
                     Passage.text,
                     Passage.section_path,
@@ -216,6 +238,16 @@ class ChunkQueue(RowQueue):
                     )
                     .values(extract_status=Status.EXTRACTED)
                 )
+            # A kept passage the new chunk puts in another language is scored
+            # among that language's, and whatever took its score from a passage
+            # of this document that is gone or moved is read again.
+            before = {row.id: row.language for row in stored}
+            moved = [
+                one for one, chunk in kept.items() if before[one] != chunk.language
+            ]
+            furniture.score(session, moved)
+            if gone or moved:
+                furniture.rescore_from(session, [sha256])
             self._finish(sha256, session=session, oversized=chunking.oversized)
         return len(chunks)
 
@@ -341,6 +373,25 @@ class PassageCatalog(Repository):
         if not read:
             return 0
         with self._session.begin() as session:
+            before = {
+                row.id: (row.language, row.doc_sha256)
+                for row in session.execute(
+                    select(Passage.id, Passage.language, Passage.doc_sha256).where(
+                        Passage.id.in_([one for one, _, _ in read])
+                    )
+                )
+            }
+            # A passage deleted since it was read is skipped. The locks of the
+            # languages it leaves and the ones it joins come before any row is
+            # written, in the one order every path takes them.
+            read = [one for one in read if one[0] in before]
+            if not read:
+                return 0
+            furniture.lock_languages(
+                session,
+                [language for language, _ in before.values()]
+                + [language for _, language, _ in read],
+            )
             # The table rather than the entity: an executemany against the
             # mapped class is read as an ORM bulk update by primary key, which
             # wants the key among the values being set.
@@ -351,6 +402,12 @@ class PassageCatalog(Repository):
                     for passage_id, language, terms in read
                 ],
             )
+            # A passage that changed language is scored among its new
+            # language's, and what took its score from it in the old one is
+            # read again: the score is per language.
+            changed = [one for one, language, _ in read if before[one][0] != language]
+            furniture.score(session, changed)
+            furniture.rescore_from(session, {before[one][1] for one in changed})
             session.execute(
                 update(_FACTS)
                 .where(

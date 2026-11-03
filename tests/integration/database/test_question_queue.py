@@ -2217,10 +2217,27 @@ UPDATE passages SET embedding = (
 """
 
 
+def _score(engine) -> None:
+    """Scores every passage the way extraction does when it embeds one."""
+    from database.qa_generator import furniture
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE passages SET nearest_foreign_cosine = NULL, "
+                "nearest_foreign_doc = NULL"
+            )
+        )
+        ids = list(connection.execute(text("SELECT id FROM passages")).scalars())
+    with Session(engine) as session, session.begin():
+        furniture.score(session, ids)
+
+
 def _embed(engine, sql: str) -> None:
     """Gives the passages an embedding, so the reading has vectors to read."""
     with engine.begin() as connection:
         connection.execute(text(sql))
+    _score(engine)
 
 
 def test_a_passage_repeated_in_another_document_is_never_asked_about(
@@ -2266,6 +2283,7 @@ def test_a_passage_and_its_translation_are_not_furniture(corpus, engine) -> None
                 "(SELECT min(doc_sha256) FROM passages)"
             )
         )
+    _score(engine)
 
     kept = QuestionQueue(boilerplate_cosine=0.95).facts(written["topics"][0])
 

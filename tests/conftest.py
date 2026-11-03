@@ -13,10 +13,12 @@ layer runs against is what a deployment gets.
 from __future__ import annotations
 
 import contextlib
+import gc
 import json
 import os
 import sys
 import time
+import warnings
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -166,10 +168,21 @@ def _runtime_ready() -> str | None:
         import docker
     except ImportError:  # pragma: no cover - the dev group installs it
         return "the docker client library is not installed"
-    try:
-        docker.from_env().ping()
-    except Exception as exc:  # noqa: BLE001 - any failure is the same answer
-        return f"no container runtime: {type(exc).__name__}: {exc}"
+    # A client that cannot reach its runtime fails inside its constructor,
+    # holding a socket nothing can close; it is collected here, under the
+    # warning it raises, rather than in whichever test the collector runs.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ResourceWarning)
+        try:
+            client = docker.from_env()
+            try:
+                client.ping()
+            finally:
+                client.close()
+        except Exception as exc:  # noqa: BLE001 - any failure is the same answer
+            return f"no container runtime: {type(exc).__name__}: {exc}"
+        finally:
+            gc.collect()
     return None
 
 

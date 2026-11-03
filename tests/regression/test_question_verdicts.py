@@ -93,6 +93,85 @@ def test_a_stored_question_is_rechecked_against_the_type_rules(
     assert (failed[0] if failed else None) == expected, failed
 
 
+#: The same rechecks over the shop corpus, each in its own language: (name,
+#: language, the fact the question rests on, question, answer, type, form,
+#: expected code or None).
+SHOP_ROWS: tuple[tuple[str, str, str, str, str, str, str, str | None], ...] = (
+    (
+        "a comparison answered with two definitions, in German",
+        "de",
+        "Verbraucher können Online-Käufe binnen 14 Tagen widerrufen.",
+        "Wie unterscheidet sich das Widerrufsrecht von der gesetzlichen Gewährleistung?",
+        (
+            "ein Recht, einen Online-Kauf binnen 14 Tagen ohne Angabe von "
+            "Gründen zu widerrufen, ein Anspruch auf Abhilfe bei Mängeln der Ware"
+        ),
+        QuestionType.COMPARISON,
+        AnswerForm.LIST,
+        QuestionRejection.WRONG_TYPE,
+    ),
+    (
+        "a comparison answered with two definitions, in English",
+        "en",
+        "Consumers can cancel online purchases within 14 days.",
+        "How does the cooling-off period differ from the legal guarantee?",
+        (
+            "the right to cancel an online purchase within 14 days, a claim to "
+            "a remedy when goods are faulty"
+        ),
+        QuestionType.COMPARISON,
+        AnswerForm.LIST,
+        QuestionRejection.WRONG_TYPE,
+    ),
+    (
+        "a sound reason, in German",
+        "de",
+        "Ein Händler bestätigt den Eingang einer Bestellung schriftlich.",
+        "Warum bestätigt ein Händler den Eingang einer Bestellung schriftlich?",
+        "damit der Zeitpunkt des Vertragsschlusses später belegt werden kann",
+        QuestionType.REASON,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
+    (
+        "a sound reason, in English",
+        "en",
+        "A trader confirms an order in writing.",
+        "Why does a trader confirm an order in writing?",
+        "so that the time the contract was made can be shown later",
+        QuestionType.REASON,
+        AnswerForm.EXPLANATION,
+        None,
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("language", "statement", "question", "answer", "kind", "form", "expected"),
+    [row[1:] for row in SHOP_ROWS],
+    ids=[row[0] for row in SHOP_ROWS],
+)
+def test_a_shop_question_is_rechecked_in_its_own_language(
+    language: str,
+    statement: str,
+    question: str,
+    answer: str,
+    kind: str,
+    form: str,
+    expected: str | None,
+) -> None:
+    """What re-verify stores for a shop row, whichever language it is written in."""
+    row = replace(
+        _stored(question, answer, kind, form),
+        language=language,
+        statements=(statement,),
+    )
+
+    failed = _recheck(None, Settings.load(), row)  # type: ignore[arg-type]
+
+    assert (failed[0] if failed else None) == expected, failed
+
+
 class _Nearest:
     """A catalogue whose nearest accepted question is one fixed twin."""
 

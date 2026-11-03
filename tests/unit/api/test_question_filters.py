@@ -36,10 +36,15 @@ class _Catalog:
         self.asked["page"] = {"given": args, **where}
         return 0, []
 
+    def stream(self, *args, **where):
+        """The same rows `page` lists, as `export` reads them."""
+        self.asked["page"] = {"given": args, **where}
+        return iter(())
+
     def citations(self, **where):
         """No citations."""
         self.asked["citations"] = where
-        return []
+        return iter(())
 
     def earlier(self, questions, read=None):
         """No follow-up has a turn before it here."""

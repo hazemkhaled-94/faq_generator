@@ -16,7 +16,7 @@ import telemetry
 from database.qa_generator import engine
 from ingestion.config import Settings
 from ingestion.factory import build_removal, build_service
-from ingestion.models import UploadedFile
+from ingestion.models import INVALID_VALUE, UploadedFile
 from settings.runs import run_id
 from settings.store import StoredRefused, snapshot
 from stages.cli import REFUSED
@@ -78,11 +78,14 @@ def _add(folder: Path, service) -> int:
         outcomes[result.outcome] += 1
         log.info(
             "%s: %s%s",
-            path.name,
+            # A lone surrogate, from a name that is not UTF-8, is written escaped.
+            path.name.encode("utf-8", "backslashreplace").decode(),
             result.outcome,
             f" ({result.detail})" if result.detail else "",
         )
-    refused = outcomes["too_large"] + outcomes["unsupported_type"]
+    refused = (
+        outcomes["too_large"] + outcomes["unsupported_type"] + outcomes[INVALID_VALUE]
+    )
     log.info(
         "%d stored, %d duplicate, %d refused",
         outcomes["stored"],

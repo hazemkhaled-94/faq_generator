@@ -99,7 +99,7 @@ The actions are mutually exclusive.
 | `--retry` | Return failed rows to the queue | yes |
 | `--rerun` | Queue every row again, finished ones included, then drain. Runs the preflight first | yes |
 | `--reclaim` | Return a row a dead worker still holds, without waiting out its lease. See [`reclaim`](#reclaim) | yes |
-| `--wait` | Wait for the stage's container worker to empty the queue, logging counts. Exits 3 when rows failed meanwhile, 75 when told to stop. Not in topic modelling | no |
+| `--wait` | Wait for the stage's container worker to empty the queue, logging counts. Exits 3 when rows failed meanwhile, 75 when told to stop, and 75 when nothing is in progress and the pending count has not moved for the queue's lease (the worker is not draining). Not in topic modelling | no |
 | `--only SCOPE=VALUE` | Narrow the action to one item. Refused on a bare drain, and on `--rerun` while rows outside it are queued. Topic modelling ignores it | no |
 | `--watch` | Drain, and keep draining | no |
 | no flag | Drain the queue once, in the foreground, and stop | no |
@@ -209,7 +209,8 @@ rows stayed.
 `WORKER_POLL_SECONDS`, drain again.
 
 `SIGTERM` and `SIGINT` make the worker stop claiming and finish the item it
-holds. A second signal, or the stage's grace after the first (`GRACE_SECONDS`:
+holds. A repeat within 2 s of the first is the same stop and changes nothing. A
+later second signal, or the stage's grace after the first (`GRACE_SECONDS`:
 90 s for parsing and chunking, 270 s for stages that call a model), returns
 the held row to the queue as pending and exits 75. `compose.yaml` gives each
 worker a `stop_grace_period` above its grace by `RELEASE_MARGIN` (30 s), and a

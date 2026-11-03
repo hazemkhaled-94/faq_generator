@@ -43,6 +43,7 @@ from database.qa_generator import (
     Rejection,
     Status,
     engine,
+    furniture,
 )
 from database.qa_generator.passage_topics import DOMINANT
 from database.qa_generator.repository import Repository, lock_reached, matching
@@ -533,6 +534,12 @@ class PassageQueue(RowQueue):
             How many facts were written.
         """
         with self._session.begin() as session:
+            # First, before any row is written or any other lock taken, as
+            # every path that scores does: a delete holding it would otherwise
+            # wait on the rows this transaction wrote while this one waited
+            # on it.
+            if embedding is not None:
+                furniture.lock(session, [passage_id])
             if settle is not None:
                 language = _languages(session, {passage_id}).get(passage_id) or ""
                 for kind in sorted({fact.kind for fact in facts if fact.validated}):
@@ -590,6 +597,7 @@ class PassageQueue(RowQueue):
                     .where(Passage.id == passage_id)
                     .values(embedding=embedding)
                 )
+                furniture.score(session, [passage_id])
             self._finish(passage_id, session=session, note=note)
         return len(facts)
 
@@ -1509,8 +1517,17 @@ class FactCatalog(Repository):
             ]
 
     def embed_passages(self, vectors: list[tuple[int, list[float]]]) -> int:
-        """Writes a vector onto each of the given passages."""
-        return self._embed(_PASSAGES, vectors)
+        """Writes a vector onto each of the given passages, and their furniture score."""
+        if not vectors:
+            return 0
+        with self._session.begin() as session:
+            furniture.lock(session, [row for row, _ in vectors])
+            written = session.execute(
+                update(_PASSAGES).where(_PASSAGES.c.id == bindparam("row")),
+                [{"row": row, "embedding": one} for row, one in vectors],
+            ).rowcount
+            furniture.score(session, [row for row, _ in vectors])
+        return written
 
     def unembedded_questions(self, limit: int, within=None) -> list[tuple[int, str]]:
         """The next questions carrying no vector, as (id, question text).

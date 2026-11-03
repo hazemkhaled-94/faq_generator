@@ -181,3 +181,21 @@ def test_the_newest_version_comes_first_by_number(engine, database) -> None:
     record("questions", [Composed("factoid", "10", "Ten.")])
 
     assert [one.version for one in stored(service="questions")] == ["10", "9"]
+
+
+def test_a_capped_version_sorts_by_its_number_not_its_text(engine, database) -> None:
+    """`12+cap4` is a twelve: after 13 and before 9, and before a plain 12.
+
+    Within one number the whole version decides, descending, which puts the
+    longer `12+cap4` ahead of `12`. A stamp past 32 bits is still a number.
+    """
+    for version in ("9", "12", "12+cap4", "13", "20261102101500"):
+        record("questions", [Composed("factoid", version, f"Text {version}.")])
+
+    assert [one.version for one in stored(service="questions")] == [
+        "20261102101500",
+        "13",
+        "12+cap4",
+        "12",
+        "9",
+    ]

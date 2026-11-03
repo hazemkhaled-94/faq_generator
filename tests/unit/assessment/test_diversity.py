@@ -655,7 +655,8 @@ def test_the_command_line_draws_the_curve_by_document(
             document=f"Seite {(i - 1) % 5}",
             doc_sha256=f"{(i - 1) % 5}" * 64,
             ordinal=1,
-            page=1,
+            first_page=1,
+            last_page=1,
         )
         for i in range(1, 11)
     ]
@@ -708,7 +709,8 @@ def test_documents_sharing_a_title_count_apart_by_their_id(
             document="Seite",
             doc_sha256=f"{(i - 1) % 5}" * 64,
             ordinal=1,
-            page=1,
+            first_page=1,
+            last_page=1,
         )
         for i in range(1, 11)
     ]

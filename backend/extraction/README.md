@@ -309,6 +309,18 @@ make extract-rerun SHA=<sha256>        # or to one document
 
 `extract-embed` does not apply the dedup gate.
 
+A passage's vector is written by the extraction worker (`PassageQueue.store`)
+or by `extract-embed`, and either writes `passages.nearest_foreign_cosine` in
+the same transaction: the exact cosine to the closest embedded passage of
+another document in the same language, with `nearest_foreign_doc`, the
+document that passage is in. The same value is raised on the older passages the
+new one is closer to. A lock per language, held to the commit and taken first by
+every path that writes a score, keeps two workers embedding the two halves of a
+twin pair, or a delete and a store, from each missing the other. Deleting or
+re-chunking a document, or a passage changing language, reads again only the
+scores that came from it (`database.qa_generator.furniture`).
+The questions stage reads the score to leave out a corpus's own furniture.
+
 A passage read again keeps a fact with the same kind, method, statement and
 citations, along with its id, embedding and questions. A fact the new reading
 does not repeat is deleted, and a question resting on it is rejected as

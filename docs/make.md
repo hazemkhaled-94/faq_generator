@@ -21,7 +21,7 @@ is the long form.
 |---|---|
 | `make setup` | Write `.env` and `configs/env/provider.env` and fill in every placeholder. Both files are created readable by the owner alone (mode 600), whatever the shell's umask. Safe to run twice: it replaces only `change_me_*` placeholders |
 | `make install` | `make install-python`, then `make docling-weights` |
-| `make doctor` | Check the tools, the configuration (says for each host address whether the env file, the environment, the command line or the ports gave it, and warns when `.env` or `provider.env` is readable by other accounts), the model split, the stored settings, and the pinned models and Docling's weights in the cache (a miss fails with `HF_HUB_OFFLINE=1` or `HOST_RUNNER=1`, else warns). Then ask every model one question. Also lists names `ENV_FILE` sets over a committed file, warns when the checkout or `ENV_FILE` sits in a synced folder, fails on a password a connection string cannot hold (the application, Phoenix, Argilla or Elasticsearch one), and prints the archive's estimated size |
+| `make doctor` | Check the tools, the configuration (says for each host address whether the env file, the environment, the command line or the ports gave it, and warns when `.env` or `provider.env` is readable by other accounts), the model split, the stored settings, and the pinned models and Docling's weights in the cache (a miss fails with `HF_HUB_OFFLINE=1` or `HOST_RUNNER=1`, else warns). Then ask every model one question. Also lists names `ENV_FILE` sets over a committed file, warns when the checkout or `ENV_FILE` sits in a synced folder, fails on a password a connection string cannot hold (the application, Phoenix, Argilla or Elasticsearch one), and prints the archive's estimated size. Fails when the api refuses this host's `API_TOKEN` (run `make up` after changing `.env`), and only warns when the api is not up |
 | `make dev` | `make install` first, then certificates, every service, the schema and the Grafana grants |
 | `make upgrade` | Refuse a `change_me_` value in `.env`, check the engine has `UPGRADE_FREE_GB` free (20), build, prune orphaned images, stop the workers, `make schema`, `make up`. Stops at the first failing step |
 
@@ -133,11 +133,30 @@ make logs-retention LOGS_RETENTION_DAYS=90
 make logs-prune LOGS_KEEP_DAYS=7
 ```
 
+The Filebeat template keeps no replica, so a single node reads green. An
+Elasticsearch volume from before v0.5.3 still holds `qa-logs` indices with one,
+and reads yellow until they age out; set them once (use `docker compose` where
+that is your engine):
+
+```bash
+export COMPOSE_ENV_FILES=configs/env/deployment.env,.env
+podman compose exec -T elasticsearch sh -c 'curl -sS \
+  --cacert /usr/share/elasticsearch/config/certs/ca.crt \
+  -u "elastic:$ELASTIC_PASSWORD" --request PUT "https://localhost:9200/qa-logs*/_settings" \
+  -H "Content-Type: application/json" --data "{\"index\":{\"number_of_replicas\":0}}"'
+```
+
 ## The corpus as one thing
 | Target | Does |
 |---|---|
 | `make pipeline-stop` | Take back everything queued, in every stage, and stop the run behind it |
 | `make pipeline-retry` | Return every stage's failures to the queue |
+
+`make services`, `make pipeline-status`, `make pipeline-stop` and `make
+pipeline-retry` ask the api. They exit non-zero when it does not answer, saying
+"The api is not answering" only where nothing connects, and otherwise print the
+status and detail it gave: a 401 means the host's `API_TOKEN` is not the api's,
+so run `make up` after changing `.env`.
 
 `make pipeline-status` (above) shows every stage's queue and the run in
 flight. No `pipeline-start` exists: `make pipeline` starts each stage and
@@ -287,7 +306,7 @@ python -m question_generation.export --help     # every filter there is
 ```
 
 The workbook has four sheets: the questions, the facts each cites (one row per
-fact per passage, with page and passage ordinal), the LLM judge's assessment
+fact per passage, with first and last page as integers and the passage ordinal), the LLM judge's assessment
 (empty unless the judge has run), and the counts.
 
 ## The evaluation phase
@@ -516,7 +535,22 @@ could read every span, and never `default`.
 The nightly workflow also runs `test-perf`, `mutation`, `make audit` and `make
 test-eval`, and keeps differing golden conversions as the
 `golden-snapshots-linux` artifact. `[tool.mutmut]` in `pyproject.toml` sets
-what mutation covers.
+what mutation covers: six files, tested by `tests/unit/questions`,
+`tests/unit/extraction` and `tests/property`, run from a copy that takes the
+backend, configs, docs and `compose.yaml`. `make mutation` links `src` to
+`backend` for the run, because mutmut names a function after its file's path.
+A mutation run that cannot start fails the nightly; surviving mutants are
+listed in its summary and do not. The run is boxed at 270 minutes: out of time
+it ends as a pass with a warning if it checked a mutant, and fails if it did
+not, and the summary lists what it covered. The
+full run is not yet timed (`planning.py` alone, 253 mutants, ran at 5.3 a
+second).
+
+The nightly's Model quality job runs only when the repository variable
+`LLM_MODEL` is set, and shows as skipped otherwise. To turn it on, set that
+variable (for example `azure/<deployment>`) and the secrets `AZURE_API_KEY`,
+`AZURE_API_BASE` and `AZURE_API_VERSION` in the repository's settings. A named
+model that does not answer fails the job.
 
 ## Cost
 ```bash

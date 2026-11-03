@@ -287,3 +287,15 @@ def test_every_dashboard_the_lineage_page_links_exists() -> None:
 
     assert uids, "the lineage page names no dashboard"
     assert uids <= provisioned, uids - provisioned
+
+
+def test_the_filebeat_template_keeps_no_replica_on_a_single_node() -> None:
+    """One node cannot place a replica, so the cluster would read yellow for good.
+
+    A permanent yellow trains an operator to ignore the health that would show
+    a real fault. The template is reinstalled on every start, so the setting is
+    applied to the index it creates.
+    """
+    shipper = yaml.safe_load(FILEBEAT.read_text())
+
+    assert shipper["setup.template.settings"]["index.number_of_replicas"] == 0
