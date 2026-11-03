@@ -239,7 +239,8 @@ full documentation. Each service also documents itself in its own directory.
 | [docs/make.md](docs/make.md) | Every `make` target |
 | [docs/operations.md](docs/operations.md) | Deployment, scaling, monitoring and troubleshooting |
 | [docs/measurements.md](docs/measurements.md) | Results of measured runs |
-| [docs/bugs.md](docs/bugs.md) | Known defects and their fixes |
+| [docs/bugs.md](docs/bugs.md) | Known defects, each accepted with its measured effect and cost |
+| [docs/changelog.md](docs/changelog.md) | What each release fixed, newest first |
 
 ## Limitations
 

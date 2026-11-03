@@ -45,7 +45,8 @@ The v0.4.0 column is the v0.3.8 code (reviewed, not released). Readers differ
 by about five points. "Usable" is a verdict of good or minor. "Settled" means
 unusable released questions were read again by a second reader and, on
 disagreement, a third. n/a means not measured. The first two runs are detailed
-in [bugs.md](bugs.md). The 16-syllabus run is not in the table.
+in [changelog.md](changelog.md#found-on-the-v022-rebuild-of-2026-10-14). The
+16-syllabus run is not in the table.
 
 | | 2026-10-13 (before v0.2.2) | v0.2.2, 2026-10-14 | v0.3.0, 2026-10-16 | v0.4.0, 2026-10-18 | v0.3.12, 2026-10-19 |
 |---|---|---|---|---|---|
@@ -364,7 +365,7 @@ at least 2 set before the run, so the probe is unchanged (FIX-R55).
 
 The *Laws of the Game 2026/27* (football rules), one PDF in German (139 pages)
 and its English translation (131 pages), through every stage by v0.3.0. Not
-read by hand; [bugs.md](bugs.md#after-the-fixes) compares it with the v0.2.2
+read by hand; [changelog.md](changelog.md#after-the-fixes) compares it with the v0.2.2
 rebuild. Writer `azure/gpt-5.4`; extractor, digest, topic labeller, verifier
 and phrasing judge `azure/gpt-4.1`. 2 h 26 min, 5,846 calls, USD 17.93 (USD
 20.93 with two discarded runs: a first extraction and a first release draw at
@@ -599,7 +600,7 @@ and the paper's judge per category and kind.
 ## The v0.4.3 calibration
 
 v0.4.3 changes how questions are planned, written, accepted and released (see
-[the finalize review](bugs.md#found-by-the-finalize-review-of-2026-10-21)).
+[the finalize review](changelog.md#found-by-the-finalize-review-of-2026-10-21)).
 Each pass rule was written before anything was measured.
 
 ### The floor rule
@@ -653,8 +654,8 @@ at least half of its labelled rows, at most 35% of them usable.
 | 11 | `reason_given` | 11 | 6 of 22 | 1 of 11 | fails recall |
 | 12 (`asks_one` removed) | `reason_given` | 19 | 11 of 22 (0.500) | 5 of 19 (0.26) | passes |
 
-Version 12 sits exactly at the bar. `asks_one` was withdrawn (see [the
-withdrawn items](bugs.md#tried-in-v043-and-withdrawn-with-the-reason)).
+Version 12 sits exactly at the bar. `asks_one` was withdrawn (see [its
+entry](bugs.md#c-014-welded-two-passage-questions-pass-every-gate)).
 
 ### The B1 title rule on stored rows
 
@@ -706,7 +707,7 @@ natural phrasing. The v0.4.3 calibrations cost USD 22.4.
 ## The v0.4.4 bars
 
 v0.4.4 changes how documents are read (see [the finalize
-review](bugs.md#fixed-in-v044-parsing-and-chunking)). Bars were written first.
+review](changelog.md#fixed-in-v044-parsing-and-chunking)). Bars were written first.
 All but one are replays on three real documents or the two frozen calibration
 bases (`qa_cal_laws`, `qa_cal_shop`); the extraction run calls a model.
 
