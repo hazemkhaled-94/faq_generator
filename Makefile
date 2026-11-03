@@ -2002,8 +2002,9 @@ test-coverage:
 # Times the ceilings the code names in a comment: the combination search in
 # `adds_up`, the release draw, the composition report. Never a gate - a
 # budget on a shared runner measures the runner.
+# -rP prints what a passing ceiling test prints, so the Nightly log shows its ratios
 test-perf:
-	poetry run pytest -m perf
+	poetry run pytest -m perf -rP
 
 # Whether the tests would notice a gate changing. Line coverage says the
 # line ran; this changes it and asks whether anything fails.
