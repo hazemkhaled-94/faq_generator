@@ -137,12 +137,14 @@ def test_a_listing_takes_the_prefix_and_every_page(objects, names) -> None:
 def test_delete_many_removes_what_it_names(objects, names) -> None:
     """Delete many removes what it names."""
     main, _ = names
-    for key in ("a", "b", "c"):
+    # Under a prefix of their own: SeaweedFS keeps the directory `a` another
+    # case's `a/b` leaves, and refuses a file `a` there with an InternalError
+    for key in ("many/a", "many/b", "many/c"):
         objects.put(main, key, b"x", content_type="text/plain")
 
-    objects.delete_many(main, ["a", "c"])
+    objects.delete_many(main, ["many/a", "many/c"])
 
-    assert [one.key for one in objects.listed(main)] == ["b"]
+    assert [one.key for one in objects.listed(main)] == ["many/b"]
 
 
 def test_a_bucket_is_asked_of_by_name_and_never_by_listing_the_account(
