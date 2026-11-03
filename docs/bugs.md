@@ -6,13 +6,13 @@ would reopen it. [changelog.md](changelog.md) lists what each release fixed,
 newest first.
 
 The QA pass of v0.5.3 brought every open item to one end state: fixed, closed
-with evidence, or accepted. This page holds the 130 accepted items, by
+with evidence, or accepted. This page holds the 132 accepted items, by
 category:
 
 | Category | Items | Meaning |
 |---|---|---|
 | [Failed bar](#failed-bar) | 71 | Designs were built and measured against a bar written beforehand, and none passed. 18 are fixes withdrawn in v0.5.3 |
-| [Cost](#cost) | 48 | A cure needs a model call per row, a new service, a migration or a rework larger than the effect |
+| [Cost](#cost) | 50 | A cure needs a model call per row, a new service, a migration or a rework larger than the effect |
 | [Not measured: budget](#not-measured-budget) | 6 | A cure changes what is written and needs a model arm that v0.5.3's model budget did not cover |
 | [Domain-specific](#domain-specific) | 3 | Only a rule fitted to one corpus would cure it |
 | [Upstream](#upstream) | 2 | A dependency must change first |
@@ -1599,6 +1599,31 @@ so the cost is keeping copies in step.
 - Why accepted: no behaviour differs.
 - Cure: one copy of each.
 - Reopens: the next rework of the frontend.
+
+### N-079: Filebeat reads the hosted runner's plain-text log as JSON
+
+Filebeat ships `logs/corpus-hosted.log`, the plain-text `make` output of
+`make corpus-hosted`, through its ndjson parser. The runbook walk on the
+release candidate logged 1,626 "Error decoding JSON" lines in Filebeat, one
+for each line of that log, and those lines are not indexed as fields.
+
+- Why accepted: proving a cure needs another scratch-stack walk with the
+  logging profile, which this release did not budget.
+- Cure: a Filebeat input that reads that file as plain text, or leaves it
+  out.
+- Reopens: the next scratch-stack walk with the logging profile.
+
+### N-080: `make doctor` prints a download that fetches a whole model repository
+
+The line `make doctor` prints for a missing encoder, `poetry run hf download
+<repo> --revision <commit>`, fetches every file of the repository: about 8.9
+GB for `intfloat/multilingual-e5-large`, with ONNX, OpenVINO and PyTorch
+weights beside the ones the loader reads.
+
+- Why accepted: finding the files each encoder needs, per encoder and
+  revision, is a measurement this release did not make.
+- Cure: `--include` patterns for the files each encoder needs.
+- Reopens: that measurement.
 
 ## Not measured: budget
 

@@ -7,8 +7,9 @@ defects that stay, each accepted with its measured effect and its cost.
 A fix changes what the next run writes. Stored rows improve only through the
 re-runs that operations.md lists for
 [v0.2.2](operations.md#upgrading-to-v022),
-[v0.3.0](operations.md#upgrading-to-v030) and
-[v0.5.2](operations.md#upgrading-to-v052).
+[v0.3.0](operations.md#upgrading-to-v030),
+[v0.5.2](operations.md#upgrading-to-v052) and
+[v0.5.3](operations.md#upgrading-to-v053).
 
 ## Fixed defects
 
@@ -16,7 +17,7 @@ Fixed defects by release, newest review first.
 
 ## Found by the QA pass of 2026-11-01
 
-The QA pass after v0.5.2 put every open item into one register of 363 items:
+The QA pass after v0.5.2 put every open item into one register of 368 items:
 
 - the open, deferred and withdrawn entries of the bug page;
 - the 212 items the final review of 2026-10-22 left deferred or unfixed, and
@@ -24,11 +25,11 @@ The QA pass after v0.5.2 put every open item into one register of 363 items:
 - the root causes B1 to B30 of 2026-10-13 (`RCA-B1` to `RCA-B30`);
 - one bug page entry with no other id (`K-001`);
 - the filelock advisories (`N-001`), 75 findings of eight hunts over the code
-  (`N-002` to `N-076`), one of the analysts (`N-077`) and one of a review
-  (`N-078`).
+  (`N-002` to `N-076`), one of the analysts (`N-077`), one of a review
+  (`N-078`) and five of the walk through the production runbook (`N-079` to
+  `N-083`).
 
-Each item ends in one state. 94 were fixed, 134 closed and 130 accepted.
-The last 5 are this release's own documentation and runbook checks.
+Each item ended in one state. 102 were fixed, 134 closed and 132 accepted.
 A fix has a test that failed before it, a bar written before its measure, and
 two passing reviews. A fix that failed its bar or its third review was
 withdrawn, and its item accepted: [bugs.md](bugs.md#failed-bar) gives its
@@ -164,14 +165,14 @@ counted.
 | Item | Defect | Fix | Measure and bar |
 |---|---|---|---|
 | C-006 | On Linux bash a stop gave the row back at once, and a worker stopped during `make corpus` left the wait polling (the rest of C-006, FIX-R66, shipped in v0.5.2) | A second stop signal within 2 s of the first is the same stop, so the held row still finishes; only a later one gives it back. A `--wait` on a worker with pending rows, nothing in progress and no movement for the queue lease exits 75 and names the worker, so the chain stops and `make corpus-hosted` resumes later | Signals 10 ms and 1.6 s apart are one stop; 2.4 s and 3 s apart give the row back. The wait returns 75 after the lease on a fake clock, and a row in progress never gives up. tests/unit/stages and tests/static green |
-| C-066 | The export built the whole workbook in the api's 512 MB and failed past about 13,000 questions | The workbook is written as it is read, in openpyxl's write-only mode, into a temporary file. The api holds a batch of questions, not the corpus | 20,000 questions peak under 2.5 times the 2,000-question peak and under 100 MB. A release export of 1,273 questions (83,069 cells) differs from v0.5.2's only where intended: page numbers, quoted formula signs and the Kind note. Within 330 groups of one passage, 1,750 Citations cells listed the same facts in another order: the query left their order to the cursor, so the facts of one passage now come in the order of their ids. Whole corpus, 3,885 questions: peak memory 133 MB against 366 MB |
+| C-066 | The export built the whole workbook in the api's 512 MB and failed past about 13,000 questions | The workbook is written as it is read, in openpyxl's write-only mode, into a temporary file. The api holds a batch of questions, not the corpus | 20,000 questions peak under 2.5 times the 2,000-question peak and under 100 MB. On a copy of the build, the release export (1,273 questions, 83,069 cells) through the old and the new path differs only where intended: page numbers (2,353 of 2,353 rows), quoted formula signs (1,538 cells) and the Kind note (1). Within 330 groups of one passage, 1,750 Citations cells listed the same facts in another order, because the query left their order to the cursor; `72028444` orders them by fact id. Whole corpus, 3,885 questions: peak memory 133 MB against 366 MB. Bar: the same cells on both paths and under 512 MB at ten times the build |
 | C-071 | An export of more than 65,535 questions failed on libpq's parameter limit | The judge's ids bind as one array | 70,000 ids bind as one parameter; the 70,000-question export test passes on a database |
-| C-100 | The furniture filter ran a sequential scan for each candidate passage | Passages carry `nearest_foreign_cosine` and `nearest_foreign_doc`, the cosine to the closest passage of another document in the same language. Every writer of a vector, a language or a deletion keeps them exact under per-language locks taken in a fixed order, so the filter reads a column | The same passages filtered on copies of the build (216 of 216, 1,973 passages) and of shop (119 of 119, 545), 0 differences. EXPLAIN reads the column row by row with no subplan per candidate. `bridging()` 961 ms to 3.9 ms. Rescoring: 15 ms a store and 52 ms a document at 2,000 passages, 114 ms and 4.9 s at 20,000. Left, rated low by both reviewers: a delete overlapping a re-chunk of the same document that moves a passage's language, with a store into the new language, can leave one stale score |
+| C-100 | The furniture filter ran a sequential scan for each candidate passage | Passages carry `nearest_foreign_cosine` and `nearest_foreign_doc`, the cosine to the closest passage of another document in the same language. Every writer of a vector, a language or a deletion keeps them exact under per-language locks taken in a fixed order, so the filter reads a column | On copies of the build and of shop upgraded with the change (`bf36e16a`), the same passages are filtered as on v0.5.2: 216 of 216 (1,973 passages) and 119 of 119 (545), 0 differences. EXPLAIN reads the column row by row with no subplan per candidate. `bridging()` 961 ms to 3.9 ms. Rescoring: 15 ms a store and 52 ms a document at 2,000 passages, 114 ms and 4.9 s at 20,000. Left, rated low by both reviewers: a delete overlapping a re-chunk of the same document that moves a passage's language, with a store into the new language, can leave one stale score |
 | C-175 | A cell starting with `- ` became a live formula when edited or re-imported as CSV | Text starting with `=`, `+`, `-` or `@`, or with a tab or a return, is stored as text | Formula-sign cells quoted in German, English, French and Greek tests; 1,538 cells of the release export |
 | C-239 | Kind=single held every unanswerable question, in the workbook and in `make diversity BY=kind` | The Kind heading explains what Kind holds | One heading note in the release export |
 | C-240 | The Citations sheet's Page column mixed integers and text | Citations has First page and Last page, as integers | 2,353 of 2,353 rows of the release export agree as integers |
 | C-241 | Nothing checked Excel's limit of 1,048,576 rows a sheet | A sheet past the limit continues in a numbered one beside it, and the diversity reader joins the parts | With the limit lowered to 3 the writer makes numbered sheets |
-| C-244 | Elasticsearch health stayed yellow for good on a single node | Filebeat's index template sets `number_of_replicas` to 0. operations.md gives the one-time call for indices that exist | Bar: on a stack started from the release, `GET _cluster/health` reads green after Filebeat's first event |
+| C-244 | Elasticsearch health stayed yellow for good on a single node | Filebeat's index template sets `number_of_replicas` to 0. operations.md gives the one-time call for indices that exist | On the release candidate's scratch stack (`72028444`), `GET _cluster/health` read green after Filebeat's first event, with 0 unassigned shards. Bar: green after the first event on a stack started from the release |
 | C-251 | Prompt versions sorted out of order (`12+cap4` before later plain versions) | The listing orders versions by the number they open with, then by the whole version. A version with no digits lists last | Unit test on the compiled ORDER BY and an integration order test pass |
 | N-007 | `make ingest DIR=` died on the first file whose name is not valid UTF-8 and never ingested the rest of the folder | The ingest service refuses such a file as `invalid_value`, so the folder goes on and the command exits 1. The api still answers 400 `invalid_value` | Latin-1, cp1252 and ISO-8859-7 names between two good files: both good files ingested, exit 1 |
 | N-025 | Workbook columns filled after the frame was built were cut at 32,767 characters with no mark | Every long cell is cut and marked | Long cells marked in German, English, French and Greek tests; no cell cut in the release export |
@@ -183,6 +184,19 @@ counted.
 | N-058 | Football vocabulary sat in code comments and tests, and the regression suites pinning stored verdicts held football rows and no shop row | Backend comments use banking and retail examples, a static guard keeps the football words out of backend source, and the regression suites gain German and English shop rows | The guard passes; 4 shop question rows and 4 shop fact rows pass |
 | N-068 | `make pipeline-stop` and `make pipeline-retry` exited 0 when the api refused them (401, 409, 500) and said the api was not answering | `make services`, `pipeline-status`, `pipeline-stop` and `pipeline-retry` exit non-zero and print the api's status and detail on a refusal. They say the api is not answering only when nothing connects | Four targets, three refusals and one outage, against a stub api |
 | N-074 | `make doctor` passed when the api refused the host's `API_TOKEN`: the settings drift check read a 401 as an api that is not up | `make doctor` fails on any HTTP error of a reached api, naming `make up` after a change to `.env` for a 401, and warns only when the api cannot be reached | Stub 401 and 500 fail with the message; a refused connection warns |
+
+### Fixed in v0.5.3: the documents and the production runbook
+
+| Item | Defect | Fix | Measure and bar |
+|---|---|---|---|
+| C-013 | The go-live build ran through a private runner, and the documented path through the model stages was never followed | The runbook was walked on the release candidate (`72028444`) from a fresh clone, on a scratch stack with its own database, ports and volumes. Its five deviations are N-079 to N-083: three fixed below, two accepted in [bugs.md](bugs.md#cost) | Install, Docling's weights, `make up`, the schema at head and `make doctor` passed, with the split line logged and all four models answering. One German and one English football PDF and one shop PDF were ingested, and `make corpus-hosted SPEND_CAP=5` exited 0 with 10 questions released, 0 Ollama calls and USD 0.75 spent. Both workbooks came out: the release (10 questions, 15 citations) and all questions (33, 53 citations). Bar: both workbooks with no deviation left unfixed or unregistered, no Ollama call, the split line logged |
+| C-093 | The go-live model split was uncalibrated at the fact stages: only the question roles were replayed on it | measurements.md names the models behind each of its figures. Every run there used `azure/gpt-5.4` and `azure/gpt-4.1`, none the split `.env.example` ships, so its extraction and digest figures are not of the production digest reader; v0.5.2's bars were measured on that split. The production split in configuration.md links the section (`0c581a95`) | Docs test red before, green after. Bar: the docs test and tests/static green |
+| N-008 | The ingestion, parsing and blob-store READMEs gave object keys without the database prefix every key has carried since v0.5.2 | The ingestion, parsing, blob-store and archive READMEs give every key under the database's name, as `Bucket.scoped` stores it: `documents/{database}/{sha[0:2]}/{sha[2:4]}/{sha}.pdf`, the topic model and figure under `{database}/topics/{database}/`, and archived copies at `{database}/{origin}/{key}@{UTC time}` (`aca5194c`) | A docs test checks that `Bucket.scoped` gives such a key and that every key the READMEs print carries `{database}/`; red before, green after |
+| N-066 | architecture.md and the llm README said `backend.env` sets the digest, topic-naming and phrasing models; it sets none | Both say what configuration.md says: a role's own model is set in `.env` on the host, and unset it follows `LLM_MODEL` on the host and `LLM_CONTAINER_MODEL` in a container (`75ee32c5`) | Docs test red before, green after; the architecture and llm README tests still pass |
+| N-075 | The Makefile, the make guide and operations.md said `make audit` runs whole on Linux only, though it reads all three locks on macOS | The three lines are gone: the audit reads every lock with `pip-audit --disable-pip --no-deps` against OSV (`25dd90b8`) | Docs test red before, green after. One `make audit` on Darwin arm64 read the three locks: 13 accepted filelock advisories, exit 0 |
+| N-081 | The runbook copied `.env` from `.env.example` without tightening its mode, so the walk left the generated secrets readable by everyone: `cp` keeps the example's mode 644, and `make setup` makes private only a file it creates | The runbook says `chmod 600 .env` right after the copy (`d00124ac`) | Docs tests green. Found by the C-013 walk |
+| N-082 | The runbook omitted the Azure address and the login a hosted split needs, so the walk's first `make doctor` failed every model | The split step names `AZURE_API_BASE` in `provider.env` or `LLM_BASE_URL` in `.env`, and `az login` on the host where no key is given (`8e8d43da`) | Docs tests green. Found by the C-013 walk |
+| N-083 | `make doctor` ended by naming `make dev` on either profile, which led the walk off the runbook | On `HOST_RUNNER=1` it ends by naming `make ingest DIR=` and `make corpus-hosted`, the runbook's next steps (`02629148`) | Doctor static tests green. Found by the C-013 walk |
 
 ### Closed in v0.5.3: already fixed
 
