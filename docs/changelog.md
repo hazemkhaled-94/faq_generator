@@ -29,11 +29,12 @@ The QA pass after v0.5.2 put every open item into one register of 368 items:
   (`N-078`) and five of the walk through the production runbook (`N-079` to
   `N-083`).
 
-Each item ended in one state. 102 were fixed, 134 closed and 132 accepted.
+Each item ended in one state. 101 were fixed, 134 closed and 133 accepted.
 A fix has a test that failed before it, a bar written before its measure, and
-two passing reviews. Four fixes, C-104, N-034, N-035 and N-036, read their bars
-on the release commit's CI and Nightly runs, after the push: the GitHub release
-notes give those results. A fix that failed its bar or its third review was
+two passing reviews. Three fixes, C-104, N-034 and N-036, read their bars on
+the release commit's CI and Nightly runs, after the push: the GitHub release
+notes give those results. N-035 read its bar there too, failed it and was
+withdrawn. A fix that failed its bar or its third review was
 withdrawn, and its item accepted: [bugs.md](bugs.md#failed-bar) gives its
 numbers. A closed item was already fixed, a duplicate of another item, or no
 defect on the code of v0.5.2 and later, each with its evidence.
@@ -181,7 +182,6 @@ counted.
 | N-032 | `make estimate` counted refused and failed documents as still to do, and projected passages, calls and spend for them | It counts documents waiting to chunk that parsing did not refuse or fail, and passages waiting for extraction, so a finished corpus estimates nothing | Red test green on the counting query |
 | N-033 | The container probe leaked the docker client's socket, so a run without a container runtime failed a random unrelated test | The probe in `tests/conftest.py` closes the socket the client leaves behind, inside its own call | Red test green |
 | N-034 | `make mutation` never ran a mutant: mutmut's copy lacked `configs/`, the rest of `backend/`, `compose.yaml` and the git repository the tests read | The six files are named under a link to `backend`, the copy takes what the selected tests read, and every line is mutated. A run that cannot start, or that hangs before its first checked mutant, fails the Nightly | On `planning.py`: 253 mutants, 237 killed (93.7%). Bar: one Nightly mutation run on the release commit that executes mutants for the six files and reports a score. The GitHub release notes give the result |
-| N-035 | The Nightly's 10x sizing test swung from 1.99x to 16.61x on one unchanged commit, so its 2x bars measured the runner | The test runs CHECKPOINT after each load, drops a warm-up, times 600 probes and 200 writes, and holds both the median and the 95th percentile to 2x | Bar: three Nightly Ceilings runs on the release commit, every ratio within 2x and the spread between runs under 1.5x, read after the push. The GitHub release notes give the result |
 | N-036 | The Nightly's model quality job could never score a model: the repository had no `LLM_MODEL` variable and the job passed no provider key | The job runs only when the repository variable `LLM_MODEL` is set, so it shows skipped rather than passed, and its step receives the three Azure secrets. operations.md gives the owner's step | Static test green. Bar: the Nightly on the release commit shows the job skipped. The GitHub release notes give the result |
 | N-058 | Football vocabulary sat in code comments and tests, and the regression suites pinning stored verdicts held football rows and no shop row | Backend comments use banking and retail examples, a static guard keeps the football words out of backend source, and the regression suites gain German and English shop rows | The guard passes; 4 shop question rows and 4 shop fact rows pass |
 | N-068 | `make pipeline-stop` and `make pipeline-retry` exited 0 when the api refused them (401, 409, 500) and said the api was not answering | `make services`, `pipeline-status`, `pipeline-stop` and `pipeline-retry` exit non-zero and print the api's status and detail on a refusal. They say the api is not answering only when nothing connects | Four targets, three refusals and one outage, against a stub api |
@@ -267,7 +267,7 @@ history below; the rest is carried by the item named.
 
 | Item | Defect | Duplicate of |
 |---|---|---|
-| C-011 | One Postgres capped at 1 CPU and 512 MB served five databases and three vector indexes | N-035, fixed. The cap went in v0.5.2, and every load bar but the cold 95th percentile passed: the single-pass dedup probe's 95th percentile read 2.15x to 7.80x the build's on CI, against 2x, with the median at 6.0 to 6.9 ms. On 2026-10-26 the sizing shipped with the probe time watched. That percentile measured the runner, which N-035 fixes |
+| C-011 | One Postgres capped at 1 CPU and 512 MB served five databases and three vector indexes | N-035, accepted. The cap went in v0.5.2, and every load bar but the cold 95th percentile passed: the single-pass dedup probe's 95th percentile read 2.15x to 7.80x the build's on CI, against 2x, with the median at 6.0 to 6.9 ms. On 2026-10-26 the sizing shipped with the probe time watched. That percentile measures the runner, as N-035 records |
 | C-128 | Paragraph numbers were glued mid-sentence at page breaks | N-057 and N-003, both fixed |
 | C-268 | With no passage vectors, a head passage paired its compound partner by lowest id | C-245, fixed: its only trigger was C-245's |
 | C-364 | Umbrella rows took their parts' states | C-094 and its parts' own items; no defect of its own |

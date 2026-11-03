@@ -6,12 +6,12 @@ would reopen it. [changelog.md](changelog.md) lists what each release fixed,
 newest first.
 
 The QA pass of v0.5.3 brought every open item to one end state: fixed, closed
-with evidence, or accepted. This page holds the 132 accepted items, by
+with evidence, or accepted. This page holds the 133 accepted items, by
 category:
 
 | Category | Items | Meaning |
 |---|---|---|
-| [Failed bar](#failed-bar) | 71 | Designs were built and measured against a bar written beforehand, and none passed. 18 are fixes withdrawn in v0.5.3 |
+| [Failed bar](#failed-bar) | 72 | Designs were built and measured against a bar written beforehand, and none passed. 19 are fixes withdrawn in v0.5.3 |
 | [Cost](#cost) | 50 | A cure needs a model call per row, a new service, a migration or a rework larger than the effect |
 | [Not measured: budget](#not-measured-budget) | 6 | A cure changes what is written and needs a model arm that v0.5.3's model budget did not cover |
 | [Domain-specific](#domain-specific) | 3 | Only a rule fitted to one corpus would cure it |
@@ -37,9 +37,9 @@ named. "n" counts the rows a figure reads.
 
 Each design named here was built, measured against a bar written before the
 measure, and taken out. A tightening may refuse at most 35% usable or correct
-rows. The 18 fixes withdrawn in v0.5.3 failed a replay, an arm or the third
-round of review; their entries give the replay's, the arm's or the
-reviewers' numbers.
+rows. The 19 fixes withdrawn in v0.5.3 failed a replay, an arm, a Nightly
+run or the third round of review; their entries give the replay's, the
+arm's, the run's or the reviewers' numbers.
 
 ### C-007: Restored regulation clauses can read worse
 
@@ -1056,6 +1056,28 @@ document.
 - Cure: a document-number reading that reads units after a space, keyed by
   language.
 - Reopens: such a reading passing the source replay and the probes.
+
+### N-035: The 10x sizing test's 95th percentile measures the runner
+
+`make test-perf` holds a corpus ten times the reviewed one to twice the
+reviewed one's dedup probe and fact write times. On the CI runner the
+single-pass probe's 95th percentile read 1.99x, 16.61x, 2.26x, 11.51x and
+2.63x, and passed once, over six Nightlies on one unchanged commit. The
+Nightly's Ceilings job runs under continue-on-error, so a miss leaves it
+green. C-011, the sizing of the shipped Postgres, is read through this test.
+
+- Why accepted: the v0.5.3 fix ran CHECKPOINT after each load, dropped a
+  warm-up, timed 600 probes and 200 writes, and held the median and the 95th
+  percentile to 2x. Its bar was three Nightly Ceilings runs on one commit,
+  every ratio within 2x and the spread between runs under 1.5x. On
+  `d1694ad9` the medians held (probe 1.48x to 1.62x, write 1.14x to 1.25x),
+  as did the warm probe (1.26x to 1.45x) and the write's 95th percentile
+  (1.19x to 1.40x). The probe's 95th percentile read 2.29x, 9.30x and 1.83x:
+  two runs over 2x, and a spread of 5.1x. The fix was withdrawn.
+- Cure: time the probe on a runner with fixed resources, or hold only the
+  medians to the bar.
+- Reopens: three Nightly Ceilings runs on one commit with every ratio within
+  2x and a spread between runs under 1.5x.
 
 ## Cost
 
