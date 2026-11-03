@@ -2276,3 +2276,20 @@ def test_a_target_the_api_answers_prints_what_it_said(api, tmp_path) -> None:
 
     assert done.returncode == 0, done.stderr
     assert "Took back 3 rows and stopped the run" in done.stdout
+
+
+def test_the_doctor_names_the_runbooks_next_step_on_the_go_live_profile() -> None:
+    """With HOST_RUNNER=1 the runbook goes from make doctor to make ingest DIR=.
+
+    The doctor said `make dev` on either profile, which on the go-live one
+    reinstalls and starts the development stack: the runbook walk of the
+    release candidate followed the doctor there instead of the runbook.
+    """
+    text = "\n".join(printed("doctor"))
+    closing = text[text.index("archive.run --size") :]
+
+    assert "Ready. Next: make dev" in closing
+    assert "Ready. Next: make ingest DIR=" in closing
+    before = closing.split("Ready. Next: make ingest DIR=", 1)[0]
+    assert "HOST_RUNNER" in before, "the go-live hint is not on the go-live profile"
+    assert "make corpus-hosted" in closing.split("Ready. Next: make ingest DIR=", 1)[1]
