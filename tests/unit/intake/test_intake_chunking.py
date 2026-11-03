@@ -693,7 +693,8 @@ def test_an_unexpected_failure_is_recorded_as_its_own_type() -> None:
     )
 
     assert driver.run() == SHA
-    assert driver.failure == "MemoryError: out of memory"
+    assert driver.failure.startswith("MemoryError (")
+    assert "out of memory" not in driver.failure
 
 
 def test_a_passage_over_the_budget_is_stored_and_reported_loudly(caplog) -> None:

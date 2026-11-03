@@ -318,7 +318,8 @@ def test_an_unexpected_failure_is_recorded_as_its_own_type() -> None:
     )
 
     assert driver.run() == SHA
-    assert driver.failure == "TypeError: not a stream"
+    assert driver.failure.startswith("TypeError (")
+    assert "not a stream" not in driver.failure
 
 
 def test_a_file_the_store_does_not_hold_is_failed() -> None:
