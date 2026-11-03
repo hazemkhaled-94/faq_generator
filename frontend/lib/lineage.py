@@ -12,6 +12,8 @@ that is not needed on arrival.
 
 from __future__ import annotations
 
+from urllib.parse import quote
+
 import requests
 import streamlit as st
 
@@ -172,7 +174,11 @@ def elsewhere(chain: dict, at: dict[str, str]) -> list[str]:
 
     lines = []
     if at.get("grafana"):
-        where = f"{at['grafana']}/{_RUN_DASHBOARD}{run}" if run else at["grafana"]
+        where = (
+            f"{at['grafana']}/{_RUN_DASHBOARD}{quote(run, safe='')}"
+            if run
+            else at["grafana"]
+        )
         said = (
             f"every line run `{run[:12]}` wrote"
             if run

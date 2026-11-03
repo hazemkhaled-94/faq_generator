@@ -272,6 +272,44 @@ def test_a_topic_membership_is_archived_with_its_passage(archive, held, engine) 
     assert "topics" not in archived(engine), "a fit is over the corpus, not a file"
 
 
+@pytest.mark.parametrize("language", ["de", "en", "fr", "el"])
+def test_a_refit_archives_no_topic_and_no_membership(
+    archive, engine, language: str
+) -> None:
+    """A fit is over the corpus: replacing one writes nothing to the archive."""
+    from topics import TopicStore, fitting
+
+    from topic_modelling.models import PassageWeight
+
+    store = TopicStore(engine).given_passages(**{language: 2})
+    one, two = store.passages[language]
+    weights = [PassageWeight(one, 0, 0.9), PassageWeight(two, 1, 0.9)]
+    store.store(fitting(language, weights=weights))
+
+    store.store(fitting(language, weights=weights))
+
+    assert archived(engine) == {}
+
+
+def test_deleting_a_document_still_archives_its_memberships_after_a_refit(
+    archive, held, engine
+) -> None:
+    """The skip is the fit's transaction's and no one else's."""
+    from seed import fitted
+
+    with Session(engine) as session:
+        subject = fitted()
+        session.add(subject)
+        session.flush()
+        first = session.execute(text("SELECT id FROM passages LIMIT 1")).scalar_one()
+        session.add(membership(first, subject.id))
+        session.commit()
+
+    build_removal().delete(held)
+
+    assert archived(engine)["passage_topics"] == 1
+
+
 def fill(engine, count: int) -> None:
     """`count` archived rows of one table, as the trigger would have left them."""
     with engine.begin() as connection:

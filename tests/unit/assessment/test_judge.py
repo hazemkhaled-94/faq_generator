@@ -282,7 +282,8 @@ def test_one_call_returns_the_six_scores() -> None:
     assert (
         "_Rubric",
         (
-            "Passage: A reply is due in five days of the request.\n\n"
+            'Passage: <material name="passages">\n'
+            "A reply is due in five days of the request.\n</material>\n\n"
             "Question: How long is allowed for a reply?"
         ),
     ) in client.asked

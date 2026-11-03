@@ -137,14 +137,8 @@ class AssessmentService(StageService):
                 # artefact, and `retry` is what moves this row.
                 self._fail(artifact.assessment_id, str(exc), current, outage=exc.outage)
                 return
-            except Exception as exc:
-                self._fail(
-                    artifact.assessment_id,
-                    f"{type(exc).__name__}: {exc}",
-                    current,
-                    is_outage(exc),
-                )
-                log.exception("failed assessment %d", artifact.assessment_id)
+            except Exception as exc:  # noqa: BLE001 - one bad row is not the drain
+                self._crashed(artifact.assessment_id, exc, current, is_outage(exc))
                 return
             self._done(current)
 

@@ -81,13 +81,31 @@ OVERRIDE = $(if $(GIVEN),&& export $(foreach given,$(GIVEN),$(given)='$(subst ',
 # exports every one of them.
 #
 # The addresses are localhost and a PUBLISHED port: a host command reaches a
-# service the way a browser would, not by the compose service name.
-DERIVED = DATABASE_URL=postgresql+psycopg://$$APP_DB_USER:$$APP_DB_PASSWORD@localhost:$$POSTGRES_PORT/$$APP_DB_NAME \
-          BACKEND_URL=http://localhost:$$BACKEND_PORT \
-          S3_ENDPOINT=http://localhost:$$S3_PORT \
-          PHOENIX_BASE_URL=http://localhost:$$PHOENIX_PORT \
-          OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:$$PHOENIX_GRPC_PORT \
-          ARGILLA_API_URL=http://localhost:$$ARGILLA_PORT
+# service the way a browser would, not by the compose service name. Each is
+# built only when ENV_FILE or the environment leaves it unset, so a host
+# command can be pointed at a managed database, an object store or a
+# collector by naming its address there.
+DERIVED = DATABASE_URL=$${DATABASE_URL:-postgresql+psycopg://$$APP_DB_USER:$$APP_DB_PASSWORD@localhost:$$POSTGRES_PORT/$$APP_DB_NAME} \
+          BACKEND_URL=$${BACKEND_URL:-http://localhost:$$BACKEND_PORT} \
+          S3_ENDPOINT=$${S3_ENDPOINT:-http://localhost:$$S3_PORT} \
+          PHOENIX_BASE_URL=$${PHOENIX_BASE_URL:-http://localhost:$$PHOENIX_PORT} \
+          OTEL_EXPORTER_OTLP_ENDPOINT=$${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:$$PHOENIX_GRPC_PORT} \
+          ARGILLA_API_URL=$${ARGILLA_API_URL:-http://localhost:$$ARGILLA_PORT}
+
+# What `make doctor` does with the check in AGREED: a FAIL line and the next
+# check, instead of the exit every other target makes. Needs `say` and `fail`.
+AGREEMENT = if ! agreed=$$( $(AGREED) 2>&1 ); then say FAIL "$${agreed\#REFUSED: }"; fail=1; fi
+
+# Where each address in DERIVED came from, one `NAME: source` line each, for
+# `make doctor`: the file that names it, the environment, the command line, or
+# the ports it is built from. Never the address, which may carry a password.
+ORIGINS = for name in DATABASE_URL BACKEND_URL S3_ENDPOINT PHOENIX_BASE_URL OTEL_EXPORTER_OTLP_ENDPOINT ARGILLA_API_URL; do \
+          from=$$(grep -lE "^$$name=" ./configs/env/backend.env ./configs/env/deployment.env ./configs/env/provider.env "$(ENV_PATH)" 2>/dev/null | tail -n 1); \
+          case " $(GIVEN) " in *" $$name "*) from="the command line";; \
+            *) if [ -n "$$from" ]; then from=$$(basename "$$from"); \
+               elif [ -n "$$(printenv $$name)" ]; then from="the environment"; \
+               else from="built from the ports"; fi;; esac; \
+          echo "$$name: $$from"; done
 
 # The provider's credentials, for whichever host command calls a model.
 # Optional and absent for a plain Ollama, which needs none - hence the test
@@ -100,8 +118,10 @@ DERIVED = DATABASE_URL=postgresql+psycopg://$$APP_DB_USER:$$APP_DB_PASSWORD@loca
 # .env, found no key in either, and failed to authenticate.
 PROVIDER = { [ ! -f ./configs/env/provider.env ] || . ./configs/env/provider.env; }
 
-LOADENV = set -a && . ./configs/env/backend.env && . ./configs/env/deployment.env \
-          && $(PROVIDER) && . "$(ENV_PATH)" $(OVERRIDE) && $(DERIVED) $(OVERRIDE) && set +a
+LOADED = set -a && . ./configs/env/backend.env && . ./configs/env/deployment.env \
+         && $(PROVIDER) && . "$(ENV_PATH)" $(OVERRIDE) && $(DERIVED) $(OVERRIDE)
+
+LOADENV = $(LOADED) && $(AGREED) && set +a
 
 # What `wipe` leaves standing. Comma-separated, and empty by default: the
 # command is called wipe, and a default that quietly kept things would be
@@ -137,7 +157,7 @@ SPARED = case " $(KEPT) " in *" $(1) "*) echo "KEEP=$(1): leaving $(2)";; \
 # so the process below saw none of them and stopped naming the first.
 WITH = set -a && . ./configs/env/backend.env && . ./configs/env/deployment.env && \
        . ./configs/env/$(1) && $(PROVIDER) && . "$(ENV_PATH)" $(OVERRIDE) && \
-       $(DERIVED) $(OVERRIDE) && set +a
+       $(DERIVED) $(OVERRIDE) && $(AGREED) && set +a
 
 # Narrows a stage target to one item instead of the whole queue, mirroring
 # the route's /{scope}/{value} segment:
@@ -176,16 +196,49 @@ STORE_DOWN = echo "$(1) is not running: not checked, and $(2) is skipped by the 
 WIPE_STEP = if $(call RUNNING,$(1)); then $(MAKE) $(2); else $(call STORE_DOWN,$(1),$(2)); fi
 
 # Names where a command acts, once the settings are loaded.
-BANNER = $(LOADENV) && echo "on database $$APP_DB_NAME on localhost:$$POSTGRES_PORT" >&2
+# The database, the host:port and the query DATABASE_URL names, as `db`, `host`
+# and `query`, split as SQLAlchemy's make_url does: the password ends at the
+# first `@` and may hold `/` and `?`, and the host never carries userinfo.
+URL_PARTS = ^[^:]+://(([^:/]*)(:[^@]*)?@)?([^/:]*)(:([^/]*))?(/([^?]*))?(\?.*)?$$
+RESOLVED_DB = re='$(URL_PARTS)' && { [[ "$$DATABASE_URL" =~ $$re ]] || true; } && \
+              db="$${BASH_REMATCH[8]}" && host="$${BASH_REMATCH[4]}$${BASH_REMATCH[5]}" && query="$${BASH_REMATCH[9]}"
+
+# One database name everywhere: a DATABASE_URL given by ENV_FILE, the
+# environment or the command line must name the database APP_DB_NAME says, so
+# every reader of either acts on the same one. Not given, DERIVED builds it
+# from APP_DB_NAME and the two agree.
+AGREED = $(RESOLVED_DB) && \
+         { ! [[ "$$query" =~ [?\&](dbname|host|hostaddr|port|service)= ]] || \
+         { echo "REFUSED: DATABASE_URL names its database, host or port in the query (dbname, host, hostaddr, port or service), which overrides the path: write it in the path and the authority" >&2; exit 2; }; } && \
+         { ! [[ "$$query" =~ [?\&][^=\&]*% || "$$db" == *%* ]] || \
+         { echo "REFUSED: DATABASE_URL percent-encodes its database name or a query key, which the guard reads raw and the engine decodes: write the database name and the query keys unencoded" >&2; exit 2; }; } && \
+         { [ "$$db" = "$$APP_DB_NAME" ] || \
+         { echo "REFUSED: DATABASE_URL names $$db but APP_DB_NAME is $$APP_DB_NAME; set APP_DB_NAME=$$db" >&2; exit 2; }; }
+
+# Refuses unless DATABASE_URL names the stack's own postgres, localhost or
+# 127.0.0.1 at POSTGRES_PORT. $(1) says what is asked. For the targets that dump
+# and restore through `compose exec postgres`: whatever other server the URL names
+# is not the one they would act on, and a managed database is backed up by its
+# provider.
+#
+#     @$(call ON_STACK,backup)
+ON_STACK = $(LOADENV) && $(RESOLVED_DB) && case "$$host" in "localhost:$$POSTGRES_PORT"|"127.0.0.1:$$POSTGRES_PORT") ;; \
+           *) echo "REFUSED: $(1) dumps and restores inside the stack's postgres container (localhost:$$POSTGRES_PORT) but DATABASE_URL names $$host; a managed database is backed up by its provider." >&2; exit 2;; esac
+
+BANNER = $(LOADENV) && $(RESOLVED_DB) && echo "on database $$db on $$host" >&2
 
 # Refuses unless CONFIRM, typed on the command line (one exported in the shell
-# does not count), equals the database the settings resolve to, and
-# names the database and the port it would act on. $(1) says what is asked.
+# does not count), equals the database DATABASE_URL names once the settings
+# are loaded, and names the database and the host it would act on. A URL that
+# names none is refused too: libpq would take the user's namesake, the main
+# database. $(1) says what is asked.
 #
 #     @$(call CONFIRMED,wipe)
-CONFIRMED = $(LOADENV) && { [ "$(if $(filter command line,$(origin CONFIRM)),$(CONFIRM))" = "$$APP_DB_NAME" ] || \
-            { echo "REFUSED: $(1) acts on database $$APP_DB_NAME on localhost:$$POSTGRES_PORT." >&2; \
-              echo "  Run it again with CONFIRM=$$APP_DB_NAME to go on." >&2; exit 2; }; }
+CONFIRMED = $(LOADENV) && $(RESOLVED_DB) && \
+            { [ -n "$$db" ] || { echo "REFUSED: $(1) acts on no database: DATABASE_URL names none." >&2; exit 2; }; } && \
+            { [ "$(if $(filter command line,$(origin CONFIRM)),$(CONFIRM))" = "$$db" ] || \
+            { echo "REFUSED: $(1) acts on database $$db on $$host." >&2; \
+              echo "  Run it again with CONFIRM=$$db to go on." >&2; exit 2; }; }
 
 # What the parse or chunk drain is given under WAIT=1, which `corpus` sets,
 # while $(1), the container worker draining the same queue, is running:
@@ -411,9 +464,9 @@ ASSIGNED = grep -E '^[A-Z][A-Z0-9_]*=' "$(ENV_PATH)"
 # PHOENIX_ADMIN_SECRET requires of the deployment: 32 characters or more,
 # with a digit and a lower-case letter.
 setup:
-	@test -f "$(ENV_PATH)" || { cp .env.example "$(ENV_PATH)"; echo "wrote $(ENV_FILE)"; }
+	@test -f "$(ENV_PATH)" || { (umask 077; cp .env.example "$(ENV_PATH)"); echo "wrote $(ENV_FILE)"; }
 	@test -f configs/env/provider.env || { \
-	  cp configs/env/provider.env.example configs/env/provider.env; \
+	  (umask 077; cp configs/env/provider.env.example configs/env/provider.env); \
 	  echo "wrote configs/env/provider.env"; }
 	@for token in $$($(ASSIGNED) | grep -oE 'change_me_[a-z0-9_]*' | sort -u \
 	                 | awk '{ print length, $$0 }' | sort -rn | cut -d' ' -f2-); do \
@@ -453,6 +506,10 @@ doctor:
 	if ! test -f "$(ENV_PATH)"; then say MISSING "$(ENV_FILE) - run: make setup"; \
 	  echo; echo "Fix the above, then run make doctor again."; exit 1; fi; \
 	say ok "$(ENV_FILE)"; \
+	for secrets in "$(ENV_PATH)" configs/env/provider.env; do \
+	  if test -f "$$secrets" && test "$$(ls -ld "$$secrets" | cut -c5-10)" != "------"; then \
+	    say WARN "$$secrets is readable by other accounts: chmod 600 $$secrets"; fi; \
+	done; \
 	if test -f configs/env/deployment.env; then \
 	  say ok "configs/env/deployment.env"; \
 	  else say MISSING "configs/env/deployment.env - it is in git; git checkout it"; fail=1; fi; \
@@ -461,7 +518,8 @@ doctor:
 	if $(ASSIGNED) | grep -q change_me; then \
 	  say FAIL "$$($(ASSIGNED) | grep -c change_me) placeholder password(s) left - run: make setup"; fail=1; \
 	  else say ok "no placeholder passwords"; fi; \
-	$(LOADENV); \
+	$(ORIGINS) | while IFS= read -r line; do say "-" "$$line"; done; \
+	$(LOADED) && set +a; $(AGREEMENT); \
 	if printf '%s' "$$PHOENIX_ADMIN_SECRET" | grep -qE '^.{32,}$$' \
 	   && printf '%s' "$$PHOENIX_ADMIN_SECRET" | grep -q '[0-9]' \
 	   && printf '%s' "$$PHOENIX_ADMIN_SECRET" | grep -q '[a-z]'; then \
@@ -742,9 +800,9 @@ LOG_FILES = { $(COMPOSE_CMD) exec -T api sh -c 'find /var/log/qa -type f -exec t
 # it until a restart or a rotation.
 logs-wipe:
 	@$(call CONFIRMED,logs-wipe: it deletes this database's log lines)
-	@$(LOADENV) && answer=$$($(COMPOSE_CMD) exec -T -e WIPE_DB="$(if $(filter 1,$(ALL_DATABASES)),,$$APP_DB_NAME)" elasticsearch sh -c 'if [ -z "$$WIPE_DB" ]; then \
+	@$(LOADENV) && $(RESOLVED_DB) && answer=$$($(COMPOSE_CMD) exec -T $(if $(filter 1,$(ALL_DATABASES)),-e WIPE_ALL=1,-e WIPE_DB="$$db") elasticsearch sh -c 'if [ -n "$$WIPE_ALL" ]; then \
 	  curl -sS --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:$$ELASTIC_PASSWORD" \
-	  -X DELETE "https://localhost:9200/_data_stream/qa-logs*"; else \
+	  -X DELETE "https://localhost:9200/_data_stream/qa-logs*"; elif [ -z "$$WIPE_DB" ]; then echo "REFUSED: no database to delete the log lines of" >&2; exit 1; else \
 	  curl -sS --cacert /usr/share/elasticsearch/config/certs/ca.crt -u "elastic:$$ELASTIC_PASSWORD" \
 	  -X POST "https://localhost:9200/qa-logs*/_delete_by_query?conflicts=proceed&refresh=true" \
 	  -H "Content-Type: application/json" -d "{\"query\":{\"bool\":{\"should\":[{\"term\":{\"db\":\"$$WIPE_DB\"}},{\"term\":{\"db.keyword\":\"$$WIPE_DB\"}}],\"minimum_should_match\":1}}}"; fi' 2>&1); \
@@ -1798,6 +1856,7 @@ s3-prefix:
 # docs/operations.md.
 backup:
 	@[ -n "$(DIR)" ] || { echo "usage: make backup DIR=<directory>"; exit 2; }
+	@$(call ON_STACK,backup)
 	@[ ! -e "$(DIR)/manifest.json" ] || { echo "REFUSED: $(DIR) already holds a backup." >&2; exit 2; }
 	@echo "A worker still running writes while this copies: the dumps, the objects and the row counts are of different moments. Stop the workers first (docs/operations.md, Backups)." >&2
 	@umask 077 && mkdir -p "$(DIR)/db" && chmod 700 "$(DIR)" "$(DIR)/db"
@@ -1816,6 +1875,7 @@ backup:
 # in use.
 restore-backup:
 	@[ -n "$(DIR)" ] && [ -f "$(DIR)/manifest.json" ] || { echo "usage: make restore-backup DIR=<a directory make backup wrote> CONFIRM=<database>"; exit 2; }
+	@$(call ON_STACK,restore-backup)
 	@$(foreach worker,parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker,$(call IDLE,$(worker)); )
 	@$(call CONFIRMED,restore-backup: it replaces the application database and its objects from $(DIR))
 	$(LOADENV) && $(COMPOSE_CMD) exec -T postgres sh -c "pg_restore --clean --if-exists --single-transaction -U \"\$$POSTGRES_USER\" -d $$APP_DB_NAME" < "$(DIR)/db/$$APP_DB_NAME.dump"
@@ -1829,6 +1889,7 @@ restore-backup:
 # ALL_DATABASES=1, and unless CONFIRM=stack.
 restore-backup-stack:
 	@[ -n "$(DIR)" ] && [ -f "$(DIR)/manifest.json" ] || { echo "usage: make restore-backup-stack DIR=<a directory make backup wrote> CONFIRM=stack"; exit 2; }
+	@$(call ON_STACK,restore-backup-stack)
 	@$(foreach worker,parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker,$(call IDLE,$(worker)); )
 	@$(LOADENV) && n=$$($(COMPOSE_CMD) exec -T postgres sh -c "psql -At -U \"\$$POSTGRES_USER\" -d $$APP_DB_NAME -c \"SELECT count(*) FROM pg_database WHERE NOT datistemplate AND datname NOT IN ('postgres','\$$POSTGRES_USER','$$SEAWEEDFS_DB_NAME','$$PHOENIX_DB_NAME','$$DAGSTER_DB_NAME','$$ARGILLA_DB_NAME')\"") && \
 	  { [ "$$n" -le 1 ] || [ "$(ALL_DATABASES)" = 1 ] || \

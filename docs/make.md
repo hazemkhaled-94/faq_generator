@@ -19,9 +19,9 @@ is the long form.
 
 | Target | Does |
 |---|---|
-| `make setup` | Write `.env` and `configs/env/provider.env` and fill in every placeholder. Safe to run twice: it replaces only `change_me_*` placeholders |
+| `make setup` | Write `.env` and `configs/env/provider.env` and fill in every placeholder. Both files are created readable by the owner alone (mode 600), whatever the shell's umask. Safe to run twice: it replaces only `change_me_*` placeholders |
 | `make install` | `make install-python`, then `make docling-weights` |
-| `make doctor` | Check the tools, the configuration, the model split, the stored settings, and the pinned models and Docling's weights in the cache (a miss fails with `HF_HUB_OFFLINE=1` or `HOST_RUNNER=1`, else warns). Then ask every model one question. Also lists names `ENV_FILE` sets over a committed file, warns when the checkout or `ENV_FILE` sits in a synced folder, fails on an `APP_DB_PASSWORD` a connection string cannot hold, and prints the archive's estimated size |
+| `make doctor` | Check the tools, the configuration (says for each host address whether the env file, the environment, the command line or the ports gave it, and warns when `.env` or `provider.env` is readable by other accounts), the model split, the stored settings, and the pinned models and Docling's weights in the cache (a miss fails with `HF_HUB_OFFLINE=1` or `HOST_RUNNER=1`, else warns). Then ask every model one question. Also lists names `ENV_FILE` sets over a committed file, warns when the checkout or `ENV_FILE` sits in a synced folder, fails on a password a connection string cannot hold (the application, Phoenix, Argilla or Elasticsearch one), and prints the archive's estimated size |
 | `make dev` | `make install` first, then certificates, every service, the schema and the Grafana grants |
 | `make upgrade` | Check the engine has `UPGRADE_FREE_GB` free (20), build, prune orphaned images, stop the workers, `make schema`, `make up`. Stops at the first failing step |
 
@@ -225,7 +225,7 @@ These targets re-derive stored results without the expensive part:
 | `make questions-rescore` | Rewrite stored scopes and difficulty from what each question cites now. Run it after an `extract-dedup` that removes fold citations, before `questions-reverify`, and after a topic refit, following `questions-reverify`. Not after a re-extraction or deletion, where it would hide `source_changed` |
 | `make extract-recap` | Re-apply the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out to, never below a passage's own sentences and list items |
 | `make extract-dedup` | Re-decide every `duplicate` refusal under today's rule, remove the citations a refusal added, and re-judge and re-cap the passages of refusals given back. No model call |
-| `make extract-embed` | Write vectors onto stored passages and facts. Does not apply the dedup gate |
+| `make extract-embed` | Write vectors onto stored passages, facts and questions (a restore leaves them without). Does not apply the dedup gate |
 | `make extract-digests` | Give a summary and an outline to passages that finished without them (the digest model failed or refused) or hold none above `EXTRACTION_DIGEST_MIN_CHARS`. One digest-model call per passage. `make corpus` runs it after `extract` |
 | `make extract-bridge` | Read each topic's passage groups for claims spanning passages. Asks the model first. Refuses while an accepted question cites a bridge it would replace: `FORCE=1` replaces them anyway. `MISSING=1` reads only topics with no bridge and deletes nothing (how `make corpus` runs it) |
 | `make confidence-recalibrate` | Take every stored margin again after a change to `QUESTIONS_DUPLICATE_FLOOR` or `EXTRACTION_DUPLICATE_FLOOR`. No model call, no verdict moves. A deadlocked batch is retried once; a second deadlock fails the run: run it again |
@@ -358,13 +358,18 @@ Track.
 
 Every target that destroys data in a database refuses unless
 `CONFIRM=<database>`, typed on the command line (an exported `CONFIRM` does
-not count), names the database the settings resolve to. The refusal says which
-database and port it would act on. The targets are `schema-down`,
+not count), names the database `DATABASE_URL` resolves to. A `DATABASE_URL` naming no database is
+refused, because libpq would take the user's namesake, the main database.
+A `DATABASE_URL` given by `ENV_FILE`, the environment or the command line must
+name the database `APP_DB_NAME` says, or every target that loads the settings
+refuses before it runs: `DATABASE_URL names X but APP_DB_NAME is Y; set
+APP_DB_NAME=X`. Not given, it is built from `APP_DB_NAME`. The refusal and the
+banner name the host and database the URL resolves to. The targets are `schema-down`,
 `schema-reset`, `wipe`, `wipe-all`, `delete`, `delete-derived`,
 `topics-delete`, an unnarrowed `*-rerun`, `archive-purge` with `TABLE`, `ALL`
 or `DAYS`, and the wipe's store steps `phoenix-purge`, `review-delete`,
 `logs-wipe` and `dagster-wipe`. An `APP_DB_NAME` exported in the shell beats
-`deployment.env`.
+`deployment.env`. `logs-wipe` takes every stream only under `ALL_DATABASES=1`.
 
 A deletion here is the first of two: rows are archived and objects moved to
 the `archive` bucket. `make restore-documents AT=<time>` puts them back until
@@ -406,9 +411,9 @@ spares what nothing upstream rebuilds; any other name is refused:
 | Target | Does |
 |---|---|
 | `make archive` | What is held, by table, with its age |
-| `make backup DIR=<dir> [ARGILLA=1]` | Dump the application, SeaweedFS, Phoenix and Dagster databases (`pg_dump -Fc`), copy the five buckets, and write a manifest of row counts and sha256 into `DIR`, which must hold no backup. `ARGILLA=1` adds Argilla's database, whose dump holds the owner's API key in clear: store it as a secret. Never includes `.env`, `provider.env` or a certificate key. See Backups in the operations guide |
-| `make restore-backup DIR=<dir> CONFIRM=<database>` | Put one database back (`pg_restore` and its own objects), checked against the manifest. Leaves shared stores and other databases alone. Refuses while a worker runs. **Replaces the data** |
-| `make restore-backup-stack DIR=<dir> CONFIRM=stack` | Put the whole stack back. Refuses while more than one application database exists unless `ALL_DATABASES=1`. **Replaces the data of the stack** |
+| `make backup DIR=<dir> [ARGILLA=1]` | Dump the application, SeaweedFS, Phoenix and Dagster databases (`pg_dump -Fc`), copy the five buckets, and write a manifest of row counts and sha256 into `DIR`, which must hold no backup. `ARGILLA=1` adds Argilla's database, whose dump holds the owner's API key in clear: store it as a secret. Never includes `.env`, `provider.env` or a certificate key. Dumps through the stack's postgres container, so it refuses a `DATABASE_URL` naming another host. See Backups in the operations guide |
+| `make restore-backup DIR=<dir> CONFIRM=<database>` | Put one database back (`pg_restore` and its own objects), checked against the manifest. Leaves shared stores and other databases alone. Refuses while a worker runs, and a `DATABASE_URL` naming another host than the stack's postgres. **Replaces the data** |
+| `make restore-backup-stack DIR=<dir> CONFIRM=stack` | Put the whole stack back. Refuses while more than one application database exists unless `ALL_DATABASES=1`, and a `DATABASE_URL` naming another host than the stack's postgres. **Replaces the data of the stack** |
 | `make restore-documents` | Without `SINCE`, list the 20 newest deleting transactions and exit 2. `SINCE=<time>` lists them from then on. `AT=<archived_at>[,...]` puts those deletions back (not `service_settings` or `prompts`, unless `TABLES` names them). Run before `archive-purge` |
 | `make archive-purge` | The second deletion. **This one is final** |
 

@@ -121,9 +121,8 @@ class TopicModellingService(StageService):
                 self._fit(fit_id, current)
             except (NoVocabulary, QuestionsRunning) as exc:
                 self._fail(fit_id, str(exc), current)
-            except Exception as exc:
-                self._fail(fit_id, f"{type(exc).__name__}: {exc}", current)
-                log.exception("failed topic fit %d", fit_id)
+            except Exception as exc:  # noqa: BLE001 - one bad row is not the drain
+                self._crashed(fit_id, exc, current)
         return fit_id
 
     def _fit(self, fit_id: int, current: Span) -> None:

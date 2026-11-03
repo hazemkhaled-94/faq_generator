@@ -127,6 +127,7 @@ _LINKS = cast("Table", FactPassage.__table__)
 
 #: The passages table itself, for the bulk update the backfill writes.
 _PASSAGES = cast("Table", Passage.__table__)
+_QUESTIONS = cast("Table", Question.__table__)
 
 #: What one passage of a bridge group is read as. The same columns `claim`
 #: reads, so a group and a queued passage are the same object.
@@ -1495,6 +1496,39 @@ class FactCatalog(Repository):
     def embed_passages(self, vectors: list[tuple[int, list[float]]]) -> int:
         """Writes a vector onto each of the given passages."""
         return self._embed(_PASSAGES, vectors)
+
+    def unembedded_questions(self, limit: int, within=None) -> list[tuple[int, str]]:
+        """The next questions carrying no vector, as (id, question text).
+
+        Vectors are not archived, so a restored question has none, and with
+        none it skips the duplicate veto when it is verified again.
+
+        Args:
+            limit: How many to read at once.
+            within: A condition on Passage narrowing which are read: a question
+                resting on any fact resting on a passage it selects. None reads
+                them all.
+        """
+        query = select(Question.id, Question.question_text).where(
+            Question.embedding.is_(None)
+        )
+        if within is not None:
+            query = query.where(
+                Question.id.in_(
+                    select(QuestionFact.question_id)
+                    .join(Fact, Fact.id == QuestionFact.fact_id)
+                    .where(_resting(within))
+                )
+            )
+        with self._session() as session:
+            return [
+                (row.id, row.question_text)
+                for row in session.execute(query.order_by(Question.id).limit(limit))
+            ]
+
+    def embed_questions(self, vectors: list[tuple[int, list[float]]]) -> int:
+        """Writes a vector onto each of the given questions."""
+        return self._embed(_QUESTIONS, vectors)
 
     def _embed(self, table: Table, vectors: list[tuple[int, list[float]]]) -> int:
         """Writes a vector onto each of the given rows of one table."""

@@ -67,7 +67,7 @@ It is not a dry run: the rows are written.
 
 Every verb that queues rows answers with a `run` and writes it onto those
 rows. Pass `?run=` to supply one (Dagster does); otherwise one is
-minted. `stop` names no run.
+minted. A supplied run is 1 to 80 letters, digits or `._:-` and nothing else, because the pages write it into links; any other answers 422. `stop` names no run.
 
 ## The corpus as one thing
 

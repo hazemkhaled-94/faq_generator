@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -19,6 +20,7 @@ from opentelemetry.trace import Span
 from llm.config import spend_cap
 from llm.tally import spent_usd
 from stages.queue import StageQueue
+from telemetry.evaluations import current_ids
 
 log = logging.getLogger(__name__)
 
@@ -279,6 +281,32 @@ class StageService(ABC):
             return
         self._repository.fail(key, error)
         self.failed += 1
+
+    def _crashed(
+        self, key: Any, exc: Exception, current: Span, outage: bool = False
+    ) -> None:
+        """Marks a row failed by an error nobody expected, storing none of its text.
+
+        The row is served by an open GET, and a driver's own text names the
+        database's host and role or the object store's endpoint. The row gets
+        the exception's type and a trace id; the log gets the whole of it, under
+        that id, as `api.errors.failed` does for a request.
+        """
+        trace = current_ids()[0] or uuid.uuid4().hex
+        log.error(
+            "%s: %s %s crashed (trace %s)",
+            self.name,
+            self.unit,
+            key,
+            trace,
+            exc_info=exc,
+        )
+        self._fail(
+            key,
+            f"{type(exc).__name__} (the log holds the rest, trace {trace})",
+            current,
+            outage,
+        )
 
     def _done(self, current: Span) -> None:
         """Annotates the span of a row this stage finished."""

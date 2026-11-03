@@ -349,6 +349,8 @@ protects. A backup copies both elsewhere.
 make backup DIR=/backups/$(date +%F)
 ```
 
+`make backup`, `make restore-backup` and `make restore-backup-stack` dump and restore through the stack's postgres container, so they refuse a `DATABASE_URL` that names another host than `localhost` or `127.0.0.1` at `POSTGRES_PORT`. A managed database is backed up by its provider.
+
 | Path under `DIR` | Content |
 |---|---|
 | `db/<name>.dump` | `pg_dump -Fc` of the application, SeaweedFS, Phoenix and Dagster databases |
@@ -796,7 +798,7 @@ runbook](#the-runbook) reaches the deployment from a fresh clone.
 | C-245 | Leave `EXTRACTION_DUPLICATE_COSINE` at its shipped value: 0 also stops writing passage embeddings | Building the embedder whatever the threshold (deferred) |
 | C-424 | Leave `QA_MODEL` empty, as it ships, until an encoder is calibrated | A calibration of one encoder |
 | C-297 | Build the production images once, record their digests, and rebuild only on purpose: installs are not hash-checked and base images are named by tag | Locked installs, images by digest (deferred) |
-| C-162 | No schema downgrade past v0.4.2: rolling back `733a3eadef7c` archives every rubric score, and a restore of that deletion fails | Skipping the archive in that downgrade (deferred) |
+| C-162 | Rolling back `733a3eadef7c`, past v0.4.2, drops every rubric score for good: they are not archived, since a restore would put back rows the narrower CHECK refuses | Archiving them in a form a restore can read |
 | C-200 | Leave the nightly schedule off: it ignores Stop and `INGESTION_OPEN`. The production profile runs no Dagster | A schedule that skips after a cancelled run (deferred) |
 
 ## Upgrading

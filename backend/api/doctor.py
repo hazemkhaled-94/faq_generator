@@ -247,30 +247,41 @@ def stored_source() -> Mapping[str, str]:
     return source
 
 
-#: What a URL reads as structure. APP_DB_PASSWORD goes into the connection string
+#: What a URL reads as structure. These passwords go into a connection string
 #: as written, by the Makefile and by compose, neither of which percent-encodes.
 _URL_CHARACTERS = "@/:#?%"
 
+#: Every password compose or the Makefile writes into a URL, which
+#: `tests/static/test_passwords_written_safely.py` reads back out of compose.yaml.
+_URL_PASSWORDS = (
+    "APP_DB_PASSWORD",
+    "PHOENIX_DB_PASSWORD",
+    "ARGILLA_DB_PASSWORD",
+    "ELASTICSEARCH_PASSWORD",
+)
+
 #: Why such a password is refused, naming the setting and never its characters.
 _URL_REFUSAL = (
-    "APP_DB_PASSWORD holds one of @ / : # ? %, which a connection string reads "
+    "{name} holds one of @ / : # ? %, which a connection string reads "
     "as structure and nothing here percent-encodes: set one of letters, "
     "digits, `-`, `_` and `.` (make setup generates one)"
 )
 
 
 def database_url_problem(source: Mapping[str, str] | None = None) -> str | None:
-    """Why APP_DB_PASSWORD cannot go into a connection string as written, or None.
+    """Why a password cannot go into a connection string as written, or None.
 
-    A password holding one of `@ / : # ? %` makes the URL name another host or
-    none, and the failure names the database and never the password. The
-    refusal is the same words whichever of them it holds, so a log says
-    nothing of the password.
+    Every password compose puts in a URL is read: the application database's,
+    Phoenix's, Argilla's and Elasticsearch's. One holding `@ / : # ? %` makes
+    the URL name another host or none, and the failure names the setting and
+    never the password. The refusal is the same words whichever character it
+    holds, so a log says nothing of the password.
     """
     source = os.environ if source is None else source
-    if not any(one in _URL_CHARACTERS for one in source.get("APP_DB_PASSWORD") or ""):
-        return None
-    return _URL_REFUSAL
+    for name in _URL_PASSWORDS:
+        if any(one in _URL_CHARACTERS for one in source.get(name) or ""):
+            return _URL_REFUSAL.format(name=name)
+    return None
 
 
 def _split_and_password() -> int:

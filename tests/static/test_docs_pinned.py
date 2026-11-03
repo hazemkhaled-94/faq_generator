@@ -292,7 +292,7 @@ def test_each_model_setting_is_where_the_doc_says() -> None:
     )
     for name in _STAGE_MODELS:
         assert name in backend and name not in live and name in example, name
-    assert "LOADENV = set -a && . ./configs/env/backend.env" in _read("Makefile")
+    assert "LOADED = set -a && . ./configs/env/backend.env" in _read("Makefile")
 
     row = next(
         line

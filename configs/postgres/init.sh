@@ -11,7 +11,9 @@ set -euo pipefail
 # abort on the first existing role. CREATE-then-ALTER in a DO block is both
 # idempotent and applies any password change from .env.
 create_role() {
-    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-SQL
+    # The password is a psql variable and `:'pw'` is where psql quotes it, so a
+    # quote or a backslash in it is the password's and not SQL.
+    psql -v ON_ERROR_STOP=1 -v pw="$2" --username "$POSTGRES_USER" --dbname postgres <<-SQL
 	DO \$\$
 	BEGIN
 	    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$1') THEN
@@ -19,7 +21,7 @@ create_role() {
 	    END IF;
 	END
 	\$\$;
-	ALTER ROLE $1 LOGIN PASSWORD '$2';
+	ALTER ROLE $1 LOGIN PASSWORD :'pw';
 	SQL
 }
 

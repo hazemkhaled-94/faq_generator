@@ -614,8 +614,8 @@ def main() -> int:
         print(f"  {bucket}/{key} is in neither its bucket nor the archive")
     print(
         "\nVectors are not archived, so the restored rows carry none: "
-        "`make extract-embed` writes the passages' and the facts' again. "
-        "Nothing writes a question's, so re-verifying a restored question "
+        "`make extract-embed` writes the passages', the facts' and the "
+        "questions' again; until it has, re-verifying a restored question "
         "skips the duplicate veto."
     )
     return 1 if any(bucket == DocumentsBucket.name for bucket, _ in missing) else 0

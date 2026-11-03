@@ -144,14 +144,14 @@ def test_a_run_where_no_language_survives_the_filter_fails(service) -> None:
 
 
 def test_a_store_that_refuses_fails_the_fit_with_its_type(service) -> None:
-    """Anything but NoVocabulary is recorded with the exception's name."""
+    """Anything but NoVocabulary is recorded with the exception's name and nothing it said."""
     flow = service()
     flow.queue.refuses = RuntimeError("the transaction was rolled back")
 
     flow.request_and_run()
 
     assert flow.failure is not None
-    assert flow.failure.startswith("RuntimeError:"), flow.failure
+    assert flow.failure.startswith("RuntimeError ("), flow.failure
 
 
 def test_a_failed_fit_leaves_the_previous_topics_alone(service) -> None:

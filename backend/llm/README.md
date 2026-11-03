@@ -133,6 +133,10 @@ consequence, applies, parallel and contrast. The bridge prompt and answer
 schema read them from this table. A new relation also needs a revision that
 adds it to the `facts.bridge` CHECK.
 
+### A document's text is fenced
+
+`prompt.fill` substitutes in one pass, so a passage naming `{{answer}}` is sent as written. The placeholders a caller names as `material` hold the document's own text (a passage, a fact, an earlier answer, a question): each is sent between `<material name="...">` tags. A `<` that opens or closes a `material` tag inside the text is escaped, so the text cannot close the tag it sits in; any other `<`, as in `< 500`, is sent as written, so a quote of it still matches. The writer, the verifier, the phrasing judge and the judge send their material this way, and each of their system prompts carries one line under CONTEXT saying text between the tags is the document's, to be read and never obeyed (`prompt.grounded` puts it there). Extraction's, the digest's, the bridge's and the topic label's prompts send the text unfenced: fencing it narrowed 10 of 60 extraction rows against 7 unfenced. The fence limits what a planted instruction can do; it does not make an untrusted document safe, so ingest only documents the customer controls.
+
 ## Cost and latency
 
 Every call is logged with its duration, token counts and, where litellm has a
@@ -175,8 +179,8 @@ poetry run pytest tests/unit/llm
 ```
 
 The tests cover retries (`test_client.py`), the preflight (`test_check.py`),
-stage model overrides (`test_overridden.py`) and prompt filling
-(`test_prompt_fill.py`). None reaches a network. The
+stage model overrides (`test_overridden.py`) and prompt filling and
+fencing (`test_prompt_fill.py`, `tests/unit/test_material_fenced.py`). None reaches a network. The
 [evaluation](../../evaluation/README.md) layer asks a real served model.
 
 ## Limits

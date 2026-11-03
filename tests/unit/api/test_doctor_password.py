@@ -86,3 +86,16 @@ def test_a_percent_in_the_url_reaches_the_engine_unchanged(monkeypatch) -> None:
     runpy.run_path(str(env))
 
     assert seen["url"] == url
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["PHOENIX_DB_PASSWORD", "ARGILLA_DB_PASSWORD", "ELASTICSEARCH_PASSWORD"],
+)
+def test_every_password_compose_writes_into_a_url_is_checked_and_named(
+    name: str,
+) -> None:
+    """Phoenix's, Argilla's and Elasticsearch's too, each by its own setting."""
+    said = database_url_problem({"APP_DB_PASSWORD": "9f3c1e7a2b", name: "p@ss/word"})
+
+    assert said is not None and name in said and "p@ss" not in said

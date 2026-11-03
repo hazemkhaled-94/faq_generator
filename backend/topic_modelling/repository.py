@@ -527,6 +527,9 @@ class TopicQueue(StageQueue):
                         language,
                     )
                     dropped += 1
+            # Not archived: a fit is over the whole corpus, and a restore would
+            # bring back topics and memberships it does not want.
+            session.execute(text("SET LOCAL qa.archive_skip = 'passage_topics,topics'"))
             session.execute(
                 delete(Topic).where(
                     (~_OUTSTANDING & (Topic.language.in_(fitted) | gone))

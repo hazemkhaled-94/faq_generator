@@ -11,7 +11,7 @@ from extraction.extractors.base import ExtractionFailed, Extractor
 from extraction.models import CandidateFact, CheckedFact, PassageToExtract, Provenance
 from llm.client import Client, ModelUnavailable
 from llm.prompt import fill
-from nlp.models import named
+from nlp.models import named, with_language
 
 #: Recorded on every fact drawn with the prompt below. Bumped whenever that
 #: prompt changes what counts as a fact. 11 keeps a rule whole with its
@@ -476,7 +476,7 @@ class LlmExtractor(Extractor):
             f"[{sentence.index}] {sentence.text}" for sentence in passage.sentences
         )
         return fill(
-            template,
+            with_language(template, passage.language),
             {
                 "{{context}}": heading,
                 "{{excerpt}}": numbered,

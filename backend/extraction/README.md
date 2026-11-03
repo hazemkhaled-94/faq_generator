@@ -285,7 +285,7 @@ make extract-bridge FORCE=1            # even over cited bridges
 make extract-bridge MISSING=1          # only topics holding no bridge
 make extract-recap                     # re-apply the atomic cap; no model call
 make extract-dedup                     # re-decide the duplicate refusals; no model call
-make extract-embed                     # write vectors onto rows already stored
+make extract-embed                     # write vectors onto passages, facts and questions already stored
 make extract-digests                   # digest passages that have none
 
 make extract-retry PASSAGE=<id>        # narrow any of them but extract to one passage
