@@ -980,7 +980,7 @@ stored rows.
 | Parse | `make parse-rerun CONFIRM=<database>` | A paragraph number printed in the left margin now opens its paragraph (N-057): 819 lines in three football documents |
 | Chunk | `make chunk-rerun CONFIRM=<database> FORCE=1` | List markers the document does not print (N-003, 83 in 35 passages), a passage in an unconfigured language reads no language (N-004, none of the stored passages), one-page chapters (N-005, 6 passages) and heading fragments (N-006, 2 passages), all football |
 | Extract new passages | `make extract-start`, then `make extract` | Re-chunked passages have no facts yet |
-| Judge facts again | `make extract-revalidate` | The fact check's figure, unit, date, list-line and reference fixes (N-012, N-013, N-016, N-017, N-019, N-020, N-037, N-042, N-043, N-046, N-049, N-051, N-055, N-056, N-062). No model call. On the stored facts only N-037 moves a verdict: 17 refusals become valid |
+| Judge facts again | `make extract-revalidate` | The fact check's figure, unit, date, list-line and reference fixes (N-012, N-013, N-016, N-017, N-019, N-020, N-037, N-042, N-043, N-046, N-049, N-051, N-055, N-056, N-062). No model call. On the stored facts only N-037 moves a verdict: 17 stored refusals newly validated (15 usable) |
 | Cap again | `make extract-recap` | Lettered, roman and en-dash list items count toward the cap (N-021): 7 stored passages count more items |
 | Dedup | `make extract-dedup` | A refusal whose twin went in a deletion through the pages or the API before this release. `make corpus` now replays it itself (C-054) |
 | Vectors | `make extract-embed` | Passages and facts a stage left without vectors at `EXTRACTION_DUPLICATE_COSINE=0` (C-245), and restored questions with none (C-331) |
@@ -1009,7 +1009,11 @@ stored rows.
   orchestration unavailable (C-081). A supplied run name is 1 to 80 letters,
   digits or `._:-`, and any other answers 422 (C-257).
 - A stage's unexpected failure stores the exception's type and a trace id on
-  the row, and the traceback goes to the log under that id (N-069).
+  the row, and the traceback goes to the log under that id (N-069). Rows that
+  failed before v0.5.3 still store the driver's text, which can name a
+  database host and role or an object-store address, and an open GET serves
+  it. `make pipeline-retry` returns every failed row to the queue and clears
+  that text.
 - A topic refit archives no topics or memberships (C-420), and reads its
   passages by document and position, so the same passages give the same fit
   in any insert order (C-221). Rows that earlier refits archived stay in
