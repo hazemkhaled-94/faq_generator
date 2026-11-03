@@ -1042,7 +1042,8 @@ def test_the_workbook_holds_the_release_its_judge_and_its_summary(
         assert row[column["Judge"]] == "approved"
     assert len(list(book["Assessment"].iter_rows(values_only=True))) > 1
     _, *counted = book["Summary"].iter_rows(values_only=True)
-    summary = {measure: count for measure, count, _note in counted}
+    # A streamed sheet ends a row at its last value, so a row with no note reads two cells
+    summary = {row[0]: row[1] for row in counted}
     assert summary["Questions in this workbook"] == len(released)
     assert summary["Judged by a model"] == len(released)
     assert summary["Judge approved"] == len(released)
