@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import socket
 import stat
@@ -1892,7 +1893,13 @@ def test_a_target_run_inside_the_stacks_postgres_refuses_another_host(
 
     assert done.returncode == 2, done
     assert f"REFUSED: {target} dumps and restores" in done.stderr, done.stderr
-    assert "managed.example.net:5432" in done.stderr and "localhost:5432" in done.stderr
+    # Both hosts compared whole, not found anywhere in the line
+    named = re.search(
+        r"container \(([^)]*)\) but DATABASE_URL names ([^;]*);", done.stderr
+    )
+    assert named and named.groups() == ("localhost:5432", "managed.example.net:5432"), (
+        done.stderr
+    )
     assert "pg_restore" not in asked and "pg_dump" not in asked, asked
 
 
