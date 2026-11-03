@@ -886,8 +886,9 @@ data](#upgrading-the-schema-on-a-stack-with-data).
 | `5c1e8a3f7d20` | `archive_deleted_row()` skips the tables a transaction names in `qa.archive_skip`. A topic fit names `topics` and `passage_topics`, so a refit archives no topic rows. Every other deletion archives as before (C-420) |
 | `9e3b61d4a2c7` | Adds `passages.nearest_foreign_cosine` and `passages.nearest_foreign_doc`, the cosine to the closest passage of another document in the same language and that document, and fills them for every embedded passage. The backfill commits 500 passages at a time, outside the revision's transaction. Each batch compares its passages with every embedded passage of their language, so time it on a copy of a large corpus first. A stopped backfill leaves the revision unstamped, and the next `make schema` resumes it (C-100). The new head |
 
-`make schema-down CONFIRM=<database>` drops both columns and puts the archive
-function back. A downgrade past `733a3eadef7c` (v0.4.2) now deletes every
+`make schema-down CONFIRM=<database>` takes back one revision a run. Run it
+twice to return to `4a7c2e91d3b8` before checking out v0.5.2: the first run
+drops the two columns, the second puts the archive function back. A downgrade past `733a3eadef7c` (v0.4.2) now deletes every
 rubric score without archiving it, so a later restore no longer fails on them,
 and the scores are gone for good (C-162).
 
@@ -967,6 +968,9 @@ None is retired. Changed:
 None is needed to start v0.5.3. Each brings stored data up to what this
 release reads differently. A rerun without `SHA` refuses unless `CONFIRM`
 names the database, and a re-chunk over questions refuses unless `FORCE=1`.
+A re-chunk rejects the questions resting on a passage it replaces as
+`source_changed` and keeps them. The new passages reach questions only through
+the refit and the question run below.
 The counts are of the 30 football and 50 shop calibration PDFs and their
 stored rows.
 
@@ -976,11 +980,13 @@ stored rows.
 | Parse | `make parse-rerun CONFIRM=<database>` | A paragraph number printed in the left margin now opens its paragraph (N-057): 819 lines in three football documents |
 | Chunk | `make chunk-rerun CONFIRM=<database> FORCE=1` | List markers the document does not print (N-003, 83 in 35 passages), a passage in an unconfigured language reads no language (N-004, none of the stored passages), one-page chapters (N-005, 6 passages) and heading fragments (N-006, 2 passages), all football |
 | Extract new passages | `make extract-start`, then `make extract` | Re-chunked passages have no facts yet |
-| Judge facts again | `make extract-revalidate` | The fact check's figure, unit, date, list-line and reference fixes (N-012, N-013, N-016, N-017, N-019, N-020, N-037, N-042, N-043, N-046, N-049, N-051, N-055, N-056, N-062). No model call. On the stored facts only N-037 moves a verdict: 15 refusals become valid |
+| Judge facts again | `make extract-revalidate` | The fact check's figure, unit, date, list-line and reference fixes (N-012, N-013, N-016, N-017, N-019, N-020, N-037, N-042, N-043, N-046, N-049, N-051, N-055, N-056, N-062). No model call. On the stored facts only N-037 moves a verdict: 17 refusals become valid |
 | Cap again | `make extract-recap` | Lettered, roman and en-dash list items count toward the cap (N-021): 7 stored passages count more items |
 | Dedup | `make extract-dedup` | A refusal whose twin went in a deletion through the pages or the API before this release. `make corpus` now replays it itself (C-054) |
 | Vectors | `make extract-embed` | Passages and facts a stage left without vectors at `EXTRACTION_DUPLICATE_COSINE=0` (C-245), and restored questions with none (C-331) |
-| Stored questions | `make questions-reverify` | The structural and type gates: amounts, counts, periods, question words and marks, and the language check (N-022, N-023, N-029, N-039, N-040, N-045). No stored verdict changes. The `leaks_source` fixes (N-027, N-047, N-054) act on new questions only, since this re-check does not run that gate |
+| Refit topics | `make topics-discover` | Re-chunked passages belong to no topic yet |
+| Questions on the new passages | `make questions-rerun CONFIRM=<database>` | Writes questions about the facts no accepted question rests on, the re-chunked passages' among them, at the writer's cost |
+| Stored questions | `make questions-reverify`, then `make questions-rescore` after a refit | The structural and type gates: amounts, counts, periods, question words and marks, and the language check (N-022, N-023, N-029, N-039, N-040, N-045). No stored verdict changes. The `leaks_source` fixes (N-027, N-047, N-054) act on new questions only, since this re-check does not run that gate |
 | Unanswerables | `make questions-rejudge` | Verifier 17 (step 4). Calls the verifier |
 | Release | `make questions-balance` | Rejected rows leave it |
 | Export | `make questions-export` | The workbook is streamed. Text opening with `=`, `+`, `-` or `@` is stored as text, long cells are cut and marked, Citations gives first and last page as integers, a sheet past Excel's row limit continues in a numbered one, and the Kind heading says what Kind means (C-066, C-071, C-175, C-239, C-240, C-241, N-025) |
