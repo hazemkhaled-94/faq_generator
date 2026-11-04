@@ -7,6 +7,11 @@ on:
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
+    inputs:
+      seed:
+        description: Repeat the test order of an earlier run, from the integer seed printed at its top
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -39,6 +44,8 @@ jobs:
   everything:
     name: Every layer
     needs: setup
+    # A hang once ran this job to GitHub's six-hour limit; the slowest green run took 51 minutes.
+    timeout-minutes: 110
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -57,9 +64,11 @@ jobs:
       # A thousand examples per property where CI runs 200 and a laptop
       # runs 25, which is the budget nothing else has time for. The golden
       # conversions are the weights job's, the one that fetches them.
-      - run: poetry run pytest -m "not eval and not perf and not slow"
+      # A dispatched run may repeat an earlier order by its seed.
+      - run: poetry run pytest -m "not eval and not perf and not slow" ${SEED:+-p randomly --randomly-seed="$SEED"}
         env:
           HYPOTHESIS_PROFILE: nightly
+          SEED: ${{ inputs.seed }}
 
   # Whether a test would notice a gate changing. Line coverage says the
   # line ran; this changes it and asks whether anything fails. Reported and
@@ -138,6 +147,7 @@ jobs:
   weights:
     name: Real weights
     needs: setup
+    timeout-minutes: 20
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -194,6 +204,7 @@ jobs:
   ceilings:
     name: Ceilings
     needs: setup
+    timeout-minutes: 120
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
