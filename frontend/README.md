@@ -87,7 +87,8 @@ Only Documents (with or without what was derived) and Topics (all at once)
 have a delete box.
 
 Redo asks for confirmation in two clicks and says what it costs. A re-chunk
-or re-extraction deletes the questions resting on that work, a re-judge
+or re-extraction rejects the questions resting on that work as
+`source_changed` and keeps them, a re-judge
 blanks the stored verdicts, a re-parse replaces the stored parse, and a
 re-ask of the questions calls the model for every topic. A whole-stage Redo
 is sent with `confirm=true`, which the API requires. A picked bridge fact
