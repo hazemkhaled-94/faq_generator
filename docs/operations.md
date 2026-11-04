@@ -831,6 +831,24 @@ those the corpus needs. Each `make *-rerun` drains on the host and refuses
 while the stage's container worker runs. To use the container workers, rerun
 from the stage's page or `POST /{stage}/rerun?confirm=true`.
 
+## Upgrading to v0.5.4
+
+The follow-up release after v0.5.3. Nothing changes for a running
+deployment: no migration, setting, prompt or lock change, and no rerun. The
+backend image copies `pyproject.toml`, whose pytest options changed, so `make
+upgrade` rebuilds it with the same code. `docs/changelog.md` lists what
+changed under v0.5.4.
+
+- `configs/audit-accepted.txt` accepts filelock 3.32.7's advisories until
+  2026-12-31. After that date `make audit` fails until the entries are read
+  again.
+- CI and the Nightly stop a hung job after at most twice its longest recent
+  run, and GitHub shows it as cancelled. A test that runs longer than ten
+  minutes prints every thread's stack into the log first.
+- A Nightly started by hand takes an optional seed. `gh workflow run
+  nightly.yml -f seed=<n>` repeats the test order of a run whose log printed
+  `Using --randomly-seed=<n>`.
+
 ## Upgrading to v0.5.3
 
 The QA and fix release after v0.5.2. It also puts each infrastructure

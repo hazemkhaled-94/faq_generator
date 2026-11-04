@@ -9,11 +9,34 @@ re-runs that operations.md lists for
 [v0.2.2](operations.md#upgrading-to-v022),
 [v0.3.0](operations.md#upgrading-to-v030),
 [v0.5.2](operations.md#upgrading-to-v052) and
-[v0.5.3](operations.md#upgrading-to-v053).
+[v0.5.3](operations.md#upgrading-to-v053). v0.5.4 needs no rerun.
 
 ## Fixed defects
 
 Fixed defects by release, newest review first.
+
+## Found after v0.5.3, closed on 2026-11-04
+
+The v0.5.3 session left four follow-ups: reference details the wiki lacked, a
+Nightly that hung once for six hours, the filelock advisories accepted until
+2026-11-30, and the machine's clean-up. Each ended fixed, closed with
+evidence, or accepted with its reason. The wiki now carries the missing
+details and matches the package READMEs v0.5.3 changed; two reviewers passed
+it, with no broken link or anchor on any page. Their review also found four
+repository pages that no longer said what the code does.
+
+N-001, the filelock advisories, stays accepted in [bugs.md](bugs.md#n-001-filelock-3327-carries-13-accepted-advisories).
+litellm 1.108.0, its latest release on 2026-11-04, still requires filelock
+below 4.0, so `configs/audit-accepted.txt` accepts the 13 advisories until
+2026-12-31, and the ten Dependabot alerts on them are dismissed as a tolerable
+risk with that reason.
+
+### Fixed in v0.5.4
+
+| Item | Defect | Fix | Measure and bar |
+|---|---|---|---|
+| Nightly hang | One Every layer run on `d1694ad9` hung after its 371st test file and ran to GitHub's six-hour job limit, printing nothing about where it stopped | Each long job has `timeout-minutes`, at twice its longest recent green run rounded up to the next 10 minutes: Every layer 110, Real weights 20 and Ceilings 120 in the Nightly, Unit 60, Integration 30 and Smoke 30 in CI. Stack without mounts gets 30, so its own 15-minute wait can still fail and print the container logs. pytest's `faulthandler_timeout = 600` prints every thread's stack when a test runs longer than ten minutes. A Nightly started by hand takes an optional `seed`, which repeats a seeded order | `tests/static/test_workflows.py` pins each value, the stack option and the seed's path through `env`; its new cases fail on v0.5.3 and pass. Four local runs of the whole layer showed no hang and no stack dump: two in the hung run's order (seed 2807508786), 11,389 passed each; one with seed 3803804352, where two timing bounds failed under the load of a parallel gate run and passed alone; and one with seed 1547028867, 11,389 passed. The Nightly dispatched on the release commit with the hung run's seed is in the release notes. Closed as not reproducible, with the timeouts and the stack dump as its guard |
+| Stale READMEs | `backend/question_generation/README.md` said a trigger deletes a question once its last citation is gone, and read a prompt back at a version no longer written. `backend/api/README.md` and `docs/operations.md` said deleting what was derived from a document takes only its passages and facts, and `frontend/README.md` that a re-chunk or re-extraction deletes the questions resting on it | Each page says what the code does. A question that loses a citation, its last one included, is rejected as `source_changed` and kept (migration `4a7c2e91d3b8`). Deleting what was derived from a document also deletes the questions, follow-ups and assessments resting on its passages (`delete_derived`). The read-back example names no version | Found by the wiki's two reviewers against the code; the doc tests in `tests/static` pass |
 
 ## Found by the QA pass of 2026-11-01
 
