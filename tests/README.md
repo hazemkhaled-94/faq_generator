@@ -120,14 +120,15 @@ request and push to `main`:
 | `weights` | Fetches the embedding, NLI and Docling weights, then runs the tests that need them with `REQUIRE_MODELS=1` |
 | `evaluate` | The model evaluation. Skips unless `LLM_MODEL` is a repository variable |
 
-Each job is stopped after at most these minutes, so a hung test ends its job
-instead of holding a runner for six hours: `unit` 60, `integration` 30,
-`smoke` 30 and `stack` 30 in CI, and `everything` 110, `weights` 20 and
-`ceilings` 120 in the nightly. A job stopped this way shows as cancelled, not
-failed. `evaluate` has no limit, because it has never run. Pytest prints every
-thread's stack for a test that runs over ten minutes. A manual run of the
-nightly takes an optional integer `seed`, which repeats the test order of an
-earlier run.
+These jobs are stopped after at most these minutes, so a hung test ends its
+job instead of holding a runner for six hours: `unit` 60, `integration` 30,
+`smoke` 30 and `stack` 30 in CI, and `everything` 110, `mutation` 300,
+`weights` 20 and `ceilings` 120 in the nightly. A job stopped this way shows
+as cancelled, not failed. The short jobs have no limit, and neither has
+`evaluate`: it has never scored a model, so no run gives its length. Pytest
+prints every thread's stack for a test that runs over ten minutes. A manual
+run of the nightly takes an optional integer `seed`, which repeats the test
+order of an earlier run.
 
 ## Limits
 
