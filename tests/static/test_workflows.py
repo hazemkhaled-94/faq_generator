@@ -504,26 +504,32 @@ def test_the_mutation_job_runs_one_shard_to_each_mutated_file() -> None:
     assert 'mutmut run $(if $(MUTANTS),"$(MUTANTS)")' in makefile
 
 
-#: Jobs that run the long suites. One Nightly hung after its 371st test file
-#: and ran to GitHub's six-hour limit because nothing bounded the job.
-_BOUNDED_JOBS = {
-    "nightly.yml": ["everything"],
-    "ci.yml": ["unit", "integration", "smoke", "stack"],
+#: Twice the longest recent green run, rounded up to the next 10 minutes
+#: (read 2026-11-04), so a hung test ends its job in at most that long rather
+#: than at GitHub's six hours. The stack job is the exception: its wait
+#: allows itself 15 minutes after about 6 of setup, and a timed-out job is
+#: cancelled before its `if: failure()` log step runs, so it gets 30.
+_TIMEOUTS = {
+    ("nightly.yml", "everything"): 110,
+    ("nightly.yml", "weights"): 20,
+    ("nightly.yml", "ceilings"): 120,
+    ("ci.yml", "unit"): 60,
+    ("ci.yml", "integration"): 30,
+    ("ci.yml", "smoke"): 30,
+    ("ci.yml", "stack"): 30,
 }
 
 
-@pytest.mark.parametrize(
-    ("name", "job"),
-    [(name, job) for name, jobs in _BOUNDED_JOBS.items() for job in jobs],
-)
-def test_a_long_job_has_a_timeout_under_two_hours(name: str, job: str) -> None:
-    """A hung test must end the job in two hours, not in six."""
+@pytest.mark.parametrize(("name", "job"), _TIMEOUTS, ids=lambda v: str(v))
+def test_a_long_job_stops_at_the_minutes_its_longest_green_run_earns(
+    name: str, job: str
+) -> None:
+    """Too low fails a healthy run; missing or too high lets a hang run on."""
     minutes = loaded(ROOT / ".github/workflows" / name)["jobs"][job].get(
         "timeout-minutes"
     )
 
-    assert isinstance(minutes, int), f"{name}:{job} has no timeout-minutes"
-    assert 0 < minutes <= 120, f"{name}:{job} {minutes}"
+    assert minutes == _TIMEOUTS[name, job], f"{name}:{job} {minutes}"
 
 
 def test_pytest_prints_the_stacks_of_a_test_that_hangs() -> None:
@@ -544,8 +550,8 @@ def test_the_nightly_seed_reaches_its_step_through_env() -> None:
     steps = workflow["jobs"]["everything"]["steps"]
     pytest_step = next(s for s in steps if "pytest" in s.get("run", ""))
 
-    assert inputs["seed"]["type"] == "number"
+    assert inputs["seed"]["type"] == "string"
     assert inputs["seed"]["required"] is False
-    assert "inputs.seed" in str(pytest_step["env"])
+    assert pytest_step["env"]["SEED"] == "${{ inputs.seed }}"
     assert "${{" not in pytest_step["run"]
-    assert "--randomly-seed" in pytest_step["run"]
+    assert '${SEED:+-p randomly --randomly-seed="$SEED"}' in pytest_step["run"]

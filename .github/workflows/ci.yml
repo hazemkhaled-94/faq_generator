@@ -168,7 +168,8 @@ jobs:
   stack:
     name: Stack without mounts
     needs: setup
-    timeout-minutes: 20
+    # About 6 minutes of setup and a 15-minute wait; a timed-out job is cancelled and skips its log step.
+    timeout-minutes: 30
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     # bash with -eo pipefail for every step, so a failing command before a pipe

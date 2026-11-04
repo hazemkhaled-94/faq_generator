@@ -104,6 +104,7 @@ request and push to `main`:
 | `unit` | Everything that needs no container or served model |
 | `integration` | The container layers, against pulled images |
 | `smoke` | Builds and inspects both images |
+| `stack` | On a push to `main` and manual runs: starts the stack from the images alone, uploads two PDFs and waits for them to be parsed and chunked |
 | `coverage` | Combines the other jobs' coverage |
 | `gate` | Waits for the rest. Require this job in branch protection |
 
@@ -119,11 +120,14 @@ request and push to `main`:
 | `weights` | Fetches the embedding, NLI and Docling weights, then runs the tests that need them with `REQUIRE_MODELS=1` |
 | `evaluate` | The model evaluation. Skips unless `LLM_MODEL` is a repository variable |
 
-The `unit`, `integration`, `smoke` and `stack` jobs end after 20 to 60
-minutes, and `everything` after 110, so a hung test fails its job instead of
-holding a runner for six hours. Pytest prints every thread's stack for a test
-that runs over ten minutes. A manual run of the nightly takes an optional
-`seed`, which repeats the test order of an earlier run.
+Each job is stopped after at most these minutes, so a hung test ends its job
+instead of holding a runner for six hours: `unit` 60, `integration` 30,
+`smoke` 30 and `stack` 30 in CI, and `everything` 110, `weights` 20 and
+`ceilings` 120 in the nightly. A job stopped this way shows as cancelled, not
+failed. `evaluate` has no limit, because it has never run. Pytest prints every
+thread's stack for a test that runs over ten minutes. A manual run of the
+nightly takes an optional integer `seed`, which repeats the test order of an
+earlier run.
 
 ## Limits
 

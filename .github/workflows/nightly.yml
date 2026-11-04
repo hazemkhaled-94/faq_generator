@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
     inputs:
       seed:
-        description: Repeat the test order of an earlier run, from the seed printed at its top
-        type: number
+        description: Repeat the test order of an earlier run, from the integer seed printed at its top
+        type: string
         required: false
 
 permissions:
@@ -147,6 +147,7 @@ jobs:
   weights:
     name: Real weights
     needs: setup
+    timeout-minutes: 20
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -203,6 +204,7 @@ jobs:
   ceilings:
     name: Ceilings
     needs: setup
+    timeout-minutes: 120
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
