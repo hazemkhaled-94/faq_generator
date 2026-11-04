@@ -1785,7 +1785,9 @@ football passages open on a stray sign. (NEW-qa-parse-1.)
 ### N-001: filelock 3.32.7 carries 13 accepted advisories
 
 filelock 3.32.7 carries 13 advisories fixed only in 4.x, and litellm
-(1.106.6, and its 1.108 and 1.109 pre-releases) requires filelock below 4.0.
+(1.106.2, the locked release, and 1.108.0, the latest release on 2026-11-04)
+requires filelock below 4.0. The 1.109.0rc1 pre-release allows filelock below
+5.
 Each advisory needs a second local account with write access to the lock's
 directory, which the single-account backend containers do not have.
 
@@ -1793,7 +1795,7 @@ directory, which the single-account backend containers do not have.
 - Cure: both locks upgraded to filelock 4, and the entries deleted from
   `configs/audit-accepted.txt`.
 - Reopens: a litellm release that allows filelock 4. The entries expire on
-  2026-11-30 and are read again then.
+  2026-12-31 and are read again then.
 
 ## Reproducing this page
 
