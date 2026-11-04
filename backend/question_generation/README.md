@@ -657,7 +657,8 @@ declares it and `stages.prompts` writes it to the `prompts` table, with the
 system message, the user message as its template, and the JSON schema. Read one
 back on the Questions page
 ("The prompt that wrote this", under a selected question), as JSON with `GET
-/prompts?service=questions&version=15&name=factoid`, or in Phoenix beside the
+/prompts?service=questions&name=factoid` (add `&version=` and the question's
+`prompt_version` for one version), or in Phoenix beside the
 traces. A question also carries `trace_id` and `span_id`, which the Questions
 page turns into two links.
 
@@ -686,8 +687,8 @@ before `question-worker` claims anything, so topics sit `pending` until then.
 
 The stage reads one topic with `question_status = 'pending'` and writes rows
 in `questions` and `question_facts` (which facts each question cites). A
-trigger deletes a question once its last citation is gone, and rejects one that
-loses a citation and keeps another. It serves `/questions`, `/questions/{id}`,
+trigger rejects a question that loses a citation, its last one included, as
+`source_changed`, and keeps the row. It serves `/questions`, `/questions/{id}`,
 `/questions/plan`, `/questions/quality`, `/questions/export`, `PATCH
 /questions/{id}` and the five queue verbs under `/questions`. See the [API
 README](../api/README.md).
@@ -770,8 +771,8 @@ every step above, the gates and the release. The integration tests
 [`test_question_queue.py`](../../tests/integration/database/test_question_queue.py),
 [`test_release.py`](../../tests/integration/database/test_release.py) and
 [`test_trigger.py`](../../tests/integration/database/test_trigger.py) cover
-the queue, the release draw and the trigger that deletes a question with its
-last fact. [`test_embedding.py`](../../tests/unit/nlp/test_embedding.py) skips
+the queue, the release draw and the trigger that rejects a question losing
+a fact. [`test_embedding.py`](../../tests/unit/nlp/test_embedding.py) skips
 unless the embedding model is cached.
 [`test_frontend_vocabularies.py`](../../tests/static/test_frontend_vocabularies.py)
 checks that the Questions page lists exactly the gates the checker can reject
