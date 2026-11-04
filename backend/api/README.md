@@ -120,7 +120,7 @@ stopped, and its `detail` names each run stopped or refused, with the reason.
 | `GET /documents/names` | Digests and filenames |
 | `GET /documents/{sha256}/file` | The stored bytes |
 | `DELETE /documents/{sha256}` | The document and everything derived from it |
-| `DELETE /documents/{sha256}/derived` | Only its passages and facts |
+| `DELETE /documents/{sha256}/derived` | Its passages and what rests on them alone: facts, questions, follow-ups and assessments |
 
 [Ingestion](../ingestion/README.md) serves documents. Either `DELETE` answers
 how many duplicate refusals lost the fact they repeated (`twinless`). The

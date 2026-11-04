@@ -1653,7 +1653,7 @@ extraction, topics, `make extract-bridge MISSING=1` and questions).
 
 ```bash
 make delete SHA=<sha256> CONFIRM=<database>          # a document and everything from it
-make delete-derived SHA=<sha256> CONFIRM=<database>  # only its passages and facts
+make delete-derived SHA=<sha256> CONFIRM=<database>  # its passages and what rests on them: facts, questions, follow-ups, assessments
 make wipe CONFIRM=<database>                         # every document, then the topics
 make topics-delete CONFIRM=<database>                # every topic, membership, model and figure
 ```
