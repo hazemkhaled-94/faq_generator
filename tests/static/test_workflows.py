@@ -502,3 +502,50 @@ def test_the_mutation_job_runs_one_shard_to_each_mutated_file() -> None:
     assert "matrix.module" in job["name"]
     makefile = (ROOT / "Makefile").read_text()
     assert 'mutmut run $(if $(MUTANTS),"$(MUTANTS)")' in makefile
+
+
+#: Jobs that run the long suites. One Nightly hung after its 371st test file
+#: and ran to GitHub's six-hour limit because nothing bounded the job.
+_BOUNDED_JOBS = {
+    "nightly.yml": ["everything"],
+    "ci.yml": ["unit", "integration", "smoke", "stack"],
+}
+
+
+@pytest.mark.parametrize(
+    ("name", "job"),
+    [(name, job) for name, jobs in _BOUNDED_JOBS.items() for job in jobs],
+)
+def test_a_long_job_has_a_timeout_under_two_hours(name: str, job: str) -> None:
+    """A hung test must end the job in two hours, not in six."""
+    minutes = loaded(ROOT / ".github/workflows" / name)["jobs"][job].get(
+        "timeout-minutes"
+    )
+
+    assert isinstance(minutes, int), f"{name}:{job} has no timeout-minutes"
+    assert 0 < minutes <= 120, f"{name}:{job} {minutes}"
+
+
+def test_pytest_prints_the_stacks_of_a_test_that_hangs() -> None:
+    """Without it a hung run says only which file came before the silence."""
+    import tomllib
+
+    options = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["pytest"][
+        "ini_options"
+    ]
+
+    assert 0 < options.get("faulthandler_timeout", 0) <= 1800
+
+
+def test_the_nightly_seed_reaches_its_step_through_env() -> None:
+    """An input in a `run:` line is code the dispatcher writes."""
+    workflow = loaded(ROOT / ".github/workflows/nightly.yml")
+    inputs = workflow[True]["workflow_dispatch"]["inputs"]
+    steps = workflow["jobs"]["everything"]["steps"]
+    pytest_step = next(s for s in steps if "pytest" in s.get("run", ""))
+
+    assert inputs["seed"]["type"] == "number"
+    assert inputs["seed"]["required"] is False
+    assert "inputs.seed" in str(pytest_step["env"])
+    assert "${{" not in pytest_step["run"]
+    assert "--randomly-seed" in pytest_step["run"]

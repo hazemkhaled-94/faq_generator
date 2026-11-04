@@ -333,6 +333,9 @@ convention = "google"
 pythonpath = [".", "backend", "frontend", "tests", "tests/integration", "tests/frontend"]
 testpaths = ["tests"]
 addopts = "--strict-markers"
+# A test running past ten minutes prints every thread's stack, so a hang
+# names where it sits; the slowest integration test takes 21 seconds.
+faulthandler_timeout = 600
 markers = [
     # Was "loads a spaCy pipeline", which left the embedder's 2.2 GB of
     # weights outside the only marker that would have excluded them.

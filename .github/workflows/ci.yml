@@ -65,6 +65,7 @@ jobs:
   unit:
     name: Unit
     needs: setup
+    timeout-minutes: 60
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -101,6 +102,7 @@ jobs:
   integration:
     name: Integration
     needs: setup
+    timeout-minutes: 30
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -137,6 +139,7 @@ jobs:
   smoke:
     name: Smoke
     needs: setup
+    timeout-minutes: 30
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -165,6 +168,7 @@ jobs:
   stack:
     name: Stack without mounts
     needs: setup
+    timeout-minutes: 20
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     # bash with -eo pipefail for every step, so a failing command before a pipe

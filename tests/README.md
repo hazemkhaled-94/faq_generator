@@ -119,6 +119,12 @@ request and push to `main`:
 | `weights` | Fetches the embedding, NLI and Docling weights, then runs the tests that need them with `REQUIRE_MODELS=1` |
 | `evaluate` | The model evaluation. Skips unless `LLM_MODEL` is a repository variable |
 
+The `unit`, `integration`, `smoke` and `stack` jobs end after 20 to 60
+minutes, and `everything` after 110, so a hung test fails its job instead of
+holding a runner for six hours. Pytest prints every thread's stack for a test
+that runs over ten minutes. A manual run of the nightly takes an optional
+`seed`, which repeats the test order of an earlier run.
+
 ## Limits
 
 - The integration layers start their own PostgreSQL and SeaweedFS through
