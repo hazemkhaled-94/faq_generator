@@ -296,6 +296,20 @@ def test_nothing_near_enough_is_not_a_duplicate() -> None:
     assert near_verdict(near, answerable=True, threshold=0.93) is None
 
 
+def test_a_neighbour_exactly_at_the_bar_is_a_duplicate() -> None:
+    """The bar is inclusive: a cosine equal to it on a shared fact refuses."""
+    near = Neighbour(
+        "What does a card cost?",
+        answerable=True,
+        similarity=0.93,
+        fact_ids=frozenset({7}),
+    )
+
+    assert code(
+        near_verdict(near, answerable=True, threshold=0.93, facts=(7,))
+    ) == (QuestionRejection.DUPLICATE)
+
+
 def test_an_empty_corpus_of_questions_rejects_nothing() -> None:
     """The first question of a run has nothing to be a duplicate of."""
     assert near_verdict(None, answerable=True, threshold=0.93) is None
@@ -7120,3 +7134,136 @@ def test_a_participle_inside_a_noun_phrase_is_not_an_action(
     )
 
     assert (code(failed) == QuestionRejection.WRONG_FORM) is refused
+
+
+# ── Passages of names, threads that move on, questions the passages are about ──
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "We thank Anna Schmidt for the review.",
+        "Wir danken Anna Schmidt für die Prüfung.",
+    ],
+)
+def test_a_short_thanks_to_one_person_is_mostly_names(text) -> None:
+    """Two names of seven words is past the floor, in either language's labels."""
+    assert names_parties(text, "en" if text.startswith("We") else "de")
+
+
+@pytest.mark.parametrize(
+    ("text", "language"),
+    [
+        (
+            "The bank thanks Anna Schmidt for her review of the fee tables in this guide.",
+            "en",
+        ),
+        (
+            "Die Bank dankt Anna Schmidt für die Prüfung der Gebührentabellen in diesem "
+            "Leitfaden.",
+            "de",
+        ),
+        ("123 456", "en"),
+    ],
+)
+def test_a_passage_naming_one_person_among_its_subject_is_not_a_credits_page(
+    text, language
+) -> None:
+    """One name in a sentence about fee tables, or no word at all, is no acknowledgement."""
+    assert not names_parties(text, language)
+
+
+def test_a_share_of_names_equal_to_the_floor_is_not_mostly_names() -> None:
+    """The floor is exclusive: two names of four words against one half."""
+    assert not names_parties("Anna Schmidt reviewed it.", "en", 0.5)
+
+
+_THREAD = (("Which card fees apply to a transfer at the branch?", "the transfer fee"),)
+
+
+@pytest.mark.parametrize(
+    ("key", "thread", "language", "moves_on_"),
+    [
+        (
+            "the card fees",
+            (
+                ("Which fees does the guide cover?", "the card fees"),
+                ("What does a transfer cost?", "a flat fee"),
+            ),
+            "en",
+            False,
+        ),
+        (
+            "die Kartengebühren",
+            (
+                ("Welche Gebühren nennt der Leitfaden?", "die Kartengebühren"),
+                ("Was kostet eine Auslandsüberweisung?", "eine Pauschale"),
+            ),
+            "de",
+            False,
+        ),
+        (
+            "Gebühren für Karten",
+            (("Welche Gebühr gilt für eine Karte?", "eine Gebühr"),),
+            "de",
+            False,
+        ),
+        ("the card fee for a transfer at the branch counter", _THREAD, "en", False),
+        ("card fee transfer branch", (("Which card fees apply?", "a fee"),), "en", True),
+        ("", _THREAD, "en", False),
+    ],
+)
+def test_a_key_moves_its_thread_on_only_with_a_quarter_of_it_new(
+    key, thread, language, moves_on_
+) -> None:
+    """Any earlier turn counts, read in the thread's language; one new lemma of five is too few."""
+    from question_generation.gates import adds_to
+
+    assert adds_to(key, thread, language) is moves_on_
+
+
+def test_a_key_with_exactly_a_quarter_of_it_new_moves_on() -> None:
+    """The share is a floor: one new lemma of four is enough."""
+    from question_generation.gates import adds_to
+
+    assert adds_to(
+        "card fee transfer branch",
+        (("Which card fees apply to a transfer?", "the transfer fee"),),
+        "en",
+    )
+
+
+@pytest.mark.parametrize(
+    ("question", "passages", "language", "floor", "expected"),
+    [
+        (
+            "Was ist ein Liquiditätsmanagementtool?",
+            ["Die Rückgabefrist beträgt ein Jahr."],
+            "de",
+            0,
+            True,
+        ),
+        (
+            "Welche Gebühren berechnet die Bank für Karten?",
+            ["Die Bank berechnet Gebühren für Karten."],
+            "de",
+            0.3,
+            True,
+        ),
+        (
+            "Welche Gebühren berechnet die Bank für Karten?",
+            ["Für Karten", "Gebühren"],
+            "de",
+            0.3,
+            True,
+        ),
+        ("Which fees does the bank charge?", ["The bank pays interest."], "en", 1 / 3, True),
+    ],
+)
+def test_passages_sharing_the_floor_of_what_the_question_asks_are_about_it(
+    question, passages, language, floor, expected
+) -> None:
+    """Read in the question's language, cell by cell; a floor of nought lets anything through."""
+    from question_generation.gates import about
+
+    assert about(question, passages, language, floor) is expected
