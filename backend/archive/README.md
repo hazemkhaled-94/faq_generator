@@ -64,8 +64,8 @@ models they own. `SINCE` only lists, because the archive also holds every row
 a rerun replaced. The archive keeps what it held.
 
 - A row whose key a live row holds is skipped, as is an object already in its
-  bucket, so a second run restores nothing. Twice-archived items come back as
-  the newest copy.
+  bucket, so a second run restores nothing. An object archived by more than one
+  deletion comes back as the copy stamped nearest the latest chosen deletion.
 - A row whose parent is gone, or a follow-up whose root is gone (with every
   turn below it), stays in the archive and is counted. The rest goes back in
   one transaction.

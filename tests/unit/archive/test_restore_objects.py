@@ -34,6 +34,9 @@ class _Rows:
     def __iter__(self):
         return iter(self._rows)
 
+    def scalars(self):
+        return [row[0] for row in self._rows]
+
 
 class _Archive:
     """The two reads `_objects` makes of archived_rows, answered as one table."""
