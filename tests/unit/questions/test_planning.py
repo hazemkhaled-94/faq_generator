@@ -10,6 +10,8 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import replace
 
+import pytest
+
 from database.qa_generator import Difficulty, QuestionKind, QuestionType
 from question_generation.models import Categorization, Category
 from question_generation.planning import allocate, categories, instead, plans
@@ -83,12 +85,43 @@ def test_asking_for_nothing_allocates_nothing() -> None:
     assert allocate({}, 10) == []
 
 
+def test_a_mix_weighted_all_zero_allocates_nothing() -> None:
+    """Every type switched off writes no question, rather than the first one."""
+    assert allocate({QuestionType.FACTOID: 0, QuestionType.REASON: 0}, 5) == []
+
+
+@pytest.mark.parametrize(
+    ("weights", "slots", "counts"),
+    [
+        ((2, 1), 5, (3, 2)),
+        ((1, 4), 7, (1, 6)),
+    ],
+)
+def test_a_short_run_gives_each_type_its_share_rounded_to_the_nearest(
+    weights, slots, counts
+) -> None:
+    """2:1 over five slots is 3.33 and 1.67, so three and two, not four and one.
+
+    A divisor rule that favours the larger weight starves a small type of the
+    slot its share rounds up to; one that favours the smaller gives it one more.
+    """
+    mix = dict(zip((QuestionType.FACTOID, QuestionType.REASON), weights, strict=True))
+    chosen = Counter(allocate(mix, slots))
+
+    assert (chosen[QuestionType.FACTOID], chosen[QuestionType.REASON]) == counts
+
+
 # ── The plan itself ───────────────────────────────────────────────────────
 
 
 def test_every_slot_asked_for_is_planned() -> None:
     """QUESTIONS_PER_TOPIC is how many questions a topic is asked."""
     assert len(planned(wanted=12)) == 12
+
+
+def test_a_band_mix_weighted_all_zero_plans_nothing() -> None:
+    """No band to aim for writes no question, as no type does."""
+    assert planned(bands={Difficulty.EASY: 0, Difficulty.MEDIUM: 0}) == []
 
 
 def test_each_band_gets_the_shape_that_makes_it_reachable() -> None:
@@ -703,3 +736,32 @@ def test_a_swapped_slot_keeps_its_categories() -> None:
     other = instead(plan, MIX, 0)
     assert other is not None
     assert other.categories == plan.categories
+
+
+def test_the_topic_seed_reaches_the_categories_a_plan_is_dealt() -> None:
+    """Two topics planned alike are not told the same categories in the same order."""
+
+    def dealt(seed: str) -> list[tuple[str, ...]]:
+        built = planned(wanted=40, categorizations=(PHRASING,), seed=seed)
+        return [names(plan.categories) for plan in built]
+
+    assert dealt("7") != dealt("8")
+
+
+def test_each_categorization_rounds_its_spare_slot_its_own_way() -> None:
+    """Two even pairs at 11 slots do not always round up on the same side.
+
+    The rounding offset is hashed per categorization: one offset for all of
+    a topic's categorizations would give every one of them its spare slot
+    on the same side, topic after topic.
+    """
+    tone, length = categorization("tone", 0.5, 0.5), categorization("length", 0.5, 0.5)
+
+    def first_counts(seed: str) -> tuple[int, int]:
+        dealt = categories((tone, length), 11, seed)
+        return (
+            sum(names(one)[0] == "tone0" for one in dealt),
+            sum(names(one)[1] == "length0" for one in dealt),
+        )
+
+    assert any(a != b for a, b in map(first_counts, map(str, range(40))))
