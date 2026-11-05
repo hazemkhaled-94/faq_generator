@@ -80,16 +80,20 @@ def _dumps(directory: Path) -> dict[str, dict]:
 def _local(directory: Path, bucket: str, key: str) -> Path | None:
     """Where an object lives in the backup, or None when its key leads out of it.
 
-    A key is whatever wrote it to the store, and the manifest is a file: a `..`
-    segment or a leading `/` would otherwise name a file anywhere the operator
-    can write or read.
+    A key is whatever wrote it to the store, and the manifest is a file: an
+    empty, `.` or `..` part, or a leading `/`, would name a file anywhere the
+    operator can write or read, or alias another object's file. The folder
+    allowed is built from the directory the operator named, unresolved, so a
+    `s3` entry that is a symlink does not move it.
     """
-    path = directory / "s3" / bucket / key
-    inside = (directory / "s3").resolve()
-    folder = (directory / "s3" / bucket).resolve()
-    if folder.is_relative_to(inside) and path.resolve().is_relative_to(folder):
-        return path
-    return None
+    parts = key.split("/")
+    if bucket in ("", ".", "..") or "/" in bucket or "\\" in bucket:
+        return None
+    if any(part in ("", ".", "..") for part in parts):
+        return None
+    allowed = directory.resolve() / "s3" / bucket
+    path = allowed.joinpath(*parts)
+    return path if path.resolve().is_relative_to(allowed) else None
 
 
 def _in_scope(bucket: str, key: str, stack: bool, held: set[str]) -> bool:
