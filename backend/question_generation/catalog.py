@@ -130,8 +130,8 @@ def _joined(query: Select) -> Select:
 
     Outer throughout. A question reaches its document and its topic through
     its facts, and a question whose last fact has just gone is one the
-    trigger is about to delete: it should not disappear from a count before
-    it disappears from the table.
+    trigger rejects as `source_changed` and keeps: it has no document or
+    topic left to join, and it should stay in the count under its new status.
 
     A fact reaches its passages through `fact_passages`, so a bridge reaches
     both of its passages here: the documents a question is filtered by,
