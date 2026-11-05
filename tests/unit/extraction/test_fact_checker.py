@@ -3513,6 +3513,34 @@ def test_a_limit_after_a_preposition_that_also_sets_limits_is_no_year(
                 "the cited text gives 3 where the statement says 3"
             ),
         ),
+        (
+            "en",
+            "The promotional rate is 5 per cent for 12 months.",
+            "The promotional rate is 12 per cent for 5 months.",
+            (
+                "the statement asserts 12, 5, which the cited text does not say; "
+                "the cited text gives 12 where the statement says 12; "
+                "the cited text gives 5 where the statement says 5"
+            ),
+        ),
+        (
+            "en",
+            "EUR 5 is charged per transfer. Cash withdrawals cost EUR 2.",
+            "EUR 2 is charged per transfer.",
+            (
+                "the statement asserts 2, which the cited text does not say; "
+                "the cited text gives 5 where the statement says 2"
+            ),
+        ),
+        (
+            "de",
+            "EUR 5 werden je Überweisung berechnet. Barabhebungen kosten EUR 2.",
+            "EUR 2 werden je Überweisung berechnet.",
+            (
+                "the statement asserts 2, which the cited text does not say; "
+                "the cited text gives 5 where the statement says 2"
+            ),
+        ),
     ],
     ids=[
         "period-after-amount",
@@ -3520,6 +3548,9 @@ def test_a_limit_after_a_preposition_that_also_sets_limits_is_no_year(
         "traded-kinds",
         "unit-after-amount",
         "unit-de",
+        "share-phrase",
+        "amount-first",
+        "amount-first-de",
     ],
 )
 def test_a_swap_is_named_by_the_figure_the_cited_text_gives(
@@ -3563,6 +3594,12 @@ def test_a_cited_figure_beside_another_of_its_kind_is_no_swap(
             "el",
             "Χρέωση 5 EUR μετά από 14 ημέρες. Οι επιστροφές διαρκούν 30 ημέρες.",
             "Χρέωση 5 EUR μετά από 30 ημέρες.",
+        ),
+        ("fr", "Le compte existe depuis 2020.", "Le compte existe depuis 2021."),
+        (
+            "el",
+            "Ο λογαριασμός υπάρχει από το 2020.",
+            "Ο λογαριασμός υπάρχει από το 2021.",
         ),
     ],
 )
