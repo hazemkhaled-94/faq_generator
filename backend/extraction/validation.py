@@ -966,6 +966,24 @@ def _figure_tokens(
     return found
 
 
+#: A figure written as digit runs joined by one repeated mark: a clock time
+#: (`9:30`), a date (`01/12/2026`, `2026-12-01`), a range (`9-17`). A dotted
+#: figure is read whole by `_value` already and is left out.
+_JOINED = re.compile(r"(?<![\d.,])\d+(?:([:/-])\d+)(?:\1\d+)*(?![\d.,]?\d)")
+
+
+def _joined(text: str) -> list[tuple[str, tuple[int, ...], str]]:
+    """The figures of a text written as joined digit runs: mark, runs in order, as written.
+
+    Read from the text alone, so no language is needed: `9:30` is the runs 9
+    and 30 whatever its words are, and `08:30` and `8:30` are one figure.
+    """
+    return [
+        (found[1], tuple(int(run) for run in re.findall(r"\d+", found[0])), found[0])
+        for found in (match.group(0, 1) for match in _JOINED.finditer(text))
+    ]
+
+
 def _swapped(
     statement: str,
     evidence: str,
@@ -986,6 +1004,10 @@ def _swapped(
     a period) is a swap too: two figures traded between their kinds, "12 %
     for 5 months" for a cited "5 % for 12 months". So is a figure whose digits
     the cited text gives only before another noun: "3 weeks" for "3 days".
+    So is a figure written as joined digit runs (a clock time, a date) that the
+    cited text writes only with its runs in another order: "13:30 to 9:00" for
+    a cited "9:30 to 13:00", when every run is one the cited figures of that
+    shape hold.
     """
     elsewhere = numerals(passage.text, language)
     swaps: dict[str, str] = {}
@@ -1024,6 +1046,16 @@ def _swapped(
         ]
         if there and all(one and not one & nouns for _, one in there):
             swaps[unit] = there[0][0]
+    theirs = _joined(evidence)
+    for mark, runs, written in _joined(statement):
+        same = [(there, one) for there_mark, there, one in theirs if there_mark == mark]
+        same = [(there, one) for there, one in same if len(there) == len(runs)]
+        if (
+            same
+            and all(there != runs for there, _ in same)
+            and set(runs) <= {run for there, _ in same for run in there}
+        ):
+            swaps.setdefault(written, same[0][1])
     return swaps
 
 

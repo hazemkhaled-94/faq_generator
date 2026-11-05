@@ -3160,3 +3160,166 @@ def test_a_limit_after_a_preposition_that_also_sets_limits_is_no_year(
     judged = Checker(passage(text, language=language)).atomic(statement, 1)
 
     assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+#: (language, the cited sentence, a statement re-pairing the digit runs of its clock times or dates)
+_REPAIRED = [
+    (
+        "de",
+        "Die Filiale ist von 9:30 bis 13:00 Uhr geöffnet.",
+        "Die Filiale ist von 13:30 bis 9:00 Uhr geöffnet.",
+    ),
+    (
+        "en",
+        "The branch is open from 9:30 to 13:00.",
+        "The branch is open from 13:30 to 9:00.",
+    ),
+    (
+        "de",
+        "Der Kundenservice ist zwischen 8:15 und 18:00 Uhr erreichbar.",
+        "Der Kundenservice ist zwischen 8:00 und 18:15 Uhr erreichbar.",
+    ),
+    (
+        "en",
+        "Customer service answers calls between 8:15 and 18:00.",
+        "Customer service answers calls between 8:00 and 18:15.",
+    ),
+    (
+        "de",
+        "Die Preisänderung gilt ab dem 01/12/2026.",
+        "Die Preisänderung gilt ab dem 12/01/2026.",
+    ),
+    (
+        "en",
+        "The price change takes effect on 2026-12-01.",
+        "The price change takes effect on 2026-01-12.",
+    ),
+    (
+        "el",
+        "Το κατάστημα είναι ανοιχτό από 9:30 έως 13:00.",
+        "Το κατάστημα είναι ανοιχτό από 13:30 έως 9:00.",
+    ),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "statement"), _REPAIRED)
+def test_a_time_or_date_written_with_the_runs_of_cited_ones_in_another_order_is_refused(
+    lang, text, statement
+) -> None:
+    """13:30 is not a time "from 9:30 to 13:00" writes: each figure is read whole."""
+    fact = Checker(passage(text, language=lang)).atomic(statement, 0)
+    assert fact.rejection_code == Rejection.UNSUPPORTED_ADDITION, fact.validation_error
+
+
+def test_a_french_re_pairing_stays_refused() -> None:
+    """A language no pipeline names is refused for its verb, as before."""
+    fact = Checker(
+        passage("L'agence est ouverte de 9:30 à 13:00.", language="fr")
+    ).atomic("L'agence est ouverte de 13:30 à 9:00.", 0)
+    assert not fact.validated
+
+
+#: (language, the cited sentence, a statement writing its figures as they are, or one of them alone)
+_KEPT = [
+    ("de", "Die Filiale öffnet um 08:30 Uhr.", "Die Filiale öffnet um 8:30 Uhr."),
+    ("en", "The shop opens at 08:30.", "The shop opens at 8:30."),
+    (
+        "de",
+        "Das Bürgeramt ist von 9 bis 13:00 Uhr geöffnet.",
+        "Das Bürgeramt öffnet um 9:00 Uhr.",
+    ),
+    (
+        "en",
+        "The office is open from 9 to 13:00.",
+        "The office opens at 9:00.",
+    ),
+    (
+        "de",
+        "Das Bürgeramt ist montags bis freitags von 9:30 bis 13:00 Uhr geöffnet.",
+        "Das Bürgeramt ist Mo–Fr 9:30–13:00 Uhr geöffnet.",
+    ),
+    (
+        "en",
+        "The shop is open on weekdays from 9:30 to 13:00.",
+        "The shop is open 9:30-13:00 on weekdays.",
+    ),
+    (
+        "en",
+        "The shop is open on weekdays and opens at 9:30.",
+        "The shop opens at 9:30.",
+    ),
+    (
+        "de",
+        "Die Filiale ist von 9:00–12:00 und 13:00–18:00 Uhr geöffnet.",
+        "Die Mittagspause dauert von 12:00 bis 13:00 Uhr.",
+    ),
+    (
+        "en",
+        "The branch is open from 9:00–12:00 and 13:00–18:00.",
+        "The branch closes for lunch from 12:00 to 13:00.",
+    ),
+    (
+        "de",
+        "Der Zeitraum läuft vom 01/03/2026 bis 31/03/2026.",
+        "Der Zeitraum endet am 31/03/2026.",
+    ),
+    (
+        "en",
+        "The period runs from 01/03/2026 to 31/03/2026.",
+        "The period ends on 31/03/2026.",
+    ),
+    (
+        "de",
+        "Die Hotline erreichen Sie unter 030-1234-5678.",
+        "Die Hotline ist unter 030-1234-5678 erreichbar.",
+    ),
+    (
+        "en",
+        "Call our hotline on 030-1234-5678.",
+        "The hotline number is 030-1234-5678.",
+    ),
+    (
+        "de",
+        "Das Paket ist zwischen 68 cm und 70 cm lang.",
+        "Das Paket ist 68-70 cm lang.",
+    ),
+    (
+        "en",
+        "The parcel is between 68 cm and 70 cm long.",
+        "The parcel is 68-70 cm long.",
+    ),
+    (
+        "en",
+        "The mix ratio of the paint is 2:1.",
+        "The paint is mixed at a ratio of 2:1.",
+    ),
+    (
+        "de",
+        "Das Mischverhältnis beträgt 2:1.",
+        "Das Mischverhältnis der Farbe beträgt 2:1.",
+    ),
+    (
+        "de",
+        "Die Gebühr ist in Abschnitt 3-2 geregelt.",
+        "Abschnitt 3-2 regelt die Gebühr.",
+    ),
+    (
+        "en",
+        "The fee is set out in section 3-2.",
+        "Section 3-2 sets out the fee.",
+    ),
+    (
+        "en",
+        "The portal is open from 9:30 to 13:00 and from 14:00 to 17:00.",
+        "The portal is open from 14:00 to 17:00.",
+    ),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "statement"), _KEPT)
+def test_a_time_or_date_the_cited_text_writes_in_another_form_or_alone_validates(
+    lang, text, statement
+) -> None:
+    """Padding, a shape the cited text lacks and a figure kept whole are no re-pairing."""
+    fact = Checker(passage(text, language=lang)).atomic(statement, 0)
+    assert fact.validated, (fact.rejection_code, fact.validation_error)
