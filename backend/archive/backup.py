@@ -23,7 +23,6 @@ import hashlib
 import json
 import logging
 import os
-import stat
 import sys
 from pathlib import Path
 
@@ -78,60 +77,6 @@ def _dumps(directory: Path) -> dict[str, dict]:
     }
 
 
-def _local(directory: Path, bucket: str, key: str) -> Path | None:
-    """Where an object lives in the backup, or None when its key leads out of it.
-
-    A key is whatever wrote it to the store, and the manifest is a file: an
-    empty, `.` or `..` part, or a leading `/`, would name a file anywhere the
-    operator can write or read, or alias another object's file. The folder
-    allowed is built from the directory the operator named, unresolved, so a
-    `s3` entry that is a symlink does not move it.
-    """
-    parts = key.split("/")
-    if bucket in ("", ".", "..") or "/" in bucket or "\\" in bucket:
-        return None
-    if any(part in ("", ".", "..") for part in parts):
-        return None
-    allowed = directory.resolve() / "s3" / bucket
-    path = allowed.joinpath(*parts)
-    try:
-        return path if path.resolve().is_relative_to(allowed) else None
-    except (OSError, ValueError):  # a NUL, a loop of links, a name too long
-        return None
-
-
-def _read(path: Path) -> bytes | None:
-    """A backup file's bytes, or None for a link, a non-regular file or a hard link.
-
-    Opened without following a link, so a file swapped for one after the check
-    is not read.
-    """
-    try:
-        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-    except (OSError, ValueError):
-        return None
-    with os.fdopen(descriptor, "rb") as handle:
-        found = os.fstat(handle.fileno())
-        if not stat.S_ISREG(found.st_mode) or found.st_nlink > 1:
-            return None
-        return handle.read()
-
-
-def _layout(directory: Path) -> str | None:
-    """What is wrong with the folders of a backup, or None.
-
-    `s3` and each bucket folder in it must be real folders inside the
-    directory: a link would move where the objects are written or read.
-    """
-    folder = directory / "s3"
-    if not folder.exists() and not folder.is_symlink():
-        return None
-    for one in (folder, *(sorted(folder.iterdir()) if folder.is_dir() else ())):
-        if one.is_symlink() or not one.is_dir():
-            return f"{one} is a link or not a folder"
-    return None
-
-
 def _in_scope(bucket: str, key: str, stack: bool, held: set[str]) -> bool:
     """Whether a key is one this restore may touch: this database's own, or any on a stack restore.
 
@@ -153,31 +98,18 @@ def backup(directory: Path) -> dict:
     """Copies every object of every bucket under the directory, and writes the manifest.
 
     Returns:
-        The manifest, naming under `left_out` any object it could not copy.
+        The manifest.
     """
     source = store.object_store()
     objects = []
-    left_out = []
     for bucket in _buckets():
         for held in source.listed(bucket):
             data = source.get(bucket, held.key)
             if data is None:
                 continue
-            target = _local(directory, bucket, held.key)
-            if target is None:
-                log.error(
-                    "not backed up: %s/%s leads out of the backup", bucket, held.key
-                )
-                left_out.append(f"{bucket}/{held.key}")
-                continue
-            try:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(data)
-            except (OSError, ValueError) as refused:
-                # A NUL in a key, a file and a folder on one path, a name too long.
-                log.error("not backed up: %s/%s: %s", bucket, held.key, refused)
-                left_out.append(f"{bucket}/{held.key}")
-                continue
+            target = directory / "s3" / bucket / held.key
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
             objects.append(
                 {
                     "bucket": bucket,
@@ -191,8 +123,6 @@ def backup(directory: Path) -> dict:
         "objects": objects,
         "dumps": _dumps(directory),
     }
-    if left_out:
-        manifest["left_out"] = left_out
     (directory / MANIFEST).write_text(json.dumps(manifest, indent=1, sort_keys=True))
     log.info(
         "backed up %d object(s), %d dump(s) and the row counts of %d table(s)",
@@ -215,26 +145,10 @@ def restore(directory: Path, stack: bool = False) -> None:
     for held in json.loads((directory / MANIFEST).read_text())["objects"]:
         if not _in_scope(held["bucket"], held["key"], stack, owned):
             continue
-        path = _local(directory, held["bucket"], held["key"])
-        if path is None:
-            log.error(
-                "not restored: %s/%s leads out of the backup",
-                held["bucket"],
-                held["key"],
-            )
-            continue
-        data = _read(path)
-        if data is None:
-            log.error(
-                "not restored: %s/%s is not a plain file of the backup",
-                held["bucket"],
-                held["key"],
-            )
-            continue
         target.put(
             held["bucket"],
             held["key"],
-            data,
+            (directory / "s3" / held["bucket"] / held["key"]).read_bytes(),
             content_type="application/octet-stream",
         )
 
@@ -259,9 +173,6 @@ def verify(directory: Path, stack: bool = False) -> list[str]:
     for held in manifest["objects"]:
         if not _in_scope(held["bucket"], held["key"], stack, owned):
             continue
-        if _local(directory, held["bucket"], held["key"]) is None:
-            wrong.append(f"{held['bucket']}/{held['key']} leads out of the backup")
-            continue
         data = source.get(held["bucket"], held["key"])
         if data is None:
             wrong.append(f"{held['bucket']}/{held['key']} is missing")
@@ -279,9 +190,8 @@ def main(argv: list[str] | None = None) -> int:
     """Runs the command line.
 
     Returns:
-        0, 1 when a restore or verification found a difference or a backup left
-        an object out, or 2 when the directory cannot be backed up into or read
-        as a backup (`s3` or a bucket folder in it is a link or not a folder).
+        0, 1 when a restore or verification found a difference, or 2 when the
+        directory cannot be backed up into.
     """
     built = argparse.ArgumentParser(prog="python -m archive.backup")
     group = built.add_mutually_exclusive_group(required=True)
@@ -299,15 +209,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = built.parse_args(sys.argv[1:] if argv is None else argv)
     telemetry.configure("backup")
-    chosen = Path(args.backup or args.restore or args.verify)
-    if (wrong_layout := _layout(chosen)) is not None:
-        log.error(
-            "%s cannot be %s: %s",
-            chosen,
-            "backed up into" if args.backup else "read as a backup",
-            wrong_layout,
-        )
-        return 2
 
     if args.backup:
         directory = Path(args.backup)
@@ -319,12 +220,9 @@ def main(argv: list[str] | None = None) -> int:
             for folder in (directory, directory / "db"):
                 folder.mkdir(parents=True, exist_ok=True)
                 folder.chmod(0o700)
-            made = backup(directory)
+            backup(directory)
         finally:
             os.umask(before)
-        if made.get("left_out"):
-            log.error("%d object(s) left out of the backup", len(made["left_out"]))
-            return 1
         return 0
     directory = Path(args.restore or args.verify)
     if args.restore:
