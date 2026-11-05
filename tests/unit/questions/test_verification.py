@@ -7324,3 +7324,252 @@ def test_a_long_answer_is_usable_only_in_its_span_backed_and_saying_more_than_it
 ) -> None:
     """Both ends of the span count, figures are read cell by cell, nine tenths of the key is a restatement."""
     assert explains(explanation, target, passages, language, span) is expected
+
+
+# ── Probes, lemma shares and question words ────────────────────────────────
+
+
+def test_an_answerable_question_is_probed_among_answerable_ones_only() -> None:
+    """An unanswerable one is probed among both kinds, an answerable one not."""
+    from question_generation.gates import rivals
+
+    assert rivals(True) == (True,)
+    assert rivals(False) == (False, True)
+
+
+@pytest.mark.parametrize(("similarity", "refused"), [(0.96, False), (0.97, True)])
+def test_a_neighbour_sharing_nothing_is_refused_only_past_halfway_to_identical(
+    similarity, refused
+) -> None:
+    """Against 0.93, a pair citing nothing in common is held to 0.965."""
+    near = Neighbour("What does a card cost?", answerable=True, similarity=similarity)
+
+    assert (near_verdict(near, answerable=True, threshold=0.93) is not None) is refused
+
+
+@pytest.mark.parametrize(
+    ("question", "neighbour", "language"),
+    [
+        ("Wann wird eine Karte gesperrt?", "Warum wird eine Karte gesperrt?", "de"),
+        ("When is a card blocked?", "Why is a card blocked?", "en"),
+    ],
+)
+def test_a_neighbour_asking_with_another_question_word_is_held_to_the_higher_bar(
+    question, neighbour, language
+) -> None:
+    """`Wann` and `Warum` about one fact are a thread, not a twin."""
+    near = Neighbour(
+        neighbour,
+        answerable=True,
+        similarity=0.94,
+        fact_ids=frozenset({1}),
+        language=language,
+    )
+
+    assert (
+        near_verdict(
+            near,
+            answerable=True,
+            threshold=0.93,
+            question=question,
+            language=language,
+            facts=(1,),
+        )
+        is None
+    )
+
+
+def _decided(neighbours, **probed):
+    from question_generation.gates import deciding
+
+    found = deciding(neighbours, answerable=True, threshold=0.93, facts=(1,), **probed)
+    return found and found[0].question_text
+
+
+def test_the_deciding_neighbour_is_the_one_furthest_past_its_bar() -> None:
+    """0.99 against 0.965 beats 0.95 against 0.93, in either order; a tie keeps the first."""
+    shared = Neighbour("A?", answerable=True, similarity=0.95, fact_ids=frozenset({1}))
+    far = Neighbour("B?", answerable=True, similarity=0.99)
+    tied = Neighbour("C?", answerable=True, similarity=0.96, fact_ids=frozenset({1}))
+    level = Neighbour("D?", answerable=True, similarity=0.995)
+
+    assert _decided([far, shared]) == "B?"
+    assert _decided([tied, level]) == "C?"
+
+
+def test_a_neighbour_that_cannot_refuse_does_not_end_the_search() -> None:
+    """One in another language is skipped, and the next is still read."""
+    other = Neighbour(
+        "X?", answerable=True, similarity=0.99, fact_ids=frozenset({1}), language="en"
+    )
+    same = Neighbour(
+        "A?", answerable=True, similarity=0.95, fact_ids=frozenset({1}), language="de"
+    )
+
+    assert _decided([None, other, same], language="de") == "A?"
+
+
+@pytest.mark.parametrize(
+    ("question", "passage", "language"),
+    [
+        ("Welche Gebühren berechnet die Bank?", "Die Bank zahlt Zinsen.", "de"),
+        ("Which fees does the bank charge?", "The bank pays interest.", "en"),
+    ],
+)
+def test_an_unanswerable_question_sharing_the_floor_of_its_lemmas_is_on_topic(
+    question, passage, language
+) -> None:
+    """One of three lemmas meets a floor of one third, read in the question's language."""
+    from nlp.analysis import content
+
+    assert on_topic(question, language, content(passage, language), 1 / 3)
+
+
+def test_the_share_of_a_questions_lemmas_is_read_in_its_language() -> None:
+    """`Gebühren` and `berechnet` are `Gebühr` and `berechnen`: two of four."""
+    from nlp.analysis import content
+
+    from question_generation.gates import shared_lemmas
+
+    assert (
+        shared_lemmas(
+            "Welche Gebühren berechnet die Bank?",
+            content("Die Bank berechnet Zinsen.", "de"),
+            "de",
+        )
+        == 0.5
+    )
+
+
+@pytest.mark.parametrize(
+    ("recovered", "target", "share"),
+    [
+        ("eine Gebühr", "Karte und Konto", 1.0),
+        ("Gebühren und Zinsen", "Karte und Konto", 1.0),
+        ("die Gebühren, die Zinsen und die Prämien", "die Gebühren und die Zinsen", 2 / 3),
+    ],
+)
+def test_a_key_covers_what_the_verifier_found_unless_it_found_more(
+    recovered, target, share
+) -> None:
+    """No more lemmas found than the key holds is full cover; three found, two keyed, two thirds."""
+    from question_generation.gates import covered
+
+    assert covered(recovered, target, "de") == pytest.approx(share)
+
+
+def test_a_figure_in_one_cited_cell_is_asserted_by_the_passages() -> None:
+    """Cells are read apart: `5` closing one and `60` opening the next are both stated."""
+    assert asserted("5 und 60", ("Monatsgebühr 5", "60 Jahresgebühr"), "de")
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        (
+            "Wie hoch ist die Gebühr?",
+            "5 EUR für das Girokonto und 0 EUR für das Sparkonto",
+            "de",
+        ),
+        (
+            "What is the fee?",
+            "5 EUR for the current account and 0 EUR for the savings account",
+            "en",
+        ),
+    ],
+)
+def test_a_comparison_whose_question_names_one_thing_compares_nothing(
+    question, answer, language
+) -> None:
+    """Two sides in the answer do not make up for one subject in the question."""
+    assert not compares(question, answer, language)
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "same"),
+    [
+        ("Wann wird eine Karte gesperrt?", "Warum wird eine Karte gesperrt?", False),
+        ("Wann wird eine Karte gesperrt?", "Die Karte wird gesperrt?", True),
+        ("Wer genehmigt den Kredit?", "Wer prüft den Kredit?", True),
+    ],
+)
+def test_two_questions_ask_the_same_unless_their_question_words_differ(
+    first, second, same
+) -> None:
+    """German question words read by the German parse; one with none tells nothing."""
+    from question_generation.gates import asks_the_same
+
+    assert asks_the_same(first, second, "de") is same
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        ("Wer genehmigt einen Kredit?", "der Ausschuss", "de"),
+        ("Welche Mitarbeiterin genehmigt den Kredit?", "Herr Schneider", "de"),
+        ("Which employee approves the loan?", "John Smith", "en"),
+    ],
+)
+def test_an_entity_question_asks_after_a_party_by_its_word_or_its_answers_person(
+    question, answer, language
+) -> None:
+    """`Wer`, or a person the German or the English tagger labels as one."""
+    assert asks_for_an_agent(question, answer, language)
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "expected"),
+    [
+        ("Gilt keine Gebühr für ein Girokonto?", "keine Gebühr für ein Girokonto", "de", True),
+        ("Welche Gebühr gilt für ein Girokonto?", "ja, die Gebühr für ein Girokonto", "de", True),
+        (
+            "What fee applies to a current account?",
+            "the monthly fee for a current account",
+            "en",
+            False,
+        ),
+    ],
+)
+def test_an_answer_restates_unless_a_quarter_of_it_or_its_polarity_is_new(
+    question, answer, language, expected
+) -> None:
+    """A `keine` the question already says adds nothing; one new lemma of four is enough."""
+    assert restates(question, answer, language) is expected
+
+
+@pytest.mark.parametrize(
+    ("question", "language", "expected"),
+    [
+        (
+            "Wie hoch ist die Gebühr für das Girokonto im Jahr 2025?",
+            "de",
+            "die Gebühr das Girokonto Jahr 2025",
+        ),
+        (
+            "What is the fee for the current account in 2025?",
+            "en",
+            "the current account the fee 2025",
+        ),
+    ],
+)
+def test_a_questions_subject_is_its_phrases_and_figures_read_in_its_language(
+    question, language, expected
+) -> None:
+    """One space between spans, and a German question's units read by the German parse."""
+    from question_generation.gates import subject
+
+    assert subject(question, language) == expected
+
+
+def test_a_relation_word_is_read_by_its_lemma() -> None:
+    """`unterscheidet` is `unterscheiden`, which neither half says."""
+    from question_generation.gates import relates
+
+    assert (
+        relates(
+            "Was unterscheidet die Kündigung von der Sperre?",
+            "de",
+            ("Die Kündigung gilt ab Mai.", "Die Sperre gilt ab Juni."),
+        )
+        == "unterscheiden"
+    )
