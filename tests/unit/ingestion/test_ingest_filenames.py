@@ -86,6 +86,8 @@ class _Repository:
     ) -> None:
         """Keeps the attempt."""
         filename.encode()  # the column would refuse what this refuses
+        if "\x00" in filename:
+            raise ValueError("a string literal cannot contain NUL (0x00) characters")
         self.events.append((filename, outcome))
 
     def store(self, upload, facts) -> str:
@@ -110,12 +112,12 @@ class _Store:
             value.encode()
 
 
-def _service(repository: _Repository) -> IngestService:
+def _service(repository: _Repository, limit: int = 10 * 1024 * 1024) -> IngestService:
     """A service over the stand-ins."""
     return IngestService(
         repository=repository,  # type: ignore[arg-type]
         store=_Store(),  # type: ignore[arg-type]
-        max_file_size_bytes=10 * 1024 * 1024,
+        max_file_size_bytes=limit,
         allowed_media_types=("application/pdf",),
         pipeline_version="test",
     )
@@ -131,18 +133,27 @@ def _service(repository: _Repository) -> IngestService:
         "nul\x00name.pdf",
     ],
 )
-def test_one_unstorable_filename_does_not_stop_the_batch(name: str, caplog) -> None:
-    """Both good files around it are ingested; the folder is reported refused."""
+@pytest.mark.parametrize("oversized", [False, True])
+def test_one_unstorable_filename_does_not_stop_the_batch(
+    name: str, oversized: bool, caplog
+) -> None:
+    """Both good files around it are ingested; the folder is reported refused.
+
+    The oversized case is one padded past the limit: it takes the other road
+    through the service, which must refuse the name the same way.
+    """
     repository = _Repository()
+    padded = _pdf("Preisliste") + b"0" * 4096
     folder = _Folder(
         [
             _File("a-first.pdf", _pdf("Price list")),
-            _File(name, _pdf("Preisliste")),
+            _File(name, padded if oversized else _pdf("Preisliste")),
             _File("zz-last.pdf", _pdf("Tarif")),
         ]
     )
 
-    code = run._add(folder, _service(repository))  # type: ignore[arg-type]
+    service = _service(repository, 2048 if oversized else 10 * 1024 * 1024)
+    code = run._add(folder, service)  # type: ignore[arg-type]
 
     assert repository.stored == ["a-first.pdf", "zz-last.pdf"]
     assert code == 1

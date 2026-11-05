@@ -24,6 +24,25 @@ log = logging.getLogger(__name__)
 span = tracer(__name__)
 
 
+def _unstorable(filename: str) -> IngestResult | None:
+    """The refusal for a filename no text column can hold, or None.
+
+    A NUL byte, or a lone surrogate, which a name that is not valid UTF-8
+    reads back with, cannot be written to the events table, the object
+    metadata or the log, so nothing is recorded for it.
+    """
+    if storable(filename):
+        return None
+    detail = "a filename may not hold a NUL byte or a lone surrogate"
+    log.info(
+        "%s %s: %s",
+        INVALID_VALUE,
+        filename.encode("utf-8", "backslashreplace").decode(),
+        detail,
+    )
+    return IngestResult(INVALID_VALUE, None, detail)
+
+
 class IngestService:
     """Accepts one uploaded file and decides what becomes of it.
 
@@ -135,15 +154,8 @@ class IngestService:
             anything is recorded: the name cannot be written to the events
             table, the object metadata or the log.
         """
-        if not storable(upload.filename):
-            detail = "a filename may not hold a NUL byte or a lone surrogate"
-            log.info(
-                "%s %s: %s",
-                INVALID_VALUE,
-                upload.filename.encode("utf-8", "backslashreplace").decode(),
-                detail,
-            )
-            return IngestResult(INVALID_VALUE, None, detail)
+        if (unstorable := _unstorable(upload.filename)) is not None:
+            return unstorable
         with working(
             span,
             "ingest",
@@ -170,8 +182,11 @@ class IngestService:
             size_bytes: Size the request declared.
 
         Returns:
-            A TOO_LARGE result carrying the measurement.
+            A TOO_LARGE result carrying the measurement, or `invalid_value`
+            for a filename no text column can hold, as `ingest` refuses it.
         """
+        if (unstorable := _unstorable(filename)) is not None:
+            return unstorable
         detail = self._over_limit(size_bytes)
         self._repository.record_attempt(filename, size_bytes, Outcome.TOO_LARGE, detail)
         log.info("too_large %s (%d bytes declared): %s", filename, size_bytes, detail)
