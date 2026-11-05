@@ -1587,6 +1587,63 @@ def test_a_range_comes_back_end_by_end(language, question, target, recovered) ->
     )
 
 
+# N-134: both ends of a range written with an ordinal stop are read as ordinals.
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered"),
+    [
+        (
+            "de",
+            "Wann ist die Filiale geschlossen?",
+            "1.–3. Mai",
+            "Die Filiale ist vom 1. bis 3. Mai geschlossen.",
+        ),
+        (
+            "de",
+            "Wann ist die Filiale geschlossen?",
+            "1.–3. Mai",
+            "Die Filiale ist vom 1. bis zum 3. Mai geschlossen.",
+        ),
+        (
+            "de",
+            "Wann ist die Filiale geschlossen?",
+            "1.–3. Mai",
+            "Die Filiale ist vom 1.–3. Mai geschlossen.",
+        ),
+        (
+            "en",
+            "When is the branch closed?",
+            "1–3 May",
+            "The branch is closed from 1 to 3 May.",
+        ),
+    ],
+)
+def test_a_range_written_with_ordinal_stops_comes_back_end_by_end(
+    language, question, target, recovered
+) -> None:
+    """`1.–3. Mai` is the 1st to the 3rd of May, however the recovery writes the ends."""
+    assert agrees(
+        recovered,
+        target,
+        language,
+        AnswerForm.VALUE,
+        question=question,
+        passages=(recovered,),
+    )
+
+
+def test_a_range_with_ordinal_stops_is_still_held_to_both_ends() -> None:
+    """The control: `bis 4.` is not `bis 3.`."""
+    recovered = "Die Filiale ist vom 1. bis 4. Mai geschlossen."
+    assert not agrees(
+        recovered,
+        "1.–3. Mai",
+        "de",
+        AnswerForm.VALUE,
+        question="Wann ist die Filiale geschlossen?",
+        passages=(recovered,),
+    )
+
+
 @pytest.mark.parametrize(
     ("language", "question", "target", "recovered"),
     [

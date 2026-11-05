@@ -169,7 +169,14 @@ def _ends(
     for one in units:
         ranges = [found.groups() for unit in one if (found := _RANGE.fullmatch(unit))]
         if ranges:
-            read.update(_readings(end, language) for end in ranges[0])
+            first, second = ranges[0]
+            # The tokenizer splits the stop off `1.–3.`, so the second end
+            # comes without the one the first carries: both are ordinals.
+            for suffix in ORDINAL_SUFFIX.get((language or "").lower(), ()):
+                if first.endswith(suffix) and first[: -len(suffix)].isdigit():
+                    second = second + suffix if second.isdigit() else second
+                    break
+            read.update(_readings(end, language) for end in (first, second))
         else:
             read.add(one)
     return frozenset(read)
