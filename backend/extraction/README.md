@@ -143,8 +143,9 @@ two-digit minutes (`9:30`), or a date of three runs joined by one repeated `/` o
 `-` with its four-digit year at the same end (`01-12-2026`, `2026-12-01`), that
 the cited text writes only with its runs in another order: "13:30 to 9:00" for a
 cited "9:30 to 13:00", "12-01-2026" for "01-12-2026". A date with a day over 12,
-a time the cited text writes with a dot, `24:00` for `0:00`, a ratio, a season
-and a range are not read. `not_bridging` also refuses a statement naming the numbered
+a time the cited text writes with a dot, `24:00` for `0:00`, a ratio whose terms
+are not a time (`2:1`), a season and a range are not read; an hour the cited text
+writes alone ("8 to 12") counts as a time it writes. `not_bridging` also refuses a statement naming the numbered
 heading of a cited passage ("Section 7"), because that is a claim about the
 document.
 

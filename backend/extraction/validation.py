@@ -1020,12 +1020,20 @@ def _repaired(statement: str, evidence: str) -> dict[str, str]:
     swaps: dict[str, str] = {}
     theirs = _clocks(evidence)
     held = {at for at, _, _ in theirs}
-    held |= {at for at, _, _ in _clocks(evidence.replace(".", ":"))}
+    # An hour the cited text writes alone ("8 to 12", "9 am") is a time too.
+    rest = _CLOCK_FIGURE.sub(" ", _DATE_FIGURE.sub(" ", evidence))
+    held |= {
+        (int(hour) % 24, 0)
+        for hour in re.findall(r"(?<![\d.,])\d{1,2}(?![\d.,]?\d)", rest)
+        if int(hour) <= 24
+    }
     colons = [(at, one) for at, mark, one in theirs if mark == ":"]
+    hours = {at[0] for at, _ in colons}
+    minutes = {at[1] for at, _ in colons}
     for at, mark, written in _clocks(statement):
         if mark != ":" or at in held or not colons:
             continue
-        if set(at) <= {run for there, _ in colons for run in there}:
+        if at[0] in hours and at[1] in minutes:
             swaps.setdefault(written, colons[0][1])
     cited = _dates(evidence)
     for first, runs, written in _dates(statement):
