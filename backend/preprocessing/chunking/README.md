@@ -352,4 +352,8 @@ Unit tests stand in only for the database and the passage builder
   converter starts a new list on every page, so a list that opens on a later
   page right where the one before it ends, with nothing between them, goes on
   at the levels open there, each page's indent read off that page's own column
-  edge. A nested item is rendered indented four spaces per level.
+  edge. A page that holds only the list's items has no such edge: it is read
+  off the nearest page of the same parity that has one (facing pages mirror
+  their margins), else off the page before but never right of the list's own
+  leftmost item there; a page whose items start at several indents and lie
+  further right than that restarts at level 0, as a list of its own does. A nested item is rendered indented four spaces per level.

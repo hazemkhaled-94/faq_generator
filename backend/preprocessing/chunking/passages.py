@@ -273,6 +273,13 @@ def nested(document: DoclingDocument) -> DoclingDocument:
         reverse = right_to_left(" ".join(one.text for one in items))
         edges = blocks[reverse]
         listed = {one.self_ref for one in items}
+        leftmost: dict[int, float] = {}
+        rightmost: dict[int, float] = {}
+        for one in items:
+            first = _sides(one.prov[0], reverse)[0]
+            page = one.prov[0].page_no
+            leftmost[page] = min(first, leftmost.get(page, first))
+            rightmost[page] = max(first, rightmost.get(page, first))
         edge = _column_edge(
             items[0].prov[0].page_no, _sides(items[0].prov[0], reverse)[0], edges
         )
@@ -291,7 +298,24 @@ def nested(document: DoclingDocument) -> DoclingDocument:
                 elif before_start + step < start:
                     levels.append((start - edge, before.self_ref))
             else:
-                edge = _page_edge(here.page_no, start, edges, listed, edge)
+                found = _page_edge(
+                    here.page_no, start, edges, listed, edge, leftmost, step
+                )
+                if (
+                    found is None
+                    and rightmost[here.page_no] - leftmost[here.page_no] <= step
+                ):
+                    # One indent alone on the page: sub-items of the open level
+                    # as likely as a page set further right, and the page before
+                    # is what is known.
+                    found = edge
+                if found is None:
+                    # No edge to read the page's indents off: the levels open
+                    # before are not carried onto it, as for a list of its own.
+                    levels = [(0.0, None)]
+                    edge = leftmost[here.page_no]
+                else:
+                    edge = found
             indent = start - edge
             while len(levels) > 1 and indent < levels[-1][0] - step:
                 levels.pop()
@@ -374,21 +398,43 @@ def _page_edge(
     edges: dict[int, list[tuple[float, float, str]]],
     listed: set[str],
     before: float,
-) -> float:
-    """The column edge of a page a list goes on at, read off the blocks outside it.
+    leftmost: dict[int, float],
+    step: float,
+) -> float | None:
+    """The column edge of a page a list goes on at, or None where none can be read.
 
-    The list's own items are left out: a page holding only its sub-items
-    would put its edge at theirs. Where no other block reaches across `start`,
-    the edge `before` stays.
+    Read off the blocks outside the list, since its own items on a page that
+    holds only them would put the edge at theirs. Where no other block reaches
+    across `start`, the edge of the nearest page of the same parity that has
+    one: facing pages mirror their margins, so the page two before or after
+    is set as this one is. Failing that, the edge `before`, but never right
+    of the list's own leftmost item on the page, which cannot print left of its
+    outer level; unless that item lies more than `step` right of `before`,
+    where a page set further right cannot be told from one that holds only
+    sub-items, and nothing is read. `nested` then reads a page whose items all
+    start at one indent off the edge before, as sub-items of the open level, and
+    restarts at level 0 on any other.
     """
-    return min(
+    own = min(
         (
             first
             for first, end, reference in edges.get(page, ())
             if reference not in listed and first <= start < end
         ),
-        default=before,
+        default=None,
     )
+    if own is not None:
+        return own
+    for near in sorted(
+        (other for other in edges if other != page and (other - page) % 2 == 0),
+        key=lambda other: (abs(other - page), other),
+    ):
+        outside = [first for first, _, one in edges[near] if one not in listed]
+        if outside:
+            return min(outside)
+    if leftmost[page] > before + step:
+        return None
+    return min(before, leftmost[page])
 
 
 def _ref(reference: str) -> RefItem:
