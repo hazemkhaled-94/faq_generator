@@ -459,3 +459,129 @@ def test_a_quoted_span_names_a_heading_of_another_document_the_sentence_names(
     assert [(k.kind, k.named) for k in got if k.kind == "reference"] == [
         ("reference", bank.section_path)
     ]
+
+
+#: (language, the quoting sentence, the quoting trail, the target heading, the target document's title)
+_TITLED = [
+    (
+        "en",
+        'See "Cancellation" in our Terms and Conditions.',
+        "Orders > Cancelling",
+        "Cancellation",
+        "Terms and Conditions",
+    ),
+    (
+        "en",
+        'See "Cancellation" in our Terms and Conditions.',
+        "Orders > Cancelling",
+        "Cancellation",
+        "Terms and Conditions of Example Shop Ltd",
+    ),
+    (
+        "en",
+        'Notice periods are set out under "Termination" in our General Terms and Conditions.',
+        "Account > Closing",
+        "Termination",
+        "General Terms and Conditions",
+    ),
+    (
+        "en",
+        'The fees are listed under "Current account" in the Price List.',
+        "Accounts > Fees",
+        "Current account",
+        "Price List - Example Bank plc (valid from 1 January 2026)",
+    ),
+    (
+        "en",
+        'Fees are listed under "Charges" in the Account Terms.',
+        "Accounts > Fees",
+        "Charges",
+        "Account Terms",
+    ),
+    (
+        "de",
+        "Die Widerrufsfrist ist im Abschnitt „Widerruf“ unserer AGB geregelt.",
+        "Bestellung > Rücksendung",
+        "Widerruf",
+        "Allgemeine Geschäftsbedingungen (AGB) der Beispiel-Shop GmbH",
+    ),
+    (
+        "de",
+        "Die Entgelte finden Sie im Preis- und Leistungsverzeichnis unter „Girokonto“.",
+        "Konto > Kosten",
+        "Girokonto",
+        "Preis- und Leistungsverzeichnis der Musterbank, Stand 1. Januar 2026",
+    ),
+    (
+        "de",
+        "Einzelheiten regelt der Abschnitt „Kündigung“ der Allgemeinen Geschäftsbedingungen der Musterbank.",
+        "Girokonto > Konto schließen",
+        "Kündigung",
+        "Allgemeine Geschäftsbedingungen der Musterbank AG",
+    ),
+    (
+        "en",
+        'Apply online through the Citizens Portal under "Applications".',
+        "Registration > Moving",
+        "Applications",
+        "Citizens Portal of Example Town",
+    ),
+]
+
+
+@pytest.mark.parametrize(("language", "text", "trail", "heading", "title"), _TITLED)
+def test_a_quoted_heading_of_a_document_the_sentence_names_by_its_title_links(
+    language, text, trail, heading, title
+):
+    """A title as a bank or a shop writes it, with its issuer, edition or abbreviation."""
+    shop = titled(text, trail, 1, "shop-a", language, "Help centre")
+    other = titled("Text of the section.", heading, 2, "doc-b", language, title)
+    got = linked([shop], [shop, other], {1: 1, 2: 1}, 5, 2)
+    assert [(k.kind, k.named) for k in got if k.kind == "reference"] == [
+        ("reference", heading)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "heading", "title"),
+    [
+        (
+            "de",
+            "Zum Ändern Ihrer Adresse klicken Sie im Kundenkonto auf „Kontakt“.",
+            "Kontakt",
+            "Kontakt",
+        ),
+        (
+            "en",
+            'To change your address, click "Contact" in your account.',
+            "Contact",
+            "Contact",
+        ),
+        (
+            "de",
+            "Klicken Sie auf „Kontakt“. Kontaktdaten der Bank stehen in den Kontobedingungen.",
+            "Kontakt",
+            "Kontobedingungen",
+        ),
+        (
+            "en",
+            'Click "Contact" to write to us. Bank details are in the Account Terms.',
+            "Contact",
+            "Account Terms",
+        ),
+        (
+            "en",
+            'Under "Returns" your account lists the direct debits returned to the bank.',
+            "Returns",
+            "Returns",
+        ),
+    ],
+)
+def test_a_quote_is_no_naming_of_a_title_by_itself_or_by_another_sentence(
+    language, text, heading, title
+):
+    """The title is read in the sentence of the quote with the quote taken out."""
+    shop = titled(text, "Account > Address", 1, "shop-a", language, "Help centre")
+    other = titled("Text of the section.", heading, 2, "doc-b", language, title)
+    got = linked([shop], [shop, other], {1: 1, 2: 1}, 5, 2)
+    assert [k for k in got if k.kind == "reference"] == []
