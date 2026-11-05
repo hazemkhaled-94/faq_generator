@@ -74,7 +74,11 @@ def _add(folder: Path, service) -> int:
     for path in sorted(folder.iterdir()):
         if not (path.is_file() and path.suffix.lower() == ".pdf"):
             continue
-        result = service.ingest(UploadedFile(path.name, path.read_bytes()))
+        # At most one byte past the limit, as the api reads an upload: the
+        # service refuses a longer file, and the rest is never held.
+        with path.open("rb") as handle:
+            data = handle.read(service.max_file_size_bytes + 1)
+        result = service.ingest(UploadedFile(path.name, data))
         outcomes[result.outcome] += 1
         log.info(
             "%s: %s%s",
