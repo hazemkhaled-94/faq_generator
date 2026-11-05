@@ -1152,6 +1152,16 @@ ORDINAL_SUFFIX: dict[str, tuple[str, ...]] = {
     "en": ("st", "nd", "rd", "th"),
 }
 
+#: The tag each language's tagger gives the particle a comparison turns on
+#: (`als`, `wie`), by ISO 639-1 code, as the tagger writes it; an empty tag is
+#: a tagger with none, and English reads `than` as an ordinary preposition. A
+#: newly configured language supplies its row: the tag its model gives that
+#: particle, or the empty tag.
+COMPARISON_TAG: dict[str, str] = {
+    "de": "KOKOM",
+    "en": "",
+}
+
 #: Number words by ISO 639-1 code, as the digits each names: the cardinals
 #: and the ordinals. What lets "two ports" restate "2 ports" and keeps "zwei"
 #: and "drei" apart: spaCy's `like_num` knows English number words and no
