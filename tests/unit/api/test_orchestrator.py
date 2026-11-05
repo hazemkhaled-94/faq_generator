@@ -167,7 +167,7 @@ def test_an_error_dagster_answers_with_a_500_is_still_an_answer() -> None:
         ),
     )
 
-    with pytest.raises(Refused, match="CheckError"):
+    with pytest.raises(Refused, match="PythonError"):
         client._switch("sensor", SENSOR, "bad-id", on=False)
 
 
@@ -264,8 +264,10 @@ def test_launch_names_the_job_and_the_code_location_that_holds_it() -> None:
     }
 
 
-def test_a_job_the_orchestrator_cannot_find_is_refused_with_its_own_words() -> None:
-    """The message names which of a job, a location or a run was missing."""
+def test_a_job_the_orchestrator_cannot_find_is_refused_naming_its_type(
+    caplog,
+) -> None:
+    """The answer names the type; the log holds which job, location or run was missing."""
     client, _ = dagster(
         {
             "data": {
@@ -277,8 +279,9 @@ def test_a_job_the_orchestrator_cannot_find_is_refused_with_its_own_words() -> N
         }
     )
 
-    with pytest.raises(Refused, match="Could not find Pipeline"):
+    with pytest.raises(Refused, match="PipelineNotFoundError"):
         client.launch()
+    assert "Could not find Pipeline corpus" in caplog.text
 
 
 def test_a_failure_branch_with_no_message_is_named_by_its_type() -> None:
@@ -295,7 +298,7 @@ def test_graphql_errors_are_refusals_rather_than_empty_answers() -> None:
     """A query the server rejected must never read as "nothing happened"."""
     client, _ = dagster({"errors": [{"message": "Cannot query field 'nope'"}]})
 
-    with pytest.raises(Refused, match="Cannot query field"):
+    with pytest.raises(Refused, match="GraphQLError"):
         client.launch()
 
 
@@ -387,7 +390,7 @@ def test_a_forced_cancel_that_is_refused_too_is_raised_not_repeated() -> None:
         failure("no."), status_of("STARTED"), failure("still no."), status_of("STARTED")
     )
 
-    with pytest.raises(Refused, match="still no"):
+    with pytest.raises(Refused, match="TerminateRunFailure"):
         client.terminate("run-0")
     assert len(session.sent) == 4
 
@@ -396,7 +399,7 @@ def test_a_run_that_could_not_be_stopped_for_another_reason_is_refused() -> None
     """Anything but "already finished" is a Stop that did not happen."""
     client, _ = dagster(failure("no run coordinator"), status_of("QUEUED"))
 
-    with pytest.raises(Refused, match="no run coordinator"):
+    with pytest.raises(Refused, match="TerminateRunFailure"):
         client.terminate("run-0")
 
 
@@ -479,5 +482,5 @@ def test_a_refused_switch_says_so_rather_than_reporting_the_old_state() -> None:
         },
     )
 
-    with pytest.raises(Refused, match="not permitted"):
+    with pytest.raises(Refused, match="UnauthorizedError"):
         client.automate(on_arrival=True, nightly=None)
