@@ -249,6 +249,34 @@ def test_a_malformed_s3_buckets_entry_is_refused(given) -> None:
         store.bucket_names({"S3_BUCKETS": given})
 
 
+@pytest.mark.parametrize(
+    ("given", "roles", "bucket"),
+    [
+        (
+            "documents=bank-faq,parsed=bank-faq,archive=bank-faq",
+            "documents",
+            "bank-faq",
+        ),
+        ("documents=shop, archive=shop", "documents", "shop"),
+        ("parsed=archive", "parsed", "archive"),  # clashes with a default name
+        ("archive=Amt für Soziales,models=Amt für Soziales", "archive", "Amt für"),
+    ],
+)
+def test_two_roles_on_one_bucket_are_refused_naming_both_and_the_bucket(
+    given, roles, bucket
+) -> None:
+    """A bucket shared with a live role is refused.
+
+    An archive purge deletes every key of the database in the archive's bucket,
+    live documents included.
+    """
+    with pytest.raises(ValueError, match="each role needs its own") as caught:
+        store.bucket_names({"S3_BUCKETS": given})
+
+    assert roles in str(caught.value)
+    assert bucket in str(caught.value)
+
+
 @pytest.mark.parametrize("given", [None, ""])
 def test_unset_or_empty_names_the_s3_adapter(monkeypatch, given) -> None:
     """Compose hands an unset name over empty, and both read as `s3`."""

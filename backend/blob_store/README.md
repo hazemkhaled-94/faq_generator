@@ -60,7 +60,7 @@ SeaweedFS server publishes a port.
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY` | The credential. Empty lets boto3 find one (an instance role, a profile) |
 | `S3_REGION` | `local` for a self-hosted gateway, the real region for AWS, `auto` for R2 |
 | `S3_ADDRESSING_STYLE` | `path` for a self-hosted gateway, `auto` for AWS |
-| `S3_BUCKETS` | The bucket of each role, as names or `role=bucket` entries. [`configs/seaweedfs/bucket-init.sh`](../../configs/seaweedfs/bucket-init.sh) creates them at first boot |
+| `S3_BUCKETS` | The bucket of each role, as names or `role=bucket` entries; each role needs its own bucket, and two roles on one are refused, because an archive purge would delete the live files beside it. [`configs/seaweedfs/bucket-init.sh`](../../configs/seaweedfs/bucket-init.sh) creates them at first boot |
 | `OBJECT_STORE` | Which adapter: `s3`, the only one there is |
 
 An empty value means the SDK's default. A setting not set at all raises, so

@@ -208,7 +208,11 @@ component](architecture.md#swapping-a-component) says what each port is.
 
 `S3_BUCKETS` names the bucket of each role, as `documents,parsed,models,export,archive`
 or as `role=bucket` entries (`documents=acme-docs`) where a deployment names
-one differently. A role not named keeps its own name. The backend asks for each
+one differently. A role not named keeps its own name. Each role needs its own
+bucket: two roles that resolve to one bucket are refused when the setting is read, because
+the archive's listing and purge cover every key of the database in its bucket,
+which is where the live roles keep theirs, so a shared bucket would lose live
+files to `make archive-purge`. The backend asks for each
 configured bucket by name and never lists the account's buckets, because a
 credential limited to one bucket is refused the listing.
 

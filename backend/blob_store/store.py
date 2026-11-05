@@ -96,7 +96,10 @@ def bucket_names(source: Mapping[str, str] | None = None) -> dict[str, str]:
     A role not named keeps its own name.
 
     Raises:
-        ValueError: If an entry is empty on either side of its `=`, or has two.
+        ValueError: If an entry is empty on either side of its `=`, or has two,
+            or if two roles resolve to one bucket. The archive's listing and
+            purge cover every key of the database in its bucket, which is where
+            a live role keeps its keys too.
     """
     given: dict[str, str] = {}
     for entry in (
@@ -109,7 +112,16 @@ def bucket_names(source: Mapping[str, str] | None = None) -> dict[str, str]:
         if "=" in bucket or not role.strip() or (entry != role and not bucket.strip()):
             raise ValueError(f"S3_BUCKETS entry {entry!r} is not name or role=bucket")
         given[role.strip()] = bucket.strip() or role.strip()
-    return {role: given.get(role, role) for role in ROLES}
+    names = {role: given.get(role, role) for role in ROLES}
+    seen: dict[str, str] = {}
+    for role, bucket in names.items():
+        if bucket in seen:
+            raise ValueError(
+                f"S3_BUCKETS gives roles {seen[bucket]!r} and {role!r} one "
+                f"bucket, {bucket!r}; each role needs its own"
+            )
+        seen[bucket] = role
+    return names
 
 
 def bucket_name(role: str) -> str:
