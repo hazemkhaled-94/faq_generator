@@ -175,6 +175,7 @@ pattern.
 | `_ORDINALS` | same | The ordinals `_NUMBER_WORDS` holds. An English hyphenated ordinal (`twenty-first`) is read as its last word | `zweite`, `second` |
 | `_ORDINAL_FORMS` | same | How the ordinals from thirteenth on are composed from a cardinal and its value, each form a written one takes. A language with no row composes none | `dreizehnte`, `thirteenth` |
 | `ORDINAL_SUFFIX` | same | What follows the digits of an ordinal figure: `3rd`, a German `3.` | `st`, `nd`, `rd`, `th`, `.` |
+| `COMPARISON_TAG` | same | The tag the language's tagger gives the particle a comparison turns on, so a noun it governs counts as a phrase of a comparison answer. An empty tag reads none; English reads `than` as an ordinary preposition | `KOKOM` |
 | `_CORRELATES` | same | Pronouns standing for an object or clause, not a noun | `es` |
 | `_PLACEHOLDER_GENDER` | same | The gender the placeholder pronoun before a clause carries, `None` where the pipeline marks none on it. A language with no row has no placeholder read: French `il` is masculine | `Neut` |
 | `_COMPLEMENTIZERS` | same | The conjunctions, as lemmas, that open the clause a placeholder pronoun stands for, against the one that opens a condition. A language with no row accepts only an infinitive | `dass`, `ob` |
