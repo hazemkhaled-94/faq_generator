@@ -109,9 +109,8 @@ reference moves.
 cut:
 
 - A paragraph that is a running head or foot, with page numbers allowed after
-  it, and that lies in the top or bottom tenth of its page. A line that opens
-  with the foot's name and goes on (an imprint, a contact line) stays, and so
-  does the foot's own text printed in the body of the page.
+  it. A line that opens with the foot's name and goes on (an imprint, a
+  contact line) stays.
 - A one-letter paragraph or heading followed by text starting with that
   letter, which is a glossary's index divider. The longest run of the
   document's lone letters in code-point order is the index, and any other

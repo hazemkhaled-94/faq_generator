@@ -62,9 +62,9 @@ def head(document: DoclingDocument, page: int, text: str) -> None:
     )
 
 
-def say(document: DoclingDocument, page: int, text: str, top: float = 100.0) -> None:
-    """Adds a paragraph on a page, `top` points from its top."""
-    document.add_text(label=DocItemLabel.TEXT, text=text, prov=on(page, top))
+def say(document: DoclingDocument, page: int, text: str) -> None:
+    """Adds a paragraph on a page."""
+    document.add_text(label=DocItemLabel.TEXT, text=text, prov=on(page))
 
 
 def cut(document: DoclingDocument, language: str | None = None) -> list:
@@ -139,7 +139,7 @@ def test_a_running_foot_read_as_body_text_is_not_passage_text() -> None:
     foot(document, 3, f"{GUIDE} | Accounts | Fees and charges")
     say(document, 1, "A current account costs a monthly fee.")
     say(document, 2, "Each transfer abroad costs a flat fee.")
-    say(document, 2, f"{GUIDE} | Accounts | Fees and char ges", top=800)
+    say(document, 2, f"{GUIDE} | Accounts | Fees and char ges")
     say(document, 3, "Cash withdrawals at the bank's machines are free.")
 
     texts = [text for text, _ in trails(document)]
@@ -655,7 +655,7 @@ def test_a_paragraph_repeating_a_running_field_heads_what_follows() -> None:
     document = paged(2)
     for page in (1, 2):
         foot(document, page, f"{GUIDE} | Accounts")
-    say(document, 1, "Accounts", top=800)
+    say(document, 1, "Accounts")
     say(document, 1, "An account opens once checked.")
 
     found = trails(document)
@@ -742,7 +742,7 @@ def test_a_running_head_read_as_body_text_on_its_own_page_is_dropped() -> None:
     document = paged(2)
     for page in (1, 2):
         head(document, page, "Accounts")
-    say(document, 2, "Accounts", top=20)
+    say(document, 2, "Accounts")
     say(document, 2, "A joint account needs both holders to sign.")
     group = document.add_list_group()
     document.add_list_item(text="Accounts", parent=group, prov=on(2, 200))

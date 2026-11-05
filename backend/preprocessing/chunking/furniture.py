@@ -488,7 +488,7 @@ def tidied(
             if item.content_layer == ContentLayer.BODY
             and item.label in _PROSE
             and (
-                (_repeats(item.text, furniture) and _in_margin(item, document))
+                _repeats(item.text, furniture)
                 or _page_number(item, document, furniture, after_lead_in)
             )
         }
@@ -647,9 +647,7 @@ def _restated(
     """The paragraphs that only repeat a running field or a heading.
 
     Compared with spaces, punctuation and case set aside, on the whole text,
-    so `See Section 5 for the diagrams.` is not `5. Diagrams`. A paragraph
-    that repeats only a running field is one inside the top or bottom margin
-    alone: the same words in the body are text. Each comes
+    so `See Section 5 for the diagrams.` is not `5. Diagrams`. Each comes
     with the level a heading put before it takes - one below the heading it
     follows - or None where it repeats that heading itself and so heads
     nothing new. A paragraph `junk` flags is none, and neither is one that
@@ -660,14 +658,13 @@ def _restated(
     marker and text together repeat a heading, is the same label set as a
     list in the other column, and leaves the body the same way.
     """
-    running = {
+    names = {
         _plain(name)
         for item in document.texts
         if item.label in _RUNNING
         for name in (item.text, *fields(item.text))
         if _lettered(name) and not junk(name)
-    }
-    names = running | {
+    } | {
         _plain(item.text)
         for item in document.texts
         if item.label in _HEADINGS and not junk(item.text)
@@ -704,9 +701,6 @@ def _restated(
             and _lettered(item.text)
             and not junk(item.text)
             and (plain := _plain(item.text)) in names
-            and (
-                plain not in running or plain in headings or _in_margin(item, document)
-            )
         ):
             found.append(
                 (item.self_ref, None if plain == last else min(level + 1, 100))
@@ -791,22 +785,6 @@ def _demoted(document: DoclingDocument, junk: Callable[[str], bool]) -> DoclingD
     return demoted
 
 
-def _in_margin(item: TextItem, document: DoclingDocument) -> bool:
-    """Whether a paragraph lies in the top or bottom margin of its page.
-
-    An item with no position, or on a page of no known height, lies in none.
-    """
-    if not item.prov:
-        return False
-    box = item.prov[0].bbox
-    size = document.pages.get(item.prov[0].page_no)
-    if size is None or size.size.height <= 0:
-        return False
-    height = size.size.height
-    placed = box.to_top_left_origin(height)
-    return placed.b <= height * _MARGIN or placed.t >= height * (1 - _MARGIN)
-
-
 def _page_number(
     item: TextItem,
     document: DoclingDocument,
@@ -822,13 +800,19 @@ def _page_number(
     is a value whose item has no position: it stays text. `after_lead_in`
     holds the items `_after_lead_in` finds.
     """
-    if _PAGE_NUMBER.fullmatch(item.text.strip()) is None or not _in_margin(
-        item, document
-    ):
+    if _PAGE_NUMBER.fullmatch(item.text.strip()) is None or not item.prov:
+        return False
+    page, box = item.prov[0].page_no, item.prov[0].bbox
+    size = document.pages.get(page)
+    if size is None or size.size.height <= 0:
+        return False
+    height = size.size.height
+    placed = box.to_top_left_origin(height)
+    if not (placed.b <= height * _MARGIN or placed.t >= height * (1 - _MARGIN)):
         return False
     if furniture.offsets:
         number = int(re.search(r"\d+", item.text).group())  # type: ignore[union-attr]
-        return number - item.prov[0].page_no in furniture.offsets
+        return number - page in furniture.offsets
     return item.self_ref not in after_lead_in
 
 
