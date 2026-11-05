@@ -138,10 +138,13 @@ beside another currency, share or period: "12 % for 5 months" for a cited "5 %
 for 12 months". So is a figure that keeps its digits and changes its unit of time
 or SI measure: "3 weeks" for a cited "3 days", "4 g" for "4 kg". A clock time written with a colon, and a four-digit year after a month name or a
 year word (`since`, `seit`), is a kind of its own, so "since 2023" for a
-cited "since 2024" is a swap too; a bare four-digit limit has no kind. So is a clock
-time or a date written as digit runs joined by one repeated mark (`:`, `/`, `-`)
-that the cited text writes only with its runs in another order: "13:30 to 9:00"
-for a cited "9:30 to 13:00", "12/01/2026" for "01/12/2026". `not_bridging` also refuses a statement naming the numbered
+cited "since 2024" is a swap too; a bare four-digit limit has no kind. So is a clock time written with a colon and
+two-digit minutes (`9:30`), or a date of three runs joined by one repeated `/` or
+`-` with its four-digit year at the same end (`01-12-2026`, `2026-12-01`), that
+the cited text writes only with its runs in another order: "13:30 to 9:00" for a
+cited "9:30 to 13:00", "12-01-2026" for "01-12-2026". A date with a day over 12,
+a time the cited text writes with a dot, `24:00` for `0:00`, a ratio, a season
+and a range are not read. `not_bridging` also refuses a statement naming the numbered
 heading of a cited passage ("Section 7"), because that is a claim about the
 document.
 

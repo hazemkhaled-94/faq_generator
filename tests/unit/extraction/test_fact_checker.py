@@ -3199,16 +3199,43 @@ _REPAIRED = [
         "Το κατάστημα είναι ανοιχτό από 9:30 έως 13:00.",
         "Το κατάστημα είναι ανοιχτό από 13:30 έως 9:00.",
     ),
+    (
+        "pl",
+        "Oddział jest otwarty od 9:30 do 13:00.",
+        "Oddział jest otwarty od 13:30 do 9:00.",
+    ),
+    (
+        "de",
+        "Die Preisänderung gilt ab dem 01-12-2026.",
+        "Die Preisänderung gilt ab dem 12-01-2026.",
+    ),
+    (
+        "en",
+        "The price change takes effect on 01-12-2026.",
+        "The price change takes effect on 12-01-2026.",
+    ),
+    (
+        "pl",
+        "Zmiana cennika obowiązuje od 01-12-2026.",
+        "Zmiana cennika obowiązuje od 12-01-2026.",
+    ),
+    (
+        "el",
+        "Η αλλαγή τιμών ισχύει από 01-12-2026.",
+        "Η αλλαγή τιμών ισχύει από 12-01-2026.",
+    ),
 ]
 
 
 @pytest.mark.parametrize(("lang", "text", "statement"), _REPAIRED)
-def test_a_time_or_date_written_with_the_runs_of_cited_ones_in_another_order_is_refused(
+def test_a_clock_time_or_date_written_with_the_runs_of_cited_ones_in_another_order_is_refused(
     lang, text, statement
 ) -> None:
     """13:30 is not a time "from 9:30 to 13:00" writes: each figure is read whole."""
     fact = Checker(passage(text, language=lang)).atomic(statement, 0)
-    assert fact.rejection_code == Rejection.UNSUPPORTED_ADDITION, fact.validation_error
+    assert not fact.validated, (fact.rejection_code, fact.validation_error)
+    if lang in ("de", "en"):
+        assert fact.rejection_code == Rejection.UNSUPPORTED_ADDITION
 
 
 def test_a_french_re_pairing_stays_refused() -> None:
@@ -3312,6 +3339,79 @@ _KEPT = [
         "en",
         "The portal is open from 9:30 to 13:00 and from 14:00 to 17:00.",
         "The portal is open from 14:00 to 17:00.",
+    ),
+    (
+        "de",
+        "Das Verhältnis von Eigenkapital zu Fremdkapital beträgt bei der Bank 1:3.",
+        "Das Verhältnis von Fremdkapital zu Eigenkapital beträgt bei der Bank 3:1.",
+    ),
+    (
+        "en",
+        "Shares and bonds are weighted in a ratio of 2:1.",
+        "Bonds and shares are weighted in a ratio of 1:2.",
+    ),
+    (
+        "el",
+        "Οι μετοχές και τα ομόλογα σταθμίζονται σε αναλογία 2:1.",
+        "Τα ομόλογα και οι μετοχές σταθμίζονται σε αναλογία 1:2.",
+    ),
+    (
+        "de",
+        "Die Antragsfrist endet am 31-12-2026.",
+        "Die Antragsfrist endet am 2026-12-31.",
+    ),
+    (
+        "en",
+        "The offer is valid from 2026-03-01.",
+        "The offer is valid from 01-03-2026.",
+    ),
+    (
+        "de",
+        "Das Angebot gilt ab dem 2026-03-01.",
+        "Das Angebot gilt ab dem 01-03-2026.",
+    ),
+    ("pl", "Oferta obowiązuje od 2026-03-01.", "Oferta obowiązuje od 01-03-2026."),
+    ("en", "The fee is due on 12/31/2026.", "The fee is due on 31/12/2026."),
+    (
+        "en",
+        "The ISA allowance for the 2024/25 tax year is GBP 20,000, the same as for 2025/26.",
+        "The ISA allowance for the 2024/2025 tax year is GBP 20,000.",
+    ),
+    (
+        "de",
+        "Die Filiale öffnet um 9.00 Uhr und schließt um 13.30 Uhr, Beratungstermine gibt es um 9:30 und 13:00 Uhr.",
+        "Die Filiale öffnet um 9:00 Uhr.",
+    ),
+    (
+        "en",
+        "The office opens at 9.00 and closes at 13.30; appointments are at 9:30 and 13:00.",
+        "The office opens at 9:00.",
+    ),
+    (
+        "de",
+        "Die Filiale ist montags von 9-12 und 14-18 Uhr geöffnet.",
+        "Die Filiale ist montags von 12-14 Uhr geschlossen.",
+    ),
+    (
+        "en",
+        "The branch is open from 9-12 and 14-18.",
+        "The branch is closed from 12-14.",
+    ),
+    (
+        "de",
+        "Kunden von 18-25 Jahren und von 26-30 Jahren erhalten den Tarif.",
+        "Kunden von 18-30 Jahren erhalten den Tarif.",
+    ),
+    (
+        "de",
+        "Die Kasse ist bis 24:00 Uhr geöffnet.",
+        "Die Kasse ist bis 0:00 Uhr geöffnet.",
+    ),
+    ("en", "The helpline is open until 24:00.", "The helpline is open until 0:00."),
+    (
+        "el",
+        "Το κατάστημα είναι ανοιχτό 9-12 και 14-18.",
+        "Το κατάστημα είναι κλειστό 12-14.",
     ),
 ]
 

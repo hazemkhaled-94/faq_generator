@@ -973,22 +973,69 @@ def _figure_tokens(
     return found
 
 
-#: A figure written as digit runs joined by one repeated mark: a clock time
-#: (`9:30`), a date (`01/12/2026`, `2026-12-01`), a range (`9-17`). A dotted
-#: figure is read whole by `_value` already and is left out.
-_JOINED = re.compile(r"(?<![\d.,])\d+(?:([:/-])\d+)(?:\1\d+)*(?![\d.,]?\d)")
+#: A clock time written with a colon and minutes of two digits (`9:30`), or
+#: with a dot (`9.30`), which only reads a time the colon form is held against.
+_CLOCK_FIGURE = re.compile(r"(?<![\d.,:])(\d{1,2})([:.])(\d{2})(?![\d.,:]?\d)")
+
+#: A date of three digit runs joined by one repeated `/` or `-`, the year its
+#: four-digit first or last run: `2026-03-01`, `01/03/2026`.
+_DATE_FIGURE = re.compile(
+    r"(?<![\d.,])(?:(\d{4})([/-])(\d{1,2})\2(\d{1,2})|(\d{1,2})([/-])(\d{1,2})\6(\d{4}))(?![\d.,]?\d)"
+)
 
 
-def _joined(text: str) -> list[tuple[str, tuple[int, ...], str]]:
-    """The figures of a text written as joined digit runs: mark, runs in order, as written.
+def _clocks(text: str) -> list[tuple[tuple[int, int], str, str]]:
+    """The clock times of a text: hour and minute, the mark they are written with, as written.
 
-    Read from the text alone, so no language is needed: `9:30` is the runs 9
-    and 30 whatever its words are, and `08:30` and `8:30` are one figure.
+    Hour 24 is hour 0: `24:00` and `0:00` are one time.
     """
     return [
-        (found[1], tuple(int(run) for run in re.findall(r"\d+", found[0])), found[0])
-        for found in (match.group(0, 1) for match in _JOINED.finditer(text))
+        (((int(found[1]) % 24), int(found[3])), found[2], found[0])
+        for found in (match.group(0, 1, 2, 3) for match in _CLOCK_FIGURE.finditer(text))
+        if int(found[1]) <= 24 and int(found[3]) <= 59
     ]
+
+
+def _dates(text: str) -> list[tuple[bool, tuple[int, ...], str]]:
+    """The dates of a text: whether the year comes first, its three runs in order, as written."""
+    out = []
+    for match in _DATE_FIGURE.finditer(text):
+        year_first = match.group(1) is not None
+        runs = match.group(1, 3, 4) if year_first else match.group(5, 7, 8)
+        out.append((year_first, tuple(int(run) for run in runs), match.group(0)))
+    return out
+
+
+def _repaired(statement: str, evidence: str) -> dict[str, str]:
+    """Finds the clock times and dates a statement writes with the runs of cited ones re-paired.
+
+    A clock time the cited text writes with a colon, and the statement writes
+    with other minutes or hours taken from the cited ones: "13:30 to 9:00" for
+    a cited "9:30 to 13:00". A date of three runs, the year at the same end in
+    both, whose day and month a cited date has the other way round: "12-01-2026"
+    for "01-12-2026". A date with a run over 12 is another convention's
+    spelling of the cited one, and a two-run figure, a ratio, a season or a
+    range is not read: another way to write those is not another figure.
+    """
+    swaps: dict[str, str] = {}
+    theirs = _clocks(evidence)
+    held = {at for at, _, _ in theirs}
+    held |= {at for at, _, _ in _clocks(evidence.replace(".", ":"))}
+    colons = [(at, one) for at, mark, one in theirs if mark == ":"]
+    for at, mark, written in _clocks(statement):
+        if mark != ":" or at in held or not colons:
+            continue
+        if set(at) <= {run for there, _ in colons for run in there}:
+            swaps.setdefault(written, colons[0][1])
+    cited = _dates(evidence)
+    for first, runs, written in _dates(statement):
+        same = [(there, one) for end, there, one in cited if end == first]
+        month_day = runs[1:] if first else runs[:2]
+        if not same or max(month_day) > 12 or runs in [there for there, _ in same]:
+            continue
+        if set(runs) <= {run for there, _ in same for run in there}:
+            swaps.setdefault(written, same[0][1])
+    return swaps
 
 
 def _swapped(
@@ -1011,10 +1058,9 @@ def _swapped(
     a period) is a swap too: two figures traded between their kinds, "12 %
     for 5 months" for a cited "5 % for 12 months". So is a figure whose digits
     the cited text gives only before another noun: "3 weeks" for "3 days".
-    So is a figure written as joined digit runs (a clock time, a date) that the
-    cited text writes only with its runs in another order: "13:30 to 9:00" for
-    a cited "9:30 to 13:00", when every run is one the cited figures of that
-    shape hold.
+    So is a clock time written with a colon, or a date of three runs with its
+    year at the same end, that the cited text writes only with its runs in
+    another order: "13:30 to 9:00" for a cited "9:30 to 13:00".
     """
     elsewhere = numerals(passage.text, language)
     swaps: dict[str, str] = {}
@@ -1053,16 +1099,11 @@ def _swapped(
         ]
         if there and all(one and not one & nouns for _, one in there):
             swaps[unit] = there[0][0]
-    theirs = _joined(evidence)
-    for mark, runs, written in _joined(statement):
-        same = [(there, one) for there_mark, there, one in theirs if there_mark == mark]
-        same = [(there, one) for there, one in same if len(there) == len(runs)]
-        if (
-            same
-            and all(there != runs for there, _ in same)
-            and set(runs) <= {run for there, _ in same for run in there}
-        ):
-            swaps.setdefault(written, same[0][1])
+    swaps |= {
+        written: cited
+        for written, cited in _repaired(statement, evidence).items()
+        if written not in swaps
+    }
     return swaps
 
 
