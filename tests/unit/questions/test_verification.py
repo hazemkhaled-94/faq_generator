@@ -1631,6 +1631,71 @@ def test_a_range_written_with_ordinal_stops_comes_back_end_by_end(
     )
 
 
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered", "agreeing"),
+    [
+        (
+            "fr",
+            "Quand la filiale est-elle fermée?",
+            "1–3 mai",
+            "La filiale est fermée du 1 au 3 mai.",
+            True,
+        ),
+        (
+            "fr",
+            "Quand la filiale est-elle fermée?",
+            "1–3 mai",
+            "La filiale est fermée du 1 au 4 mai.",
+            False,
+        ),
+        # Polish has no ordinal-stop row, so `1.–3.` is read as it was.
+        (
+            "pl",
+            "Kiedy oddział jest zamknięty?",
+            "1.–3. maja",
+            "Oddział jest zamknięty od 1. do 3. maja.",
+            False,
+        ),
+        (
+            "pl",
+            "Kiedy oddział jest zamknięty?",
+            "1.–3. maja",
+            "Oddział jest zamknięty od 1. do 4. maja.",
+            False,
+        ),
+        (
+            "el",
+            "Πότε είναι κλειστό το υποκατάστημα;",
+            "1–3 Μαΐου",
+            "Το υποκατάστημα είναι κλειστό από 1 έως 3 Μαΐου.",
+            True,
+        ),
+        (
+            "el",
+            "Πότε είναι κλειστό το υποκατάστημα;",
+            "1–3 Μαΐου",
+            "Το υποκατάστημα είναι κλειστό από 1 έως 4 Μαΐου.",
+            False,
+        ),
+    ],
+)
+def test_a_range_in_a_language_without_ordinal_stops_keeps_its_verdict(
+    language, question, target, recovered, agreeing
+) -> None:
+    """Only a language with an `ORDINAL_SUFFIX` row reads the second end as an ordinal."""
+    assert (
+        agrees(
+            recovered,
+            target,
+            language,
+            AnswerForm.VALUE,
+            question=question,
+            passages=(recovered,),
+        )
+        is agreeing
+    )
+
+
 def test_a_range_with_ordinal_stops_is_still_held_to_both_ends() -> None:
     """The control: `bis 4.` is not `bis 3.`."""
     recovered = "Die Filiale ist vom 1. bis 4. Mai geschlossen."
