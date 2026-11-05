@@ -77,6 +77,21 @@ def _dumps(directory: Path) -> dict[str, dict]:
     }
 
 
+def _local(directory: Path, bucket: str, key: str) -> Path | None:
+    """Where an object lives in the backup, or None when its key leads out of it.
+
+    A key is whatever wrote it to the store, and the manifest is a file: a `..`
+    segment or a leading `/` would otherwise name a file anywhere the operator
+    can write or read.
+    """
+    path = directory / "s3" / bucket / key
+    inside = (directory / "s3").resolve()
+    folder = (directory / "s3" / bucket).resolve()
+    if folder.is_relative_to(inside) and path.resolve().is_relative_to(folder):
+        return path
+    return None
+
+
 def _in_scope(bucket: str, key: str, stack: bool, held: set[str]) -> bool:
     """Whether a key is one this restore may touch: this database's own, or any on a stack restore.
 
@@ -107,7 +122,12 @@ def backup(directory: Path) -> dict:
             data = source.get(bucket, held.key)
             if data is None:
                 continue
-            target = directory / "s3" / bucket / held.key
+            target = _local(directory, bucket, held.key)
+            if target is None:
+                log.error(
+                    "not backed up: %s/%s leads out of the backup", bucket, held.key
+                )
+                continue
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
             objects.append(
@@ -145,10 +165,18 @@ def restore(directory: Path, stack: bool = False) -> None:
     for held in json.loads((directory / MANIFEST).read_text())["objects"]:
         if not _in_scope(held["bucket"], held["key"], stack, owned):
             continue
+        path = _local(directory, held["bucket"], held["key"])
+        if path is None:
+            log.error(
+                "not restored: %s/%s leads out of the backup",
+                held["bucket"],
+                held["key"],
+            )
+            continue
         target.put(
             held["bucket"],
             held["key"],
-            (directory / "s3" / held["bucket"] / held["key"]).read_bytes(),
+            path.read_bytes(),
             content_type="application/octet-stream",
         )
 
@@ -172,6 +200,9 @@ def verify(directory: Path, stack: bool = False) -> list[str]:
     owned = set() if stack else rekey.digests()
     for held in manifest["objects"]:
         if not _in_scope(held["bucket"], held["key"], stack, owned):
+            continue
+        if _local(directory, held["bucket"], held["key"]) is None:
+            wrong.append(f"{held['bucket']}/{held['key']} leads out of the backup")
             continue
         data = source.get(held["bucket"], held["key"])
         if data is None:
