@@ -768,3 +768,138 @@ def test_a_period_written_before_another_noun_or_as_a_range_stays_a_twin(
 
     assert _counted_alike(text, twin, lang)
     assert _counted_alike(twin, text, lang)
+
+
+#: A compound unit written with a slash against the same unit written with a word.
+_COMPOUND_UNITS = [
+    ("en", "The limit is 5 mg per litre.", "The limit is 5 mg/l."),
+    ("en", "The limit is 5 mg per litre.", "The limit is 5 mg / l."),
+    (
+        "de",
+        "Der Grenzwert liegt bei 5 mg pro Liter.",
+        "Der Grenzwert liegt bei 5 mg/l.",
+    ),
+    ("en", "The speed limit is 30 km per hour.", "The speed limit is 30 km/h."),
+    (
+        "de",
+        "Die Höchstgeschwindigkeit beträgt 30 km pro Stunde.",
+        "Die Höchstgeschwindigkeit beträgt 30 km/h.",
+    ),
+    ("en", "The pump delivers 2 l per minute.", "The pump delivers 2 l/min."),
+    ("de", "Die Pumpe fördert 2 l pro Minute.", "Die Pumpe fördert 2 l/min."),
+    (
+        "en",
+        "Fertiliser is applied at 5 kg per m2.",
+        "Fertiliser is applied at 5 kg/m2.",
+    ),
+    ("en", "Apples cost EUR 3 per kg.", "Apples cost EUR 3/kg."),
+    ("de", "Äpfel kosten 3 Euro pro kg.", "Äpfel kosten 3 €/kg."),
+    (
+        "en",
+        "The drink holds 5 g of sugar per 100 ml.",
+        "The drink holds 5 g sugar/100 ml.",
+    ),
+    (
+        "de",
+        "Das Getränk enthält 5 g Zucker pro 100 ml.",
+        "Das Getränk enthält 5 g Zucker je 100 ml.",
+    ),
+    (
+        "en",
+        "Each passenger may bring 23 kg of luggage.",
+        "Each passenger may bring 23 kg luggage.",
+    ),
+    (
+        "en",
+        "Each passenger may bring one bag of 23 kg.",
+        "Each passenger may bring one 23 kg bag.",
+    ),
+    (
+        "de",
+        "Jeder Fahrgast darf 1 Koffer mit 23 kg mitnehmen.",
+        "Jeder Fahrgast darf 1 Koffer von 23 kg mitnehmen.",
+    ),
+    ("en", "The cable is 2 m long.", "The cable is 2 metres long."),
+    ("en", "The cable measures 2 m.", "The cable measures 2 m in length."),
+    (
+        "de",
+        "Die Frist beträgt 4 Wochen ab Erhalt.",
+        "Die Frist beträgt 4 Wochen nach Erhalt der Ware.",
+    ),
+    ("en", "The parking fee is 2 euros per hour.", "Parking costs EUR 2 an hour."),
+    ("de", "Parken kostet 2 Euro pro Stunde.", "Parken kostet 2 € je Stunde."),
+    ("de", "Parken kostet 2 Euro pro Stunde.", "Parken kostet 2 €/Stunde."),
+    ("en", "Parking costs 2 euros per hour.", "Parking costs 2 euros/hour."),
+    (
+        "en",
+        "The fine is 5 euros per day of delay.",
+        "The fine is 5 euros for each day of delay.",
+    ),
+    (
+        "de",
+        "Die Gebühr beträgt 10 Euro je angefangene 30 Minuten.",
+        "Je angefangene 30 Minuten kostet es 10 Euro.",
+    ),
+    ("en", "Calls cost 9 cents per minute.", "Calls cost 9 cents a minute."),
+    ("en", "Calls cost 9 cents per minute.", "Calls cost 9 cents/min."),
+    ("de", "Anrufe kosten 9 Cent pro Minute.", "Anrufe kosten 9 Cent/Minute."),
+    ("de", "Die Miete beträgt 12 Euro pro m2.", "Die Miete beträgt 12 €/m2."),
+    ("de", "Das Wasser hat 20 Grad.", "Das Wasser hat 20 °C."),
+    (
+        "de",
+        "Der Kredit läuft 5 Jahre, also 60 Monate.",
+        "Der Kredit läuft 60 Monate, also 5 Jahre.",
+    ),
+    ("en", "The loan runs 5 years (60 months).", "The loan runs 60 months (5 years)."),
+    ("en", "Monday, 1 June is a holiday.", "1 June is a holiday."),
+    (
+        "en",
+        "The office is open Monday to Friday.",
+        "The office is open Monday, Tuesday, Wednesday, Thursday and Friday.",
+    ),
+    (
+        "de",
+        "Das Amt ist vom 1. bis 5. Juni geschlossen.",
+        "Das Amt ist vom 1. Juni bis 5. Juni geschlossen.",
+    ),
+    ("de", "Am Samstag, 6. Juni, ist das Amt zu.", "Am 6. Juni ist das Amt zu."),
+    (
+        "en",
+        "On Saturdays in June the office opens at 9.",
+        "In June the office opens at 9 on Saturdays.",
+    ),
+    (
+        "en",
+        "The office opens at 9 on Saturdays in June.",
+        "On Saturdays the office opens at 9.",
+    ),
+    (
+        "en",
+        "Sales run from 1 May to 31 May.",
+        "Sales run through May, from the 1st to the 31st.",
+    ),
+    ("en", "Tax returns are due by 31 July.", "Tax returns must be filed by July 31."),
+    ("en", "Tax returns are due by 31 July.", "Tax returns are due by 31 Jul."),
+    (
+        "de",
+        "Die Steuererklärung ist bis 31. Juli fällig.",
+        "Die Steuererklärung ist bis 31. Jul. fällig.",
+    ),
+    (
+        "en",
+        "Payments made on a Saturday are booked on Monday.",
+        "A payment made on Saturday is booked the next Monday.",
+    ),
+    ("fr", "La limite est de 5 mg par litre.", "La limite est de 5 mg/l."),
+    ("pl", "Limit wynosi 5 mg na litr.", "Limit wynosi 5 mg/l."),
+    ("el", "Το όριο είναι 5 mg ανά λίτρο.", "Το όριο είναι 5 mg/l."),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "twin"), _COMPOUND_UNITS)
+def test_a_unit_per_another_unit_written_with_a_slash_stays_a_twin(lang, text, twin):
+    """`5 mg/l` is `5 mg` per volume: the unit stops at the slash."""
+    from extraction.service import _counted_alike
+
+    assert _counted_alike(text, twin, lang)
+    assert _counted_alike(twin, text, lang)

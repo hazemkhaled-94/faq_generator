@@ -929,9 +929,10 @@ def _figure_tokens(
     The unit is the lemmas of the units right after a figure written alone,
     modifiers skipped, which is finer than its kind: `days` and `weeks` are
     one kind and two units. Only a closed set is read, a language's units of
-    time and the SI symbols, because a noun is as likely another word for the
-    same thing. None where none follows, the unit is glued on, or the kind is
-    a currency or a share, whose spellings the kind already compares.
+    time and the SI symbols, up to a slash (`mg/l` is `mg` per volume), because a
+    noun is as likely another word for the same thing. None where none follows,
+    the unit is glued on, or the kind is a currency or a share, whose spellings
+    the kind already compares.
 
     The digit runs make `23.59` and `23:59`, or `9,95` and `9.95`, one figure
     however it is punctuated. A cardinal written out ("four euros") is a
@@ -951,6 +952,9 @@ def _figure_tokens(
         if digits and (kind := _kind_of(tokens, at, language)):
             nouns: set[str] = set()
             for near in tokens[at + 1 : at + 4]:
+                if "/" in near.text:
+                    # `mg/l` is a mass per volume: the unit stops at the slash.
+                    break
                 if near.pos_ in _UNIT_WORDS:
                     if (
                         word := near.lemma_.strip(".,;:()").casefold()
