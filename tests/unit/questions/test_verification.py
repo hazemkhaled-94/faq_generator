@@ -2065,12 +2065,12 @@ def test_a_count_written_out_is_the_count_in_digits(
     ("recovered", "target"),
     [
         ("Diese Frist bleibt außer Acht.", "8 Fristen"),
-        ("Die Elf des Gastgebers hält die Frist ein.", "11 Fristen"),
+        ("Der Elf des Märchens hält die Frist ein.", "11 Fristen"),
     ],
-    ids=["ausser Acht", "die Elf"],
+    ids=["ausser Acht", "der Elf"],
 )
 def test_a_word_spelled_like_a_count_is_not_one(recovered: str, target: str) -> None:
-    """`außer Acht` is a phrase and `die Elf` a team: neither is tagged NUM."""
+    """`außer Acht` is a phrase and `der Elf` a creature of a tale: neither is tagged NUM."""
     assert not agrees(recovered, target, "de", AnswerForm.VALUE)
 
 
