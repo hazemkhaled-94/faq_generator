@@ -18,6 +18,7 @@ import re
 from collections import defaultdict
 from collections.abc import Container, Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from functools import lru_cache
 
 import numpy as np
 
@@ -290,7 +291,9 @@ def _references(
             # another whose title the sentence of the quote names.
             held = [h for h in headings[key] if h[1].doc_sha256 == head.doc_sha256]
             if not held:
-                said = _sentence_of(head.text, quoted[key], language)
+                said = _forms_of(
+                    _sentence_of(head.text, quoted[key], language), language
+                )
                 named = [
                     h for h in headings[key] if _names_title(h[1].title, said, language)
                 ]
@@ -322,8 +325,30 @@ def _sentence_of(text: str, span: str, language: str | None) -> str:
     return " ".join(found)
 
 
-def _names_title(title: str | None, said: str, language: str | None) -> bool:
-    """Whether a sentence names a document by its full title.
+def _forms_of(said: str, language: str | None) -> frozenset[str]:
+    """The forms, as written and by lemma, of the nouns, names and adjectives of a sentence."""
+    return frozenset(
+        form
+        for token in parse(said, language)
+        if token.pos_ in _TITLE_WORDS
+        for form in (token.text.casefold(), token.lemma_.casefold())
+    )
+
+
+@lru_cache(maxsize=4096)
+def _title_words(title: str, language: str | None) -> tuple[frozenset[str], ...]:
+    """The words of a title, each as its forms: as written and by lemma. Read once per title."""
+    return tuple(
+        frozenset({token.text.casefold(), token.lemma_.casefold()})
+        for token in parse(title, language)
+        if token.pos_ in _TITLE_WORDS and any(c.isalpha() for c in token.lemma_)
+    )
+
+
+def _names_title(
+    title: str | None, forms: frozenset[str], language: str | None
+) -> bool:
+    """Whether a sentence, as its forms, names a document by its full title.
 
     Every noun, name and adjective of the title is one the sentence has, by
     its lemma or by its text as written, so the `Conditions` of a title is the
@@ -331,17 +356,7 @@ def _names_title(title: str | None, said: str, language: str | None) -> bool:
     """
     if not title:
         return False
-    forms = {
-        form
-        for token in parse(said, language)
-        if token.pos_ in _TITLE_WORDS
-        for form in (token.text.casefold(), token.lemma_.casefold())
-    }
-    words = [
-        {token.text.casefold(), token.lemma_.casefold()}
-        for token in parse(title, language)
-        if token.pos_ in _TITLE_WORDS and any(c.isalpha() for c in token.lemma_)
-    ]
+    words = _title_words(title, language)
     return bool(words) and all(word & forms for word in words)
 
 

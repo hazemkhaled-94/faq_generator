@@ -731,3 +731,42 @@ def test_a_numbered_reference_in_a_family_of_titles_is_read_as_it_always_was(
         ],
     ]
     assert _quote_refs(language, rows) == [(label, 2 + ordered.index(members[0]))]
+
+
+def test_each_title_is_parsed_once_however_many_quotes_name_its_sections(monkeypatch):
+    """A title's words are read once, not once per quote and per candidate."""
+    from extraction import links
+
+    links._title_words.cache_clear()
+    calls = []
+    real = links.parse
+    monkeypatch.setattr(
+        links,
+        "parse",
+        lambda text, language: calls.append(text) or real(text, language),
+    )
+    docs = [
+        titled(
+            "Text.",
+            "Contact",
+            i + 10,
+            f"doc-{i}",
+            "en",
+            f"Handbook {i} for Example Shop",
+        )
+        for i in range(6)
+    ]
+    pages = [
+        titled(
+            f'Click "Contact" on page {i}.',
+            f"Help {i} > Steps",
+            i + 1,
+            f"shop-{i}",
+            "en",
+            "Help",
+        )
+        for i in range(6)
+    ]
+    linked(pages, pages + docs, {m.id: 1 for m in pages + docs}, 5, 2)
+    titles = [c for c in calls if c.startswith("Handbook")]
+    assert len(titles) == len(set(titles)) == 6
