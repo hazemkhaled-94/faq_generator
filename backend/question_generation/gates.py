@@ -56,7 +56,7 @@ from nlp.analysis import (
     phrases,
     vocabulary,
 )
-from nlp.language import detect_surely, document_language
+from nlp.language import detect, detect_surely, document_language
 from nlp.pipelines import pipeline
 from question_generation.models import Neighbour
 
@@ -159,6 +159,10 @@ _RANGE = re.compile(r"(\d[\d.,]*)–(\d[\d.,]*)")
 
 #: A word, as the language check reads the words a question shares with its facts.
 _WORDS = re.compile(r"\w+")
+
+#: The fewest characters of what is left of a question, once the words its facts
+#: hold are out, that are read for their language.
+_RESIDUE_CHARS = 10
 
 
 def _ends(
@@ -815,20 +819,28 @@ def structural(
     # not evidence of the wrong language, and neither is a pick that merely
     # tips: a product named in the other language does that.
     said = f"{asked} {target_answer or ''}".strip()
-    # Without the words its cited facts also hold: a name or a term carried
-    # from the source (a German institution on an English page) is the
-    # source's, and says nothing of the language the question is written in.
-    carried = {one.casefold() for fact in statements for one in _WORDS.findall(fact)}
-    said = " ".join(
-        _WORDS.sub(
-            lambda one: "" if one.group().casefold() in carried else one.group(), said
-        ).split()
-    )
     # A language no configuration names is found out over every language
     # there is: a French or Polish question under German facts. Else only a
     # sure pick between the configured ones counts.
     surely = document_language(said)
     written = surely[0] if surely else detect_surely(said)
+    if language and written and written != language and written == detect(said):
+        # The other configured language may be only a name or a term the
+        # question carries from its cited facts (a German institution on an
+        # English page): that is the source's, and says nothing of the
+        # language the question is written in. So the pick is read again
+        # without the words the facts also hold, and where that residue
+        # is too short to read the first reading stands.
+        carried = {
+            one.casefold() for fact in statements for one in _WORDS.findall(fact)
+        }
+        residue = " ".join(
+            _WORDS.sub(
+                lambda one: "" if one.group().casefold() in carried else one.group(),
+                said,
+            ).split()
+        )
+        written = detect(residue, minimum=_RESIDUE_CHARS) or written
     if language and written and written != language:
         return (
             QuestionRejection.MALFORMED,

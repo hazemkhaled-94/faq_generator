@@ -618,6 +618,22 @@ def test_an_english_question_carrying_a_german_term_from_its_facts_is_not_malfor
     assert failed is None or "it is written in" not in failed[1], failed
 
 
+DE_BANK = [
+    "Die Kontoführungsgebühr für das Girokonto Klassik beträgt 4,90 EUR pro Monat."
+]
+DE_COPY = ["Das Girokonto kostet 4,90 EUR im Monat, die Kreditkarte 30 EUR im Jahr."]
+DE_ADMIN = [
+    "Den Antrag auf Wohngeld stellen Sie beim Bürgeramt Mitte.",
+    "Die Bearbeitung des Antrags auf Wohngeld dauert sechs Wochen.",
+]
+EN_BANK = [
+    "The annual fee for the Gold Credit Card is 60 EUR, waived in the first year."
+]
+EN_SHOP = [
+    "The warranty on the vacuum cleaner lasts two years from the date of delivery."
+]
+
+
 @pytest.mark.parametrize(
     ("language", "question", "answer", "statements"),
     [
@@ -645,12 +661,76 @@ def test_an_english_question_carrying_a_german_term_from_its_facts_is_not_malfor
             "Δύο χρόνια",
             ["The warranty on the fridge lasts two years."],
         ),
+        # What the question copies from its facts does not silence the check.
+        ("de", "Combien coûte le compte courant?", "4,90 EUR im Monat", DE_COPY),
+        ("de", "Ile kosztuje konto osobiste?", "4,90 EUR im Monat", DE_COPY),
+        (
+            "de",
+            "Πόσο κοστίζει ο τρεχούμενος λογαριασμός?",
+            "4,90 EUR im Monat",
+            DE_COPY,
+        ),
+        (
+            "de",
+            "Πόσο είναι η μηνιαία χρέωση του Girokonto Klassik?",
+            "4,90 EUR",
+            DE_BANK,
+        ),
+        (
+            "de",
+            "Πού υποβάλλεται η αίτηση για Wohngeld?",
+            "beim Bürgeramt Mitte",
+            DE_ADMIN,
+        ),
+        (
+            "de",
+            "Ile wynosi miesięczna opłata za Girokonto Klassik?",
+            "4,90 EUR",
+            DE_BANK,
+        ),
+        (
+            "de",
+            "Jak długo trwa rozpatrzenie wniosku o Wohngeld?",
+            "sechs Wochen",
+            DE_ADMIN,
+        ),
+        (
+            "en",
+            "Wie hoch ist die Jahresgebühr der Gold Credit Card?",
+            "60 EUR",
+            EN_BANK,
+        ),
+        ("en", "Πόση είναι η ετήσια χρέωση της Gold Credit Card?", "60 EUR", EN_BANK),
+        (
+            "en",
+            "Wie lange gilt die Garantie für den Staubsauger?",
+            "two years from the date of delivery",
+            EN_SHOP,
+        ),
+        (
+            "en",
+            "Jak długo obowiązuje gwarancja?",
+            "two years from the date of delivery",
+            EN_SHOP,
+        ),
+        (
+            "en",
+            "Πόσο διαρκεί η εγγύηση του προϊόντος?",
+            "two years from the date of delivery",
+            EN_SHOP,
+        ),
+        (
+            "en",
+            "Combien de temps dure la garantie de l'aspirateur?",
+            "deux ans",
+            EN_SHOP,
+        ),
     ],
 )
 def test_a_question_in_another_language_than_its_facts_is_still_refused(
     language, question, answer, statements
 ):
-    """The controls: what the facts do not hold still decides the language."""
+    """The controls: what the question copies from its facts does not hide its language."""
     failed, _ = structural(
         question_text=question,
         target_answer=answer,

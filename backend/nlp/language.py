@@ -96,15 +96,18 @@ def document_language(text: str) -> tuple[str, str] | None:
     return best.language.iso_code_639_1.name.lower(), best.language.name.title()
 
 
-def detect(text: str) -> str | None:
+def detect(text: str, minimum: int = _MIN_CHARS) -> str | None:
     """Names the language of a text, or None when it is too short to tell.
+
+    `minimum` is the shortest text read; a caller that holds the rest of the
+    evidence may ask for a shorter one.
 
     Addresses are removed before the text is read, and the length is measured
     on what is left: a list of links carries no prose, and its addresses are
     written in the site's own language rather than the page's.
     """
     prose = URL.sub(" ", text).strip()
-    if len(prose) < _MIN_CHARS:
+    if len(prose) < minimum:
         return None
     found = _detector().detect_language_of(prose)
     return found.iso_code_639_1.name.lower() if found else None
