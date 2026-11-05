@@ -216,8 +216,11 @@ passage, a document and a topic.
 Passages are paired by the documents' own links (`extraction/links.py`):
 
 - a reference: a passage naming another section's heading ("Section 7",
-  "Returns"). It reaches a section of its own document, or of another whose
-  title the sentence naming it holds;
+  "Returns"). A numbered one reaches a section of its own document, or of
+  another whose title's content words the sentence holds. A quoted one reaches
+  a section of its own document, or of another document only where the
+  sentence of the quote (the quote cut out) holds every noun, name and
+  adjective of that one document's full title, as written or by its lemma;
 - a sibling: two sections under one parent heading;
 - a shared term: one used by 0.5% of the language's passages, never fewer than
   two and never more than six. A passage keeps the eight partners it shares the

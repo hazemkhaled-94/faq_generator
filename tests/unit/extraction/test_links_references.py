@@ -461,21 +461,30 @@ def test_a_quoted_span_names_a_heading_of_another_document_the_sentence_names(
     ]
 
 
+def _quote_refs(language, rows):
+    """The reference links of the first passage, as (named, id of the reached passage)."""
+    made = [
+        titled(t, p, i + 1, d, language, ti) for i, (t, p, d, ti) in enumerate(rows)
+    ]
+    got = linked([made[0]], made, {m.id: 1 for m in made}, 5, 2)
+    return [(k.named, k.passages[1].id) for k in got if k.kind == "reference"]
+
+
 #: (language, the quoting sentence, the quoting trail, the target heading, the target document's title)
 _TITLED = [
     (
-        "en",
-        'See "Cancellation" in our Terms and Conditions.',
-        "Orders > Cancelling",
-        "Cancellation",
-        "Terms and Conditions",
+        "fr",
+        "Les frais sont fixés dans « Tarifs » des Conditions générales de la banque.",
+        "Compte > Frais",
+        "Tarifs",
+        "Conditions générales de la banque",
     ),
     (
         "en",
         'See "Cancellation" in our Terms and Conditions.',
         "Orders > Cancelling",
         "Cancellation",
-        "Terms and Conditions of Example Shop Ltd",
+        "Terms and Conditions",
     ),
     (
         "en",
@@ -486,13 +495,6 @@ _TITLED = [
     ),
     (
         "en",
-        'The fees are listed under "Current account" in the Price List.',
-        "Accounts > Fees",
-        "Current account",
-        "Price List - Example Bank plc (valid from 1 January 2026)",
-    ),
-    (
-        "en",
         'Fees are listed under "Charges" in the Account Terms.',
         "Accounts > Fees",
         "Charges",
@@ -500,88 +502,232 @@ _TITLED = [
     ),
     (
         "de",
-        "Die Widerrufsfrist ist im Abschnitt „Widerruf“ unserer AGB geregelt.",
-        "Bestellung > Rücksendung",
-        "Widerruf",
-        "Allgemeine Geschäftsbedingungen (AGB) der Beispiel-Shop GmbH",
-    ),
-    (
-        "de",
         "Die Entgelte finden Sie im Preis- und Leistungsverzeichnis unter „Girokonto“.",
         "Konto > Kosten",
         "Girokonto",
-        "Preis- und Leistungsverzeichnis der Musterbank, Stand 1. Januar 2026",
+        "Preis- und Leistungsverzeichnis",
     ),
     (
         "de",
-        "Einzelheiten regelt der Abschnitt „Kündigung“ der Allgemeinen Geschäftsbedingungen der Musterbank.",
+        "Einzelheiten regelt der Abschnitt „Kündigung“ der Allgemeinen Geschäftsbedingungen.",
         "Girokonto > Konto schließen",
         "Kündigung",
-        "Allgemeine Geschäftsbedingungen der Musterbank AG",
+        "Allgemeine Geschäftsbedingungen",
+    ),
+    (
+        "de",
+        "Die Beträge stehen im Abschnitt „Gebühren“ der Gebührenordnung.",
+        "Konto > Kosten",
+        "Gebühren",
+        "Gebührenordnung",
+    ),
+    (
+        "de",
+        "Die Fristen stehen unter „Kündigung“ in den Kündigungsbedingungen.",
+        "Konto > Fristen",
+        "Kündigung",
+        "Kündigungsbedingungen",
+    ),
+    (
+        "de",
+        "Die Lieferzeiten finden Sie unter „Versand“ in unseren Versandbedingungen.",
+        "Hilfe > Lieferung",
+        "Versand",
+        "Versandbedingungen",
     ),
     (
         "en",
-        'Apply online through the Citizens Portal under "Applications".',
-        "Registration > Moving",
-        "Applications",
-        "Citizens Portal of Example Town",
+        'The amounts are listed under "Fees" in the Fees and Charges Schedule.',
+        "Accounts > Amounts",
+        "Fees",
+        "Fees and Charges Schedule",
+    ),
+    (
+        "de",
+        "Einzelheiten regeln die folgenden Abschnitte der Allgemeinen Geschäftsbedingungen:\n- „Kündigung“\n- „Entgelte“",
+        "Girokonto > Konto schließen",
+        "Kündigung",
+        "Allgemeine Geschäftsbedingungen",
+    ),
+    (
+        "en",
+        'The details are set out in these sections of the General Terms and Conditions:\n- "Termination"\n- "Fees"',
+        "Account > Closing",
+        "Termination",
+        "General Terms and Conditions",
     ),
 ]
 
 
 @pytest.mark.parametrize(("language", "text", "trail", "heading", "title"), _TITLED)
-def test_a_quoted_heading_of_a_document_the_sentence_names_by_its_title_links(
+def test_a_quoted_heading_of_a_document_the_sentence_names_by_its_full_title_links(
     language, text, trail, heading, title
 ):
-    """A title as a bank or a shop writes it, with its issuer, edition or abbreviation."""
-    shop = titled(text, trail, 1, "shop-a", language, "Help centre")
-    other = titled("Text of the section.", heading, 2, "doc-b", language, title)
-    got = linked([shop], [shop, other], {1: 1, 2: 1}, 5, 2)
-    assert [(k.kind, k.named) for k in got if k.kind == "reference"] == [
-        ("reference", heading)
-    ]
+    """The title's words, by lemma or as written, with the quote itself cut out."""
+    got = _quote_refs(
+        language,
+        [(text, trail, "shop-a", "Help centre"), ("Text.", heading, "doc-b", title)],
+    )
+    assert got == [(heading, 2)]
+
+
+#: (language, the quoting sentence, the target heading, the target document's title)
+_NOT_NAMED = [
+    (
+        "en",
+        'Example Bank customers can reach us by clicking "Contact" in the app.',
+        "Contact",
+        "Example Bank - Price List",
+    ),
+    (
+        "en",
+        'Choose "Card payment" and accept the terms and conditions.',
+        "Card payment",
+        "Terms and Conditions for Card Payments",
+    ),
+    (
+        "en",
+        'Under "Downloads" you can get the PDF of your statement.',
+        "Downloads",
+        "Account Terms (PDF)",
+    ),
+    (
+        "de",
+        "Unter „Downloads“ finden Sie das PDF zum Konto.",
+        "Downloads",
+        "Allgemeine Geschäftsbedingungen (PDF)",
+    ),
+    (
+        "de",
+        "Einzelheiten stehen in den AGB unter „Kündigung“.",
+        "Kündigung",
+        "Allgemeine Geschäftsbedingungen (AGB) der Beispiel-Shop GmbH",
+    ),
+    (
+        "en",
+        'Notice periods are set out under "Termination" in our Terms and Conditions of Service.',
+        "Termination",
+        "Terms and Conditions of Service for Example Shop Ltd",
+    ),
+    (
+        "de",
+        "Zum Ändern Ihrer Adresse klicken Sie im Kundenkonto auf „Kontakt“.",
+        "Kontakt",
+        "Kontakt",
+    ),
+    (
+        "en",
+        'Under "Returns" your account lists the direct debits returned to the bank.',
+        "Returns",
+        "Returns",
+    ),
+    (
+        "de",
+        "Klicken Sie auf „Kontakt“. Kontaktdaten der Bank stehen in den Kontobedingungen.",
+        "Kontakt",
+        "Kontobedingungen",
+    ),
+    (
+        "pl",
+        "Opłaty znajdziesz w sekcji „Cennik” Regulaminu banku.",
+        "Cennik",
+        "Regulamin banku",
+    ),
+    (
+        "el",
+        "Τις χρεώσεις θα βρείτε στο «Τιμοκατάλογος» των Γενικών Όρων της τράπεζας.",
+        "Τιμοκατάλογος",
+        "Γενικοί Όροι της τράπεζας",
+    ),
+]
+
+
+@pytest.mark.parametrize(("language", "text", "heading", "title"), _NOT_NAMED)
+def test_a_quoted_heading_of_a_document_the_sentence_does_not_name_in_full_links_nothing(
+    language, text, heading, title
+):
+    """An issuer first, a bracket, a title the quote or another sentence supplies, or a language no pipeline names."""
+    got = _quote_refs(
+        language,
+        [
+            (text, "Account > Address", "shop-a", "Help centre"),
+            ("Text.", heading, "doc-b", title),
+        ],
+    )
+    assert got == []
 
 
 @pytest.mark.parametrize(
-    ("language", "text", "heading", "title"),
+    ("language", "pattern", "members", "sentence"),
     [
         (
-            "de",
-            "Zum Ändern Ihrer Adresse klicken Sie im Kundenkonto auf „Kontakt“.",
-            "Kontakt",
-            "Kontakt",
-        ),
-        (
             "en",
-            'To change your address, click "Contact" in your account.',
-            "Contact",
-            "Contact",
+            "Terms and Conditions for {}",
+            ["Credit Cards", "Current Accounts"],
+            'See "Fees" in the Terms and Conditions for {}.',
         ),
         (
             "de",
-            "Klicken Sie auf „Kontakt“. Kontaktdaten der Bank stehen in den Kontobedingungen.",
-            "Kontakt",
-            "Kontobedingungen",
-        ),
-        (
-            "en",
-            'Click "Contact" to write to us. Bank details are in the Account Terms.',
-            "Contact",
-            "Account Terms",
-        ),
-        (
-            "en",
-            'Under "Returns" your account lists the direct debits returned to the bank.',
-            "Returns",
-            "Returns",
+            "Allgemeine Geschäftsbedingungen für {}",
+            ["Händler", "Kunden"],
+            "Siehe „Entgelte“ in den Allgemeinen Geschäftsbedingungen für {}.",
         ),
     ],
 )
-def test_a_quote_is_no_naming_of_a_title_by_itself_or_by_another_sentence(
-    language, text, heading, title
+@pytest.mark.parametrize("named_first", [True, False])
+def test_a_quoted_heading_reaches_only_the_document_of_a_family_the_sentence_names_in_full(
+    language, pattern, members, sentence, named_first
 ):
-    """The title is read in the sentence of the quote with the quote taken out."""
-    shop = titled(text, "Account > Address", 1, "shop-a", language, "Help centre")
-    other = titled("Text of the section.", heading, 2, "doc-b", language, title)
-    got = linked([shop], [shop, other], {1: 1, 2: 1}, 5, 2)
-    assert [k for k in got if k.kind == "reference"] == []
+    """Of titles that share their opening words, the one named whole; where two are, neither."""
+    heading = "Fees" if language == "en" else "Entgelte"
+    ordered = members if named_first else members[::-1]
+    rows = [
+        (sentence.format(members[0]), "Help > Charges", "shop-a", "Help centre"),
+        *[("Text.", heading, f"doc-{name}", pattern.format(name)) for name in ordered],
+    ]
+    want = 2 + ordered.index(members[0])
+    assert _quote_refs(language, rows) == [(heading, want)]
+    both = f"{sentence.format(members[0])} Gilt auch für {members[1]}"
+    both = both.replace("Gilt auch für", "Also" if language == "en" else "Auch")
+    rows[0] = (
+        sentence.format(members[0]).rstrip(".") + f", {pattern.format(members[1])}.",
+        "Help > Charges",
+        "shop-a",
+        "Help centre",
+    )
+    assert _quote_refs(language, rows) == []
+
+
+@pytest.mark.parametrize(
+    ("language", "pattern", "members", "sentence", "label"),
+    [
+        (
+            "en",
+            "Terms and Conditions for {}",
+            ["Credit Cards", "Current Accounts"],
+            "Fees follow Section 5 of the Terms and Conditions for {}.",
+            "Section 5",
+        ),
+        (
+            "de",
+            "Allgemeine Geschäftsbedingungen für {}",
+            ["Händler", "Kunden"],
+            "Erstattungen regelt Abschnitt 8 der Allgemeinen Geschäftsbedingungen für {}.",
+            "Abschnitt 8",
+        ),
+    ],
+)
+@pytest.mark.parametrize("named_first", [True, False])
+def test_a_numbered_reference_in_a_family_of_titles_is_read_as_it_always_was(
+    language, pattern, members, sentence, label, named_first
+):
+    """The numbered branch takes the documents whose title words the sentence holds, as before."""
+    ordered = members if named_first else members[::-1]
+    rows = [
+        (sentence.format(members[0]), "Help > Refunds", "shop-a", "Help centre"),
+        *[
+            ("Text.", f"{label} > Part", f"doc-{name}", pattern.format(name))
+            for name in ordered
+        ],
+    ]
+    assert _quote_refs(language, rows) == [(label, 2 + ordered.index(members[0]))]

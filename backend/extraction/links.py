@@ -263,11 +263,11 @@ def _references(
                 h for h in labels.get(key, []) if h[2].doc_sha256 == head.doc_sha256
             ]
             if not held:
-                said = " ".join(named[key])
+                said = content(" ".join(named[key]), language)
                 held = [
                     h
                     for h in labels.get(key, [])
-                    if _names_title(h[2].title, said, language)
+                    if (title := content(h[2].title or "", language)) and title <= said
                 ]
             shallow = min((d for d, _, _ in held), default=0)
             reached = _nearest(head, [p for d, _, p in held if d == shallow])
@@ -290,34 +290,44 @@ def _references(
             # another whose title the sentence of the quote names.
             held = [h for h in headings[key] if h[1].doc_sha256 == head.doc_sha256]
             if not held:
-                span = quoted[key]
-                opened = re.compile(r"[\"'„“”‚‘’«»‹›]\s?" + re.escape(span))
-                said = " ".join(
-                    line.replace(span, " ")
-                    for s in sentences(head.text, language)
-                    for line in s.text.split("\n")
-                    if opened.search(line)
-                )
-                held = [
+                said = _sentence_of(head.text, quoted[key], language)
+                named = [
                     h for h in headings[key] if _names_title(h[1].title, said, language)
                 ]
+                # Two documents named in full leave the quote with neither.
+                if len({h[1].doc_sha256 for h in named}) == 1:
+                    held = named
             reached = _nearest(head, [p for _, p in held])
             if reached is not None:
                 label = next(s for s, p in held if p is reached)
                 edges.add(head, reached, "reference", label)
 
 
-def _names_title(title: str | None, said: str, language: str | None) -> bool:
-    """Whether a sentence names a document by its title, as banks and shops write one.
+def _sentence_of(text: str, span: str, language: str | None) -> str:
+    """The sentence a quoted span stands in, the span cut out by its match.
 
-    By the forms the words are read in, lemma or text, so `Conditions` is the
-    `Conditions` of the title whichever way the tagger took either. A title
-    is named by all its words, or by the words it opens with up to a preposition,
-    an article or a mark when they are two or more (one of several is too
-    common), which leaves out an issuer, an edition or a date after them ("Terms
-    and Conditions of Example Shop Ltd", "Price List - Example Bank plc"), or
-    by the abbreviation it gives in brackets ("(AGB)"). Only nouns, names and
-    adjectives of the sentence count, so a verb is no title word.
+    The opening mark, the span and the closing mark are cut where they stand,
+    so the same letters inside a longer word stay. A span on a list line reads
+    with the lead-in line of its sentence, not with the lines beside it.
+    """
+    quote = re.compile(rf"[\"'„“”‚‘’«»‹›]\s?{re.escape(span)}\s?[\"'„“”‚‘’«»‹›]")
+    found = []
+    for sentence in sentences(text, language):
+        if not quote.search(sentence.text):
+            continue
+        lines = sentence.text.split("\n")
+        if len(lines) > 1:
+            lines = [lines[0]] + [line for line in lines[1:] if quote.search(line)]
+        found.extend(quote.sub(" ", line) for line in lines)
+    return " ".join(found)
+
+
+def _names_title(title: str | None, said: str, language: str | None) -> bool:
+    """Whether a sentence names a document by its full title.
+
+    Every noun, name and adjective of the title is one the sentence has, by
+    its lemma or by its text as written, so the `Conditions` of a title is the
+    `Conditions` of a sentence whichever way the tagger took either.
     """
     if not title:
         return False
@@ -327,32 +337,17 @@ def _names_title(title: str | None, said: str, language: str | None) -> bool:
         if token.pos_ in _TITLE_WORDS
         for form in (token.text.casefold(), token.lemma_.casefold())
     }
-    words: list[set[str]] = []
-    opening = 0
-    cut = False
-    for token in parse(title, language):
-        if token.pos_ not in _TITLE_WORDS or not any(c.isalpha() for c in token.lemma_):
-            cut = cut or token.pos_ in _TITLE_CUTS
-            continue
-        words.append({token.text.casefold(), token.lemma_.casefold()})
-        opening += not cut
-    if words and all(word & forms for word in words):
-        return True
-    if opening >= 2 and all(word & forms for word in words[:opening]):
-        return True
-    return any(
-        abbreviation.casefold() in forms
-        for abbreviation in re.findall(r"\(([^\s()]{2,12})\)", title)
-    )
+    words = [
+        {token.text.casefold(), token.lemma_.casefold()}
+        for token in parse(title, language)
+        if token.pos_ in _TITLE_WORDS and any(c.isalpha() for c in token.lemma_)
+    ]
+    return bool(words) and all(word & forms for word in words)
 
 
 #: The parts of speech a title's words are read from: its nouns and names, and
 #: the first half of a split compound (`Preis-`).
 _TITLE_WORDS = frozenset({"NOUN", "PROPN", "ADJ", "X"})
-
-
-#: The parts of speech that end the words a title opens with.
-_TITLE_CUTS = frozenset({"ADP", "DET", "PUNCT", "SPACE", "SCONJ"})
 
 
 def _quoted(text: str, headings: Container[str]) -> list[str]:
