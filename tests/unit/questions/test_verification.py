@@ -150,6 +150,101 @@ def test_a_query_still_asks_one_thing() -> None:
     assert code(failed) == QuestionRejection.MALFORMED
 
 
+@pytest.mark.parametrize(
+    "question", ["  ", "Which documents does a loan application need"]
+)
+def test_a_refused_question_reports_the_form_its_type_asked_for(question) -> None:
+    """The form stored beside a refusal is the type's first, not a value."""
+    failed, form = structural(
+        question_text=question,
+        target_answer="a passport, a payslip and proof of address",
+        answerable=True,
+        language="en",
+        forms=(AnswerForm.LIST, AnswerForm.VALUE),
+    )
+
+    assert code(failed) == QuestionRejection.MALFORMED
+    assert form == AnswerForm.LIST
+
+
+def test_a_type_declaring_no_form_is_read_as_a_value() -> None:
+    """No form declared is the value fallback, not an IndexError."""
+    failed, form = structural(
+        question_text="  ",
+        target_answer="5 EUR",
+        answerable=True,
+        language="en",
+        forms=(),
+    )
+
+    assert code(failed) == QuestionRejection.MALFORMED
+    assert form == AnswerForm.VALUE
+
+
+def test_a_count_of_the_prompt_is_refused_in_a_row_with_no_language() -> None:
+    """With no language table to read, `How many` alone still asks for a count."""
+    failed = checked(
+        question_text="How many documents does a loan application need?",
+        target_answer="2",
+        language=None,
+        statements=(
+            "A loan application needs a passport.",
+            "A loan application needs a payslip.",
+        ),
+    )
+
+    assert code(failed) == QuestionRejection.MALFORMED
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "statement", "language"),
+    [
+        (
+            "How many documents does a loan application need?",
+            "1",
+            "A loan application needs a passport.",
+            "en",
+        ),
+        (
+            "Wie viele Unterlagen braucht ein Kreditantrag?",
+            "1",
+            "Ein Kreditantrag braucht einen Ausweis.",
+            "de",
+        ),
+    ],
+)
+def test_one_cited_fact_answered_one_is_no_count_of_the_prompt(
+    question, answer, statement, language
+) -> None:
+    """A single fact is a fact, so a count of one counts no prompt."""
+    assert (
+        checked(
+            question_text=question,
+            target_answer=answer,
+            language=language,
+            statements=(statement,),
+        )
+        is None
+    )
+
+
+def test_a_question_whose_answer_shows_its_language_is_read_with_it() -> None:
+    """`Was kostet das?` alone is too short to read; with its answer it is German."""
+    failed = checked(
+        question_text="Was kostet das?",
+        target_answer=(
+            "Die Bank berechnet fünf Euro im Monat für jedes Girokonto, das sie führt."
+        ),
+        language="en",
+        form=AnswerForm.EXPLANATION,
+    )
+
+    assert failed == (
+        QuestionRejection.MALFORMED,
+        "it is written in de and its facts are in en",
+    )
+
+
 def test_a_fact_handed_straight_back_is_not_a_question() -> None:
     """The laziest thing a model can do with the prompt."""
     failed = checked(
@@ -1395,6 +1490,18 @@ def test_a_title_too_short_to_be_a_name_is_not_matched() -> None:
         )
         is None
     )
+
+
+def test_a_title_exactly_as_long_as_a_name_is_matched() -> None:
+    """Twelve characters is a title: `Tarifblatt A` is a document's name."""
+    failed = checked(
+        question_text="Was kostet die Karte im Tarifblatt A?",
+        target_answer="5 EUR",
+        language="de",
+        titles=("Tarifblatt A",),
+    )
+
+    assert code(failed) == QuestionRejection.LEAKS_SOURCE
 
 
 def test_a_question_naming_no_title_passes_the_free_half() -> None:
