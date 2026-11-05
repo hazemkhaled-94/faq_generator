@@ -46,6 +46,7 @@ from question_generation.gates import (
     restates,
     same_material,
     structural,
+    typed,
     unnamed,
 )
 from question_generation.models import Neighbour
@@ -4847,6 +4848,80 @@ def test_a_range_the_recovery_writes_is_held_to_both_of_the_keys_ends(
 
 
 # ── Two more types a rule can settle ───────────────────────────────────────
+
+
+# N-133: a noun the comparison particle governs is the second thing a comparison names.
+@pytest.mark.parametrize(
+    ("question", "answer"),
+    [
+        (
+            "Wie unterscheiden sich Kartenzahlungen und Überweisungen in der Dauer?",
+            "Kartenzahlungen sind schneller als Überweisungen",
+        ),
+        (
+            "Wie unterscheiden sich Karten und Überweisungen in der Dauer?",
+            "Eine Karte ist schneller als eine Überweisung.",
+        ),
+    ],
+)
+def test_a_german_comparison_answered_with_als_names_both_sides(question, answer):
+    """`X ist schneller als Y` names two things as `X dauert länger als Y` does."""
+    assert compares(question, answer, "de")
+    assert typed(question, answer, True, QuestionType.COMPARISON, "de") is None
+
+
+def test_a_german_comparison_with_a_full_verb_is_read_as_before():
+    """The control: `als eine Lastschrift` is already a phrase of its own."""
+    assert compares(
+        "Wie unterscheiden sich Überweisungen und Lastschriften in der Dauer?",
+        "Eine Überweisung dauert länger als eine Lastschrift.",
+        "de",
+    )
+
+
+def test_an_english_comparison_with_than_names_both_sides():
+    """The English twin, already read: `than` heads its noun inside a phrase."""
+    assert compares(
+        "How do card payments and bank transfers differ in speed?",
+        "Card payments are faster than bank transfers",
+        "en",
+    )
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "answer"),
+    [
+        (
+            "fr",
+            "En quoi les paiements par carte et les virements diffèrent-ils en vitesse?",
+            "Les cartes sont plus rapides que les virements",
+        ),
+        (
+            "pl",
+            "Czym różnią się płatności kartą i przelewy pod względem szybkości?",
+            "Karty są szybsze niż przelewy",
+        ),
+        (
+            "el",
+            "Πώς διαφέρουν οι πληρωμές με κάρτα και οι μεταφορές ως προς την ταχύτητα;",
+            "Οι κάρτες είναι ταχύτερες από τις μεταφορές",
+        ),
+    ],
+)
+def test_a_comparison_in_a_language_without_the_particle_tag_keeps_its_verdict(
+    language, question, answer
+):
+    """No KOKOM, no extra phrase: these were refused before and are refused now."""
+    assert not compares(question, answer, language)
+
+
+def test_a_german_equal_comparison_with_wie_states_no_difference():
+    """`wie` carries the same tag, and with no comparative nothing is stated."""
+    assert not compares(
+        "Wie unterscheiden sich Kartenzahlungen und Überweisungen in der Dauer?",
+        "Kartenzahlungen sind genauso schnell wie Überweisungen",
+        "de",
+    )
 
 
 def test_a_comparison_naming_one_thing_is_refused() -> None:
