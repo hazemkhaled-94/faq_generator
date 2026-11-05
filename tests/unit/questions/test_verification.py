@@ -1822,6 +1822,198 @@ def test_a_hyphen_range_with_its_unit_comes_back_end_by_end() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("language", "target", "recovered"),
+    [
+        ("de", "1.–3. Mai", "Die Filiale ist vom 1.–3. Mai geschlossen."),
+        ("en", "1–3 May", "The branch is closed from 1–3 May."),
+    ],
+)
+def test_a_date_range_written_as_its_key_writes_it_agrees(
+    language, target, recovered
+) -> None:
+    """Both sides' ends are read in the text's language: `1.` is a German ordinal."""
+    assert agrees(
+        recovered,
+        target,
+        language,
+        AnswerForm.VALUE,
+        question="Wann ist die Filiale geschlossen?"
+        if language == "de"
+        else "When is the branch closed?",
+        passages=(recovered,),
+    )
+
+
+def test_a_range_key_whose_other_words_come_back_as_lemmas_agrees() -> None:
+    """`am Rand` is back as `Der Rand`: the lemmas decide, not every token."""
+    assert agrees("Der Rand ist 1–3 cm breit.", "1–3 cm am Rand", "de")
+
+
+def test_a_bare_range_key_needs_every_word_besides_its_ends_back() -> None:
+    """`about 1–3 cm` has no content lemma to compare, so each word must return."""
+    assert not agrees("between 1 and 3 cm", "about 1–3 cm", "en")
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered", "same"),
+    [
+        (
+            "de",
+            "Welche Leistungen kosten Gebühren, Karten oder Überweisungen?",
+            "eine Karte, eine Überweisung",
+            "Karten",
+            True,
+        ),
+        (
+            "de",
+            "Welche Leistungen kosten Gebühren, Karten oder Überweisungen?",
+            "eine Karte, eine Überweisung",
+            "ein Kredit",
+            False,
+        ),
+        (
+            "en",
+            "Which services cost a fee, cards or transfers?",
+            "a card, a transfer",
+            "cards",
+            True,
+        ),
+        (
+            "en",
+            "Which services cost a fee, cards or transfers?",
+            "a card, a transfer",
+            "a loan",
+            False,
+        ),
+    ],
+)
+def test_a_list_the_question_already_names_agrees_on_any_item_back(
+    language, question, target, recovered, same
+) -> None:
+    """Where the answer adds nothing to the question, one shared item is the answer."""
+    assert (
+        agrees(recovered, target, language, AnswerForm.LIST, question=question)
+        is same
+    )
+
+
+def test_a_list_recalling_exactly_the_overlap_share_agrees() -> None:
+    """The share is a floor: two of four items back meet an overlap of one half."""
+    assert agrees(
+        "ein Ausweis und ein Lohnzettel",
+        "ein Ausweis, ein Lohnzettel, ein Vertrag, eine Rechnung",
+        "de",
+        AnswerForm.LIST,
+        overlap=0.5,
+        question="Welche Unterlagen braucht ein Antrag?",
+    )
+
+
+@pytest.mark.parametrize(
+    ("form", "overlap", "target", "recovered", "question"),
+    [
+        (
+            AnswerForm.VALUE,
+            OVERLAP,
+            "2 % Zins auf dem Tagesgeldkonto",
+            "2 % Zins",
+            "Welchen Zins zahlt die Bank?",
+        ),
+        (
+            AnswerForm.LIST,
+            0.9,
+            "2 % Zins auf dem Tagesgeldkonto, eine Prämie",
+            "2 % Zins und eine Prämie",
+            "Was bietet die Bank?",
+        ),
+    ],
+)
+def test_a_word_only_the_heading_carries_need_not_come_back(
+    form, overlap, target, recovered, question
+) -> None:
+    """The verifier never sees `Tagesgeldkonto` when only the heading says it."""
+    assert agrees(
+        recovered,
+        target,
+        "de",
+        form,
+        overlap,
+        question=question,
+        given="Konten > Tagesgeldkonto",
+        passages=("Der Zins beträgt 2 %.",),
+    )
+
+
+@pytest.mark.parametrize(
+    ("form", "overlap", "target", "recovered", "question"),
+    [
+        (
+            AnswerForm.VALUE,
+            OVERLAP,
+            "2 % Zins auf dem Tagesgeldkonto",
+            "2 % Zins",
+            "Welchen Zins zahlt die Bank?",
+        ),
+        (
+            AnswerForm.LIST,
+            0.9,
+            "2 % Zins auf dem Tagesgeldkonto, eine Prämie",
+            "2 % Zins und eine Prämie",
+            "Was bietet die Bank?",
+        ),
+    ],
+)
+def test_a_heading_word_the_passages_also_state_must_come_back(
+    form, overlap, target, recovered, question
+) -> None:
+    """Once a cited cell says `Tagesgeldkonto`, the verifier saw it, so it is owed."""
+    assert not agrees(
+        recovered,
+        target,
+        "de",
+        form,
+        overlap,
+        question=question,
+        given="Konten > Tagesgeldkonto",
+        passages=("Zins auf dem Tagesgeldkonto", "Prämie", "2 %"),
+    )
+
+
+def test_a_value_key_is_compared_on_its_participle_too() -> None:
+    """`a signed form` is not `a form`: a value's verbs are part of it."""
+    assert not agrees("a form", "a signed form", "en")
+
+
+def test_the_recall_recorded_for_a_value_counts_its_participle() -> None:
+    """The reading beside the verdict: half of `a signed form` came back."""
+    assert recalled("a form", "a signed form", "en", AnswerForm.VALUE) == 0.5
+
+
+@pytest.mark.parametrize(
+    ("language", "target", "recovered", "question"),
+    [
+        (
+            "de",
+            "ein Rand von 1–3 cm, eine Prämie, ein Zins",
+            "ein Rand von 1–3 mm, eine Prämie und ein Zins",
+            "Was gilt?",
+        ),
+        (
+            "en",
+            "an edge of 1–3 cm, a bonus, an interest rate",
+            "an edge of 1–3 mm, a bonus and an interest rate",
+            "What applies?",
+        ),
+    ],
+)
+def test_a_list_holding_a_range_needs_its_unit_back_whatever_the_share(
+    language, target, recovered, question
+) -> None:
+    """`1–3 mm` is not `1–3 cm`, however many of the other items came back."""
+    assert not agrees(recovered, target, language, AnswerForm.LIST, question=question)
+
+
 def test_a_three_decimal_rate_is_not_its_digits() -> None:
     """`0,125 %` is an eighth of a percent, which `125 %` is not."""
     assert not agrees("0,125 %", "125 %", "de")
