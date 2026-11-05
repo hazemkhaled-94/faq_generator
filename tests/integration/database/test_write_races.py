@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import time
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 from seed import digest, document, fact, fitted, membership, passage, question
 from sqlalchemy import text
@@ -234,3 +237,68 @@ def test_a_fact_deleted_while_a_topic_is_written_keeps_the_other_questions(
     assert written == 1
     assert kept == [asked]
     assert locking and all("ORDER BY" in one for one in locking), locking
+
+
+def _waiting(engine, count: int) -> None:
+    """Waits until `count` other backends wait on a lock."""
+    for _ in range(200):
+        with engine.connect() as connection:
+            held = connection.execute(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE wait_event_type = 'Lock' AND pid <> pg_backend_pid()"
+                )
+            ).scalar_one()
+        if held >= count:
+            return
+        time.sleep(0.05)
+    raise AssertionError(f"{count} writers never queued on the lock")
+
+
+def test_two_release_writes_at_once_leave_one_draw(engine, database) -> None:
+    """Two draws finishing together: the release is one of them, under one id."""
+    with Session(engine) as session:
+        rows = [
+            question(
+                status="accepted",
+                language="de",
+                question_text=f"Wie hoch ist die Gebühr {n} für eine Überweisung?",
+                target_answer="5 EUR",
+            )
+            for n in range(4)
+        ]
+        session.add_all(rows)
+        session.commit()
+        a, b, c, d = (one.id for one in rows)
+    QuestionCatalog().release([a, b])  # yesterday's release
+
+    first, second = [a, c], [b, d]
+    lock = engine.connect()
+    held = lock.begin()
+    lock.execute(
+        text("SELECT id FROM questions WHERE id IN (:a, :b) FOR UPDATE"),
+        {"a": a, "b": b},
+    )
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        one = pool.submit(QuestionCatalog().release, first)
+        _waiting(engine, 1)
+        other = pool.submit(QuestionCatalog().release, second)
+        time.sleep(0.5)
+        held.commit()
+        lock.close()
+        one.result(timeout=30)
+        other.result(timeout=30)
+
+    with engine.connect() as connection:
+        released = dict(
+            connection.execute(
+                text(
+                    "SELECT id, release_id FROM questions WHERE release_id IS NOT NULL"
+                )
+            ).all()
+        )
+    assert set(released) in ({a, c}, {b, d}), (
+        f"released {sorted(released)} under {len(set(released.values()))} release ids; "
+        f"the draws were {first} and {second}"
+    )
+    assert len(set(released.values())) == 1

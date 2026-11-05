@@ -83,6 +83,9 @@ DEFAULT_FIELD = "both"
 #: How many questions to hold at once while re-checking them.
 _BATCH = 500
 
+#: The advisory lock a release write holds, so two draws never write at once.
+_RELEASING = 0x5155_5200
+
 #: How many of its nearest accepted questions each one is read against for
 #: a twin. The gate reads one; the release has to see past a closer question
 #: that is not a twin, and a twin group is a handful of questions at most,
@@ -510,6 +513,9 @@ class QuestionCatalog(Repository):
         """
         drawn = uuid.uuid4()
         with self._session.begin() as session:
+            # Two writers at once would each clear a snapshot taken before the
+            # other committed and leave both draws released.
+            session.execute(select(func.pg_advisory_xact_lock(_RELEASING)))
             session.execute(
                 update(Question)
                 .where(Question.release_id.is_not(None))
