@@ -46,10 +46,15 @@ class _Archive:
         self._documents = list(documents)
 
     def execute(self, statement, parameters):
+        """Answers in the shape the query asks for: with the time, or without.
+
+        The code before the fix asked for the bare columns, which is how it
+        came to put back the newest copy whatever deletion was named.
+        """
         text = str(statement)
-        if "table_name = 'topics'" in text:
-            return _Rows(self._topics)
-        return _Rows(self._documents)
+        timed = "archived_at)" in text
+        rows = self._topics if "table_name = 'topics'" in text else self._documents
+        return _Rows(rows if timed else [row[:-1] for row in rows])
 
 
 @pytest.fixture
