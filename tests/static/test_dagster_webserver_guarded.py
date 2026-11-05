@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -49,6 +50,23 @@ COMMANDING = ("exec", "run")
 ENGINE = r"(?:compose|docker|podman|COMPOSE\w*|\bDC\b)"
 
 
+#: Where one command ends and the next begins on a line: `&&`, `&`, `;`, `|`,
+#: `$(`, a bracket, a backtick or a redirect.
+SPLIT = r"[&;|{`>(]"
+
+#: The one program that serves the guarded webserver.
+SERVE = re.compile(
+    r"(?:^|\s)(?:\S*python[\d.]*|poetry run python)\s+-m\s+orchestration\.serve\b"
+)
+
+
+def _segment(line: str, found: re.Match[str]) -> str:
+    """The command the word is in, from the separator before it to the one after."""
+    start = max((m.end() for m in re.finditer(SPLIT, line[: found.start()])), default=0)
+    after = re.search(SPLIT, line[found.end() :])
+    return line[start : found.end() + (after.start() if after else len(line))]
+
+
 def _tokens(before: str, verb: str) -> list[str]:
     """The words between a verb and a start word."""
     return re.split(rf"(?<![\w-]){verb}(?![\w-])", before)[-1].split()
@@ -58,7 +76,7 @@ def _after_verb(line: str, found: re.Match[str]) -> bool:
     """Whether the word names the service of a compose verb, not a program."""
     if "--entrypoint" in line:
         return False
-    segment = re.split(r"&&|;|\|\||\||\$\(|\(|\{|`|>", line[: found.start()])[-1]
+    segment = re.split(SPLIT, line[: found.start()])[-1]
     for verb in LISTING:
         if re.search(rf"{ENGINE}.*(?<![\w-]){verb}(?![\w-])", segment):
             between = _tokens(segment, verb)
@@ -74,7 +92,7 @@ def _after_verb(line: str, found: re.Match[str]) -> bool:
 
 
 def _printed(line: str, found: re.Match[str]) -> bool:
-    segment = re.split(r"&&|;|\|\||\||\$\(|\(|\{|`", line[: found.start()])[-1]
+    segment = re.split(SPLIT, line[: found.start()])[-1]
     return re.match(r"\s*[@-]*\s*(?:echo|printf)\b", segment) is not None
 
 
@@ -82,7 +100,7 @@ def _allowed(lines: list[str], index: int, found: re.Match[str]) -> bool:
     """Whether this occurrence has one of the contexts that are not a start."""
     line = lines[index]
     word = found.group(0)
-    if "orchestration.serve" in line:
+    if SERVE.search(_segment(line, found)):
         return True
     if re.fullmatch(rf"\s*(?:container_name:\s*)?{word}:?\s*(?:#.*)?", line):
         return "container_name" in line or line.rstrip().endswith(":") or ":" in line
@@ -113,6 +131,8 @@ def starts(text: str) -> list[str]:
     for index, line in enumerate(lines):
         if line.lstrip().startswith("#"):
             continue
+        # A trailing comment says what the line is for, not what it runs.
+        line = lines[index] = re.sub(r"\s+#.*$", "", line)
         if DEV.search(line):
             found.append(line.strip())
         for word in WORD.finditer(line):
@@ -190,9 +210,25 @@ def _is_image(path: Path) -> bool:
 
 
 def _files(root: Path = ROOT) -> list[Path]:
+    """The tracked files of the kinds that can start a server.
+
+    Not the working tree: it holds ignored folders (old copies under
+    .claude, caches). A folder that is not a repository is walked instead.
+    """
+    try:
+        listed = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=root,
+            capture_output=True,
+            check=True,
+            text=True,
+        ).stdout.split("\0")
+        candidates = [root / one for one in listed if one]
+    except (OSError, subprocess.CalledProcessError):
+        candidates = [one for one in root.rglob("*")]
     return sorted(
         one
-        for one in root.rglob("*")
+        for one in candidates
         if one.is_file()
         and not SKIPPED & set(one.relative_to(root).parts)
         and (
@@ -237,6 +273,11 @@ PLANTED = [
     "run: nohup dagster-webserver > web.log 2>&1 &",
     "        run: |\n          dagster-webserver &",
     "cd configs/dagster && dagster-webserver &",
+    "\t@echo starting & dagster-webserver",
+    "$(COMPOSE_CMD) up -d postgres & dagster-webserver",
+    "dagster-webserver  # the UI: port 3000",
+    "nohup dagster-webserver -h 127.0.0.1 & # replaces orchestration.serve here",
+    "dagster-webserver; python -m orchestration.serve",
     "exec dagster-webserver -h 0.0.0.0 -p 3000",
 ]
 
