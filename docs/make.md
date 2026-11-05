@@ -239,7 +239,7 @@ These targets re-derive stored results without the expensive part:
 | Target | Does |
 |---|---|
 | `make extract-revalidate` | Judge every stored fact again. No model call |
-| `make chunk-revocabulary` | Re-read language and vocabulary: `passages.language`, `passages.lemmas`, and `facts.language` change |
+| `make chunk-revocabulary` | Re-read language and vocabulary: `passages.language`, `passages.lemmas`, and `facts.language` change; a passage stored as read for want of a pipeline that now has a language, and that no fact cites, goes back to `new` for `make extract-start` |
 | `make questions-reverify` | Put every stored question through the gates that need no model |
 | `make questions-rescore` | Rewrite stored scopes and difficulty from what each question cites now. Run it after an `extract-dedup` that removes fold citations, before `questions-reverify`, and after a topic refit, following `questions-reverify`. Not after a re-extraction or deletion, where it would hide `source_changed` |
 | `make extract-recap` | Re-apply the atomic cap `EXTRACTION_MIN_OTHER_SHARE` works out to, never below a passage's own sentences and list items |

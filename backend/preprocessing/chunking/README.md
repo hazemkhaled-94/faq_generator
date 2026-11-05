@@ -149,7 +149,10 @@ document's language when the passage is too short. A passage surely in a
 language `NLP_MODELS` does not name is labelled `None` and stored as already
 extracted, so extraction never reads it; the chunk log counts them (`make
 chunk-revocabulary` moves the label only, so a re-chunk is what skips a passage
-already stored). A chunk ends where its
+already stored). A passage stored as read for want of a pipeline, once its
+language is configured, goes back to `new` through `chunk-revocabulary` or a
+`chunk-rerun` that keeps its row, unless a fact cites it, and `make
+extract-start` reads it. A chunk ends where its
 paragraphs or list items change language, a foreign one included. A table passage takes the
 document's language without detection.
 
@@ -185,7 +188,9 @@ or vocabulary is read without re-chunking. It replaces `passages.language` and
 `passages.lemmas` in place and moves `facts.language` with the passage each
 fact opens on, so the dedup probe still finds the facts. A table passage takes
 the document's language without detection. Sentence offsets are left alone,
-because moving them would point every citation at different text.
+because moving them would point every citation at different text. A passage
+that goes from no language to a configured one, with no fact citing it, goes
+back to `new` for `make extract-start`.
 
 ## spaCy
 
