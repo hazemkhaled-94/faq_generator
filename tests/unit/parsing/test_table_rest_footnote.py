@@ -168,3 +168,26 @@ def test_a_caption_that_continues_the_tables_title_is_not_printed_again(
     text = passages(language, repeated=True, suffix=CONTINUED[language])
     assert text.count(f"{header[0]} / {header[1]}") == 1, text
     assert note in text
+
+
+@pytest.mark.parametrize("language", sorted(TABLES))
+def test_a_footnote_the_table_already_holds_is_not_printed_again(
+    language: str,
+) -> None:
+    """A note repeated under both pieces is one note once the rest joins."""
+    header, first, rest, note = TABLES[language]
+    document = DoclingDocument(name="fees")
+    for page in (1, 2):
+        document.add_page(page_no=page, size=Size(width=595, height=842))
+    table = document.add_table(
+        data=grid((header, *first), 700, header=True), prov=prov(1, 700, 26)
+    )
+    second = document.add_table(data=grid(rest, 60, header=False), prov=prov(2, 60, 26))
+    for owner, page in ((table, 1), (second, 2)):
+        foot = document.add_text(
+            label=DocItemLabel.FOOTNOTE, text=note, prov=prov(page, 740), parent=owner
+        )
+        owner.footnotes.append(foot.get_ref())
+    _tabled(document, None)
+    _, chunks = chunks_of(document, word_chunker(300), language)
+    assert "\n".join(chunk.text for chunk in chunks).count(note) == 1

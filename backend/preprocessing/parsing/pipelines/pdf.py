@@ -1014,9 +1014,10 @@ def _append(document: DoclingDocument, table: TableItem, rest: TableItem) -> Non
     """Puts the rows of `rest` under the rows of `table`.
 
     The footnotes the converter attached to the rest, which printed them
-    under the table's end, become the table's, and so do its captions unless
-    the table already holds one whose text theirs repeats or opens with, as
-    `(continued)` follows a title. Each moves under the table as a child, so
+    under the table's end, become the table's, unless the table already holds
+    one of that text, and so do its captions unless the table already holds
+    one whose text theirs repeats or opens with, as `(continued)` follows a
+    title. Each moves under the table as a child, so
     that the rest, which leaves the body, takes none of them along.
     """
     offset = table.data.num_rows
@@ -1031,17 +1032,18 @@ def _append(document: DoclingDocument, table: TableItem, rest: TableItem) -> Non
         )
     table.data.num_rows += rest.data.num_rows
     table.prov.extend(rest.prov)
-    held = {
-        found.text.strip()
-        for ref in table.captions
-        if isinstance(found := ref.resolve(document), TextItem)
-    }
-    for name, kept in (("footnotes", None), ("captions", held)):
+    for name, opens in (("footnotes", False), ("captions", True)):
+        held = {
+            found.text.strip()
+            for ref in getattr(table, name)
+            if isinstance(found := ref.resolve(document), TextItem)
+        }
         for ref in getattr(rest, name):
             found = ref.resolve(document)
-            if kept is not None and (
-                not isinstance(found, TextItem)
-                or any(found.text.strip().startswith(one) for one in kept if one)
+            text = found.text.strip() if isinstance(found, TextItem) else ""
+            if not isinstance(found, TextItem) or (
+                text in held
+                or (opens and any(text.startswith(one) for one in held if one))
             ):
                 continue
             getattr(table, name).append(ref)
