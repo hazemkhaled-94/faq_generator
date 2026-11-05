@@ -19,7 +19,7 @@ from opentelemetry.trace import Span
 
 from llm.config import spend_cap
 from llm.tally import spent_usd
-from stages.queue import StageQueue
+from stages.queue import Lost, StageQueue
 from telemetry.evaluations import current_ids
 
 log = logging.getLogger(__name__)
@@ -222,7 +222,11 @@ class StageService(ABC):
         said so. A `standing` stop is not lifted by the next drain, which
         would pay for the same rows again: only a new service lifts it.
         """
-        self._repository.release(*keys)
+        for key in keys:
+            try:
+                self._repository.release(key)
+            except Lost:
+                self._lost(key)
         self.stalled = reason
         if standing:
             self._standing = reason
@@ -279,8 +283,23 @@ class StageService(ABC):
         log.warning("%s: failed %s %s: %s", self.name, self.unit, key, error)
         if self._missed(key, outage):
             return
-        self._repository.fail(key, error)
+        try:
+            self._repository.fail(key, error)
+        except Lost:
+            self._lost(key)
+            return
         self.failed += 1
+
+    def _lost(self, key: Any) -> None:
+        """Lets go of a row a delete or another worker took while it was held.
+
+        The failure has nowhere to be written, and it is not one: the drain
+        takes the next row.
+        """
+        log.warning(
+            "%s: %s %s was deleted or claimed elsewhere", self.name, self.unit, key
+        )
+        self._gone(key)
 
     def _crashed(
         self, key: Any, exc: Exception, current: Span, outage: bool = False

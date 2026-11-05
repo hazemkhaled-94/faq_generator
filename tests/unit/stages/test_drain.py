@@ -17,6 +17,7 @@ from opentelemetry import trace
 
 from llm.client import ModelRefused, ModelUnavailable
 from stages.cli import FAILED, STOPPED, exit_code
+from stages.queue import Gone, Lost
 from stages.service import STOP_AFTER, StageService, is_outage
 
 
@@ -117,6 +118,62 @@ def test_a_model_that_fails_from_one_row_on_stops_the_drain() -> None:
     assert stage.rows.released == held
     assert stage.rows.pending == list(range(11, 41)), "all pending again"
     assert exit_code(stage) == STOPPED == 75
+
+
+class Vanishing(Rows):
+    """Rows whose row 3 was deleted, or claimed elsewhere, while it was held."""
+
+    def __init__(self, count: int, error: Lost, refuses: str = "fail") -> None:
+        """Queues the rows; `refuses` names the write to row 3 that meets `error`."""
+        super().__init__(count)
+        self._error = error
+        self._refuses = refuses
+
+    def fail(self, key: int, error: str) -> None:
+        """Refuses row 3 as the queue does for a row it no longer holds."""
+        if key == 3 and self._refuses == "fail":
+            raise self._error
+        super().fail(key, error)
+
+    def release(self, *keys: int) -> None:
+        """Refuses row 3 as `fail` does."""
+        if 3 in keys and self._refuses == "release":
+            raise self._error
+        super().release(*keys)
+
+
+@pytest.mark.parametrize("error", [Gone("3 was deleted"), Lost("3 was claimed")])
+def test_a_row_deleted_while_it_fails_is_logged_and_not_counted(
+    error: Lost, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The queue has nothing to record the failure on; the drain takes the next."""
+    stage = Stage(Vanishing(6, error), {3: ValueError("nonsense")})
+
+    with caplog.at_level("WARNING"):
+        assert stage.drain() == 6
+
+    assert stage.failed == 0 and exit_code(stage) == 0
+    assert [
+        r.getMessage() for r in caplog.records if "row 3 was deleted" in r.getMessage()
+    ]
+
+
+@pytest.mark.parametrize("error", [Gone("3 was deleted"), Lost("3 was claimed")])
+def test_a_stop_gives_back_the_rest_when_one_held_row_is_gone(
+    error: Lost, caplog: pytest.LogCaptureFixture
+) -> None:
+    """One row deleted under the stop must not keep the others from the queue."""
+    stage = Stage(Vanishing(40, error, "release"), down_from(1))
+
+    with caplog.at_level("WARNING"):
+        stage.drain()
+
+    assert stage.stalled, "the drain still stops"
+    held = range(1, 1 + STOP_AFTER)
+    assert 3 in held, "the gone row is one the stop gives back"
+    assert stage.rows.released == [key for key in held if key != 3]
+    assert [r for r in caplog.records if "row 3 was" in r.getMessage()]
+    assert exit_code(stage) == STOPPED
 
 
 def test_one_failed_row_among_good_ones_exits_3() -> None:
