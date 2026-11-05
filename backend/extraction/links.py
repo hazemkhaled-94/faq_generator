@@ -24,7 +24,7 @@ import numpy as np
 from database.qa_generator.passages import headings_of, trail_of
 from extraction.models import PassageToExtract
 from extraction.validation import label_of, label_word, numbered
-from nlp.analysis import content, normalised, parse
+from nlp.analysis import content, normalised, parse, sentences
 
 #: A quoted span, as two patterns by what opens it. A double mark closes at a
 #: double mark and may hold apostrophes ("Customers’ rights"); a single mark
@@ -275,20 +275,35 @@ def _references(
                 label = next(s for d, s, p in held if p is reached and d == shallow)
                 edges.add(head, reached, "reference", label)
         mine = {_plain(s) for s in _segments(head)}
-        quoted = [
-            key
-            for inner in _quoted(head.text, headings)
-            if (key := _plain(inner)) in headings
-            and key not in mine
-            and content(inner, language)
-        ]
-        quoted = [
+        quoted: dict[str, str] = {}
+        for inner in _quoted(head.text, headings):
+            if (
+                (key := _plain(inner)) in headings
+                and key not in mine
+                and content(inner, language)
+            ):
+                quoted.setdefault(key, inner)
+        for key in [
             k for k in quoted if not any(k in parents[o] for o in quoted if o != k)
-        ]
-        for key in dict.fromkeys(quoted):
-            reached = _nearest(head, [p for _, p in headings[key]])
+        ]:
+            # As a numbered reference: a heading of its own document, or of
+            # another whose title the sentence of the quote names.
+            held = [h for h in headings[key] if h[1].doc_sha256 == head.doc_sha256]
+            if not held:
+                sentence = " ".join(
+                    s.text
+                    for s in sentences(head.text, language)
+                    if quoted[key] in s.text
+                )
+                said = content(sentence or head.text, language)
+                held = [
+                    h
+                    for h in headings[key]
+                    if (title := content(h[1].title or "", language)) and title <= said
+                ]
+            reached = _nearest(head, [p for _, p in held])
             if reached is not None:
-                label = next(s for s, p in headings[key] if p is reached)
+                label = next(s for s, p in held if p is reached)
                 edges.add(head, reached, "reference", label)
 
 

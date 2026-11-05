@@ -208,7 +208,8 @@ passage, a document and a topic.
 Passages are paired by the documents' own links (`extraction/links.py`):
 
 - a reference: a passage naming another section's heading ("Section 7",
-  "Returns");
+  "Returns"). It reaches a section of its own document, or of another whose
+  title the sentence naming it holds;
 - a sibling: two sections under one parent heading;
 - a shared term: one used by 0.5% of the language's passages, never fewer than
   two and never more than six. A passage keeps the eight partners it shares the

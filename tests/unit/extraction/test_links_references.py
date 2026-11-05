@@ -363,3 +363,99 @@ def test_an_entity_series_with_a_title_is_no_section_numbering(language, text, p
         (f"Passage {i}.", f"Shop > {path}", "d") for i, path in enumerate(paths)
     ]
     assert references(language, rows) == []
+
+
+#: (language, a shop page quoting a label, its trail, another document's
+#: section of that name, its trail)
+_QUOTED = [
+    (
+        "de",
+        "Zum Ändern Ihrer Adresse klicken Sie im Kundenkonto auf „Kontakt“ und speichern die neue Anschrift.",
+        "Kundenkonto > Adresse ändern",
+        "Die Bank ist montags bis freitags von 9 bis 17 Uhr telefonisch erreichbar.",
+        "Kontakt",
+    ),
+    (
+        "en",
+        'To change your address, open your account, click "Contact" and save the new address.',
+        "Your account > Change address",
+        "The bank can be reached by phone from Monday to Friday, 9 am to 5 pm.",
+        "Contact",
+    ),
+    (
+        "fr",
+        "Pour changer votre adresse, ouvrez votre compte, cliquez sur « Contact » et enregistrez la nouvelle adresse.",
+        "Votre compte > Changer d'adresse",
+        "La banque est joignable par téléphone du lundi au vendredi, de 9 h à 17 h.",
+        "Contact",
+    ),
+    (
+        "el",
+        "Για να αλλάξετε τη διεύθυνσή σας, ανοίξτε τον λογαριασμό σας, πατήστε «Επικοινωνία» και αποθηκεύστε τη νέα διεύθυνση.",
+        "Ο λογαριασμός σας > Αλλαγή διεύθυνσης",
+        "Η τράπεζα είναι διαθέσιμη τηλεφωνικά από Δευτέρα έως Παρασκευή, 9:00 έως 17:00.",
+        "Επικοινωνία",
+    ),
+]
+
+
+def _quoting(language, quoting, trail, other, heading, same, named=""):
+    """The reference links of a page quoting a label, the section of that name in the same or another document."""
+    shop = titled(quoting + named, trail, 1, "shop-a", language, "Online shop help")
+    section = titled(
+        other,
+        heading,
+        2,
+        "shop-a" if same else "bank-b",
+        language,
+        "Online shop help" if same else "Current account terms",
+    )
+    got = linked([shop], [shop, section], {1: 1, 2: 1}, 5, 2)
+    return [(k.kind, k.named) for k in got if k.kind == "reference"]
+
+
+@pytest.mark.parametrize(("language", "quoting", "trail", "other", "heading"), _QUOTED)
+def test_a_quoted_span_names_no_heading_of_another_document(
+    language, quoting, trail, other, heading
+):
+    """A button label a shop page quotes is no reference to a bank's section of that name."""
+    assert _quoting(language, quoting, trail, other, heading, same=False) == []
+
+
+@pytest.mark.parametrize(
+    ("language", "quoting", "trail", "other", "heading"), _QUOTED[:2]
+)
+def test_a_quoted_span_names_a_heading_of_its_own_document(
+    language, quoting, trail, other, heading
+):
+    """Under one document the quoted heading is a reference."""
+    got = _quoting(language, quoting, trail, other, heading, same=True)
+    assert got == [("reference", heading)]
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "title"),
+    [
+        (
+            "de",
+            "Zum Ändern Ihrer Adresse klicken Sie laut den Allgemeinen Geschäftsbedingungen auf „Kontakt“.",
+            "Allgemeine Geschäftsbedingungen",
+        ),
+        (
+            "en",
+            'To change your address, click "Contact" as the Current account terms of the bank say.',
+            "Current account terms of the bank",
+        ),
+    ],
+)
+def test_a_quoted_span_names_a_heading_of_another_document_the_sentence_names(
+    language, text, title
+):
+    """A sentence naming the other document's title makes the quote that document's section."""
+    shop = titled(text, "Kundenkonto > Adresse", 1, "shop-a", language, "Online shop")
+    bank = titled("Die Bank ist erreichbar.", "Kontakt", 2, "bank-b", language, title)
+    bank = replace(bank, section_path="Contact" if language == "en" else "Kontakt")
+    got = linked([shop], [shop, bank], {1: 1, 2: 1}, 5, 2)
+    assert [(k.kind, k.named) for k in got if k.kind == "reference"] == [
+        ("reference", bank.section_path)
+    ]
