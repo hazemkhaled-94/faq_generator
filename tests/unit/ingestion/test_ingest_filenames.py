@@ -40,6 +40,10 @@ class _File:
         """Every entry is a file."""
         return True
 
+    def read_bytes(self) -> bytes:
+        """The whole file, as `Path.read_bytes` gives it."""
+        return self._data
+
     def stat(self) -> os.stat_result:
         """The file's size."""
         return os.stat_result((0, 0, 0, 0, 0, 0, len(self._data), 0, 0, 0))

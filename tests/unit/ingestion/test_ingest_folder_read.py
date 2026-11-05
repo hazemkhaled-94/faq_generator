@@ -65,6 +65,9 @@ class _Grown:
     def is_file(self) -> bool:
         return True
 
+    def read_bytes(self) -> bytes:
+        return b"0" * 64 * 1024
+
     def stat(self) -> os.stat_result:
         return os.stat_result((0, 0, 0, 0, 0, 0, 10, 0, 0, 0))
 
