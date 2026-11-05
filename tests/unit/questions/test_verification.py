@@ -7659,3 +7659,105 @@ def test_a_figure_the_key_closes_on_is_not_one_it_left_unnamed(
 ) -> None:
     """`2025` ends the key, so the recovery's `2025` was named."""
     assert unnamed(recovered, target, language) == ()
+
+
+_CARDS = "How do card payments and bank transfers differ?"
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        (
+            _CARDS,
+            "card payments, in seconds and with a fee; bank transfers, in a day and "
+            "with a fee",
+            "en",
+        ),
+        (
+            "Wie unterscheiden sich Kartenzahlungen und Überweisungen?",
+            "Kartenzahlungen, in Sekunden und mit Gebühr; Überweisungen, in einem Tag "
+            "und mit Gebühr",
+            "de",
+        ),
+        (
+            _CARDS,
+            "card payments in seconds and with a fee, bank transfers in a day with a fee",
+            "en",
+        ),
+        (
+            "How do the reply times for standard and urgent requests differ?",
+            "48 hours, 4 hours,",
+            "en",
+        ),
+        (_CARDS, "faster card payments, slower bank transfers", "en"),
+        ("How do cards and transfers differ in speed?", "Cards settle faster than transfers", "en"),
+        (
+            "How do cards and transfers differ in speed?",
+            "fees apply; cards are faster than transfers",
+            "en",
+        ),
+        (
+            _CARDS,
+            "card payments with a fee in seconds, bank transfers with a fee in a day; "
+            "both are common",
+            "en",
+        ),
+    ],
+)
+def test_a_comparison_is_split_at_its_best_ranked_dividing_seam(
+    question, answer, language
+) -> None:
+    """`;` before `,` before `and`, among the seams that divide; a comparative in its own stretch."""
+    assert compares(question, answer, language)
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        (_CARDS, "card payments need a card; a cheque is faster than bank transfers", "en"),
+        (
+            "Wie unterscheiden sich Kartenzahlungen und Überweisungen?",
+            "Kartenzahlungen brauchen eine Karte; ein Scheck dauert länger als eine "
+            "Überweisung",
+            "de",
+        ),
+        (_CARDS, "a card payment with a bank transfer fee", "en"),
+        (
+            "Wie unterscheiden sich Kartenzahlungen und Überweisungen?",
+            "eine Kartenzahlung mit einer Überweisungsgebühr",
+            "de",
+        ),
+    ],
+)
+def test_a_comparative_past_a_seam_or_an_answer_in_one_piece_compares_nothing(
+    question, answer, language
+) -> None:
+    """A cheque faster than transfers says nothing of card payments; no seam is no two sides."""
+    assert not compares(question, answer, language)
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        (
+            "How do card payments and bank transfers differ in speed?",
+            "Card payments are faster and bank transfers take a day",
+            "en",
+        ),
+        (
+            "Wie unterscheiden sich Kartenzahlungen und Überweisungen in der Dauer?",
+            "Kartenzahlungen sind schneller und Überweisungen dauern einen Tag",
+            "de",
+        ),
+        (
+            "How do card payments and bank transfers differ in speed?",
+            "Card payments are faster, bank transfers take a day",
+            "en",
+        ),
+    ],
+)
+def test_one_comparative_at_a_coordinating_seam_compares_one_side(
+    question, answer, language
+) -> None:
+    """Only a subordinate seam (`while`, `während`) lets one side's comparative stand for both."""
+    assert not compares(question, answer, language)
