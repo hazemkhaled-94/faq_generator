@@ -7267,3 +7267,60 @@ def test_passages_sharing_the_floor_of_what_the_question_asks_are_about_it(
     from question_generation.gates import about
 
     assert about(question, passages, language, floor) is expected
+
+
+@pytest.mark.parametrize(
+    ("explanation", "target", "passages", "language", "span", "expected"),
+    [
+        ("The bank refunds fees.", "fees", (), "en", (22, 60), True),
+        ("The bank refunds every fee it charged in error.", "fees", (), "en", (20, 47), True),
+        (
+            "The monthly fee is 5 EUR and the yearly fee is 60 EUR.",
+            "5 EUR",
+            ("Monatsgebühr 5", "60 Jahresgebühr"),
+            "en",
+            (20, 200),
+            True,
+        ),
+        (
+            "The bank refunds every fee it charged in error within 14 days.",
+            "",
+            ("Refunds are paid within 14 days.",),
+            "en",
+            (20, 200),
+            True,
+        ),
+        (
+            "Die Bank erstattet Gebühren innerhalb von Tagen, die Gebühren werden von "
+            "der Bank erstattet.",
+            "Die Bank erstattet die Gebühren innerhalb von Tagen.",
+            (),
+            "de",
+            (20, 200),
+            False,
+        ),
+        (
+            "The bank refunds the fee, and the fee is refunded by the bank.",
+            "The bank refunds the fee.",
+            (),
+            "en",
+            (20, 200),
+            False,
+        ),
+        (
+            "The card fee, transfer, branch, account, loan, rate, deposit and limit "
+            "and the refund.",
+            "card fee transfer branch account loan rate deposit limit",
+            (),
+            "en",
+            (20, 200),
+            False,
+        ),
+        ("It is what it is, and so it is for all of them.", "fees", (), "en", (20, 200), False),
+    ],
+)
+def test_a_long_answer_is_usable_only_in_its_span_backed_and_saying_more_than_its_key(
+    explanation, target, passages, language, span, expected
+) -> None:
+    """Both ends of the span count, figures are read cell by cell, nine tenths of the key is a restatement."""
+    assert explains(explanation, target, passages, language, span) is expected
