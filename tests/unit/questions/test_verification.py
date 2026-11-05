@@ -7761,3 +7761,45 @@ def test_one_comparative_at_a_coordinating_seam_compares_one_side(
 ) -> None:
     """Only a subordinate seam (`while`, `während`) lets one side's comparative stand for both."""
     assert not compares(question, answer, language)
+
+
+@pytest.mark.parametrize(
+    ("recovered", "target", "language"),
+    [
+        (
+            "(1) Ausweis, (2) Lohnzettel, (3) Vertrag und (4) Pass",
+            "Ausweis, Lohnzettel, Vertrag und Pass",
+            "de",
+        ),
+        (
+            "- Ausweis und Lohnzettel\n- Vertrag und Pass",
+            "Ausweis, Lohnzettel, Vertrag und Pass",
+            "de",
+        ),
+        (
+            "Schritt 1: Ausweis und Lohnzettel\nSchritt 2: Vertrag und Pass",
+            "Ausweis, Lohnzettel, Vertrag und Pass",
+            "de",
+        ),
+        (
+            "(1) passport, (2) payslip and (3) contract",
+            "passport, payslip and contract",
+            "en",
+        ),
+        (
+            "1. passport and payslip\n2. contract and ID card",
+            "passport, payslip, contract and ID card",
+            "en",
+        ),
+        (
+            "Step 1: passport and payslip\nStep 2: contract and ID card",
+            "passport, payslip, contract and ID card",
+            "en",
+        ),
+    ],
+)
+def test_a_key_naming_every_item_of_a_numbered_or_bulleted_list_leaves_none_unnamed(
+    recovered, target, language
+) -> None:
+    """Item numbers, bullets and step labels are markup, not items the key left out."""
+    assert unnamed(recovered, target, language) == ()
