@@ -136,21 +136,33 @@ def outside(text: str) -> bool:
     one; a line too short to tell, a body of figures, a table row and a line
     of names or titles (most of its words start with a capital) count for
     neither.
+
+    A list whose every item is too short to tell is read once more, its
+    lines joined, which is long enough: outside only when that reading is
+    sure of a language no pipeline is configured for.
     """
     outside_characters = inside_characters = 0
+    read: list[str] = []
+    judged = False
     for line in text.splitlines():
         # A table row is terms and figures rather than prose, as a table is
         # everywhere else a language is read.
         line = " ".join(line.split())
-        found = (
-            None if line.startswith("|") or _names(line) else document_language(line)
-        )
+        if line.startswith("|") or _names(line):
+            continue
+        if line:
+            read.append(line)
+        found = document_language(line)
         if found is None:
             continue
+        judged = True
         if found[0] in languages():
             inside_characters += len(line)
         else:
             outside_characters += len(line)
+    if not judged:
+        found = document_language(" ".join(read))
+        return found is not None and found[0] not in languages()
     return outside_characters > inside_characters
 
 

@@ -318,8 +318,9 @@ only when they are cached.
 - The small spaCy models change what a fact is. Use the medium pipelines.
 - The configured detector cannot answer with a language `NLP_MODELS` does not
   name. A French passage in a German corpus reads `None` because the
-  all-language reading finds it out first; a passage of a few words, or of
-  figures, still takes the document's language.
+  all-language reading finds it out first, and so does a list whose items are
+  each too short to read alone, once its lines are read joined; a passage of a
+  few words, or of figures, still takes the document's language.
 - Sentence numbering is stored, not recomputed. After `NLP_MODELS` changes on
   a chunked corpus, `make chunk-revocabulary` re-reads language and lemmas,
   and the sentence offsets need `chunk-rerun`. A passage stored as read for
