@@ -174,6 +174,34 @@ def test_a_stop_gives_back_the_rest_when_one_held_row_is_gone(
     assert exit_code(stage) == STOPPED
 
 
+class Crashing(Stage):
+    """A stage whose rows all end in an error nobody planned for."""
+
+    def process_next(self) -> Any | None:
+        """Crashes on the next row."""
+        key = self.rows.claim()
+        if key is None:
+            return None
+        self._crashed(key, ValueError("secret"), trace.get_current_span())
+        return key
+
+
+@pytest.mark.parametrize("error", [Gone("3 was deleted"), Lost("3 was claimed")])
+def test_a_crash_on_a_lost_row_logs_only_the_lost_warning(
+    error: Lost, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The crash and the failed line are written once the failure has landed."""
+    stage = Crashing(Vanishing(4, error), {})
+
+    with caplog.at_level("WARNING"):
+        stage.drain()
+
+    lines = [r.getMessage() for r in caplog.records]
+    about_three = [one for one in lines if "row 3" in one]
+    assert about_three == [f"stub: row 3: {error}"]
+    assert stage.failed == 3
+
+
 def test_one_failed_row_among_good_ones_exits_3() -> None:
     """The drain goes on past it."""
     stage = Stage(Rows(6), {3: ValueError("nonsense")})
