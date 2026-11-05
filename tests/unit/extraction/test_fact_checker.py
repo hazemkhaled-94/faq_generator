@@ -13,6 +13,7 @@ from drivers import Checker, group, passage
 
 from database.qa_generator import FactKind, Rejection
 from extraction.models import CandidateFact, Citation, Cited
+from extraction.validation import FactChecker
 
 pytestmark = pytest.mark.nlp
 
@@ -1369,6 +1370,247 @@ def test_each_failure_reaches_its_own_code(checker, offered) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("judge", "detail"),
+    [
+        (
+            lambda checker, offered: checker.atomic("Anything.", 7),
+            "the citation names 7, and the passage has 2",
+        ),
+        (
+            lambda checker, offered: checker.atomic("Anything.", (7, 9)),
+            "the citation names 7, 9, and the passage has 2",
+        ),
+        (
+            lambda checker, offered: checker.atomic("Anything.", ()),
+            "the citation names (none), and the passage has 2",
+        ),
+        (
+            lambda checker, offered: checker.bridge(
+                "Standard requests are answered within 48 hours.",
+                offered,
+                rests_on=(5, 6),
+            ),
+            (
+                "the citation names 5, 6, and no sentence of any passage of the group "
+                "it was shown"
+            ),
+        ),
+        (
+            lambda checker, offered: checker.atomic(checker.passage.text, (0, 1)),
+            (
+                "the statement is its evidence copied rather than written, and that "
+                "evidence carries 3 claims, so it restates the passage instead of "
+                "drawing one claim out of it"
+            ),
+        ),
+        (
+            lambda checker, offered: checker.atomic("The 4 kg device."),
+            (
+                "the statement has no finite verb, so it names something rather than "
+                "asserting anything about it"
+            ),
+        ),
+        (
+            lambda checker, offered: checker.atomic(
+                "The device weighs 4 kg and it runs for 12 hours."
+            ),
+            (
+                "the statement carries 2 claims; a fact carries one, and the rest "
+                "belong to facts of their own"
+            ),
+        ),
+        (
+            lambda checker, offered: checker.atomic("The 9 kg device costs 30 EUR."),
+            "the statement asserts 30, 9, which the cited text does not say",
+        ),
+        (
+            lambda checker, offered: checker.atomic("It weighs this.", 0),
+            (
+                "the statement leaves it, this unresolved, so a question drawn from it "
+                "cannot be answered on its own"
+            ),
+        ),
+        (
+            lambda checker, offered: checker.summary(checker.passage.text),
+            (
+                "the digest is 94 characters against 94 of passage, which is 100% of "
+                "it and above the 60% a reader gains anything by reading instead"
+            ),
+        ),
+        (
+            lambda checker, offered: checker.bridge(
+                "Standard requests are answered within 48 hours.",
+                offered,
+                rests_on=(0,),
+            ),
+            (
+                "the statement cites 1 passage(s); a bridge carries a claim no single "
+                "passage states"
+            ),
+        ),
+    ],
+    ids=[
+        "absent",
+        "absent-two",
+        "absent-none",
+        "absent-bridge",
+        "copied",
+        "asserts",
+        "atomic",
+        "unsupported",
+        "unresolved",
+        "condensed",
+        "bridging",
+    ],
+)
+def test_each_refusal_says_in_words_what_it_measured(
+    checker, offered, judge, detail
+) -> None:
+    """The reason is stored beside the code, and is what a reviewer reads."""
+    assert judge(checker, offered).validation_error == detail
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "de",
+            "Die Kontogebühr beträgt 5 EUR im Monat.",
+            "Die Kontogebühr beträgt 5 EUR.",
+        ),
+        ("en", "The account fee is 5 EUR a month.", "The account fee is 5 EUR."),
+        (
+            "fr",
+            "Les frais de compte sont de 5 EUR par mois.",
+            "Les frais sont de 5 EUR.",
+        ),
+        ("el", "Τα τέλη λογαριασμού είναι 5 EUR τον μήνα.", "Τα τέλη είναι 5 EUR."),
+    ],
+)
+def test_a_fact_records_the_pipeline_of_its_passages_language(
+    language, text, statement
+) -> None:
+    """Validated or refused as uncited, a fact names the parse its language got."""
+    from extraction.models import Provenance
+    from nlp.pipelines import name, version
+
+    read = passage(text, language=language)
+    made = Provenance(model="writer", prompt_version="v7", temperature=0.2)
+    checker = FactChecker(0.6)
+
+    for cited in ((0,), (9,)):
+        fact = checker.check(
+            read, CandidateFact(f"  {statement}  ", cited), "llm", made
+        )
+        assert (fact.spacy_model, fact.spacy_version) == (
+            name(language),
+            version(language),
+        ), cited
+        assert (fact.statement, fact.kind, fact.extraction_method) == (
+            statement,
+            FactKind.ATOMIC,
+            "llm",
+        )
+        assert (fact.extraction_model, fact.prompt_version) == ("writer", "v7")
+
+
+def test_a_fact_records_the_units_its_statement_asserts(checker) -> None:
+    """What the statement asserts is stored beside what it added."""
+    good = checker.atomic("The device weighs 4 kg.")
+
+    assert "4" in good.units_statement, good.units_statement
+
+
+def test_a_checker_built_without_a_share_reads_it_from_the_setting() -> None:
+    """EXTRACTION_DIGEST_MAX_SHARE is 0.75: a digest at two thirds is condensed enough."""
+    read = passage("The device weighs 4 kg and runs for 12 hours on one charge.")
+    summary = CandidateFact(
+        "The device weighs 4 kg and runs 12 hours.", (), kind=FactKind.SUMMARY
+    )
+
+    judged = FactChecker().check(read, summary, "llm")
+
+    assert judged.validated, (judged.rejection_code, judged.validation_error)
+
+
+def test_a_digest_is_judged_against_its_whole_passage_whatever_it_cites() -> None:
+    """A summary stands in for the passage, so it needs no sentence named."""
+    read = passage("The device weighs 4 kg and runs for 12 hours. It ships in March.")
+    summary = CandidateFact("The device weighs 4 kg.", (), kind=FactKind.SUMMARY)
+
+    judged = FactChecker(0.6).check(read, summary, "llm")
+
+    assert judged.validated, (judged.rejection_code, judged.validation_error)
+    assert judged.evidence_text == read.text
+
+
+def test_a_list_line_named_just_past_the_last_sentence_is_its_first_line() -> None:
+    """One sentence of three lines: index 1 is the first line, not past the end."""
+    read = passage("Options:\n- Cards are accepted\n- Cash is accepted", language="en")
+
+    judged = Checker(read).atomic("Cards are accepted.", 1)
+
+    assert judged.validated, (judged.rejection_code, judged.validation_error)
+    assert "Cards are accepted" in judged.evidence_text
+    assert "Cash" not in judged.evidence_text
+
+
+def test_a_two_sided_bridge_may_carry_two_claims_and_no_more(checker, offered) -> None:
+    """A contrast states a rule and its other side; a third claim is a fact of its own."""
+    two = checker.bridge(
+        "Standard requests are answered within 48 hours, but urgent requests "
+        "are answered within 4 hours.",
+        offered,
+        relation="contrast",
+    )
+    three = checker.bridge(
+        "Standard requests are answered within 48 hours but urgent requests are "
+        "answered within 4 hours and they are answered first.",
+        offered,
+        relation="contrast",
+    )
+
+    assert two.validated, (two.rejection_code, two.validation_error)
+    assert three.validation_error == (
+        "the statement carries 3 claims; a fact carries 2, and the rest belong "
+        "to facts of their own"
+    )
+
+
+def test_a_bridge_citing_nothing_it_was_shown_is_refused_as_a_bridge(
+    checker, offered
+) -> None:
+    """The refusal is filed under the kind that was proposed."""
+    absent = checker.bridge("Anything.", offered, rests_on=(5,))
+
+    assert (absent.rejection_code, absent.kind) == (
+        Rejection.EVIDENCE_ABSENT,
+        FactKind.BRIDGE,
+    )
+
+
+def test_a_bridge_shown_no_passage_is_refused_rather_than_raising() -> None:
+    """An empty group still gets a verdict, read in no language."""
+    from nlp.pipelines import name
+
+    absent = FactChecker(0.6).check_bridge(
+        [], CandidateFact("Anything.", (), kind=FactKind.BRIDGE)
+    )
+
+    assert absent.rejection_code == Rejection.EVIDENCE_ABSENT
+    assert absent.spacy_model == name(None)
+
+
+def test_a_passage_holding_no_sentence_refuses_any_citation() -> None:
+    """Nothing to cite is the absent-evidence verdict, not an error."""
+    read = replace(passage("The account fee is 5 EUR."), sentences=())
+
+    judged = Checker(read).atomic("The account fee is 5 EUR.", 0)
+
+    assert judged.rejection_code == Rejection.EVIDENCE_ABSENT
+
+
 def test_one_passage_cited_twice_is_one_citation() -> None:
     """Two rows for one passage would collide in the link table."""
     offered = group(
@@ -1417,6 +1659,60 @@ def test_a_name_the_document_title_carries_is_no_addition() -> None:
     judged = Checker(read).atomic("Northbank waives the fee for students.", 0)
 
     assert judged.validated, judged.validation_error
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        (
+            "en",
+            "The bank waives the fee for students.",
+            "Northbank waives the fee for students.",
+        ),
+        (
+            "de",
+            "Die Bank erlässt Studierenden die Gebühr.",
+            "Die Northbank erlässt Studierenden die Gebühr.",
+        ),
+    ],
+)
+def test_a_name_ending_the_section_path_is_no_addition_beside_a_title(
+    language, text, statement
+) -> None:
+    """The heading trail and the title are read as two texts, neither run into the other."""
+    from dataclasses import replace
+
+    read = replace(
+        passage(text, language=language, section_path="Accounts > Northbank"),
+        title="Terms and Conditions",
+    )
+
+    judged = Checker(read).atomic(statement, 0)
+
+    assert judged.validated, judged.validation_error
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement"),
+    [
+        ("fr", "La banque offre les frais.", "Northbank offre les frais."),
+        ("el", "Η τράπεζα χαρίζει τα τέλη.", "Η Northbank χαρίζει τα τέλη."),
+    ],
+)
+def test_a_name_ending_the_section_path_is_not_read_in_an_unconfigured_language(
+    language, text, statement
+) -> None:
+    """No predicate is read there, so the fact is refused at parse, not judged."""
+    from dataclasses import replace
+
+    read = replace(
+        passage(text, language=language, section_path="Accounts > Northbank"),
+        title="Terms and Conditions",
+    )
+
+    judged = Checker(read).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.ASSERTS_NOTHING
 
 
 def test_a_name_from_an_uncited_sentence_of_the_passage_is_no_addition() -> None:
