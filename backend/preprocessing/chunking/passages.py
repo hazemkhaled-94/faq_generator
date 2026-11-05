@@ -251,8 +251,7 @@ def nested(document: DoclingDocument) -> DoclingDocument:
     second. The indent on the new page is read off that page's own column
     edge, found among the paragraphs and list items outside the list, since a
     facing page's text block may be set further left or right; a page with no
-    such block at the item, one holding only the list's sub-items, is read off
-    the edge before it. A line is the height
+    such block at the item is read as `_page_edge` says. A line is the height
     of the list's shortest item, which is one line in nearly every list: the
     median is a two-line item's wherever items wrap. A nested list is
     rendered as indented Markdown, as the converter renders one it built
@@ -403,35 +402,35 @@ def _page_edge(
 ) -> float | None:
     """The column edge of a page a list goes on at, or None where none can be read.
 
-    Read off the blocks outside the list, since its own items on a page that
-    holds only them would put the edge at theirs. Where no other block reaches
-    across `start`, the edge of the nearest page of the same parity that has
-    one: facing pages mirror their margins, so the page two before or after
-    is set as this one is. Failing that, the edge `before`, but never right
-    of the list's own leftmost item on the page, which cannot print left of its
-    outer level; unless that item lies more than `step` right of `before`,
-    where a page set further right cannot be told from one that holds only
-    sub-items, and nothing is read. `nested` then reads a page whose items all
-    start at one indent off the edge before, as sub-items of the open level, and
-    restarts at level 0 on any other.
+    Read off the blocks outside the list that reach across `start`, since its
+    own items on a page that holds only them would put the edge at theirs.
+    Where none does, off the nearest page of the same parity that has one:
+    facing pages mirror their margins, so the page two before or after is set
+    as this one is. Either edge is bounded by the list's own leftmost item on
+    the page, which cannot print left of its outer level. Failing both, the
+    edge `before`, likewise bounded; unless that item lies more than `step`
+    right of `before`, where a page set further right cannot be told from one
+    that holds only sub-items, and nothing is read. `nested` then reads a page
+    whose items all start at one indent off the edge before, as sub-items of
+    the open level, and restarts at level 0 on any other.
     """
-    own = min(
-        (
+
+    def reaching(on: int) -> list[float]:
+        return [
             first
-            for first, end, reference in edges.get(page, ())
+            for first, end, reference in edges.get(on, ())
             if reference not in listed and first <= start < end
-        ),
-        default=None,
-    )
-    if own is not None:
-        return own
+        ]
+
+    own = reaching(page)
+    if own:
+        return min(min(own), leftmost[page])
     for near in sorted(
         (other for other in edges if other != page and (other - page) % 2 == 0),
         key=lambda other: (abs(other - page), other),
     ):
-        outside = [first for first, _, one in edges[near] if one not in listed]
-        if outside:
-            return min(outside)
+        if found := reaching(near):
+            return min(min(found), leftmost[page])
     if leftmost[page] > before + step:
         return None
     return min(before, leftmost[page])

@@ -188,3 +188,126 @@ def test_an_outer_item_on_a_normal_page_after_a_page_of_the_lists_items_alone(
         f"- {o3}",
         f"    - {s1}",
     ]
+
+
+def boxed(page: int, left: float, top: float, width: float) -> ProvenanceItem:
+    """A box `width` points wide and a line high, from the page's top."""
+    return ProvenanceItem(
+        page_no=page,
+        bbox=BoundingBox(
+            l=left, t=top, r=left + width, b=top + 10, coord_origin=CoordOrigin.TOPLEFT
+        ),
+        charspan=(0, 1),
+    )
+
+
+def with_note(language: str, margin: float, note_at: float | None) -> list[str]:
+    """Pages at `margin`; page 2 holds only list items; page 4 may print a margin note."""
+    lead, o1, s1, o2, s2, o3, close = LISTS[language]
+    document = DoclingDocument(name="fees")
+    for page in (1, 2, 3, 4):
+        document.add_page(page_no=page, size=Size(width=595, height=842))
+    document.add_text(label=DocItemLabel.TEXT, text=lead, prov=placed(1, margin, 680))
+    one = document.add_list_group()
+    document.add_list_item(text=o1, parent=one, prov=placed(1, margin, 700))
+    document.add_list_item(text=s1, parent=one, prov=placed(1, margin + 18, 714))
+    two = document.add_list_group()
+    for left, top, text in (
+        (margin, 60, o2),
+        (margin + 18, 74, s2),
+        (margin, 88, o3),
+    ):
+        document.add_list_item(text=text, parent=two, prov=placed(2, left, top))
+    document.add_text(label=DocItemLabel.TEXT, text=close, prov=placed(3, margin, 60))
+    if note_at is not None:
+        document.add_text(
+            label=DocItemLabel.TEXT, text="12", prov=boxed(4, note_at, 100, 15)
+        )
+    document.add_text(label=DocItemLabel.TEXT, text=close, prov=placed(4, margin, 100))
+    return lines(document, language)
+
+
+@pytest.mark.parametrize("language", sorted(LISTS))
+def test_a_margin_note_on_the_page_of_the_same_parity_is_no_column_edge(
+    language: str,
+) -> None:
+    """Only blocks that reach across the item's start give the edge, not a note beside the text."""
+    _, o1, s1, o2, s2, o3, _ = LISTS[language]
+    assert with_note(language, 54, 20) == [
+        f"- {o1}",
+        f"    - {s1}",
+        f"- {o2}",
+        f"    - {s2}",
+        f"- {o3}",
+    ]
+
+
+def mirrored_note(language: str) -> list[str]:
+    """Odd pages at 51, even at 73.7; page 2 opens on a sub-item; page 4 has a note at 30."""
+    lead, o1, s1, o2, s2, _, close = LISTS[language]
+    document = DoclingDocument(name="fees")
+    for page in (1, 2, 3, 4):
+        document.add_page(page_no=page, size=Size(width=595, height=842))
+    document.add_text(label=DocItemLabel.TEXT, text=lead, prov=placed(1, 51, 680))
+    one = document.add_list_group()
+    document.add_list_item(text=o1, parent=one, prov=placed(1, 51, 700))
+    document.add_list_item(text=s1, parent=one, prov=placed(1, 69, 714))
+    two = document.add_list_group()
+    document.add_list_item(text=s2, parent=two, prov=placed(2, 91.7, 60))
+    document.add_list_item(text=o2, parent=two, prov=placed(2, 73.7, 74))
+    document.add_text(label=DocItemLabel.TEXT, text=close, prov=placed(3, 51, 60))
+    document.add_text(label=DocItemLabel.TEXT, text=close, prov=placed(4, 73.7, 100))
+    document.add_text(label=DocItemLabel.TEXT, text="12", prov=boxed(4, 30, 100, 15))
+    return lines(document, language)
+
+
+@pytest.mark.parametrize("language", sorted(LISTS))
+def test_a_note_on_the_parity_page_of_a_mirrored_layout_is_no_column_edge(
+    language: str,
+) -> None:
+    """The page of the same parity sets its text at 73.7: the note at 30 is beside it."""
+    _, o1, s1, o2, s2, _, _ = LISTS[language]
+    assert mirrored_note(language) == [
+        f"- {o1}",
+        f"    - {s1}",
+        f"    - {s2}",
+        f"- {o2}",
+    ]
+
+
+def cover(language: str) -> list[str]:
+    """Same margins everywhere; page 1 a cover whose only text is set at 200.
+
+    The list runs from page 2 onto page 3, which holds only its items and opens on a
+    sub-item; the page of the same parity that has a block is the cover, at 200.
+    """
+    lead, o1, s1, o2, s2, o3, close = LISTS[language]
+    document = DoclingDocument(name="fees")
+    for page in (1, 2, 3, 4, 5):
+        document.add_page(page_no=page, size=Size(width=595, height=842))
+    document.add_text(label=DocItemLabel.TEXT, text=close, prov=placed(1, 200, 400))
+    document.add_text(label=DocItemLabel.TEXT, text=lead, prov=boxed(2, 54, 680, 400))
+    one = document.add_list_group()
+    document.add_list_item(text=o1, parent=one, prov=placed(2, 54, 700))
+    document.add_list_item(text=s1, parent=one, prov=placed(2, 72, 714))
+    two = document.add_list_group()
+    for left, top, text in ((72, 60, s2), (54, 74, o2), (54, 88, o3)):
+        document.add_list_item(text=text, parent=two, prov=placed(3, left, top))
+    document.add_text(label=DocItemLabel.TEXT, text=close, prov=boxed(4, 54, 60, 400))
+    document.add_text(label=DocItemLabel.TEXT, text=close, prov=boxed(5, 54, 60, 400))
+    return lines(document, language)
+
+
+@pytest.mark.parametrize("language", sorted(LISTS))
+def test_an_edge_read_off_a_far_page_is_bounded_by_the_lists_leftmost_item(
+    language: str,
+) -> None:
+    """A page whose text is set in at 200 does not push the page's outer items right."""
+    _, o1, s1, o2, s2, o3, _ = LISTS[language]
+    assert cover(language) == [
+        f"- {o1}",
+        f"    - {s1}",
+        f"    - {s2}",
+        f"- {o2}",
+        f"- {o3}",
+    ]
