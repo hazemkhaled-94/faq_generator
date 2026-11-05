@@ -57,7 +57,7 @@ from nlp.analysis import (
     phrases,
     vocabulary,
 )
-from nlp.language import detect, detect_among_all, detect_surely, document_language
+from nlp.language import detect_surely, document_language
 from nlp.pipelines import pipeline
 from question_generation.models import Neighbour
 
@@ -157,13 +157,6 @@ _EITHER = re.compile(r"(\d{1,3})[.,](\d{3})")
 #: and a reply writes them apart as often as together: `mindestens 100 m,
 #: höchstens 110 m`, `between 68 cm and 70 cm`.
 _RANGE = re.compile(r"(\d[\d.,]*)–(\d[\d.,]*)")
-
-#: A word, as the language check reads the words a question shares with its facts.
-_WORDS = re.compile(r"\w+")
-
-#: The fewest characters of what is left of a question, once the words its facts
-#: hold are out, that are read for their language.
-_RESIDUE_CHARS = 10
 
 
 def _ends(
@@ -849,27 +842,6 @@ def structural(
     # sure pick between the configured ones counts.
     surely = document_language(said)
     written = surely[0] if surely else detect_surely(said)
-    if language and written and written != language and written == detect(said):
-        # The other configured language may be only a name or a term the
-        # question carries from its cited facts (a German institution on an
-        # English page): that is the source's, and says nothing of the
-        # language the question is written in. So the pick is read again
-        # without the words the facts also hold, and where that residue
-        # is too short to read the first reading stands.
-        carried = {
-            one.casefold() for fact in statements for one in _WORDS.findall(fact)
-        }
-        residue = " ".join(
-            _WORDS.sub(
-                lambda one: "" if one.group().casefold() in carried else one.group(),
-                said,
-            ).split()
-        )
-        # Its pick holds only where every language agrees with it: a French
-        # question carrying German terms reads as English among the two.
-        pick = detect(residue, minimum=_RESIDUE_CHARS)
-        if pick and detect_among_all(residue, minimum=_RESIDUE_CHARS) == pick:
-            written = pick
     if language and written and written != language:
         return (
             QuestionRejection.MALFORMED,
