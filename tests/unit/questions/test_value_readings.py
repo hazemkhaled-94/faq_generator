@@ -507,6 +507,84 @@ def test_a_question_surely_in_another_language_is_still_refused(
     assert failed is not None and "it is written in" in failed[1]
 
 
+# N-124: a term the question carries from its cited facts does not decide its language.
+@pytest.mark.parametrize(
+    ("question", "answer", "statements"),
+    [
+        (
+            "How long does the Gewährleistung last?",
+            "Two years",
+            ["The Gewährleistung lasts two years from delivery."],
+        ),
+        (
+            "What does the Kündigungsschutz cover?",
+            "Dismissal",
+            ["The Kündigungsschutz covers dismissal after six months."],
+        ),
+        (
+            "Where do I register my address?",
+            "At the Bürgeramt",
+            ["You register your address at the Bürgeramt of your district."],
+        ),
+    ],
+)
+def test_an_english_question_carrying_a_german_term_from_its_facts_is_not_malformed(
+    question, answer, statements
+):
+    """The term is in the facts, so it says nothing of the question's language."""
+    failed, _ = structural(
+        question_text=question,
+        target_answer=answer,
+        answerable=True,
+        language="en",
+        statements=statements,
+    )
+    assert failed is None or "it is written in" not in failed[1], failed
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "answer", "statements"),
+    [
+        (
+            "de",
+            "Quel est le montant des frais annuels de la carte bancaire Gold?",
+            "5 EUR par an",
+            ["Die Jahresgebühr der Karte Gold beträgt 5 EUR."],
+        ),
+        (
+            "de",
+            "Ile wynoszą roczne opłaty za kartę bankową Gold dla każdego klienta?",
+            "5 EUR rocznie",
+            ["Die Jahresgebühr der Karte Gold beträgt 5 EUR."],
+        ),
+        (
+            "en",
+            "Gilt die Garantie auf den Staubsauger auch für den Akku?",
+            "Ja, insgesamt zwei Jahre lang",
+            ["The warranty on the vacuum cleaner covers the battery for two years."],
+        ),
+        (
+            "en",
+            "Πόσο διαρκεί η εγγύηση του ψυγείου για τον πελάτη?",
+            "Δύο χρόνια",
+            ["The warranty on the fridge lasts two years."],
+        ),
+    ],
+)
+def test_a_question_in_another_language_than_its_facts_is_still_refused(
+    language, question, answer, statements
+):
+    """The controls: what the facts do not hold still decides the language."""
+    failed, _ = structural(
+        question_text=question,
+        target_answer=answer,
+        answerable=True,
+        language=language,
+        statements=statements,
+    )
+    assert failed is not None and "it is written in" in failed[1], failed
+
+
 @pytest.mark.parametrize(
     ("question", "answer", "written"),
     [

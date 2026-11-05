@@ -157,6 +157,9 @@ _EITHER = re.compile(r"(\d{1,3})[.,](\d{3})")
 #: höchstens 110 m`, `between 68 cm and 70 cm`.
 _RANGE = re.compile(r"(\d[\d.,]*)–(\d[\d.,]*)")
 
+#: A word, as the language check reads the words a question shares with its facts.
+_WORDS = re.compile(r"\w+")
+
 
 def _ends(
     units: frozenset[frozenset[str]], language: str | None
@@ -802,6 +805,15 @@ def structural(
     # not evidence of the wrong language, and neither is a pick that merely
     # tips: a product named in the other language does that.
     said = f"{asked} {target_answer or ''}".strip()
+    # Without the words its cited facts also hold: a name or a term carried
+    # from the source (a German institution on an English page) is the
+    # source's, and says nothing of the language the question is written in.
+    carried = {one.casefold() for fact in statements for one in _WORDS.findall(fact)}
+    said = " ".join(
+        _WORDS.sub(
+            lambda one: "" if one.group().casefold() in carried else one.group(), said
+        ).split()
+    )
     # A language no configuration names is found out over every language
     # there is: a French or Polish question under German facts. Else only a
     # sure pick between the configured ones counts.
