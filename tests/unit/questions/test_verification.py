@@ -3433,6 +3433,103 @@ def test_the_complaint_reported_is_the_asked_for_forms() -> None:
     assert code(failed) == QuestionRejection.ANSWER_TOO_LONG
 
 
+def test_an_answer_too_long_for_the_form_it_looks_like_falls_to_another_one() -> None:
+    """Three items past a list's bound are still a value its type takes."""
+    form, failed = fitting(
+        "Ausweis, Lohnzettel, Vertrag",
+        (AnswerForm.LIST, AnswerForm.VALUE),
+        {**BOUNDS, AnswerForm.LIST: (3, 10)},
+        "de",
+    )
+
+    assert failed is None
+    assert form == AnswerForm.VALUE
+
+
+@pytest.mark.parametrize(
+    ("answer", "language"), [("zahlt monatlich", "de"), ("pays monthly", "en")]
+)
+def test_a_value_carrying_a_verb_is_refused_for_that_not_for_a_later_forms_length(
+    answer, language
+) -> None:
+    """The asked-for value's complaint is the code stored, not the explanation's."""
+    form, failed = fitting(
+        answer, (AnswerForm.VALUE, AnswerForm.EXPLANATION), BOUNDS, language
+    )
+
+    assert form == AnswerForm.VALUE
+    assert code(failed) == QuestionRejection.WRONG_FORM
+
+
+@pytest.mark.parametrize(
+    ("answer", "expected"),
+    [
+        ("x" * 81, QuestionRejection.ANSWER_TOO_LONG),
+        ("pays the fee", QuestionRejection.WRONG_FORM),
+        ("two missing documents", None),
+    ],
+)
+def test_a_type_declaring_no_form_holds_its_answer_to_a_value(answer, expected) -> None:
+    """The value fallback measures the answer, bounds, verbs and all."""
+    form, failed = fitting(answer, (), BOUNDS, "en")
+
+    assert form == AnswerForm.VALUE
+    assert code(failed) == expected
+
+
+def test_a_participle_inside_a_noun_phrase_is_a_verb_for_an_explanation() -> None:
+    """`missing` and `supporting` describe things, and still are verbs to that reading."""
+    form, failed = fitting(
+        "the two missing documents and the supporting letter",
+        (AnswerForm.EXPLANATION,),
+        BOUNDS,
+        "en",
+    )
+
+    assert failed is None
+    assert form == AnswerForm.EXPLANATION
+
+
+def test_a_form_the_settings_bound_nothing_for_is_held_to_a_values_bounds() -> None:
+    """A row read with only the value's bounds to hand is not an error."""
+    form, failed = fitting(
+        "Ausweis, Lohnzettel, Vertrag",
+        (AnswerForm.LIST,),
+        {AnswerForm.VALUE: (1, 80)},
+        "de",
+    )
+
+    assert failed is None
+    assert form == AnswerForm.LIST
+
+
+def test_a_value_exactly_at_its_upper_bound_is_kept() -> None:
+    """The bound is inclusive: 80 characters is a value, 81 is not."""
+    _, failed = fitting("x" * 80, (AnswerForm.VALUE,), BOUNDS, "en")
+
+    assert failed is None
+
+
+@pytest.mark.parametrize(
+    ("answer", "language", "expected"),
+    [
+        ("ist kostenlos", "de", QuestionRejection.WRONG_FORM),
+        ("is free of charge", "en", QuestionRejection.WRONG_FORM),
+        ("Unterlagen, die fehlen", "de", QuestionRejection.WRONG_FORM),
+        ("documents that are missing", "en", QuestionRejection.WRONG_FORM),
+        ("est gratuit", "fr", None),
+        ("είναι δωρεάν", "el", QuestionRejection.WRONG_FORM),
+    ],
+)
+def test_a_value_asserting_something_through_a_copula_or_a_clause_is_an_action(
+    answer, language, expected
+) -> None:
+    """`ist kostenlos` and `die fehlen` assert; French stays inert, Greek refuses."""
+    _, failed = fitting(answer, (AnswerForm.VALUE,), BOUNDS, language)
+
+    assert code(failed) == expected
+
+
 # ── The gates an unanswerable question faces ───────────────────────────────
 
 
