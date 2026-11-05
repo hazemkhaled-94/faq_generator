@@ -202,6 +202,28 @@ def test_a_crash_on_a_lost_row_logs_only_the_lost_warning(
     assert stage.failed == 3
 
 
+class Unreachable(Rows):
+    """Rows whose queue cannot record a failure: the database went away."""
+
+    def fail(self, key: int, error: str) -> None:
+        """Raises what a lost connection raises."""
+        raise ConnectionError("connection refused")
+
+
+def test_a_crash_the_queue_cannot_record_is_still_logged_with_its_trace(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Only a lost row skips the lines; any other error writes them and goes on up."""
+    stage = Crashing(Unreachable(2), {})
+
+    with caplog.at_level("WARNING"), pytest.raises(ConnectionError):
+        stage.drain()
+
+    lines = [r.getMessage() for r in caplog.records]
+    assert any("row 1 crashed (trace " in one for one in lines), lines
+    assert any("failed row 1: ValueError" in one for one in lines), lines
+
+
 def test_one_failed_row_among_good_ones_exits_3() -> None:
     """The drain goes on past it."""
     stage = Stage(Rows(6), {3: ValueError("nonsense")})

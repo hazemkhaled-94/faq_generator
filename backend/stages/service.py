@@ -303,6 +303,11 @@ class StageService(ABC):
         except Lost as lost:
             self._lost(key, lost)
             return
+        except Exception:
+            # The row could not be failed (the database went away): the crash
+            # and its trace id are still wanted in the log.
+            report()
+            raise
         report()
         self.failed += 1
 
