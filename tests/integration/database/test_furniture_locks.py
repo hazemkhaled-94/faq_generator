@@ -115,20 +115,46 @@ def test_two_workers_storing_a_twin_pair_at_once_both_score(
     assert _furniture(engine) == {a, b}
 
 
+def _scoring_windows(engine, monkeypatch, language):
+    """The (start, end) of each of two stores' scoring, in two languages at once."""
+    a, _ = _held(engine, language, "a", "b")
+    c, _ = _held(engine, "xx" if language != "en" else "pl", "c", "d")
+    windows = []
+    real = furniture.score
+
+    def timed(session, ids):
+        began = time.monotonic()
+        real(session, ids)
+        time.sleep(1.0)  # the transaction stays open after scoring
+        windows.append((began, time.monotonic()))
+
+    monkeypatch.setattr(furniture, "score", timed)
+    _run(
+        (lambda: PassageQueue().store(a, [], embedding=_turned(0.0)), 0.0),
+        (lambda: PassageQueue().store(c, [], embedding=_turned(0.0)), 0.1),
+    )
+    return sorted(windows)
+
+
 @pytest.mark.parametrize("language", LANGS)
 def test_two_workers_on_different_languages_do_not_wait(
     engine, database, monkeypatch, language
 ):
     """One lock to a language: a drain in another language is not held up."""
-    a, _ = _held(engine, language, "a", "b")
-    c, _ = _held(engine, "xx" if language != "en" else "pl", "c", "d")
-    _slow_score(monkeypatch, hold=1.5)
-    started = time.monotonic()
-    _run(
-        (lambda: PassageQueue().store(a, [], embedding=_turned(0.0)), 0.0),
-        (lambda: PassageQueue().store(c, [], embedding=_turned(0.0)), 0.1),
+    first, second = _scoring_windows(engine, monkeypatch, language)
+    assert second[0] < first[1], (first, second)
+
+
+def test_the_overlap_check_fails_when_one_store_waits_on_the_other(
+    engine, database, monkeypatch
+):
+    """The same stores under one lock for every language score one after the other."""
+    real = furniture.lock_languages
+    monkeypatch.setattr(
+        furniture, "lock_languages", lambda session, languages: real(session, ["all"])
     )
-    assert time.monotonic() - started < 2.8
+    first, second = _scoring_windows(engine, monkeypatch, "de")
+    assert second[0] >= first[1], (first, second)
 
 
 @pytest.mark.parametrize("language", LANGS)
