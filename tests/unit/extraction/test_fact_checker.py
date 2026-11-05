@@ -3610,3 +3610,53 @@ def test_a_swap_in_an_unconfigured_language_is_refused_at_parse_not_named(
     judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
 
     assert judged.rejection_code == Rejection.ASSERTS_NOTHING
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "statement", "section"),
+    [
+        (
+            "en",
+            "Fees are waived for students. Clause 3.2.1 allows the waiver.",
+            "Clause 3.2.1 exempts students from fees.",
+            "Section 3",
+        ),
+        (
+            "de",
+            "Gebühren entfallen für Studierende. Ziffer 3.2.1 erlaubt den Verzicht.",
+            "Ziffer 3.2.1 erlässt Studierenden die Gebühren.",
+            "Abschnitt 3",
+        ),
+    ],
+)
+def test_a_sub_number_two_levels_below_the_heading_is_the_passages_own(
+    language, text, statement, section
+) -> None:
+    """3.2.1 under Section 3 numbers no part of 3: only 3.2 would, and the passage says 3.2.1."""
+    judged = Checker(passage(text, language=language, section_path=section)).atomic(
+        statement, 0
+    )
+
+    assert judged.validated, judged.validation_error
+
+
+def test_adjacent_cited_sentences_are_their_passages_own_text() -> None:
+    """A run of sentences is taken whole, with the passage's spacing, from its first."""
+    read = passage("Accounts are free. Cards cost 5 EUR. Cash is free.")
+
+    judged = Checker(read).atomic("Cards cost 5 EUR.", (1, 2))
+
+    assert judged.evidence_text == "Cards cost 5 EUR. Cash is free."
+
+
+def test_a_bridge_tested_without_a_relation_records_no_reading(
+    checker, offered
+) -> None:
+    """A probe alone is not what the bridge was written with."""
+    bridged = checker.bridge(
+        "Standard requests are answered within 48 hours and urgent ones within 4 hours.",
+        offered,
+        probe=("How fast is a standard request answered?", "48 hours"),
+    )
+
+    assert bridged.bridge is None
