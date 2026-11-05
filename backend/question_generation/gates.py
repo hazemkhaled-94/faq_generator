@@ -429,9 +429,12 @@ def _leading(answer: str | None) -> str:
 
     A figure is read whole, by the one figure pattern: `2.000 EUR`, `2,5 Tage`,
     `3.5%` and `2–3 Wochen` open on a figure that is no bare count, so they
-    have none.
+    have none. Nor does a number that opens a hyphenated compound,
+    `Zwei-Faktor-Authentifizierung`: it names a thing.
     """
     text = (answer or "").lstrip()
+    if re.match(r"\w+-[^\W\d_]", text):
+        return ""
     figure = FIGURE.match(text)
     if figure and (
         not figure.group().isdecimal()

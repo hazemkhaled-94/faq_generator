@@ -311,6 +311,82 @@ def test_a_range_written_with_spaces_is_not_a_count_of_the_facts(
     assert refused is None or "number of facts" not in refused[1], refused
 
 
+# N-126: a number that opens a hyphenated compound names a thing, not a count.
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "statements"),
+    [
+        (
+            "Welches Verfahren schützt die Anmeldung im Online-Banking?",
+            "Zwei-Faktor-Authentifizierung",
+            "de",
+            [
+                "Die Anmeldung ist durch die Zwei-Faktor-Authentifizierung geschützt.",
+                "Die Zwei-Faktor-Authentifizierung verlangt einen Code per App.",
+            ],
+        ),
+        (
+            "Welches Verfahren schützt die Anmeldung im Online-Banking?",
+            "2-Faktor-Authentifizierung",
+            "de",
+            [
+                "Die Anmeldung ist durch die 2-Faktor-Authentifizierung geschützt.",
+                "Für die Freigabe wird ein Code per App gesendet.",
+            ],
+        ),
+        (
+            "Welcher Grundsatz gilt bei der Freigabe von Zahlungen im Amt?",
+            "Vier-Augen-Prinzip",
+            "de",
+            [
+                "Zahlungen werden nach dem Vier-Augen-Prinzip freigegeben.",
+                "Der erste Mitarbeiter erfasst die Zahlung.",
+                "Der zweite Mitarbeiter gibt sie frei.",
+                "Die Freigabe wird protokolliert.",
+            ],
+        ),
+        (
+            "Which procedure protects the online banking login?",
+            "Two-factor authentication",
+            "en",
+            [
+                "The login is protected by two-factor authentication.",
+                "Two-factor authentication requires a password and an app code.",
+            ],
+        ),
+        (
+            "Quelle procédure protège la connexion à la banque en ligne?",
+            "Double authentification",
+            "fr",
+            [
+                "La connexion est protégée par la double authentification.",
+                "Un code est envoyé par l'application.",
+            ],
+        ),
+        (
+            "Ποια διαδικασία προστατεύει τη σύνδεση στην ηλεκτρονική τραπεζική;",
+            "Έλεγχος δύο παραγόντων",
+            "el",
+            [
+                "Η σύνδεση προστατεύεται με έλεγχο δύο παραγόντων.",
+                "Ένας κωδικός αποστέλλεται στην εφαρμογή.",
+            ],
+        ),
+    ],
+)
+def test_a_number_opening_a_compound_is_not_a_count_of_the_facts(
+    question, answer, language, statements
+):
+    """`Zwei-Faktor-Authentifizierung` names a procedure, however many facts cite it."""
+    refused, _ = structural(
+        question_text=question,
+        target_answer=answer,
+        answerable=True,
+        language=language,
+        statements=statements,
+    )
+    assert refused is None or "number of facts" not in refused[1], refused
+
+
 def test_a_bare_count_equal_to_the_cited_facts_is_still_refused():
     """The control: the bare key 2 over two cited facts counts its own citations."""
     refused, _ = structural(
