@@ -544,14 +544,54 @@ _RESTATEMENTS = [
     ),
     ("en", "The office opens on Mondays.", "The office opens on Monday."),
     (
+        "de",
+        "Die neuen Kontogebühren gelten ab Montag, dem 1. Juni 2026.",
+        "Die neuen Kontogebühren gelten ab dem 1. Juni 2026.",
+    ),
+    (
+        "de",
+        "Der Antrag auf Wohngeld muss bis Freitag, den 31. Juli 2026, eingereicht werden.",
+        "Der Antrag auf Wohngeld muss bis zum 31. Juli 2026 eingereicht werden.",
+    ),
+    (
+        "de",
+        "Die Filiale ist von Montag bis Freitag von 9 bis 18 Uhr geöffnet.",
+        "Die Filiale ist von Montag, Dienstag, Mittwoch, Donnerstag und Freitag von 9 bis 18 Uhr geöffnet.",
+    ),
+    (
+        "de",
+        "Die Gebühr gilt von Januar bis März 2026.",
+        "Die Gebühr gilt im Januar, Februar und März 2026.",
+    ),
+    (
+        "en",
+        "The new account fees apply from Monday, 1 June 2026.",
+        "The new account fees apply from 1 June 2026.",
+    ),
+    (
+        "en",
+        "The tax return is due by Friday 31 July 2026.",
+        "The tax return is due by 31 July 2026.",
+    ),
+    (
+        "en",
+        "The branch is open Monday to Friday from 9 to 18.",
+        "The branch is open Monday, Tuesday, Wednesday, Thursday and Friday from 9 to 18.",
+    ),
+    (
+        "en",
+        "The fee applies from January to March 2026.",
+        "The fee applies in January, February and March 2026.",
+    ),
+    (
         "en",
         "The branch is open from 9:30 to 13:00.",
         "The branch is open from 9:30 until 13:00.",
     ),
     (
         "en",
-        "The bank reduced list A to 25 players again.",
-        "The bank reduced list A to 25 again.",
+        "The bank capped the waiting list at 25 applicants again.",
+        "The bank capped the waiting list at 25 again.",
     ),
 ]
 

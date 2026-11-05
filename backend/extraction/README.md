@@ -170,10 +170,13 @@ Two more refusals come from the service, not from a check:
   passage kept. The refusal names the stored fact it repeats (`twin_id`) and
   writes nothing onto it. Two atomic facts of one passage, a bridge, and facts
   naming other numbers are never twins. Numbers are other when the digits
-  differ, when the months or weekdays named differ, or when a value both state
-  is a currency, a share, a period or a unit of time or measure on each side
-  and the two readings differ (`14 days` and `14 weeks`, `3 % for 12 months`
-  and `12 % for 3 months`). A language with no such table reads digits only.
+  differ, when the months, or the weekdays, the two name share none (a weekday
+  added to a date, or a range against its enumeration, keeps them twins), or
+  when a value both state is a currency, a share, a period or a unit of time or
+  measure on each side and the two readings differ (`14 days` and `14 weeks`,
+  `3 % for 12 months` and `12 % for 3 months`). SI symbols and currency codes
+  are read in every language; months, weekdays and units of time only where the
+  language has a table for them.
 - `over_cap`: `EXTRACTION_MIN_OTHER_SHARE` is a floor on the share of a
   passage's facts that are not atomic, which caps the atomic ones. The cap is
   never below the passage's sentences plus its list items. Facts asserting a
