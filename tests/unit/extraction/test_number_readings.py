@@ -650,3 +650,121 @@ def test_a_language_without_month_and_unit_words_reads_as_before(lang, text, twi
     from extraction.service import _counted_alike
 
     assert _counted_alike(text, twin, lang)
+
+
+#: Restatements whose figure the language writes before another noun, as a range or with a
+#: sign, so that the one side reads a period and the other only a unit of time.
+_WRITTEN_ANOTHER_WAY = [
+    ("de", "Sie haben 14 Tage Rückgaberecht.", "Das Rückgaberecht beträgt 14 Tage."),
+    (
+        "de",
+        "Auf alle Geräte gibt es 24 Monate Garantie.",
+        "Die Garantie auf alle Geräte beträgt 24 Monate.",
+    ),
+    (
+        "de",
+        "Der Kredit hat 48 Monate Laufzeit.",
+        "Die Laufzeit des Kredits beträgt 48 Monate.",
+    ),
+    ("de", "Es gilt ein Zahlungsziel von 30 Tagen.", "Sie haben 30 Tage Zahlungsziel."),
+    ("de", "Die Lieferzeit beträgt 6 Wochen.", "Rechnen Sie mit 6 Wochen Lieferzeit."),
+    ("de", "Die Lieferung dauert 3 bis 5 Tage.", "Die Lieferung dauert 3–5 Tage."),
+    ("de", "Pakete bis 1 bis 2 kg kosten 5 Euro.", "Pakete von 1–2 kg kosten 5 Euro."),
+    (
+        "de",
+        "Die Bearbeitung dauert etwa 3 Wochen.",
+        "Die Bearbeitung dauert ~3 Wochen.",
+    ),
+    (
+        "en",
+        "You get 24 months warranty on all devices.",
+        "The warranty on all devices is 24 months.",
+    ),
+    ("en", "You have 14 days return right.", "The right of return is 14 days."),
+    ("en", "Delivery takes 3-5 days.", "Delivery takes 3–5 days."),
+    ("en", "Processing takes 4 to 6 weeks.", "Processing takes 4–6 weeks."),
+    ("en", "The loan has a 48 months term.", "The term of the loan is 48 months."),
+    ("en", "Parcels of 1-2 kg cost EUR 5.", "Parcels of 1–2 kg cost EUR 5."),
+    (
+        "de",
+        "Ein Kredit über 10.000 Euro hat 12 Monate Laufzeit.",
+        "Ein Kredit von 10.000 Euro läuft 12 Monate.",
+    ),
+    (
+        "de",
+        "Auf alle Geräte gibt es 2 Jahre Garantie.",
+        "Die Garantie auf alle Geräte beträgt 2 Jahre.",
+    ),
+    (
+        "de",
+        "Der Vertrag hat 24 Monate Mindestlaufzeit.",
+        "Die Mindestlaufzeit des Vertrags beträgt 24 Monate.",
+    ),
+    (
+        "de",
+        "Für Neukunden gelten 6 Monate Zinsgarantie.",
+        "Neukunden erhalten eine Zinsgarantie für 6 Monate.",
+    ),
+    (
+        "de",
+        "Der Antrag hat 3 Wochen Bearbeitungszeit.",
+        "Die Bearbeitung des Antrags dauert 3 Wochen.",
+    ),
+    (
+        "de",
+        "Es gilt eine Frist von 30 Tagen ab Zugang.",
+        "Die Frist beträgt 30 Tage ab Zugang.",
+    ),
+    (
+        "en",
+        "We offer 30 days money-back guarantee.",
+        "Our money-back guarantee lasts 30 days.",
+    ),
+    (
+        "en",
+        "All devices come with 2 years warranty.",
+        "The warranty on all devices is 2 years.",
+    ),
+    (
+        "en",
+        "Standard delivery takes 3 days.",
+        "Standard delivery has 3 days lead time.",
+    ),
+    (
+        "en",
+        "The account has 12 months notice period.",
+        "The notice period of the account is 12 months.",
+    ),
+    (
+        "en",
+        "Applications need 4 weeks processing time.",
+        "Processing an application takes 4 weeks.",
+    ),
+    ("en", "Passports take 6 weeks processing.", "Passport processing takes 6 weeks."),
+    (
+        "en",
+        "The loan of 5,000 euros has 12 months term.",
+        "The loan of 5,000 euros runs for 12 months.",
+    ),
+    ("en", "Shipping costs 5 euros per parcel.", "Shipping costs 5 euros."),
+    ("de", "Der Versand kostet 5 Euro pro Paket.", "Der Versand kostet 5 Euro."),
+    ("en", "The fee is 2 % per transaction.", "Each transaction costs a 2 % fee."),
+    (
+        "de",
+        "Ein Paket mit 2 kg Gewicht kostet 5 Euro.",
+        "Ein Paket von 2 kg kostet 5 Euro.",
+    ),
+    ("en", "A 2 kg parcel costs 5 euros.", "A parcel of 2 kg weight costs 5 euros."),
+    ("de", "Passbilder müssen 45 mm Höhe haben.", "Passbilder müssen 45 mm hoch sein."),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "twin"), _WRITTEN_ANOTHER_WAY)
+def test_a_period_written_before_another_noun_or_as_a_range_stays_a_twin(
+    lang, text, twin
+):
+    """A reading one side lacks, a kind as well as a unit, tells nothing."""
+    from extraction.service import _counted_alike
+
+    assert _counted_alike(text, twin, lang)
+    assert _counted_alike(twin, text, lang)

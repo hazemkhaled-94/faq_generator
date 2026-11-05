@@ -177,8 +177,9 @@ Two more refusals come from the service, not from a check:
   added to a date, or a range against its enumeration, keeps them twins), or
   when a value both state is a currency, a share, a period or a unit of time or
   measure on each side and the two readings differ (`14 days` and `14 weeks`,
-  `3 % for 12 months` and `12 % for 3 months`). SI symbols and currency codes
-  are read in every language; months, weekdays and units of time only where the
+  `3 % for 12 months` and `12 % for 3 months`). SI symbols are read in every
+  language, and a currency is one reading whatever its code (`EUR 5` and `USD 5`
+  stay twins); months, weekdays and units of time only where the
   language has a table for them.
 - `over_cap`: `EXTRACTION_MIN_OTHER_SHARE` is a floor on the share of a
   passage's facts that are not atomic, which caps the atomic ones. The cap is

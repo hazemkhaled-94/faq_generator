@@ -1060,8 +1060,10 @@ def _same(
     one: tuple[frozenset[str], frozenset[str]],
     other: tuple[frozenset[str], frozenset[str]],
 ) -> bool:
-    """Whether two readings can be one figure: the same kind, and the same unit where both give one."""
-    return one[0] == other[0] and (not one[1] or not other[1] or one[1] == other[1])
+    """Whether two readings can be one figure: the same kind and the same unit, where both give one."""
+    return (not one[0] or not other[0] or one[0] == other[0]) and (
+        not one[1] or not other[1] or one[1] == other[1]
+    )
 
 
 def _naming(statement: str, language: str | None) -> Callable[[Twin], bool]:
