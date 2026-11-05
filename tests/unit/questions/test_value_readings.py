@@ -525,6 +525,111 @@ def test_a_count_compound_still_counts_the_items_of_the_fact_it_asks_about(
     assert counts_a_list(question, answer, statements, language) is counts
 
 
+PIN3 = [
+    "Die Karte wird nach falschen Eingaben gesperrt.",
+    "Die Sperre hebt die Filiale auf.",
+    "Eine neue PIN kommt per Post.",
+]
+BILL2 = [
+    "Das Konto wird zum Quartalsende abgerechnet.",
+    "Die Abrechnung steht im Postfach.",
+]
+STEPS3 = [
+    "Zuerst prüft die Filiale den Antrag.",
+    "Danach prüft die Zentrale.",
+    "Zuletzt entscheidet der Vorstand.",
+]
+PIN3_EN = [
+    "The card is blocked after wrong entries.",
+    "The branch lifts the block.",
+    "A new PIN comes by post.",
+]
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "answer", "statements"),
+    [
+        ("de", "Wie oft kann ich die PIN falsch eingeben?", "3-mal", PIN3),
+        ("de", "Wie oft wird das Konto im Jahr abgerechnet?", "2-mal", BILL2),
+        ("de", "Wie oft wird das Konto im Jahr abgerechnet?", "Zwei-mal", BILL2),
+        ("de", "Wie oft wird die Karte geprüft?", "3-fach", PIN3),
+        ("de", "Wie vielstufig ist das Verfahren?", "3-stufig", STEPS3),
+        ("de", "Wie viele Stufen hat das Verfahren?", "3-stufig", STEPS3),
+        ("de", "Wie oft kann ich die PIN falsch eingeben?", "drei", PIN3),
+        ("de", "Wie oft kann ich die PIN falsch eingeben?", "3 mal", PIN3),
+        ("de", "Wie oft wird das Konto abgerechnet?", "2-mal jährlich", BILL2),
+        ("en", "How often can I enter a wrong PIN?", "3-times", PIN3_EN),
+        ("en", "How many times can I enter a wrong PIN?", "3-times", PIN3_EN),
+    ],
+)
+def test_an_adverbial_or_numeral_compound_is_still_a_bare_count(
+    language, question, answer, statements
+):
+    """`3-mal` and `3-times` are counts; only a compound that is a noun names a thing."""
+    refused, _ = structural(
+        question_text=question,
+        target_answer=answer,
+        answerable=True,
+        language=language,
+        statements=statements,
+    )
+    assert refused is not None and "number of facts" in refused[1], refused
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "answer", "statements"),
+    [
+        (
+            "de",
+            "Welches Verfahren schützt die Anmeldung?",
+            "Zwei-Faktor-Authentifizierung",
+            [
+                "Die Anmeldung ist durch ein Passwort geschützt.",
+                "Für die Freigabe kommt ein Code per App.",
+            ],
+        ),
+        (
+            "de",
+            "Welche Methode schützt die Anmeldung?",
+            "Zwei-Faktor",
+            [
+                "Die Anmeldung ist durch ein Passwort geschützt.",
+                "Für die Freigabe kommt ein Code per App.",
+            ],
+        ),
+        (
+            "de",
+            "Welches Modell gilt für die Altersvorsorge?",
+            "Zwei-Säulen-Modell",
+            BILL2,
+        ),
+        ("de", "Wie oft kann ich die PIN falsch eingeben?", "dreimal", PIN3),
+        ("de", "Wie oft kann ich die PIN falsch eingeben?", "3-mal am Tag", PIN3),
+        (
+            "en",
+            "Which procedure protects the login?",
+            "Two-factor authentication",
+            [
+                "The login is protected by a password.",
+                "A code from the app confirms it.",
+            ],
+        ),
+    ],
+)
+def test_a_compound_that_is_a_noun_or_a_longer_answer_is_not_a_bare_count(
+    language, question, answer, statements
+):
+    """The F-04 cases stay kept, and so do answers that were never a bare count."""
+    refused, _ = structural(
+        question_text=question,
+        target_answer=answer,
+        answerable=True,
+        language=language,
+        statements=statements,
+    )
+    assert refused is None or "number of facts" not in refused[1], refused
+
+
 def test_a_bare_count_equal_to_the_cited_facts_is_still_refused():
     """The control: the bare key 2 over two cited facts counts its own citations."""
     refused, _ = structural(

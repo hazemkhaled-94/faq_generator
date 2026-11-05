@@ -436,6 +436,28 @@ def _count(word: str) -> int | None:
     return int(word) if word.isdecimal() else _COUNTS.get(word)
 
 
+def _names_a_thing(answer: str | None, language: str | None) -> bool:
+    """Whether an answer opens on a number joined by a hyphen to a noun.
+
+    `Zwei-Faktor-Authentifizierung`, `Vier-Augen-Prinzip`: the German tagger
+    keeps the compound whole and tags it a noun (or a name), where `3-mal` is
+    an adverb and `2-mal` a numeral. A tokenizer that splits it, English `Two-factor
+    authentication`, leaves the number to the noun it counts, which is a
+    thing where it modifies a noun after it, and a count where it ends the
+    answer (`3-times`).
+    """
+    text = (answer or "").lstrip()
+    if not re.match(r"\w+-[^\W\d_]", text):
+        return False
+    first = pipeline(language)(text)[0]
+    if "-" in first.text:
+        # A noun compound ends in a capital in a language that writes its
+        # nouns so, which the tagger does not always see (`Zwei-Säulen-Modell`
+        # is an adverb to it): `3-stufig` and `3-mal` do not.
+        return first.pos_ == "NOUN" or first.text.rsplit("-", 1)[-1][:1].isupper()
+    return first.head.pos_ == "NOUN" and first.head.dep_ == "compound"
+
+
 def _leading(answer: str | None) -> str:
     """An answer's first word, in lower case: where a count key says its count.
 
@@ -730,10 +752,11 @@ def structural(
     word = _leading(target_answer)
     said = _count(word)
     asks = _ASKS_HOW_MANY.get((language or "").lower())
-    # A number that opens a hyphenated compound, `Zwei-Faktor-Authentifizierung`,
-    # names a thing, so a short answer of that kind is no bare count. Asked
-    # how many, `Zwei-Faktor` or `3-stufig` is still the count.
-    compound = re.match(r"\w+-[^\W\d_]", (target_answer or "").lstrip())
+    # A number that opens a hyphenated compound the parse makes a noun,
+    # `Zwei-Faktor-Authentifizierung`, names a thing, so a short answer of that
+    # kind is no bare count. Asked how many, `Zwei-Faktor` or `3-stufig` is
+    # still the count, and an adverbial or numeral compound (`3-mal`) always is.
+    compound = _names_a_thing(target_answer, language)
     if asks is None:
         counting = bool(re.search(_HOW_MANY, normalised(asked)))
     else:
