@@ -335,3 +335,73 @@ def test_a_fraction_agrees_with_its_decimal_spelling(
 def test_another_fraction_does_not_agree(language, recovered, target) -> None:
     """The fraction is part of the value."""
     assert not agrees(recovered, target, language)
+
+
+@pytest.mark.parametrize(
+    ("question", "passage", "language"),
+    [
+        (
+            "How many branches does the bank run in the city?",
+            "Each branch is at least 120 m² large and opens 6 days a week.",
+            "en",
+        ),
+        (
+            "Wie viele Filialen betreibt die Bank in der Stadt?",
+            "Jede Filiale ist mindestens 120 Quadratmeter groß und an 6 Tagen geöffnet.",
+            "de",
+        ),
+        (
+            "How many Mastercards does a customer hold?",
+            "A customer holds 2 Visa cards and pays 5 EUR a month.",
+            "en",
+        ),
+    ],
+)
+def test_a_count_over_figures_that_count_another_thing_is_left_to_the_model(
+    question, passage, language
+) -> None:
+    """Square metres and days are no sum of branches, and Visa cards none of Mastercards."""
+    from question_generation.gates import counts_something_else
+
+    assert counts_something_else(question, [passage], language)
+
+
+@pytest.mark.parametrize(
+    ("question", "passage", "language"),
+    [
+        (
+            "How many branches does the bank run in the city?",
+            "The bank runs 40 branches in the city.",
+            "en",
+        ),
+        (
+            "Wie viele Filialen betreibt die Bank in der Stadt?",
+            "Die Bank betreibt 40 Filialen in der Stadt.",
+            "de",
+        ),
+        ("How many branches does the bank run?", "The bank employs 1200.", "en"),
+        ("How many are employed at a branch?", "Each branch has 3 counters.", "en"),
+        (
+            "Which branches does the bank run in the city?",
+            "Each branch is at least 120 m² large.",
+            "en",
+        ),
+        (
+            "Combien d'agences la banque gère-t-elle ?",
+            "Chaque agence fait au moins 120 m².",
+            "fr",
+        ),
+        (
+            "Πόσα καταστήματα έχει η τράπεζα;",
+            "Κάθε κατάστημα έχει τουλάχιστον 120 m².",
+            "el",
+        ),
+    ],
+)
+def test_a_count_whose_figures_may_count_what_it_asks_is_left_to_the_arithmetic(
+    question, passage, language
+) -> None:
+    """A figure of the thing asked, of nothing named, or no count asked: `adds_up` decides."""
+    from question_generation.gates import counts_something_else
+
+    assert not counts_something_else(question, [passage], language)
