@@ -85,11 +85,30 @@ def _lines_of(sentence: Sentence) -> list[Sentence]:
     return lines
 
 
+def _named(sentences: Sequence[Sentence], at: int) -> Sentence | None:
+    """The sentence an index names, or the list line it counts on to, or None.
+
+    A passage whose last sentence holds list lines is read by the model line
+    by line: an index past the end, by at most the lines of that sentence
+    less one, names that line of it.
+    """
+    if 0 <= at < len(sentences):
+        return sentences[at]
+    if at < 0 or not sentences:
+        return None
+    lines = _lines_of(sentences[-1])
+    past = at - (len(sentences) - 1)
+    return lines[past] if past < len(lines) else None
+
+
 def _cited_text(passage: PassageToExtract, cited: Sequence[Sentence]) -> str:
     """The text a citation rests on: those sentences and nothing else.
 
     A run of adjacent sentences is taken whole, which keeps the passage's
-    own spacing between them and is what a reader sees highlighted.
+    own spacing between them and is what a reader sees highlighted. A list
+    line cited with the sentence before it keeps the index of its sentence,
+    so it is never part of a run: the lines of that sentence the claim did
+    not cite would come with the range.
 
     Sentences with a gap between them are joined instead. The covering range
     would hand the checks every sentence in between as well, so a claim
@@ -98,7 +117,12 @@ def _cited_text(passage: PassageToExtract, cited: Sequence[Sentence]) -> str:
     invented, would accept a number from a sentence the claim never named.
     """
     span = range(cited[0].index, cited[-1].index + 1)
-    if [one.index for one in cited] == list(span):
+    whole = all(
+        one.start == passage.sentences[one.index].start
+        and one.end == passage.sentences[one.index].end
+        for one in cited
+    )
+    if whole and [one.index for one in cited] == list(span):
         return passage.text[cited[0].start : cited[-1].end]
     return _JOIN.join(one.text for one in cited)
 
@@ -565,7 +589,7 @@ class FactChecker:
         # One citation per passage, whichever position named it first: two
         # rows for one passage would collide on fact_passages' primary key,
         # and would let a claim resting on one passage count as a bridge.
-        rested: list[tuple[PassageToExtract, Citation]] = []
+        rested: list[tuple[PassageToExtract, Citation, list[Sentence]]] = []
         seen: set[int] = set()
         for one in sorted(candidate.passages, key=lambda cited: cited.position):
             resolved = _resolve(offered, one)
@@ -580,21 +604,16 @@ class FactChecker:
         statement = candidate.statement.strip()
         # Each passage's cited sentences, in the order it named them. Read
         # once: the evidence and the vocabulary are the same text.
-        texts = [
-            _cited_text(
-                passage, [passage.sentences[at] for at in one.sentence_ids or ()]
-            )
-            for passage, one in rested
-        ]
+        texts = [_cited_text(passage, spans) for passage, _, spans in rested]
         known: set[str] = set()
         numbers: set[str] = set()
-        for (passage, _), text in zip(rested, texts, strict=True):
+        for (passage, _, _), text in zip(rested, texts, strict=True):
             more, figures = _carried(text, passage)
             known |= more
             numbers |= figures
         known |= numbers
         said = claim(
-            statement, anchor.language, tuple(passage.text for passage, _ in rested)
+            statement, anchor.language, tuple(passage.text for passage, _, _ in rested)
         )
         judged = Judged(
             statement=statement,
@@ -602,9 +621,7 @@ class FactChecker:
             # Over the cited sentences of every passage, not over every
             # sentence of them: what the claim rests on is what it named.
             evidence_predicates=sum(
-                passage.sentences[index].predicates
-                for passage, one in rested
-                for index in one.sentence_ids or ()
+                sentence.predicates for _, _, spans in rested for sentence in spans
             ),
             claim=said,
             evidence_vocabulary=frozenset(known),
@@ -615,10 +632,10 @@ class FactChecker:
                 anchor.language,
                 statement,
             ),
-            citations=tuple(one for _, one in rested),
+            citations=tuple(one for _, one, _ in rested),
             labels=tuple(
                 segment
-                for passage, _ in rested
+                for passage, _, _ in rested
                 for segment in headings_of(passage.section_path)
                 if label_of(segment)
             ),
@@ -662,14 +679,10 @@ class FactChecker:
         to the last sentence, cut to the line.
         """
         ids = sorted(set(candidate.sentences))
-        sentences = passage.sentences
-        if not ids or not sentences:
+        if not ids:
             return None
-        lines = _lines_of(sentences[-1])
-        past = len(sentences) - 1
-        if any(i < 0 or (i >= len(sentences) and i - past >= len(lines)) for i in ids):
-            return None
-        return [sentences[i] if i < len(sentences) else lines[i - past] for i in ids]
+        named = [_named(passage.sentences, i) for i in ids]
+        return None if None in named else named
 
     @staticmethod
     def _judge(
@@ -1064,7 +1077,7 @@ def _supported_units(
 
 def _resolve(
     offered: Sequence[PassageToExtract], cited: Cited
-) -> tuple[PassageToExtract, Citation] | None:
+) -> tuple[PassageToExtract, Citation, list[Sentence]] | None:
     """Resolves one of a bridge's citations against the passage it names.
 
     Args:
@@ -1072,23 +1085,28 @@ def _resolve(
         cited: One entry of what it returned.
 
     Returns:
-        The passage and the span its cited sentences cover, or None when the
-        position is not one it was shown or none of the sentences is one that
-        passage has.
+        The passage, the span its cited sentences cover and those sentences
+        (a list line of the last sentence cited past the end is a piece of
+        its own, as in `FactChecker._cited`), or None when the position is
+        not one it was shown or none of the indices is one that passage has.
     """
     if not 0 <= cited.position < len(offered):
         return None
     passage = offered[cited.position]
-    ids = sorted({i for i in cited.sentences if 0 <= i < len(passage.sentences)})
-    if not ids:
+    spans = [
+        one
+        for one in (_named(passage.sentences, i) for i in sorted(set(cited.sentences)))
+        if one is not None
+    ]
+    if not spans:
         return None
-    spans = [passage.sentences[i] for i in ids]
-    return passage, Citation(
+    citation = Citation(
         passage_id=passage.id,
-        sentence_ids=ids,
+        sentence_ids=sorted({one.index for one in spans}),
         start=spans[0].start,
         end=spans[-1].end,
     )
+    return passage, citation, spans
 
 
 def _reading(candidate: CandidateFact) -> dict | None:
