@@ -3456,3 +3456,120 @@ def test_a_limit_after_a_preposition_that_also_sets_limits_is_no_year(
     judged = Checker(passage(text, language=language)).atomic(statement, 1)
 
     assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+# ── What a swap names ──────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement", "detail"),
+    [
+        (
+            "en",
+            "A fee of EUR 5 is charged after 14 days. Refunds take 30 days.",
+            "A fee of EUR 5 is charged after 30 days.",
+            (
+                "the statement asserts 30, which the cited text does not say; "
+                "the cited text gives 14 where the statement says 30"
+            ),
+        ),
+        (
+            "de",
+            (
+                "Nach 14 Tagen wird eine Gebühr von 5 EUR berechnet. "
+                "Erstattungen dauern 30 Tage."
+            ),
+            "Nach 30 Tagen wird eine Gebühr von 5 EUR berechnet.",
+            (
+                "the statement asserts 30, which the cited text does not say; "
+                "the cited text gives 14 where the statement says 30"
+            ),
+        ),
+        (
+            "en",
+            "The promotional rate is 5 % for 12 months.",
+            "The promotional rate is 12 % for 5 months.",
+            (
+                "the statement asserts 12, 5, which the cited text does not say; "
+                "the cited text gives 12 where the statement says 12; "
+                "the cited text gives 5 where the statement says 5"
+            ),
+        ),
+        (
+            "en",
+            "For EUR 5 a card is replaced within 3 days.",
+            "For EUR 5 a card is replaced within 3 weeks.",
+            (
+                "the statement asserts 3, which the cited text does not say; "
+                "the cited text gives 3 where the statement says 3"
+            ),
+        ),
+        (
+            "de",
+            "Für 5 EUR wird eine Karte innerhalb von 3 Tagen ersetzt.",
+            "Für 5 EUR wird eine Karte innerhalb von 3 Wochen ersetzt.",
+            (
+                "the statement asserts 3, which the cited text does not say; "
+                "the cited text gives 3 where the statement says 3"
+            ),
+        ),
+    ],
+    ids=[
+        "period-after-amount",
+        "period-de",
+        "traded-kinds",
+        "unit-after-amount",
+        "unit-de",
+    ],
+)
+def test_a_swap_is_named_by_the_figure_the_cited_text_gives(
+    language, evidence, statement, detail
+) -> None:
+    """The reason names each swapped figure beside the cited one, whatever comes before it."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.validation_error == detail
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        ("en", "The fee is EUR 5 and the deposit is EUR 10.", "The fee is EUR 5."),
+        (
+            "de",
+            "Die Gebühr beträgt 5 EUR und die Kaution 10 EUR.",
+            "Die Gebühr beträgt 5 EUR.",
+        ),
+    ],
+)
+def test_a_cited_figure_beside_another_of_its_kind_is_no_swap(
+    language, evidence, statement
+) -> None:
+    """The figure is the cited one; the other amount of the sentence is not its rival."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.validated, judged.validation_error
+
+
+@pytest.mark.parametrize(
+    ("language", "evidence", "statement"),
+    [
+        (
+            "fr",
+            "Des frais de 5 EUR sont facturés après 14 jours. Les remboursements prennent 30 jours.",
+            "Des frais de 5 EUR sont facturés après 30 jours.",
+        ),
+        (
+            "el",
+            "Χρέωση 5 EUR μετά από 14 ημέρες. Οι επιστροφές διαρκούν 30 ημέρες.",
+            "Χρέωση 5 EUR μετά από 30 ημέρες.",
+        ),
+    ],
+)
+def test_a_swap_in_an_unconfigured_language_is_refused_at_parse_not_named(
+    language, evidence, statement
+) -> None:
+    """No pipeline reads it, so no swap is claimed for it."""
+    judged = Checker(passage(evidence, language=language)).atomic(statement, 0)
+
+    assert judged.rejection_code == Rejection.ASSERTS_NOTHING
