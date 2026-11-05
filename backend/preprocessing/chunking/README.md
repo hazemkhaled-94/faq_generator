@@ -329,7 +329,13 @@ Unit tests stand in only for the database and the passage builder
   rest that opens in capitals or with a figure also joins when the tagger
   reads the first block as ending on an article, preposition, conjunction or
   auxiliary and the second as opening with a noun or a figure: `Die Gebühr für
-  die` and `Ersatzkarte beträgt 15 EUR.` are one sentence.
+  die` and `Ersatzkarte beträgt 15 EUR.` are one sentence. The rest of a list
+  item a page cut comes out as the next page's first list item with no marker
+  of its own, and joins by the same case and tag rules only where it is set
+  in, by more than half a line, from the item it continues and from the next
+  item on its page, each indent read off its own page's column edge: a
+  converter that leaves every bullet without a marker would otherwise join
+  bullets that are separate.
 - A heading the converter cut into words is joined. Section headers of one
   level that follow one another in reading order with no other block between
   them are one heading when the second is on the first's line, right of it by

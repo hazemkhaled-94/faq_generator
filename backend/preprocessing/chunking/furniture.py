@@ -866,6 +866,16 @@ def _continued(
     A script
     without case opens nothing in lower case, so it is joined by the tags
     only.
+
+    The second block may also be a list item, the rest of an item a page or
+    column cut: the converter opens the next page's list with it, with no
+    marker of its own. A list item without a marker is no sign of a rest,
+    for a converter may leave every item of a list without one; so it joins
+    only where it is set in by more than half a line from the list item it
+    would continue and from the one after it on its page, each indent read
+    off its own page's column edge: the text of a cut item runs on at its
+    hanging indent, and a next item starts at the marker's edge. A paragraph
+    is never the first half of such a join.
     """
     texts = [
         item
@@ -876,15 +886,71 @@ def _continued(
         and item.prov
         and item.text.strip()
     ]
-    return [
-        (first.self_ref, second.self_ref)
-        for first, second in pairwise(texts)
-        if first.label in _PROSE | {DocItemLabel.LIST_ITEM}
-        and second.label in _PROSE
-        and not first.text.rstrip().endswith(_ENDS)
-        and _broken(first.prov[-1], second.prov[0], right_to_left(first.text))
-        and (_opens_lower(second.text) or _resumed(first, second, language))
-    ]
+    edges: dict[bool, dict[int, list[tuple[float, float, str]]]] = {}
+    found: list[tuple[str, str]] = []
+    for index, (first, second) in enumerate(pairwise(texts)):
+        if not (
+            first.label in _PROSE | {DocItemLabel.LIST_ITEM}
+            and not first.text.rstrip().endswith(_ENDS)
+            and _broken(first.prov[-1], second.prov[0], right_to_left(first.text))
+            and (_opens_lower(second.text) or _resumed(first, second, language))
+        ):
+            continue
+        if second.label not in _PROSE and not (
+            second.label == DocItemLabel.LIST_ITEM
+            and first.label == DocItemLabel.LIST_ITEM
+            and isinstance(second, ListItem)
+            and not second.marker
+            and _hanging(
+                document,
+                first,
+                second,
+                texts[index + 2] if index + 2 < len(texts) else None,
+                edges,
+            )
+        ):
+            continue
+        found.append((first.self_ref, second.self_ref))
+    return found
+
+
+#: How far right of the item it is compared with a rest must start, in
+#: half-lines of the shortest of the items: a rest sits at its item's hanging
+#: indent, a next item at the marker's edge.
+_HANGING = 1.0
+
+
+def _hanging(
+    document: DoclingDocument,
+    first: TextItem,
+    rest: TextItem,
+    after: TextItem | None,
+    edges: dict[bool, dict[int, list[tuple[float, float, str]]]],
+) -> bool:
+    """Whether a list item is set in further than the items it is read against.
+
+    Both the item it would continue and, where a list item follows it on its
+    page, that one: each indent from the left edge of its own column on its
+    own page, from the right in a script written that way. A sub-item that
+    follows a sub-item is set in like it, and is no rest.
+    """
+    reverse = right_to_left(first.text)
+    blocks = edges.setdefault(reverse, _blocks(document, reverse))
+
+    def indent(box: ProvenanceItem) -> float:
+        start = _sides(box, reverse)[0]
+        return start - _column_edge(box.page_no, start, blocks)
+
+    box = rest.prov[0]
+    others = [first.prov[-1]]
+    if (
+        after is not None
+        and after.label == DocItemLabel.LIST_ITEM
+        and after.prov[0].page_no == box.page_no
+    ):
+        others.append(after.prov[0])
+    line = min(abs(one.bbox.height) for one in (box, *others))
+    return all(indent(box) - indent(one) > _HANGING * line / 2 for one in others)
 
 
 def _split_headings(
@@ -986,6 +1052,48 @@ def _resumed(first: TextItem, second: TextItem, language: str | None) -> bool:
     if after[0].pos_ in wanted:
         return last.pos_ in _WANTS_NOUN
     return opener.pos_ == "NUM" and last.pos_ in _WANTS_FIGURE
+
+
+#: The blocks a column's left edge is read off: its paragraphs and list
+#: items. A picture, a table or a heading may be set into the margin or run
+#: across the page, and is no column's edge.
+_COLUMN_BLOCKS = frozenset(
+    {DocItemLabel.TEXT, DocItemLabel.PARAGRAPH, DocItemLabel.LIST_ITEM}
+)
+
+
+def _sides(prov: ProvenanceItem, reverse: bool) -> tuple[float, float]:
+    """Where a block starts and ends across the page, from the right if `reverse`.
+
+    Measured so that a block set in from where its column begins starts
+    further along, whichever way the script runs.
+    """
+    box = prov.bbox
+    return (-box.r, -box.l) if reverse else (box.l, box.r)
+
+
+def _blocks(
+    document: DoclingDocument, reverse: bool = False
+) -> dict[int, list[tuple[float, float, str]]]:
+    """The start, end and reference of every paragraph and list item, by page."""
+    found: dict[int, list[tuple[float, float, str]]] = {}
+    for item, _ in document.iterate_items():
+        if isinstance(item, DocItem) and item.label in _COLUMN_BLOCKS:
+            for prov in item.prov:
+                found.setdefault(prov.page_no, []).append(
+                    (*_sides(prov, reverse), item.self_ref)
+                )
+    return found
+
+
+def _column_edge(
+    page: int, start: float, edges: dict[int, list[tuple[float, float, str]]]
+) -> float:
+    """The start of the column a block starts in, read off its page's blocks."""
+    return min(
+        (first for first, end, _ in edges.get(page, ()) if first <= start < end),
+        default=start,
+    )
 
 
 def _broken(
