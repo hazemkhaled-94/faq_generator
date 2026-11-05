@@ -1014,10 +1014,10 @@ def _append(document: DoclingDocument, table: TableItem, rest: TableItem) -> Non
     """Puts the rows of `rest` under the rows of `table`.
 
     The footnotes the converter attached to the rest, which printed them
-    under the table's end, become the table's, and so do its captions the
-    table does not already have by text, a repeated `(continued)` heading
-    among them. Each moves under the table as a child, so that the rest, which
-    leaves the body, takes none of them along.
+    under the table's end, become the table's, and so do its captions unless
+    the table already holds one whose text theirs repeats or opens with, as
+    `(continued)` follows a title. Each moves under the table as a child, so
+    that the rest, which leaves the body, takes none of them along.
     """
     offset = table.data.num_rows
     for cell in rest.data.table_cells:
@@ -1040,7 +1040,8 @@ def _append(document: DoclingDocument, table: TableItem, rest: TableItem) -> Non
         for ref in getattr(rest, name):
             found = ref.resolve(document)
             if kept is not None and (
-                not isinstance(found, TextItem) or found.text.strip() in kept
+                not isinstance(found, TextItem)
+                or any(found.text.strip().startswith(one) for one in kept if one)
             ):
                 continue
             getattr(table, name).append(ref)

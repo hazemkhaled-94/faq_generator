@@ -88,10 +88,11 @@ def grid(rows, top: float, header: bool) -> TableData:
     return TableData(num_rows=len(rows), num_cols=len(rows[0]), table_cells=cells)
 
 
-def passages(language: str, repeated: bool = False) -> str:
+def passages(language: str, repeated: bool = False, suffix: str = "") -> str:
     """Every passage's text of a two-page table whose rest carries the footnote.
 
-    With `repeated`, each of the two tables has a caption, the same words.
+    With `repeated`, each of the two tables has a caption, the same words, the
+    rest's followed by `suffix`.
     """
     header, first, rest, note = TABLES[language]
     document = DoclingDocument(name="fees")
@@ -105,7 +106,7 @@ def passages(language: str, repeated: bool = False) -> str:
         for table, page in ((first_table, 1), (second, 2)):
             title = document.add_text(
                 label=DocItemLabel.CAPTION,
-                text=f"{header[0]} / {header[1]}",
+                text=f"{header[0]} / {header[1]}" + (suffix if page == 2 else ""),
                 prov=prov(page, 680),
                 parent=table,
             )
@@ -147,3 +148,23 @@ def test_the_footnote_still_reaches_a_passage_beside_a_repeated_caption(
     """Dropping the repeated caption takes no footnote with it."""
     _, _, _, note = TABLES[language]
     assert note in passages(language, repeated=True)
+
+
+#: What a rest's caption adds to the title it repeats.
+CONTINUED = {
+    "de": " (Fortsetzung)",
+    "en": " (continued)",
+    "fr": " (suite)",
+    "el": " (συνέχεια)",
+}
+
+
+@pytest.mark.parametrize("language", sorted(TABLES))
+def test_a_caption_that_continues_the_tables_title_is_not_printed_again(
+    language: str,
+) -> None:
+    """`Title (continued)` over the rest repeats `Title` over the first page."""
+    header, _, _, note = TABLES[language]
+    text = passages(language, repeated=True, suffix=CONTINUED[language])
+    assert text.count(f"{header[0]} / {header[1]}") == 1, text
+    assert note in text
