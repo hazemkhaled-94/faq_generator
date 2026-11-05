@@ -14,6 +14,7 @@ import tracemalloc
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from question_generation import selection
 from question_generation.models import SourceFact, SourcePassage
@@ -115,3 +116,102 @@ def test_a_deal_over_fifty_thousand_facts_stays_under_a_memory_bound() -> None:
 
     assert peak < 300 * 1024 * 1024, peak
     assert time.perf_counter() - started < 120
+
+
+def _at(i: int, passage: int, *vector: float) -> SimpleNamespace:
+    """One fact of one passage, with the vector given."""
+    return SimpleNamespace(id=i, passage_id=passage, embedding=vector)
+
+
+#: Three facts of three passages, each pair at cosine -0.5: 120 degrees apart.
+_OPPOSED = [
+    _at(0, 0, 1.0, 0.0),
+    _at(1, 1, -0.5, 3**0.5 / 2),
+    _at(2, 2, -0.5, -(3**0.5) / 2),
+]
+
+
+def test_a_share_of_zero_sets_no_floor() -> None:
+    """QUESTIONS_MEETS_SHARE 0 is the switch that turns the relative floor off."""
+    facts = _stub(30)
+
+    assert _relative_floor(facts, 0.0) == 0.0  # type: ignore[arg-type]
+
+
+def test_a_topic_of_one_passage_has_no_floor_under_the_budget() -> None:
+    """No pair of facts from two passages, so nothing to read a floor off."""
+    facts = [_at(i, 1, 1.0, 0.0) for i in range(5)]
+
+    assert _relative_floor(facts, 0.05) == 0.0  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("budget", [100, 0], ids=["exact", "sampled"])
+def test_a_floor_is_never_below_zero(monkeypatch, budget: int) -> None:
+    """Opposed vectors mean what unrelated ones do to a sampler: a cosine of 0."""
+    monkeypatch.setattr(selection, "_PAIR_BUDGET", budget)
+
+    assert _relative_floor(_OPPOSED, 0.5) == 0.0  # type: ignore[arg-type]
+
+
+def test_a_topic_with_a_fact_carrying_no_vector_has_no_floor() -> None:
+    """A floor of cosines does not belong to a topic `meets` reads by words."""
+    facts = [*_stub(20), _at(99, 99)]
+
+    assert _relative_floor(facts, 0.05) == 0.0  # type: ignore[arg-type]
+
+
+def test_two_facts_of_two_passages_set_the_floor_at_their_cosine() -> None:
+    """The smallest topic with a pair keeps it: its one pair clears its own floor."""
+    facts = [_at(0, 0, 1.0, 0.0), _at(1, 1, 0.6, 0.8)]
+
+    assert _relative_floor(facts, 0.05) == pytest.approx(0.6)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("budget", "sampled"), [(15, False), (14, True)], ids=["at", "past"]
+)
+def test_the_floor_is_sampled_only_past_the_pair_budget(
+    monkeypatch, budget: int, sampled: bool
+) -> None:
+    """Six facts hold fifteen pairs: exact at a budget of 15, sampled at 14.
+
+    The budget is what keeps a large topic's floor inside memory, and a topic
+    within it is read exactly.
+    """
+    calls = []
+    monkeypatch.setattr(selection, "_PAIR_BUDGET", budget)
+    monkeypatch.setattr(
+        selection, "_sampled_floor", lambda *args: calls.append(args) or 0.0
+    )
+    facts = _stub(6, per_passage=1)
+
+    floor = _relative_floor(facts, 0.05)  # type: ignore[arg-type]
+
+    assert bool(calls) is sampled
+    if not sampled:
+        assert floor == _exact(facts, 0.05)
+
+
+def test_a_sampled_floor_reads_every_pair_it_drew(monkeypatch) -> None:
+    """Chunked or not, each drawn pair's cosine is read, none left unset.
+
+    Two facts at cosine 0.6, so every pair drawn is that pair, and the lowest
+    percentile of a sample read whole is 0.6 too.
+    """
+    monkeypatch.setattr(selection, "_PAIR_BUDGET", 0)
+    monkeypatch.setattr(selection, "_SAMPLED_PAIRS", 5)
+    monkeypatch.setattr(selection, "_CHUNK", 2)
+    # A cosine left unread shows as NaN rather than as whatever memory held.
+    unset = np.empty
+    monkeypatch.setattr(
+        selection.np,
+        "empty",
+        lambda size, dtype=float, **kw: (
+            np.full(size, np.nan, dtype=dtype)
+            if np.issubdtype(np.dtype(dtype), np.floating)
+            else unset(size, dtype=dtype, **kw)
+        ),
+    )
+    facts = [_at(0, 0, 1.0, 0.0), _at(1, 1, 0.6, 0.8)]
+
+    assert _relative_floor(facts, 0.99) == pytest.approx(0.6)  # type: ignore[arg-type]
