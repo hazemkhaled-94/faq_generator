@@ -3588,3 +3588,32 @@ def test_a_time_the_cited_text_writes_as_a_bare_hour_or_in_another_clock_validat
     """A bare hour is a time the cited text writes, and an hour is compared with hours."""
     fact = Checker(passage(text, language=lang)).atomic(statement, 0)
     assert fact.validated, (fact.rejection_code, fact.validation_error)
+
+
+#: A 24-hour restatement of a cited 12-hour time, where the same sentence writes 24-hour times too.
+_TWELVE_HOUR = [
+    (
+        "en",
+        "The shop is open Saturday 9:30 am - 5:30 pm and Monday to Friday 9:00-17:00.",
+        "On Saturdays the shop is open from 9:30 to 17:30.",
+    ),
+    (
+        "en",
+        "Calls are answered from 8:30 am to 8:00 pm, and at weekends from 8:00 to 20:30.",
+        "Weekday calls are answered until 20:00.",
+    ),
+    (
+        "de",
+        "Die Filiale hat Mo–Fr 9:00–17:00 und Sa 9:30 am – 5:30 pm geöffnet.",
+        "Samstags hat die Filiale von 9:30 bis 17:30 Uhr geöffnet.",
+    ),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "statement"), _TWELVE_HOUR)
+def test_a_24_hour_time_the_cited_text_writes_in_12_hours_validates_beside_24_hour_times(
+    lang, text, statement
+) -> None:
+    """Hours are held modulo 12, so 17:30 is the 5:30 pm the sentence writes."""
+    fact = Checker(passage(text, language=lang)).atomic(statement, 0)
+    assert fact.validated, (fact.rejection_code, fact.validation_error)
