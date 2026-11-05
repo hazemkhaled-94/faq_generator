@@ -413,7 +413,7 @@ help:
         check typecheck audit lint lint-imports deps \
         eval-phrasing \
         format lock \
-        certs dagster-dev \
+        certs \
         review-status review-push-facts review-pull-facts \
         review-push-topics review-pull-topics \
         review-push-questions review-pull-questions review-delete review-all \
@@ -2362,20 +2362,6 @@ review-pull-questions:
 # start them on their own and nothing to switch on here: the schedule and
 # the sensor both ship STOPPED, so the webserver serves an asset graph and
 # the daemon ticks nothing until somebody enables one in the UI.
-
-# Runs the UI and the daemon on the host instead, against the
-# containerised PostgreSQL and the containerised api.
-#
-# Only the database is named here now: it is reached on its published port
-# rather than over the compose network, and nothing else needs to say so.
-# BACKEND_URL used to be given here too, because the name held the
-# container's address for everybody; it is the host's own by the time WITH
-# is done, and the container's is BACKEND_CONTAINER_URL.
-dagster-dev:
-	$(call WITH,orchestration.env) && \
-	  DAGSTER_HOME=$$PWD/configs/dagster \
-	  DAGSTER_DB_HOST=localhost DAGSTER_DB_PORT=$$POSTGRES_PORT \
-	  poetry run dagster dev
 
 
 # ── Journeys ───────────────────────────────────────────────────────────────

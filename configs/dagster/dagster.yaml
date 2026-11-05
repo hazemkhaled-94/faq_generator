@@ -4,12 +4,8 @@
 # compose.dev.yaml mounts the checkout's copy there for development.
 # Connection values are injected from the environment — no secrets in this file.
 #
-# The host and port are read from the environment like the rest, because this
-# one file serves two callers that reach the same database at two addresses:
-# the containers over the compose network as `postgres:5432`, and
-# `make dagster-dev` on the host as `localhost:${POSTGRES_PORT}`. Hard-coded
-# to the first, `dagster dev` could not connect and said only that it had
-# timed out.
+# The host and port are read from the environment like the rest, so a caller
+# that reaches the database at another address than `postgres:5432` sets them.
 
 storage:
   postgres:

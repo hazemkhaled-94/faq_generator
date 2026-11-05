@@ -236,7 +236,7 @@ x-dagster: &dagster
     DAGSTER_DB_PASSWORD: ${DAGSTER_DB_PASSWORD:?add it to .env; .env.example names every secret}
     DAGSTER_DB_NAME: ${DAGSTER_DB_NAME}
     # The container's view of the database, not the host's. dagster.yaml
-    # reads both through `env:`, so one file serves this and `dagster dev`.
+    # reads both through `env:`.
     DAGSTER_DB_HOST: postgres
     DAGSTER_DB_PORT: 5432
     # The database the corpus job drives, tagged on every run it makes.
