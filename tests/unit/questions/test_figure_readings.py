@@ -405,3 +405,56 @@ def test_a_count_whose_figures_may_count_what_it_asks_is_left_to_the_arithmetic(
     from question_generation.gates import counts_something_else
 
     assert not counts_something_else(question, [passage], language)
+
+
+@pytest.mark.parametrize(
+    ("answer", "passage", "language", "expected"),
+    [
+        ("40", "40 branches and 25 ATMs", "en", True),
+        ("2025", "Since 2025 the fee is 3 EUR.", "en", True),
+        ("0", "2 cards and 3 loans", "en", False),
+        ("31", "1, 2, 4, 8 and 16 cards", "en", False),
+        ("1,500", "1.000 EUR und 500 EUR", "de", False),
+    ],
+)
+def test_a_total_is_one_to_four_of_the_figures_read_in_the_texts_language(
+    answer, passage, language, expected
+) -> None:
+    """A figure stated outright adds up, a year alone included; no terms or five do not."""
+    assert adds_up(answer, [passage], language) is expected
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "statements", "language", "expected"),
+    [
+        (
+            "Wie viele Gebühren berechnet die Bank?",
+            "2",
+            ["Die Bank berechnet eine Kontoführungsgebühr und eine Kartengebühr."],
+            "de",
+            True,
+        ),
+        (
+            "How many cards are issued?",
+            "3",
+            ["The bank issues a debit card, a credit card and a prepaid card."],
+            "en",
+            True,
+        ),
+        (
+            "How many days does a refund take?",
+            "3",
+            ["The shop accepts Visa, Mastercard and PayPal."],
+            "en",
+            False,
+        ),
+        ("Wie viele Gebühren berechnet die Bank?", "3", [], "de", False),
+    ],
+)
+def test_a_count_is_a_lookup_only_of_a_list_the_fact_asked_about_holds(
+    question, answer, statements, language, expected
+) -> None:
+    """Two items are a list; one shared word picks the fact; an unrelated list counts nothing."""
+    from question_generation.gates import counts_a_list
+
+    assert counts_a_list(question, answer, statements, language) is expected
