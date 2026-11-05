@@ -32,7 +32,13 @@ from extraction.models import (
     from_repair,
 )
 from extraction.repository import DIGEST_FAILED, DigestQueue, FactCatalog, PassageQueue
-from extraction.validation import WRITTEN, FactChecker, _cited_text
+from extraction.validation import (
+    _VALUE_KINDS,
+    WRITTEN,
+    FactChecker,
+    _cited_text,
+    _figure_tokens,
+)
 from nlp.analysis import claim, is_currency, normalised, numbers
 from nlp.embedding import Embedder, cosine
 from settings.runs import run_id
@@ -991,8 +997,52 @@ def _measured(twin: Twin, threshold: float, floor: float) -> Measurement:
 
 
 def _counted_alike(statement: str, twin: str, language: str | None) -> bool:
-    """Whether two statements name the same numbers, as often as each other."""
-    return numbers(statement, language) == numbers(twin, language)
+    """Whether two statements name the same numbers, as often as each other.
+
+    Of the same digits, and no closed reading tells them apart: two figures
+    are two when the months or weekdays the statements name differ, or when
+    a value both state is a currency, a share, a period or a unit of time or
+    of measure on each side and no reading of one is that of one of the
+    other (`14 days` and `14 weeks`, `3 % for 12 months` and `12 % for 3
+    months`). A figure read on one side only, or by an open noun, tells
+    nothing: `14 days` and `14 calendar days` are one.
+    """
+    if numbers(statement, language) != numbers(twin, language):
+        return False
+    names = claim(statement, language).calendar, claim(twin, language).calendar
+    if all(names) and names[0] != names[1]:
+        return False
+    mine, theirs = _closed(statement, language), _closed(twin, language)
+    return not any(
+        not any(_same(one, other) for one in mine[value] for other in theirs[value])
+        for value in mine.keys() & theirs.keys()
+    )
+
+
+def _closed(
+    text: str, language: str | None
+) -> dict[str, list[tuple[frozenset[str], frozenset[str]]]]:
+    """The closed readings of each value of a text: its kind, if a value kind, and its units.
+
+    What `_figure_tokens` reads beside a figure, kept where it is one of the
+    kinds a value has or a unit of time or of measure, which are a language's
+    closed sets. A figure with neither is not in the map.
+    """
+    found: dict[str, list[tuple[frozenset[str], frozenset[str]]]] = {}
+    for _, digits, _, kind, unit in _figure_tokens(text, language):
+        reading = (frozenset({kind} & _VALUE_KINDS), unit or frozenset())
+        if any(reading):
+            for value in digits:
+                found.setdefault(value, []).append(reading)
+    return found
+
+
+def _same(
+    one: tuple[frozenset[str], frozenset[str]],
+    other: tuple[frozenset[str], frozenset[str]],
+) -> bool:
+    """Whether two readings can be one figure: the same kind, and the same unit where both give one."""
+    return one[0] == other[0] and (not one[1] or not other[1] or one[1] == other[1])
 
 
 def _naming(statement: str, language: str | None) -> Callable[[Twin], bool]:

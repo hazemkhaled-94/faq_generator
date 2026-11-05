@@ -166,7 +166,11 @@ Two more refusals come from the service, not from a check:
   citing only the passage being re-read, and against facts of another kind this
   passage kept. The refusal names the stored fact it repeats (`twin_id`) and
   writes nothing onto it. Two atomic facts of one passage, a bridge, and facts
-  naming other numbers are never twins.
+  naming other numbers are never twins. Numbers are other when the digits
+  differ, when the months or weekdays named differ, or when a value both state
+  is a currency, a share, a period or a unit of time or measure on each side
+  and the two readings differ (`14 days` and `14 weeks`, `3 % for 12 months`
+  and `12 % for 3 months`). A language with no such table reads digits only.
 - `over_cap`: `EXTRACTION_MIN_OTHER_SHARE` is a floor on the share of a
   passage's facts that are not atomic, which caps the atomic ones. The cap is
   never below the passage's sentences plus its list items. Facts asserting a

@@ -402,3 +402,211 @@ def test_another_fraction_is_another_number_for_the_dedup_gate(lang, text, twin)
     from extraction.service import _counted_alike
 
     assert not _counted_alike(text, twin, lang)
+
+
+#: Two statements that give one figure another unit, month, weekday or place.
+_DIFFERENT_FIGURES = [
+    (
+        "de",
+        "Die neuen Kontogebühren gelten ab dem 1. Januar 2026.",
+        "Die neuen Kontogebühren gelten ab dem 1. Juli 2026.",
+    ),
+    (
+        "en",
+        "The new account fees apply from 1 January 2026.",
+        "The new account fees apply from 1 July 2026.",
+    ),
+    (
+        "de",
+        "Das Bürgeramt ist montags geöffnet.",
+        "Das Bürgeramt ist dienstags geöffnet.",
+    ),
+    ("en", "The office opens on Mondays.", "The office opens on Tuesdays."),
+    (
+        "de",
+        "Die Rückgabefrist beträgt 14 Tage.",
+        "Die Rückgabefrist beträgt 14 Wochen.",
+    ),
+    ("en", "The return period is 14 days.", "The return period is 14 weeks."),
+    (
+        "de",
+        "Der Antrag wird innerhalb von 3 Wochen bearbeitet.",
+        "Der Antrag wird innerhalb von 3 Monaten bearbeitet.",
+    ),
+    (
+        "en",
+        "The application is processed within 3 weeks.",
+        "The application is processed within 3 months.",
+    ),
+    ("de", "Ein Paket darf bis zu 2 kg wiegen.", "Ein Paket darf bis zu 2 g wiegen."),
+    (
+        "en",
+        "A parcel may weigh up to 2 kg.",
+        "A parcel may weigh up to 2 g.",
+    ),
+    (
+        "de",
+        "Der Zinssatz beträgt 3 % für 12 Monate.",
+        "Der Zinssatz beträgt 12 % für 3 Monate.",
+    ),
+    (
+        "en",
+        "The interest rate is 3 % for 12 months.",
+        "The interest rate is 12 % for 3 months.",
+    ),
+    (
+        "de",
+        "Die Verwaltungsgebühr beträgt 2 %.",
+        "Die Verwaltungsgebühr beträgt 2 Euro.",
+    ),
+    ("en", "The administration fee is 2 %.", "The administration fee is 2 euros."),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "twin"), _DIFFERENT_FIGURES)
+def test_a_figure_of_another_unit_month_or_place_is_no_twin_for_the_dedup_gate(
+    lang, text, twin
+):
+    """The unit, the month and the pairing a figure is written with are part of it."""
+    from extraction.service import _counted_alike
+
+    assert not _counted_alike(text, twin, lang)
+    assert not _counted_alike(twin, text, lang)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "twin"), [_DIFFERENT_FIGURES[i] for i in (0, 1, 4, 5, 10, 11)]
+)
+def test_the_probed_twin_of_another_figure_is_dropped(lang, text, twin):
+    """Through `_closest`, a near fact of another figure is no twin at any cosine."""
+    from database.qa_generator import FactKind
+    from extraction.models import Twin
+    from extraction.service import _closest
+
+    probed = Twin(fact_id=7, statement=twin, similarity=0.999)
+    assert _closest(text, FactKind.ATOMIC, lang, [1.0, 0.0], probed, []) is None
+    kept = [(twin, FactKind.ATOMIC, [1.0, 0.0], 8)]
+    assert _closest(text, FactKind.ATOMIC, lang, [1.0, 0.0], None, kept) is None
+
+
+#: Two statements that write one figure in another spelling.
+_RESTATEMENTS = [
+    ("de", "Die Gebühr beträgt 5 Euro.", "Die Gebühr beträgt 5 €."),
+    ("en", "The fee is EUR 5.", "The fee is 5 euros."),
+    ("de", "Die Gebühr beträgt EUR 5.", "Die Gebühr beträgt 5 Euro."),
+    ("de", "Der Zuschlag beträgt 3 Prozent.", "Der Zuschlag beträgt 3 %."),
+    ("en", "The surcharge is 3 percent.", "The surcharge is 3 %."),
+    (
+        "de",
+        "Eine Rückgabe ist innerhalb von 14 Tagen möglich.",
+        "Eine Rückgabe ist innerhalb von 14 Kalendertagen möglich.",
+    ),
+    (
+        "de",
+        "Ein Antrag wird innerhalb von 14 Tagen bearbeitet.",
+        "Ein Antrag wird innerhalb von vierzehn Tagen bearbeitet.",
+    ),
+    (
+        "en",
+        "The loan runs for 12 months.",
+        "The loan runs for a 12-month term.",
+    ),
+    (
+        "en",
+        "Returns are accepted within 30 days.",
+        "A 30-day return window applies.",
+    ),
+    (
+        "de",
+        "Ein Paket wiegt höchstens 2 kg.",
+        "Ein Paket wiegt höchstens 2 Kilogramm.",
+    ),
+    (
+        "en",
+        "A parcel weighs at most 2 kg.",
+        "A parcel weighs at most 2 kilograms.",
+    ),
+    (
+        "en",
+        "The interest rate is 3 % for 12 months.",
+        "For 12 months the interest rate is 3 %.",
+    ),
+    (
+        "de",
+        "Die Gebühren gelten ab dem 1. Januar 2026.",
+        "Ab 1. Januar 2026 gelten die Gebühren.",
+    ),
+    ("en", "Fees apply from 1 January 2026.", "Fees apply from January 1, 2026."),
+    (
+        "de",
+        "Das Bürgeramt ist montags geöffnet.",
+        "Das Bürgeramt hat am Montag geöffnet.",
+    ),
+    ("en", "The office opens on Mondays.", "The office opens on Monday."),
+    (
+        "en",
+        "The branch is open from 9:30 to 13:00.",
+        "The branch is open from 9:30 until 13:00.",
+    ),
+    (
+        "en",
+        "The bank reduced list A to 25 players again.",
+        "The bank reduced list A to 25 again.",
+    ),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "twin"), _RESTATEMENTS)
+def test_a_figure_written_another_way_stays_a_twin_for_the_dedup_gate(lang, text, twin):
+    """A reading the other side lacks, or an open noun, never tells two figures apart."""
+    from extraction.service import _counted_alike
+
+    assert _counted_alike(text, twin, lang)
+    assert _counted_alike(twin, text, lang)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "twin"),
+    [
+        (
+            "fr",
+            "Les nouveaux frais s'appliquent à partir du 1er janvier 2026.",
+            "Les nouveaux frais s'appliquent à partir du 1er juillet 2026.",
+        ),
+        (
+            "fr",
+            "Le délai de retour est de 14 jours.",
+            "Le délai de retour est de 14 semaines.",
+        ),
+        (
+            "fr",
+            "Le taux d'intérêt est de 3 % pour 12 mois.",
+            "Le taux d'intérêt est de 12 % pour 3 mois.",
+        ),
+        (
+            "pl",
+            "Termin zwrotu wynosi 14 dni.",
+            "Termin zwrotu wynosi 14 tygodni.",
+        ),
+        (
+            "pl",
+            "Nowe opłaty obowiązują od 1 stycznia 2026.",
+            "Nowe opłaty obowiązują od 1 lipca 2026.",
+        ),
+        (
+            "el",
+            "Τα νέα τέλη ισχύουν από την 1η Ιανουαρίου 2026.",
+            "Τα νέα τέλη ισχύουν από την 1η Ιουλίου 2026.",
+        ),
+        (
+            "el",
+            "Η προθεσμία επιστροφής είναι 14 ημέρες.",
+            "Η προθεσμία επιστροφής είναι 14 εβδομάδες.",
+        ),
+    ],
+)
+def test_a_language_without_month_and_unit_words_reads_as_before(lang, text, twin):
+    """No table names a month or a time unit there, so the cosine decides alone, as it did."""
+    from extraction.service import _counted_alike
+
+    assert _counted_alike(text, twin, lang)
