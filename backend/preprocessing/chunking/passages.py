@@ -44,6 +44,7 @@ from preprocessing.chunking.furniture import (
     LEAD_IN,
     _blocks,
     _column_edge,
+    _read_edge,
     _resolved,
     _sides,
     furniture_of,
@@ -414,23 +415,8 @@ def _page_edge(
     whose items all start at one indent off the edge before, as sub-items of
     the open level, and restarts at level 0 on any other.
     """
-
-    def reaching(on: int) -> list[float]:
-        return [
-            first
-            for first, end, reference in edges.get(on, ())
-            if reference not in listed and first <= start < end
-        ]
-
-    own = reaching(page)
-    if own:
-        return min(min(own), leftmost[page])
-    for near in sorted(
-        (other for other in edges if other != page and (other - page) % 2 == 0),
-        key=lambda other: (abs(other - page), other),
-    ):
-        if found := reaching(near):
-            return min(min(found), leftmost[page])
+    if (found := _read_edge(page, start, edges, listed, leftmost)) is not None:
+        return found
     if leftmost[page] > before + step:
         return None
     return min(before, leftmost[page])

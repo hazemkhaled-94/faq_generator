@@ -903,6 +903,10 @@ def _continued(
 #: indent, a next item at the marker's edge.
 _HANGING = 1.0
 
+#: How near, in line heights, the end of a cut item's last line must come to the
+#: right edge of its column: a line a page cut is full, a label's is not.
+_FULL = 0.5
+
 
 def _hanging(
     document: DoclingDocument,
@@ -911,21 +915,52 @@ def _hanging(
     after: TextItem | None,
     edges: dict[bool, dict[int, list[tuple[float, float, str]]]],
 ) -> bool:
-    """Whether a list item is set in further than the items it is read against.
+    """Whether a list item is a rest: a full line cut, then set in further than its neighbours.
 
-    Both the item it would continue and, where a list item follows it on its
-    page, that one: each indent from the left edge of its own column on its
-    own page, from the right in a script written that way. A sub-item that
-    follows a sub-item is set in like it, and is no rest.
+    The item it would continue must end on a full line, reaching the right edge
+    of the blocks across its start: a label that merely has no end mark does
+    not. Then it is set in further than that item and, where a list item
+    follows it on its page, than that one: each indent from the left edge of
+    its own page, read as `nested` reads a page's edge, off the blocks outside
+    the two items' lists and failing those off the page of the same parity,
+    never right of the lists' own leftmost item there; from the right in a
+    script written that way. Where no edge can be read the item is no rest.
     """
     reverse = right_to_left(first.text)
     blocks = edges.setdefault(reverse, _blocks(document, reverse))
-
-    def indent(box: ProvenanceItem) -> float:
-        start = _sides(box, reverse)[0]
-        return start - _column_edge(box.page_no, start, blocks)
-
     box = rest.prov[0]
+    last = first.prov[-1]
+    begin, end = _sides(last, reverse)
+    reach = max(
+        (
+            right
+            for left, right, _ in blocks.get(last.page_no, ())
+            if left <= begin < right
+        ),
+        default=end,
+    )
+    line = min(abs(box.bbox.height), abs(last.bbox.height))
+    if end < reach - _FULL * line:
+        return False
+    listed = {
+        child.cref
+        for one in (first, rest)
+        if isinstance(parent := one.parent and one.parent.resolve(document), ListGroup)
+        for child in parent.children
+    } | {first.self_ref, rest.self_ref}
+    leftmost: dict[int, float] = {}
+    for reference in listed:
+        node = _resolved(reference, document)
+        if isinstance(node, DocItem):
+            for prov in node.prov:
+                left = _sides(prov, reverse)[0]
+                leftmost[prov.page_no] = min(left, leftmost.get(prov.page_no, left))
+
+    def indent(prov: ProvenanceItem) -> float | None:
+        left = _sides(prov, reverse)[0]
+        found = _read_edge(prov.page_no, left, blocks, listed, leftmost)
+        return None if found is None else left - found
+
     others = [first.prov[-1]]
     if (
         after is not None
@@ -933,8 +968,45 @@ def _hanging(
         and after.prov[0].page_no == box.page_no
     ):
         others.append(after.prov[0])
+    mine = indent(box)
+    theirs = [indent(one) for one in others]
+    if mine is None or None in theirs:
+        return False
     line = min(abs(one.bbox.height) for one in (box, *others))
-    return all(indent(box) - indent(one) > _HANGING * line / 2 for one in others)
+    return all(mine - one > _HANGING * line / 2 for one in theirs if one is not None)
+
+
+def _read_edge(
+    page: int,
+    start: float,
+    edges: dict[int, list[tuple[float, float, str]]],
+    listed: set[str],
+    leftmost: dict[int, float],
+) -> float | None:
+    """The left edge of the column a block starts in, read off the blocks outside a list.
+
+    Those on the page that reach across `start`, else those on the nearest page
+    of the same parity, which a facing-page layout sets alike; bounded by the
+    list's own leftmost item on the page, which cannot print left of its outer
+    level. None where no such block is found.
+    """
+
+    def reaching(on: int) -> list[float]:
+        return [
+            first
+            for first, end, reference in edges.get(on, ())
+            if reference not in listed and first <= start < end
+        ]
+
+    if found := reaching(page):
+        return min(min(found), leftmost.get(page, start))
+    for near in sorted(
+        (other for other in edges if other != page and (other - page) % 2 == 0),
+        key=lambda other: (abs(other - page), other),
+    ):
+        if found := reaching(near):
+            return min(min(found), leftmost.get(page, start))
+    return None
 
 
 def _split_headings(
