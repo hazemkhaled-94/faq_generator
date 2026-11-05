@@ -924,7 +924,10 @@ def _hanging(
     its own page, read as `nested` reads a page's edge, off the blocks outside
     the two items' lists and failing those off the page of the same parity,
     never right of the lists' own leftmost item there; from the right in a
-    script written that way. Where no edge can be read the item is no rest.
+    script written that way. Where no edge can be read for the item it would
+    continue, it is no rest; where none can be read for the rest's page, which
+    holds only the lists' items, the rest is read against the item after it as
+    it is set.
     """
     reverse = right_to_left(first.text)
     blocks = edges.setdefault(reverse, _blocks(document, reverse))
@@ -970,10 +973,17 @@ def _hanging(
         others.append(after.prov[0])
     mine = indent(box)
     theirs = [indent(one) for one in others]
-    if mine is None or None in theirs:
+    if theirs[0] is None:
         return False
     line = min(abs(one.bbox.height) for one in (box, *others))
-    return all(mine - one > _HANGING * line / 2 for one in theirs if one is not None)
+    threshold = _HANGING * line / 2
+    if mine is None:
+        # A page of the lists' items alone: its indents have no edge, but the
+        # item after the rest is on the same page, and the two compare as they are.
+        return len(others) > 1 and (
+            _sides(box, reverse)[0] - _sides(others[1], reverse)[0] > threshold
+        )
+    return all(mine - one > threshold for one in theirs if one is not None)
 
 
 def _read_edge(

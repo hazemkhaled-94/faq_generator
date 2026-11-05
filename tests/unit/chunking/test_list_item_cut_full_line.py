@@ -197,17 +197,17 @@ def test_a_sub_item_on_a_page_of_sub_items_alone_is_no_first_half(
 
 
 @pytest.mark.parametrize("language", LANGS)
-def test_a_cut_sub_item_whose_rest_opens_a_page_of_sub_items_is_not_joined(
+def test_a_rest_opening_a_page_of_the_lists_items_alone_joins_by_the_next_item(
     language: str,
 ) -> None:
-    """Without an edge to read the rest's indent off, nothing says it hangs."""
-    lead, o1, s1, o2, s2, _, _ = LISTS[language]
+    """The page has no edge: the rest at 90 is read against the item after it at 72."""
+    _, o1, s1, o2, s2, _, _ = LISTS[language]
     d = pages(2)
-    d.add_text(label=DocItemLabel.TEXT, text=lead, prov=placed(1, 54, 680, width=400))
+    d.add_text(label=DocItemLabel.TEXT, text=o1, prov=placed(1, 54, 660, width=400))
     one = d.add_list_group()
-    d.add_list_item(text=o1, parent=one, prov=placed(1, 54, 700, width=400))
-    d.add_list_item(text=s1, parent=one, prov=placed(1, 72, 714, width=400))
+    d.add_list_item(text=o1, parent=one, prov=placed(1, 54, 680, width=400))
+    d.add_list_item(text=s1, parent=one, prov=placed(1, 72, 700, width=400))
     two = d.add_list_group()
     d.add_list_item(text=s2, parent=two, prov=placed(2, 90, 60))
     d.add_list_item(text=o2, parent=two, prov=placed(2, 72, 74))
-    assert f"    - {s1} {s2}" not in lines(d, language)
+    assert f"    - {s1} {s2}" in lines(d, language)
