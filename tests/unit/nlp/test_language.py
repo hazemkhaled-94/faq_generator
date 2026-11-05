@@ -88,6 +88,26 @@ def test_a_document_is_read_in_any_language_not_only_the_configured(
     assert found is not None and found[0] == expected, found
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Combien de temps dure la garantie?", "fr"),
+        ("Ile kosztuje konto miesięcznie?", "pl"),
+        ("Πόσο κοστίζει ο λογαριασμός;", "el"),
+        ("How long does the warranty last?", "en"),
+        ("Wie lange gilt die Garantie?", "de"),
+    ],
+)
+def test_a_short_text_is_read_over_every_language_down_to_the_minimum_asked(
+    text: str, expected: str
+) -> None:
+    """The pick over every language, for a text a configured pick would only lean on."""
+    from nlp.language import detect_among_all
+
+    assert detect_among_all(text) is None
+    assert detect_among_all(text, minimum=10) == expected
+
+
 def test_a_document_too_short_to_judge_has_no_language() -> None:
     """A few words are no evidence, as for a passage."""
     from nlp.language import document_language

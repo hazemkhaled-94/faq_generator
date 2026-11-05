@@ -96,6 +96,21 @@ def document_language(text: str) -> tuple[str, str] | None:
     return best.language.iso_code_639_1.name.lower(), best.language.name.title()
 
 
+def detect_among_all(text: str, minimum: int = _MIN_CHARS) -> str | None:
+    """Names the language of a text over every language lingua knows.
+
+    The pick `detect` makes between the configured languages, asked of all of
+    them, so a text the configured pick merely leans one way on, because it is
+    in none of them, is found to be in another. No confidence is asked of it:
+    the caller compares it with the configured pick.
+    """
+    prose = URL.sub(" ", text).strip()
+    if len(prose) < minimum:
+        return None
+    found = _any_detector().detect_language_of(prose)
+    return found.iso_code_639_1.name.lower() if found else None
+
+
 def detect(text: str, minimum: int = _MIN_CHARS) -> str | None:
     """Names the language of a text, or None when it is too short to tell.
 

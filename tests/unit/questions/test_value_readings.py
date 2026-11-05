@@ -879,6 +879,134 @@ def test_a_question_in_another_language_than_its_facts_is_still_refused(
     assert failed is not None and "it is written in" in failed[1], failed
 
 
+# N-124 round 2: terms the question copies from its facts, in the other language of the pair.
+FACTS_1 = [
+    "The Bürgeramt issues the Meldebescheinigung on the day you register.",
+    "The Rundfunkbeitrag costs 18.36 EUR a month per household.",
+    "Under the Kündigungsschutzgesetz the notice period is four weeks.",
+    "The Hausratversicherung covers the Fahrradschloss up to 500 EUR.",
+    "The Gewährleistung lasts two years from delivery.",
+]
+FACTS_2 = [
+    "Die Purchase Protection deckt Diebstahl und Bruch für 90 Tage ab.",
+    "Die Annual Fee der Travel Rewards Card beträgt 60 EUR.",
+    "Der Premium Cashback Booster bietet zwei Prozent Cashback auf alle Einkäufe.",
+    "Das Self Service Terminal steht im Foyer der Filiale.",
+    "Der Customer Due Diligence Check prüft die Identität des Kunden.",
+]
+FACTS_3 = ["The Rundfunkbeitrag is paid by every household."]
+FACTS_4 = [
+    "The Gewährleistung for consumer goods lasts two years under the Bürgerliches Gesetzbuch.",
+    "Claims under the Gewährleistung are made at the Kundenservice of the seller.",
+]
+FACTS_5 = [
+    "The Rundfunkbeitrag is 18.36 EUR per month per household.",
+    "The Beitragsservice collects the Rundfunkbeitrag every three months.",
+]
+FACTS_6 = [
+    "The Kündigungsschutz applies once an employee has worked for six months.",
+    "Under the Kündigungsschutzgesetz a dismissal needs a social justification.",
+]
+FACTS_7 = [
+    "Bei Click and Collect holen Sie die online bestellte Ware in der Filiale ab.",
+    "Der Same Day Delivery Service liefert Bestellungen bis 14 Uhr am selben Tag.",
+]
+FACTS_8 = [
+    "The Bürgeramt issues the Meldebescheinigung.",
+    "It is issued on the same day.",
+]
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "answer", "statements"),
+    [
+        ("en", "Combien coûte le Rundfunkbeitrag par mois?", "18.36 EUR", FACTS_1),
+        (
+            "en",
+            "Quel délai s'applique selon le Kündigungsschutzgesetz?",
+            "Quatre semaines",
+            FACTS_1,
+        ),
+        ("en", "Combien de temps dure la Gewährleistung?", "Deux ans", FACTS_1),
+        (
+            "de",
+            "Quel est le montant de l'Annual Fee de la Travel Rewards Card?",
+            "60 EUR",
+            FACTS_2,
+        ),
+        ("de", "Quelle est l'Annual Fee de la Travel Rewards Card?", "60 EUR", FACTS_2),
+        (
+            "en",
+            "Combien de semaines de préavis prévoit le Kündigungsschutzgesetz?",
+            "Quatre semaines",
+            FACTS_1,
+        ),
+        (
+            "en",
+            "Jusqu'à quel montant la Hausratversicherung couvre-t-elle le Fahrradschloss?",
+            "500 EUR",
+            FACTS_1,
+        ),
+        ("en", "Qui paie le Rundfunkbeitrag?", "Chaque foyer", FACTS_3),
+        (
+            "en",
+            "Combien de temps dure la Gewährleistung selon le Bürgerliches Gesetzbuch ?",
+            "Deux ans",
+            FACTS_4,
+        ),
+        (
+            "en",
+            "Où fait-on valoir la Gewährleistung auprès du vendeur ?",
+            "Au Kundenservice du vendeur",
+            FACTS_4,
+        ),
+        (
+            "en",
+            "Combien coûte le Rundfunkbeitrag par mois ?",
+            "18,36 EUR par mois",
+            FACTS_5,
+        ),
+        ("en", "Le Kündigungsschutz s'applique quand ?", "Après six mois", FACTS_6),
+        ("en", "Qui perçoit le Rundfunkbeitrag ?", "Le Beitragsservice", FACTS_5),
+        (
+            "de",
+            "Czy Same Day Delivery Service dostarcza do 14 Uhr?",
+            "Tak, do 14 Uhr",
+            FACTS_7,
+        ),
+        ("en", "Combien de temps dure le Kündigungsschutz ?", "Six mois", FACTS_6),
+        ("en", "Quand est la Meldebescheinigung ?", "Same day", FACTS_8),
+    ],
+)
+def test_a_question_in_a_third_or_the_other_language_carrying_the_facts_terms_is_refused(
+    language, question, answer, statements
+):
+    """The residue's pick holds only where every language reads it as that pick too."""
+    failed, _ = structural(
+        question_text=question,
+        target_answer=answer,
+        answerable=True,
+        language=language,
+        statements=statements,
+    )
+    assert failed is not None and "it is written in" in failed[1], failed
+
+
+def test_a_german_question_naming_an_english_term_of_its_source_is_not_malformed():
+    """`Premium Business Account` is the source's term, whatever the language around it."""
+    failed, _ = structural(
+        question_text="Was kostet der Premium Business Account?",
+        target_answer="9,90 EUR im Monat",
+        answerable=True,
+        language="de",
+        statements=[
+            "Das Premium Business Account kostet 9,90 EUR im Monat.",
+            "Der Premium Business Account enthält ein Cashback von 1 Prozent.",
+        ],
+    )
+    assert failed is None or "it is written in" not in failed[1], failed
+
+
 @pytest.mark.parametrize(
     ("question", "answer", "written"),
     [

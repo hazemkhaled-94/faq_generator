@@ -57,7 +57,7 @@ from nlp.analysis import (
     phrases,
     vocabulary,
 )
-from nlp.language import detect, detect_surely, document_language
+from nlp.language import detect, detect_among_all, detect_surely, document_language
 from nlp.pipelines import pipeline
 from question_generation.models import Neighbour
 
@@ -842,7 +842,11 @@ def structural(
                 said,
             ).split()
         )
-        written = detect(residue, minimum=_RESIDUE_CHARS) or written
+        # Its pick holds only where every language agrees with it: a French
+        # question carrying German terms reads as English among the two.
+        pick = detect(residue, minimum=_RESIDUE_CHARS)
+        if pick and detect_among_all(residue, minimum=_RESIDUE_CHARS) == pick:
+            written = pick
     if language and written and written != language:
         return (
             QuestionRejection.MALFORMED,
