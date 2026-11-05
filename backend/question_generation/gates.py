@@ -211,7 +211,7 @@ def _written(text: str, language: str | None, ordinals: bool = False) -> dict[st
     in words agrees with a key that says `2 conditions`. In the language
     `_COUNTED` holds the word for, because `elf` is eleven in German and a
     word in English; and only a token tagged `NUM`, because `außer Acht` is
-    a phrase and `die Elf` a team, and both models tag those as nouns. An
+    a phrase and `eine Vier` a school mark, and both models tag those as nouns. An
     ordinal word, an adjective, is `third` and `dritten`: the ordinal that
     `3rd` and `3.` are, where `ordinals` asks for it, and not the count 3.
     What a text asserts of its own is not one: a recovery's `first month` is

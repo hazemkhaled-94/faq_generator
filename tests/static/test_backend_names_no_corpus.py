@@ -41,6 +41,9 @@ CORPUS_WORDS = (
     "flagpost",
     "corner kick",
     "kick-off",
+    "anstoß",
+    "eckstoß",
+    "eckfahne",
 )
 
 SOURCES = sorted(

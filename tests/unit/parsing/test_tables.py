@@ -463,19 +463,19 @@ def test_a_second_schedule_headed_in_the_data_font_is_a_table_of_its_own() -> No
 #: row label is, and whose figures are regular.
 LABELLED = {
     "de": (
-        ("Vergehen", "Erstverstoß", "Zweitverstoß"),
-        ("Laserpointer", "1 000 EUR", "2 000 EUR"),
-        ("Pyrotechnik", "5 000 EUR", "9 000 EUR"),
+        ("Gebühr", "Erste Mahnung", "Zweite Mahnung"),
+        ("Rücklastschrift", "1 000 EUR", "2 000 EUR"),
+        ("Verspätete Zahlung", "5 000 EUR", "9 000 EUR"),
     ),
     "en": (
-        ("Offence", "First breach", "Second breach"),
-        ("Laser pointers", "1,000 EUR", "2,000 EUR"),
-        ("Fireworks", "5,000 EUR", "9,000 EUR"),
+        ("Fee", "First reminder", "Second reminder"),
+        ("Returned debit", "1,000 EUR", "2,000 EUR"),
+        ("Late payment", "5,000 EUR", "9,000 EUR"),
     ),
 }
 LABELLED_REST = (
-    ("Sachbeschädigung", "3 000 EUR", "6 000 EUR"),
-    ("Verspäteter Anstoß", "500 EUR", "1 000 EUR"),
+    ("Kartenersatz", "3 000 EUR", "6 000 EUR"),
+    ("Verspätete Lieferung", "500 EUR", "1 000 EUR"),
 )
 
 
@@ -503,7 +503,7 @@ def test_a_rest_joins_when_a_column_sets_its_header_and_data_alike(
     rest = LABELLED_REST
     if language == "en":
         rest = (
-            ("Damage", "3,000 EUR", "6,000 EUR"),
+            ("Card replacement", "3,000 EUR", "6,000 EUR"),
             ("Late delivery", "500 EUR", "1,000 EUR"),
         )
     data, document = labelled(language, rest)
@@ -565,7 +565,7 @@ def test_a_rest_whose_leading_rows_are_all_flagged_headers_joins_too(
     rest = LABELLED_REST
     if language == "en":
         rest = (
-            ("Damage", "3,000 EUR", "6,000 EUR"),
+            ("Card replacement", "3,000 EUR", "6,000 EUR"),
             ("Late delivery", "500 EUR", "1,000 EUR"),
         )
     data, document = labelled(language, rest)

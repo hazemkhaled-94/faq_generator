@@ -1757,16 +1757,16 @@ def test_a_range_still_needs_both_ends_and_its_unit(
     [
         (
             "en",
-            "What is the maximum length of the pitch?",
-            "110 m",
-            "The pitch is 100–110 m long.",
+            "What is the maximum height of the shelf?",
+            "110 cm",
+            "The shelf is 100–110 cm high.",
         ),
         ("en", "Which fee does the bank charge?", "8 euros", "The fee is 8–10 euros."),
         (
             "de",
-            "Wie lang darf das Feld höchstens sein?",
-            "110 m",
-            "Das Feld ist 100–110 m lang.",
+            "Wie hoch darf das Regal höchstens sein?",
+            "110 cm",
+            "Das Regal ist 100–110 cm hoch.",
         ),
         (
             "de",
