@@ -8,7 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 from unit.api.test_orchestrator import FakeSession
 
+from api.main import app
 from api.orchestrator import Dagster, Refused
+from api.routes import pipeline
 
 ERROR = {"runsOrError": {"__typename": "PythonError", "message": "storage is down"}}
 
@@ -70,9 +72,6 @@ def test_a_dagster_that_cannot_list_its_runs_refuses_a_run_with_503(
     monkeypatch,
 ) -> None:
     """An error is not an empty list: a second run would race the first."""
-    from api.main import app
-    from api.routes import pipeline
-
     api = TestClient(
         app,
         base_url="http://localhost:8000",
@@ -100,9 +99,6 @@ def test_an_open_read_of_the_runs_does_not_echo_the_storage_error(
     monkeypatch, caplog
 ) -> None:
     """Dagster's text names its database's host and role: the log has it, the read not."""
-    from api.main import app
-    from api.routes import pipeline
-
     storage_down = (
         "sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) connection to "
         'server at "postgres" (10.89.0.7), port 5432 failed: FATAL:  password '
