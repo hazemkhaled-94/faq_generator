@@ -440,12 +440,9 @@ def _leading(answer: str | None) -> str:
 
     A figure is read whole, by the one figure pattern: `2.000 EUR`, `2,5 Tage`,
     `3.5%` and `2–3 Wochen` open on a figure that is no bare count, so they
-    have none. Nor does a number that opens a hyphenated compound,
-    `Zwei-Faktor-Authentifizierung`: it names a thing.
+    have none.
     """
     text = (answer or "").lstrip()
-    if re.match(r"\w+-[^\W\d_]", text):
-        return ""
     figure = FIGURE.match(text)
     if figure and (
         not figure.group().isdecimal()
@@ -732,11 +729,15 @@ def structural(
     word = _leading(target_answer)
     said = _count(word)
     asks = _ASKS_HOW_MANY.get((language or "").lower())
+    # A number that opens a hyphenated compound, `Zwei-Faktor-Authentifizierung`,
+    # names a thing, so a short answer of that kind is no bare count. Asked
+    # how many, `Zwei-Faktor` or `3-stufig` is still the count.
+    compound = re.match(r"\w+-[^\W\d_]", (target_answer or "").lstrip())
     if asks is None:
         counting = bool(re.search(_HOW_MANY, normalised(asked)))
     else:
         counting = bool(re.search(asks, normalised(asked))) or (
-            len((target_answer or "").split()) <= _BARE_COUNT
+            len((target_answer or "").split()) <= _BARE_COUNT and not compound
         )
     if (
         counting

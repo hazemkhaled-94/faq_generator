@@ -387,6 +387,144 @@ def test_a_number_opening_a_compound_is_not_a_count_of_the_facts(
     assert refused is None or "number of facts" not in refused[1], refused
 
 
+F2 = [
+    "Für die Anmeldung braucht man ein Passwort.",
+    "Für die Freigabe braucht man zusätzlich einen Code aus der App.",
+]
+DE3 = [
+    "Zuerst reichen Sie die Beschwerde schriftlich bei der Filiale ein.",
+    "Danach prüft die Beschwerdestelle den Fall.",
+    "Zuletzt entscheidet die Schlichtungsstelle.",
+]
+EN3 = [
+    "First you file the complaint in writing at the branch.",
+    "The complaints office then reviews the case.",
+    "Finally the ombudsman decides.",
+]
+E2 = [
+    "The login asks for a password.",
+    "The release also asks for a code from the app.",
+]
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "answer", "statements"),
+    [
+        (
+            "de",
+            "Wie viele Stufen hat das Beschwerdeverfahren der Bank?",
+            "3-stufig",
+            DE3,
+        ),
+        (
+            "de",
+            "Wie viele Stufen hat das Beschwerdeverfahren der Bank?",
+            "Drei-stufig",
+            DE3,
+        ),
+        (
+            "de",
+            "Wie viele Stufen hat das Beschwerdeverfahren der Bank?",
+            "Drei-Stufen-Verfahren",
+            DE3,
+        ),
+        (
+            "de",
+            "Wie viele Faktoren braucht die Anmeldung im Online-Banking?",
+            "Zwei-Faktor",
+            F2,
+        ),
+        (
+            "de",
+            "Wie viele Faktoren braucht die Anmeldung im Online-Banking?",
+            "2-Faktor",
+            F2,
+        ),
+        ("de", "Wie viele Codes werden verlangt?", "2-mal", F2),
+        (
+            "en",
+            "How many stages does the bank's complaint procedure have?",
+            "Three-stage process",
+            EN3,
+        ),
+        (
+            "en",
+            "How many stages does the bank's complaint procedure have?",
+            "3-stage",
+            EN3,
+        ),
+        ("en", "How many factors does the login need?", "Two-step", E2),
+        ("en", "How many factors does the login need?", "Two-factor", E2),
+    ],
+)
+def test_a_count_of_the_facts_written_as_a_compound_is_refused_when_asked_how_many(
+    language, question, answer, statements
+):
+    """Asked how many, `3-stufig` is the count of the prompt, as `3` is."""
+    refused, _ = structural(
+        question_text=question,
+        target_answer=answer,
+        answerable=True,
+        language=language,
+        statements=statements,
+    )
+    assert refused is not None and "number of facts" in refused[1], refused
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "answer", "statements", "counts"),
+    [
+        (
+            "de",
+            "Aus wie vielen Teilen besteht das Set?",
+            "3-teilig",
+            ["Das Set besteht aus einem Topf, einer Pfanne und einem Deckel."],
+            True,
+        ),
+        (
+            "de",
+            "Wie viele Stufen hat das Verfahren?",
+            "Drei-Stufen-Verfahren",
+            ["Das Verfahren hat eine Prüfung, eine Freigabe und eine Kontrolle."],
+            True,
+        ),
+        (
+            "en",
+            "How many stages does the procedure have?",
+            "Three-stage process",
+            ["The procedure has a check, a release and a control."],
+            True,
+        ),
+        (
+            "fr",
+            "Combien de pièces contient le set?",
+            "set 3-pièces",
+            ["Le set contient une casserole, une poêle et un couvercle."],
+            False,
+        ),
+        (
+            "pl",
+            "Ile elementów ma zestaw?",
+            "3-elementowy",
+            ["Zestaw zawiera garnek, patelnię i pokrywkę."],
+            False,
+        ),
+        (
+            "el",
+            "Πόσα κομμάτια έχει το σετ;",
+            "3-κομματο",
+            ["Το σετ περιέχει μια κατσαρόλα, ένα τηγάνι και ένα καπάκι."],
+            False,
+        ),
+    ],
+)
+def test_a_count_compound_still_counts_the_items_of_the_fact_it_asks_about(
+    language, question, answer, statements, counts
+):
+    """`counts_a_list` reads the compound's number as it did: only the count rule skips it."""
+    assert counts_a_list(question, answer, statements, language) is counts
+
+
 def test_a_bare_count_equal_to_the_cited_facts_is_still_refused():
     """The control: the bare key 2 over two cited facts counts its own citations."""
     refused, _ = structural(
