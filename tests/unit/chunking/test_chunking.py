@@ -330,16 +330,16 @@ def indented(left: float, top: float, height: float = 10.0) -> ProvenanceItem:
 
 def test_an_item_indented_under_another_is_nested_under_it() -> None:
     """The converter flattens a nested list; the indent is all that says so."""
-    document = DoclingDocument(name="restarts")
+    document = DoclingDocument(name="payments")
     document.add_page(page_no=1, size=Size(width=595, height=842))
-    document.add_heading(text="Restarts", level=1, prov=indented(54, 40))
+    document.add_heading(text="Payments", level=1, prov=indented(54, 40))
     group = document.add_list_group()
     for top, (left, text) in enumerate(
         (
-            (54, "a stoppage in play"),
-            (54, "the halfway line"),
-            (72, "when the referee signals"),
-            (54, "after the player left"),
+            (54, "a card payment"),
+            (54, "a bank transfer"),
+            (72, "when the clerk signals"),
+            (54, "after the customer left"),
         )
     ):
         document.add_list_item(
@@ -349,18 +349,21 @@ def test_an_item_indented_under_another_is_nested_under_it() -> None:
     _, chunks = chunks_of(document, word_chunker(200), "en")
     lines = chunks[0].text.splitlines()
 
-    at = lines.index("- the halfway line")
+    at = lines.index("- a bank transfer")
     assert lines[at + 1].startswith((" ", "\t")), lines
-    assert lines[at + 1].strip() == "- when the referee signals", lines
-    assert lines[at + 2] == "- after the player left", lines
+    assert lines[at + 1].strip() == "- when the clerk signals", lines
+    assert lines[at + 2] == "- after the customer left", lines
 
 
 def test_items_side_by_side_in_two_columns_are_not_nested() -> None:
     """The next column starts right of the last item, not inside it."""
-    document = DoclingDocument(name="restarts")
+    document = DoclingDocument(name="payments")
     document.add_page(page_no=1, size=Size(width=595, height=842))
     group = document.add_list_group()
-    for left, top, text in ((54, 100, "a stoppage in play"), (420, 100, "a goal kick")):
+    for left, top, text in (
+        (54, 100, "a card payment"),
+        (420, 100, "a standing order"),
+    ):
         prov = ProvenanceItem(
             page_no=1,
             bbox=BoundingBox(
@@ -376,7 +379,7 @@ def test_items_side_by_side_in_two_columns_are_not_nested() -> None:
 
     _, chunks = chunks_of(document, word_chunker(200), "en")
 
-    assert chunks[0].text.splitlines() == ["- a stoppage in play", "- a goal kick"]
+    assert chunks[0].text.splitlines() == ["- a card payment", "- a standing order"]
 
 
 def placed(page: int, left: float, top: float, height: float = 10.0) -> ProvenanceItem:

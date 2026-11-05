@@ -2945,8 +2945,8 @@ def counts_something_else(
 ) -> bool:
     """Whether every figure a count question's passages hold counts another thing.
 
-    `How many corner flagposts ...?` over `at least 1.5 m (5 ft) high`: both
-    figures count a length, so no sum of them counts flagposts and the
+    `How many shelves ...?` over `at least 1.5 m (5 ft) high`: both
+    figures count a length, so no sum of them counts shelves and the
     arithmetic has nothing to say. A figure counting what is asked - `40
     people` for `How many people` - or counting nothing named - `employs
     1200` - leaves the total to `adds_up`. Read off the parse: the noun the

@@ -38,6 +38,9 @@ CORPUS_WORDS = (
     "goal kick",
     "free kick",
     "freistoss",
+    "flagpost",
+    "corner kick",
+    "kick-off",
 )
 
 SOURCES = sorted(
