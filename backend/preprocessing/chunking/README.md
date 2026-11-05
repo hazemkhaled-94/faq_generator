@@ -343,5 +343,8 @@ Unit tests stand in only for the database and the passage builder
   apart from the fragments of one line.
 - A flattened list is nested again by its indents. An item whose left edge
   lies more than half a line right of the item before it, in the same column
-  and page, nests under it. Across a column or page break no level opens. A
-  nested item is rendered indented four spaces per level.
+  and page, nests under it. Across a column or page break no level opens. The
+  converter starts a new list on every page, so a list that opens on a later
+  page right where the one before it ends, with nothing between them, goes on
+  at the levels open there, each page's indent read off that page's own column
+  edge. A nested item is rendered indented four spaces per level.
