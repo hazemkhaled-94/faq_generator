@@ -387,9 +387,10 @@ def _recheck(
         return None
 
     # A cross-document question that lost a citation is still a question and
-    # is not deleted: the trigger rejects one as source_changed when its last
-    # fact goes, and keeps the row. It is a question whose stored scopes
-    # stopped being true, which is a quieter kind of wrong and so worth naming. Compared on the scopes and
+    # is not deleted: the trigger rejects one as source_changed whenever one
+    # of its facts goes, its last included, and keeps the row. It is a
+    # question whose stored scopes stopped being true, which is a quieter kind
+    # of wrong and so worth naming. Compared on the scopes and
     # not on the band, because two different spreads can land in one band
     # and the scopes are what a reader filters on. Not on the topic scope,
     # which a refit moves with no fact or citation changing.

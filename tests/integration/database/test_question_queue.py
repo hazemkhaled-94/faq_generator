@@ -1016,7 +1016,7 @@ def test_the_probe_skips_the_questions_a_caller_is_about_to_reject(
 
 
 def test_a_question_with_no_facts_is_still_read_back(engine, database) -> None:
-    """The trigger deletes one when its LAST link goes, not when it has none.
+    """The trigger rejects one as source_changed when its LAST link goes, not when it has none.
 
     A question written with no citation is never deleted by anything, so an
     inner join would hide a row that is really there and a count taken over
