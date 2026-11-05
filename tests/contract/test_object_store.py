@@ -254,12 +254,16 @@ def test_a_malformed_s3_buckets_entry_is_refused(given) -> None:
     [
         (
             "documents=bank-faq,parsed=bank-faq,archive=bank-faq",
-            "documents",
+            ("documents", "parsed"),
             "bank-faq",
         ),
-        ("documents=shop, archive=shop", "documents", "shop"),
-        ("parsed=archive", "parsed", "archive"),  # clashes with a default name
-        ("archive=Amt für Soziales,models=Amt für Soziales", "archive", "Amt für"),
+        ("documents=shop, archive=shop", ("documents", "archive"), "shop"),
+        ("parsed=archive", ("parsed", "archive"), "archive"),  # a default name
+        (
+            "archive=Amt für Soziales,models=Amt für Soziales",
+            ("models", "archive"),
+            "Amt für Soziales",
+        ),
     ],
 )
 def test_two_roles_on_one_bucket_are_refused_naming_both_and_the_bucket(
@@ -273,8 +277,9 @@ def test_two_roles_on_one_bucket_are_refused_naming_both_and_the_bucket(
     with pytest.raises(ValueError, match="each role needs its own") as caught:
         store.bucket_names({"S3_BUCKETS": given})
 
-    assert roles in str(caught.value)
-    assert bucket in str(caught.value)
+    message = str(caught.value)
+    assert all(repr(role) in message for role in roles), message
+    assert repr(bucket) in message
 
 
 @pytest.mark.parametrize("given", [None, ""])
