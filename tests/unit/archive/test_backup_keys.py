@@ -40,13 +40,13 @@ def _held(key: str) -> dict:
     return {"documents": {GOOD: b"%PDF-1.7 Kontoauszug", key: b"planted"}}
 
 
-def _backup(monkeypatch, tmp_path: Path, held: dict) -> Path:
+def _backup(monkeypatch, tmp_path: Path, held: dict, code: int = 1) -> Path:
     monkeypatch.setattr(backup.telemetry, "configure", lambda *_: None)
     monkeypatch.setattr(backup.store, "object_store", lambda: FakeObjectStore(held))
     monkeypatch.setattr(backup, "_buckets", lambda: list(held))
     monkeypatch.setattr(backup, "_counts", dict)
     target = tmp_path / "backup"
-    assert backup.main(["--backup", str(target)]) == 0
+    assert backup.main(["--backup", str(target)]) == code
     return target
 
 
@@ -112,9 +112,67 @@ def test_a_backup_into_a_folder_whose_s3_is_a_symlink_writes_nothing_outside(
     monkeypatch.setattr(backup, "_buckets", lambda: list(held))
     monkeypatch.setattr(backup, "_counts", dict)
 
-    assert backup.main(["--backup", str(folder)]) == 0
+    assert backup.main(["--backup", str(folder)]) == 2
 
     assert [one for one in elsewhere.rglob("*") if one.is_file()] == []
+    assert not (folder / "manifest.json").exists()
+
+
+def test_a_backup_refuses_a_bucket_folder_that_is_a_link_or_a_file(
+    monkeypatch, tmp_path: Path, caplog
+) -> None:
+    """Nothing is copied, the exit is 2, and the log says it cannot be backed up into."""
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    folder = tmp_path / "backup"
+    (folder / "s3").mkdir(parents=True)
+    (folder / "s3" / "documents").symlink_to(elsewhere, target_is_directory=True)
+    (folder / "s3" / "export").write_bytes(b"not a folder")
+    held = {"documents": {GOOD: b"%PDF-1.7"}}
+    monkeypatch.setattr(backup.telemetry, "configure", lambda *_: None)
+    monkeypatch.setattr(backup.store, "object_store", lambda: FakeObjectStore(held))
+    monkeypatch.setattr(backup, "_buckets", lambda: list(held))
+    monkeypatch.setattr(backup, "_counts", dict)
+
+    assert backup.main(["--backup", str(folder)]) == 2
+
+    assert list(elsewhere.rglob("*")) == []
+    assert "cannot be backed up into" in caplog.text
+
+
+@pytest.mark.parametrize("flag", ["--restore", "--verify"])
+def test_a_restore_or_verify_of_a_linked_s3_folder_exits_2(tampered, flag: str) -> None:
+    """The layout is refused up front, not read as a backup that matches."""
+    folder, store = tampered("qa_bank/id_rsa", linked=True)
+
+    assert backup.main([flag, str(folder), "--stack"]) == 2
+
+    assert store.buckets["documents"] == {}
+
+
+@pytest.mark.parametrize(
+    "keys",
+    [
+        {"qa_bank/a\x00b": b"x"},  # a NUL in a key
+        {
+            "qa_bank/a": b"file",
+            "qa_bank/a/b": b"folder",
+        },  # one path, a file and a folder
+        {"qa_bank/" + "x" * 300: b"long"},  # a name too long
+    ],
+)
+def test_an_object_the_host_cannot_write_is_left_out_logged_and_fails_the_backup(
+    monkeypatch, tmp_path: Path, keys: dict, caplog
+) -> None:
+    """The rest is backed up and the manifest written, but the exit is 1."""
+    held = {"documents": {GOOD: b"%PDF-1.7 Kontoauszug", **keys}}
+
+    target = _backup(monkeypatch, tmp_path, held)
+
+    assert GOOD in _keys(target)
+    assert len(_keys(target)) < len(held["documents"])
+    assert "not backed up" in caplog.text
+    assert json.loads((target / "manifest.json").read_text())["left_out"]
 
 
 @pytest.fixture
@@ -140,6 +198,7 @@ def tampered(monkeypatch, tmp_path: Path):
         one = FakeObjectStore({"documents": {}})
         monkeypatch.setattr(backup.store, "object_store", lambda: one)
         monkeypatch.setattr(backup, "_counts", dict)
+        monkeypatch.setattr(backup.telemetry, "configure", lambda *_: None)
         monkeypatch.setattr(backup.rekey, "digests", set)
         monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@h/qa_bank")
         return folder, one
@@ -196,6 +255,26 @@ def test_a_verify_names_the_key_that_leads_out(tampered) -> None:
     assert backup.verify(folder, stack=True) == [
         "documents/../../../secret.txt leads out of the backup"
     ]
+
+
+def test_a_restore_does_not_follow_a_link_or_take_a_hard_linked_file(
+    tampered, tmp_path: Path
+) -> None:
+    """A file of the backup that is a link, or shares an inode with another, is refused."""
+    folder, store = tampered("qa_bank/linked.pdf")
+    secret = tmp_path / "secret.txt"
+    secret.write_bytes(b"private")
+    bucket = folder / "s3" / "documents" / "qa_bank"
+    bucket.mkdir()
+    (bucket / "linked.pdf").symlink_to(secret)
+    (bucket / "hard.pdf").hardlink_to(secret)
+    manifest = json.loads((folder / "manifest.json").read_text())
+    manifest["objects"].append({**manifest["objects"][0], "key": "qa_bank/hard.pdf"})
+    (folder / "manifest.json").write_text(json.dumps(manifest))
+
+    backup.restore(folder, stack=True)
+
+    assert store.buckets["documents"] == {}
 
 
 def test_an_ordinary_backup_restores_and_verifies(monkeypatch, tmp_path: Path) -> None:
