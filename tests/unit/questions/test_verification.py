@@ -1757,16 +1757,16 @@ def test_a_range_still_needs_both_ends_and_its_unit(
     [
         (
             "en",
-            "What is the maximum height of the shelf?",
-            "110 cm",
-            "The shelf is 100–110 cm high.",
+            "What is the maximum length of the pitch?",
+            "110 m",
+            "The pitch is 100–110 m long.",
         ),
         ("en", "Which fee does the bank charge?", "8 euros", "The fee is 8–10 euros."),
         (
             "de",
-            "Wie hoch darf das Regal höchstens sein?",
-            "110 cm",
-            "Das Regal ist 100–110 cm hoch.",
+            "Wie lang darf das Feld höchstens sein?",
+            "110 m",
+            "Das Feld ist 100–110 m lang.",
         ),
         (
             "de",
@@ -2065,12 +2065,12 @@ def test_a_count_written_out_is_the_count_in_digits(
     ("recovered", "target"),
     [
         ("Diese Frist bleibt außer Acht.", "8 Fristen"),
-        ("Der Elf des Märchens hält die Frist ein.", "11 Fristen"),
+        ("Die Elf des Gastgebers hält die Frist ein.", "11 Fristen"),
     ],
-    ids=["ausser Acht", "der Elf"],
+    ids=["ausser Acht", "die Elf"],
 )
 def test_a_word_spelled_like_a_count_is_not_one(recovered: str, target: str) -> None:
-    """`außer Acht` is a phrase and `der Elf` a creature of a tale: neither is tagged NUM."""
+    """`außer Acht` is a phrase and `die Elf` a team: neither is tagged NUM."""
     assert not agrees(recovered, target, "de", AnswerForm.VALUE)
 
 

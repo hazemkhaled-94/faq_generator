@@ -472,7 +472,7 @@ def test_a_struck_word_spelled_with_a_curly_apostrophe_goes() -> None:
     Drawn with MuPDF's built-in Unicode fonts: the base-14 Helvetica the
     other tests print with cannot encode the curly apostrophe.
     """
-    text = "Read Allianz’s handbook and the BaFin guide."
+    text = "Read FIFA’s handbook and the IFAB guide."
     pdf = pymupdf.open()
     page = pdf.new_page(width=WIDTH, height=HEIGHT)
     page.insert_htmlbox(pymupdf.Rect(LEFT, 360, WIDTH - LEFT, 400), text)
@@ -483,17 +483,17 @@ def test_a_struck_word_spelled_with_a_curly_apostrophe_goes() -> None:
     )
     baseline = line["spans"][0]["chars"][0]["origin"][1]
     size = line["spans"][0]["size"]
-    target = word(page, "Allianz’s", baseline - 1)
+    target = word(page, "FIFA’s", baseline - 1)
     height = baseline - 0.33 * size
     page.draw_line((target.x0, height), (target.x1, height), color=INK, width=1)
     reading = document()
     reading.add_text(
         label=DocItemLabel.TEXT,
-        text="Read Allianz's handbook and the BaFin guide.",
+        text="Read FIFA's handbook and the IFAB guide.",
         prov=provenance((LEFT - 1, 355, WIDTH - LEFT, 405)),
     )
 
-    assert converted(pdf, reading).texts[0].text == "Read handbook and the BaFin guide."
+    assert converted(pdf, reading).texts[0].text == "Read handbook and the IFAB guide."
 
 
 def test_unstruck_punctuation_beside_a_struck_word_stays() -> None:

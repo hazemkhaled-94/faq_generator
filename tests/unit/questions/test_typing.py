@@ -297,15 +297,15 @@ def test_a_type_that_derives_nothing_keeps_its_label() -> None:
 @pytest.mark.parametrize(
     ("answer", "language", "expected"),
     [
-        ("Privat-, Geschäfts-, Studenten- und Firmenkonto", "de", True),
+        ("Junioren-, Senioren-, Behinderten- und Breitenfussball", "de", True),
         ("short- and long-term savings accounts", "en", True),
-        ("Firmenkonto", "de", False),
+        ("Breitenfussball", "de", False),
     ],
 )
 def test_an_elided_compound_counts_each_part_as_an_item(
     answer, language, expected
 ) -> None:
-    """`Privat-, Geschäfts- und Firmenkonto` names three kinds of account."""
+    """`Junioren-, Senioren- und Breitenfussball` names three kinds of football."""
     from question_generation.gates import enumerates
 
     assert enumerates(answer, language) is expected

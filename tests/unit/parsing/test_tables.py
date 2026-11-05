@@ -112,17 +112,17 @@ def test_a_cell_wrapped_onto_a_row_of_its_own_rejoins_the_row_above() -> None:
     document = paged(1)
     document.add_table(
         data=grid(
-            ("Case", "Charge"),
-            ("Late payment", "a fee charged"),
-            ("", "from the next statement"),
+            ("Offence", "Restart"),
+            ("Encroachment", "a free kick taken"),
+            ("", "from where it happened"),
         ),
         prov=on(1),
     )
 
     assert rows(_tabled(document)) == [
         [
-            ["Case", "Charge"],
-            ["Late payment", "a fee charged from the next statement"],
+            ["Offence", "Restart"],
+            ["Encroachment", "a free kick taken from where it happened"],
         ]
     ]
 
@@ -269,17 +269,17 @@ def test_a_wrapped_label_whose_head_stands_on_its_own_row_rejoins_it() -> None:
     document = paged(1)
     document.add_table(
         data=grid(
-            ("Case", "Charge"),
-            ("Late payment only", ""),
-            ("by the account holder", "the fee is refunded"),
+            ("Offence", "Restart"),
+            ("Encroachment only", ""),
+            ("by the defending team", "the kick is retaken"),
         ),
         prov=on(1),
     )
 
     assert rows(_tabled(document)) == [
         [
-            ["Case", "Charge"],
-            ["Late payment only by the account holder", "the fee is refunded"],
+            ["Offence", "Restart"],
+            ["Encroachment only by the defending team", "the kick is retaken"],
         ]
     ]
 
@@ -288,11 +288,11 @@ def test_a_cell_ending_on_a_colon_goes_on_in_the_row_below() -> None:
     """A colon in a cell opens what follows; it ends nothing."""
     document = paged(1)
     document.add_table(
-        data=grid(("Case", "Outcome"), ("Missed", "Impact:"), ("", "refund")),
+        data=grid(("Case", "Outcome"), ("Missed", "Impact:"), ("", "goal kick")),
         prov=on(1),
     )
 
-    assert rows(_tabled(document))[0][1] == ["Missed", "Impact: refund"]
+    assert rows(_tabled(document))[0][1] == ["Missed", "Impact: goal kick"]
 
 
 def test_a_picture_between_the_halves_of_a_table_does_not_part_them() -> None:
@@ -463,19 +463,19 @@ def test_a_second_schedule_headed_in_the_data_font_is_a_table_of_its_own() -> No
 #: row label is, and whose figures are regular.
 LABELLED = {
     "de": (
-        ("Gebühr", "Erste Mahnung", "Zweite Mahnung"),
-        ("Rücklastschrift", "1 000 EUR", "2 000 EUR"),
-        ("Verspätete Zahlung", "5 000 EUR", "9 000 EUR"),
+        ("Vergehen", "Erstverstoß", "Zweitverstoß"),
+        ("Laserpointer", "1 000 EUR", "2 000 EUR"),
+        ("Pyrotechnik", "5 000 EUR", "9 000 EUR"),
     ),
     "en": (
-        ("Fee", "First reminder", "Second reminder"),
-        ("Returned debit", "1,000 EUR", "2,000 EUR"),
-        ("Late payment", "5,000 EUR", "9,000 EUR"),
+        ("Offence", "First breach", "Second breach"),
+        ("Laser pointers", "1,000 EUR", "2,000 EUR"),
+        ("Fireworks", "5,000 EUR", "9,000 EUR"),
     ),
 }
 LABELLED_REST = (
-    ("Kartenersatz", "3 000 EUR", "6 000 EUR"),
-    ("Verspätete Lieferung", "500 EUR", "1 000 EUR"),
+    ("Sachbeschädigung", "3 000 EUR", "6 000 EUR"),
+    ("Verspäteter Anstoß", "500 EUR", "1 000 EUR"),
 )
 
 
@@ -503,8 +503,8 @@ def test_a_rest_joins_when_a_column_sets_its_header_and_data_alike(
     rest = LABELLED_REST
     if language == "en":
         rest = (
-            ("Card replacement", "3,000 EUR", "6,000 EUR"),
-            ("Late delivery", "500 EUR", "1,000 EUR"),
+            ("Damage", "3,000 EUR", "6,000 EUR"),
+            ("Late kick-off", "500 EUR", "1,000 EUR"),
         )
     data, document = labelled(language, rest)
 
@@ -565,8 +565,8 @@ def test_a_rest_whose_leading_rows_are_all_flagged_headers_joins_too(
     rest = LABELLED_REST
     if language == "en":
         rest = (
-            ("Card replacement", "3,000 EUR", "6,000 EUR"),
-            ("Late delivery", "500 EUR", "1,000 EUR"),
+            ("Damage", "3,000 EUR", "6,000 EUR"),
+            ("Late kick-off", "500 EUR", "1,000 EUR"),
         )
     data, document = labelled(language, rest)
     for cell in document.tables[1].data.table_cells:
