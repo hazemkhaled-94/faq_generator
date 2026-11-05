@@ -225,8 +225,8 @@ class StageService(ABC):
         for key in keys:
             try:
                 self._repository.release(key)
-            except Lost:
-                self._lost(key)
+            except Lost as lost:
+                self._lost(key, lost)
         self.stalled = reason
         if standing:
             self._standing = reason
@@ -285,20 +285,19 @@ class StageService(ABC):
             return
         try:
             self._repository.fail(key, error)
-        except Lost:
-            self._lost(key)
+        except Lost as lost:
+            self._lost(key, lost)
             return
         self.failed += 1
 
-    def _lost(self, key: Any) -> None:
+    def _lost(self, key: Any, lost: Lost) -> None:
         """Lets go of a row a delete or another worker took while it was held.
 
         The failure has nowhere to be written, and it is not one: the drain
         takes the next row.
         """
-        log.warning(
-            "%s: %s %s was deleted or claimed elsewhere", self.name, self.unit, key
-        )
+        # What the queue says: deleted (`Gone`), or claimed by another worker.
+        log.warning("%s: %s %s: %s", self.name, self.unit, key, lost)
         self._gone(key)
 
     def _crashed(

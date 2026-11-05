@@ -37,6 +37,7 @@ from nlp.analysis import claim, is_currency, normalised, numbers
 from nlp.embedding import Embedder, cosine
 from settings.runs import run_id
 from stages import StageService
+from stages.queue import Lost
 from stages.service import STOP_AFTER, SpendCapReached, is_outage, stop_at_cap
 from telemetry import tracer, working
 from telemetry.evaluations import Evaluations, Verdict, current_ids
@@ -1678,6 +1679,11 @@ class DigestPass(ExtractionService):
                 self._crashed(passage.id, exc, current)
             except BaseException:
                 # Interrupted: the row goes back as it was, for the next pass.
-                self._repository.release(passage.id)
+                # One deleted meanwhile has nowhere to go back to, and must not
+                # turn the interrupt into a Gone.
+                try:
+                    self._repository.release(passage.id)
+                except Lost as lost:
+                    self._lost(passage.id, lost)
                 raise
         return passage.id

@@ -153,9 +153,7 @@ def test_a_row_deleted_while_it_fails_is_logged_and_not_counted(
         assert stage.drain() == 6
 
     assert stage.failed == 0 and exit_code(stage) == 0
-    assert [
-        r.getMessage() for r in caplog.records if "row 3 was deleted" in r.getMessage()
-    ]
+    assert [r.getMessage() for r in caplog.records if str(error) in r.getMessage()]
 
 
 @pytest.mark.parametrize("error", [Gone("3 was deleted"), Lost("3 was claimed")])
@@ -172,7 +170,7 @@ def test_a_stop_gives_back_the_rest_when_one_held_row_is_gone(
     held = range(1, 1 + STOP_AFTER)
     assert 3 in held, "the gone row is one the stop gives back"
     assert stage.rows.released == [key for key in held if key != 3]
-    assert [r for r in caplog.records if "row 3 was" in r.getMessage()]
+    assert [r for r in caplog.records if str(error) in r.getMessage()]
     assert exit_code(stage) == STOPPED
 
 
