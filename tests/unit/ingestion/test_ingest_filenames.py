@@ -10,6 +10,7 @@ itself belongs to the service both callers share.
 from __future__ import annotations
 
 import io
+import os
 from pathlib import Path
 
 import pymupdf
@@ -38,6 +39,10 @@ class _File:
     def is_file(self) -> bool:
         """Every entry is a file."""
         return True
+
+    def stat(self) -> os.stat_result:
+        """The file's size."""
+        return os.stat_result((0, 0, 0, 0, 0, 0, len(self._data), 0, 0, 0))
 
     def open(self, mode: str = "rb") -> io.BytesIO:
         """The file's bytes, opened for reading."""

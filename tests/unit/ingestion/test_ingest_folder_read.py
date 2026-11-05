@@ -7,6 +7,8 @@ unread. A folder an operator downloaded may hold a multi-gigabyte file named
 
 from __future__ import annotations
 
+import io
+import os
 from pathlib import Path
 
 import pytest
@@ -22,9 +24,14 @@ class _Service:
 
     def __init__(self) -> None:
         self.sizes: list[int] = []
+        self.refused: list[tuple[str, int]] = []
 
     def ingest(self, upload) -> IngestResult:
         self.sizes.append(upload.size_bytes)
+        return IngestResult("too_large", None, "over the limit")
+
+    def refuse_oversized(self, filename: str, size_bytes: int) -> IngestResult:
+        self.refused.append((filename, size_bytes))
         return IngestResult("too_large", None, "over the limit")
 
 
@@ -32,14 +39,52 @@ class _Service:
     "name",
     ["Kontoauszug-2026.pdf", "Relevé-de-compte.pdf", "Πληρωμή.pdf", "Wyciąg.pdf"],
 )
-def test_a_file_past_the_limit_is_read_to_one_byte_past_it(
-    tmp_path: Path, name: str
+def test_a_file_past_the_limit_is_refused_with_its_own_size_and_not_read(
+    tmp_path: Path, name: str, monkeypatch
 ) -> None:
-    """A 64 KiB file under a 1 KiB limit reaches the service as 1025 bytes."""
-    (tmp_path / name).write_bytes(b"%PDF-1.7\n" + b"0" * 64 * 1024)
+    """A 64 KiB file under a 1 KiB limit is refused on its size; its bytes stay unread."""
+    path = tmp_path / name
+    path.write_bytes(b"%PDF-1.7\n" + b"0" * 64 * 1024)
     service = _Service()
+    monkeypatch.setattr(
+        Path, "read_bytes", lambda self: pytest.fail("read the whole file")
+    )
 
     assert run._add(tmp_path, service) == 1  # type: ignore[arg-type]
+
+    assert service.refused == [(name, path.stat().st_size)]
+    assert service.sizes == [], "the service was handed no bytes"
+
+
+class _Grown:
+    """A file of 10 bytes at the stat that holds 64 KiB when it is read."""
+
+    name = "Tarif.pdf"
+    suffix = ".pdf"
+
+    def is_file(self) -> bool:
+        return True
+
+    def stat(self) -> os.stat_result:
+        return os.stat_result((0, 0, 0, 0, 0, 0, 10, 0, 0, 0))
+
+    def open(self, mode: str = "rb") -> io.BytesIO:
+        return io.BytesIO(b"0" * 64 * 1024)
+
+
+class _Folder:
+    def is_dir(self) -> bool:
+        return True
+
+    def iterdir(self) -> list[_Grown]:
+        return [_Grown()]
+
+
+def test_a_file_that_grew_past_the_limit_is_read_to_one_byte_past_it() -> None:
+    """Within the limit at the stat, over it at the read: still bounded."""
+    service = _Service()
+
+    run._add(_Folder(), service)  # type: ignore[arg-type]
 
     assert service.sizes == [service.max_file_size_bytes + 1]
 
