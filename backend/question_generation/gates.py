@@ -3016,7 +3016,7 @@ def counts_something_else(
 ) -> bool:
     """Whether every figure a count question's passages hold counts another thing.
 
-    `How many shelves ...?` over `at least 1.5 m (5 ft) high`: both
+    `How many shelves ...?` over `each 80 cm wide and 2 m high`: both
     figures count a length, so no sum of them counts shelves and the
     arithmetic has nothing to say. A figure counting what is asked - `40
     people` for `How many people` - or counting nothing named - `employs
