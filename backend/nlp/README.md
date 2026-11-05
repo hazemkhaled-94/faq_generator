@@ -123,6 +123,8 @@ features; a handful are word lists.
 
 ### 1. Configure it
 
+On a chunked corpus, run `make chunk-revocabulary` after the change, then `make extract-start`.
+
 | Where | What |
 |---|---|
 | `NLP_MODELS` | `xx:xx_core_news_md`. Names the pipeline for a language and the languages the detector may answer with |
