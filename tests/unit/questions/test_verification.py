@@ -7573,3 +7573,89 @@ def test_a_relation_word_is_read_by_its_lemma() -> None:
         )
         == "unterscheiden"
     )
+
+
+# ── Readings of figures, words and languages no table names ────────────────
+
+
+@pytest.mark.parametrize(
+    ("token", "folded"), [("00:00", "0.0"), ("8:30:00", "8.0:30.0"), ("08:00", "8.0")]
+)
+def test_a_clock_time_folds_group_by_group_dropping_only_closing_zeros(
+    token, folded
+) -> None:
+    """Midnight is one zero, and `8:30:00` is `8:30`: `:00` closing a time adds nothing."""
+    assert _folded(token, "en") == folded
+
+
+@pytest.mark.parametrize(
+    ("recovered", "target", "language"),
+    [
+        ("La commission est de 5 EUR.", "5 EUR", "fr"),
+        ("Η χρέωση είναι 5 EUR.", "5 EUR", "el"),
+    ],
+)
+def test_a_figure_in_a_language_no_table_names_is_still_compared(
+    recovered, target, language
+) -> None:
+    """No ordinal suffixes and no count words for it: the digits alone are read."""
+    assert agrees(recovered, target, language)
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        ("Quels frais s'appliquent ?", "les frais", "fr"),
+        ("Ποιες χρεώσεις ισχύουν;", "οι χρεώσεις", "el"),
+    ],
+)
+def test_a_restatement_in_a_language_with_no_polarity_words_is_read_inert(
+    question, answer, language
+) -> None:
+    """No `yes` or `no` words and no model for it: the gate stays inert, never errs."""
+    assert restates(question, answer, language) is False
+
+
+def test_a_count_answer_opening_with_a_space_is_still_read_as_its_count() -> None:
+    """` 2` is `2`: a key's leading whitespace hides no count of the prompt."""
+    failed = checked(
+        question_text="How many documents does a loan application need?",
+        target_answer=" 2",
+        statements=(
+            "A loan application needs a passport.",
+            "A loan application needs a payslip.",
+        ),
+    )
+
+    assert code(failed) == QuestionRejection.MALFORMED
+
+
+def test_two_question_words_in_a_row_with_no_language_are_two_questions() -> None:
+    """No table of asking adverbs for it is no table, not an error."""
+    failed, _ = structural(
+        question_text="Which fee applies and when is it charged?",
+        target_answer="5 EUR",
+        answerable=True,
+        language=None,
+    )
+
+    assert code(failed) == QuestionRejection.COMPOUND
+
+
+def test_a_two_letter_suspended_compound_is_an_item_of_a_set() -> None:
+    """`E- und Kreditkarten` is e-cards and credit cards."""
+    assert enumerates("E- und Kreditkarten", "de")
+
+
+@pytest.mark.parametrize(
+    ("recovered", "target", "language"),
+    [
+        ("Ausweis, Lohnzettel und 2025", "Ausweis und Lohnzettel aus 2025", "de"),
+        ("passport, payslip and 2025", "passport and payslip from 2025", "en"),
+    ],
+)
+def test_a_figure_the_key_closes_on_is_not_one_it_left_unnamed(
+    recovered, target, language
+) -> None:
+    """`2025` ends the key, so the recovery's `2025` was named."""
+    assert unnamed(recovered, target, language) == ()
