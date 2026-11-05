@@ -515,3 +515,33 @@ def test_an_answered_question_of_the_shape_its_type_asks_for_is_kept(
     from question_generation.gates import typed
 
     assert typed(question, answer, True, kind, language) is None
+
+
+@pytest.mark.parametrize(
+    ("kind", "form", "answer", "language", "expected"),
+    [
+        (
+            QuestionType.AGGREGATION,
+            AnswerForm.EXPLANATION,
+            "3 cards and 2 loans",
+            "en",
+            QuestionType.AGGREGATION,
+        ),
+        (
+            QuestionType.CONDITION,
+            AnswerForm.VALUE,
+            "when it is lost",
+            "en",
+            QuestionType.CONDITION,
+        ),
+        (QuestionType.AGGREGATION, AnswerForm.VALUE, "zwei Karten", "de", QuestionType.AGGREGATION),
+        (QuestionType.AGGREGATION, AnswerForm.VALUE, "Q3", "en", QuestionType.AGGREGATION),
+    ],
+)
+def test_only_a_derived_list_or_value_is_relabelled_and_a_number_in_any_spelling_keeps_it(
+    kind, form, answer, language, expected
+) -> None:
+    """`zwei` is a German number to the German tagger alone, and `Q3` carries a digit."""
+    from question_generation.gates import relabelled
+
+    assert relabelled(kind, form, answer, language) == expected
