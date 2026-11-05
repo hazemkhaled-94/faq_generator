@@ -4,7 +4,7 @@
 #   /var/log/qa       the `logs` volume - the api, the six workers, the
 #                     frontend and the orchestrator
 #   /var/log/qa-host  ./logs in the repository, bind-mounted - a `make`
-#                     target, `dagster dev`, anything run by hand
+#                     target, anything run by hand
 #
 # One input over both. The line is the same line either way: same ECS
 # fields, same `trace.id`, same `stage`. What says which is which is
