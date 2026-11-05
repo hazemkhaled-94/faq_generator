@@ -18,6 +18,7 @@ from telemetry.evaluations import TraceStoreUnavailable
 
 
 def settings() -> ModelSettings:
+    """A hosted model's settings."""
     return ModelSettings(
         model="azure/gpt-4.1",
         base_url=None,
@@ -46,6 +47,7 @@ class Store:
         self.published: list[str] = []
 
     def publish_prompt(self, name, description, call, note, provider) -> None:
+        """Refuses the prompts named, keeps the rest."""
         if any(name.endswith(one) for one in self.refuses):
             raise self.error
         self.published.append(name)
@@ -53,10 +55,11 @@ class Store:
 
 @pytest.fixture
 def store(monkeypatch):
+    """Installs a trace store refusing the prompts named."""
     monkeypatch.setenv("PHOENIX_BASE_URL", "http://phoenix.invalid:6006")
 
-    def install(refuses: set[str], error: Exception = ConnectionError("refused")):
-        held = Store(refuses, error)
+    def install(refuses: set[str], error: Exception | None = None):
+        held = Store(refuses, error or ConnectionError("refused"))
         monkeypatch.setattr("stages.publish.trace_store", lambda base_url=None: held)
         return held
 

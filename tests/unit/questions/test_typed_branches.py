@@ -16,6 +16,7 @@ pytestmark = pytest.mark.nlp
 
 
 def typed(question: str, answer: str, kind: str, language: str):
+    """The type rules on an answerable question."""
     from question_generation.gates import typed as gate
 
     return gate(question, answer, True, kind, language)
@@ -53,6 +54,7 @@ def typed(question: str, answer: str, kind: str, language: str):
 def test_an_enumeration_answered_with_one_thing_is_the_wrong_type(
     language, question, one, several
 ) -> None:
+    """One thing has no set behind it; a list does."""
     refused = typed(question, one, QuestionType.ENUMERATION, language)
 
     assert refused is not None and refused[0] == QuestionRejection.WRONG_TYPE
@@ -80,6 +82,7 @@ def test_an_enumeration_answered_with_one_thing_is_the_wrong_type(
 def test_a_temporal_question_answered_with_one_period_is_the_wrong_type(
     language, question, one, two
 ) -> None:
+    """One period shows no change; two do."""
     refused = typed(question, one, QuestionType.TEMPORAL, language)
 
     assert refused is not None and refused[0] == QuestionRejection.WRONG_TYPE
@@ -97,6 +100,7 @@ def test_a_temporal_question_answered_with_one_period_is_the_wrong_type(
 def test_an_entity_question_asking_after_no_party_is_the_wrong_type(
     language, question, answer
 ) -> None:
+    """Neither the question word nor the answer names a party."""
     refused = typed(question, answer, QuestionType.ENTITY, language)
 
     assert refused is not None and refused[0] == QuestionRejection.WRONG_TYPE

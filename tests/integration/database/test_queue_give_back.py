@@ -28,6 +28,7 @@ def unasked():
 
 
 def statuses(engine) -> dict[str, int]:
+    """Counts documents by parse status."""
     with engine.connect() as connection:
         return dict(
             connection.execute(

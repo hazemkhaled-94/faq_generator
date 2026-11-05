@@ -26,6 +26,7 @@ class Refusing:
 
 
 def calls(store: S3Store):
+    """Each read that answers absence, by name."""
     return {
         "get": lambda: store.get("documents", "qa_x/ab12.pdf"),
         "exists": lambda: store.exists("documents", "qa_x/ab12.pdf"),

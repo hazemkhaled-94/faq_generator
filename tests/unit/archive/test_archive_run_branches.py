@@ -16,9 +16,11 @@ class Sized:
         self.purges: list[dict] = []
 
     def estimate(self) -> tuple[int, int]:
+        """Rows and bytes, as the planner would report them."""
         return 12_000, 3 * 1024 * 1024
 
     def purge(self, **named) -> None:
+        """Records one purge."""
         self.purges.append(named)
 
 

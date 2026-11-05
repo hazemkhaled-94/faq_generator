@@ -22,6 +22,7 @@ class Bucket:
         self.name = name
 
     def key_for(self, sha256: str, media_type: str | None = None) -> str:
+        """Where a document's object lies."""
         return f"qa_x/{sha256}"
 
 
@@ -33,12 +34,14 @@ class Archive:
         self.given_back: list[tuple[str, str]] = []
 
     def take(self, bucket: str, key: str) -> bool:
+        """Moves one object, failing on the third."""
         self.takes += 1
         if self.takes == 3:
             raise TimeoutError("the move of the second file timed out")
         return True
 
     def give_back(self, bucket: str, key: str) -> None:
+        """Gives one object back, failing on the first document file."""
         if not self.given_back and bucket == "documents" and key == "qa_x/a1":
             self.given_back.append(("failed", key))
             raise ConnectionError("object store unreachable")
@@ -49,16 +52,20 @@ class Repository:
     """Two documents whose rows are deleted inside a transaction that runs the move."""
 
     def digests(self) -> list[str]:
+        """Every document."""
         return ["a1", "b2"]
 
     def media_type(self, sha256: str) -> str:
+        """Each is a PDF."""
         return "application/pdf"
 
     def delete_all(self, digests, move):
+        """Deletes the rows, moving the objects inside the transaction."""
         move()
         return {digest: 1 for digest in digests}
 
     def forget_uploads(self) -> int:
+        """Never reached when a move fails."""
         raise AssertionError("the uploads are forgotten only after every move")
 
 
@@ -74,7 +81,10 @@ def test_a_failed_give_back_is_logged_and_the_deletions_own_error_is_raised(
         archive=archive,
     )
 
-    with caplog.at_level(logging.ERROR), pytest.raises(TimeoutError, match="second file"):
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(TimeoutError, match="second file"),
+    ):
         service.delete_every()
 
     assert "could not give back documents/qa_x/a1" in caplog.text

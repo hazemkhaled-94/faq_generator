@@ -20,6 +20,7 @@ class Replied:
         self._body = body
 
     def json(self) -> dict:
+        """The parsed body."""
         return self._body
 
 
@@ -31,6 +32,7 @@ class Session:
         self.sent: list[dict] = []
 
     def post(self, url: str, json: dict, timeout: float) -> Replied:
+        """Answers the next scripted body."""
         self.sent.append(json)
         return Replied(self.bodies.pop(0))
 

@@ -27,17 +27,21 @@ class Rows:
         self.held: int | None = None
 
     def claim(self) -> int | None:
+        """Takes the next row and holds it."""
         self.held = self.pending.pop(0) if self.pending else None
         return self.held
 
     def abandon(self) -> int:
+        """Nothing was left claimed."""
         return 0
 
     def touch(self) -> bool:
+        """Counts the beat and fails it."""
         self.beats += 1
         raise ConnectionError("server closed the connection unexpectedly")
 
     def release_held(self) -> bool:
+        """Puts the held row back at the front."""
         held, self.held = self.held, None
         if held is None:
             return False
@@ -56,6 +60,7 @@ class Stage(StageService):
         self.rows = rows
 
     def process_next(self) -> Any | None:
+        """Works one row."""
         key = self.rows.claim()
         if key is None:
             return None

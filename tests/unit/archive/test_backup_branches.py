@@ -24,6 +24,7 @@ class Vanishing(FakeObjectStore):
         self.gone = gone
 
     def listed(self, bucket, prefix=""):
+        """The keys held, and the one already deleted."""
         entries = super().listed(bucket, prefix)
         if bucket == self.gone[0]:
             entries.append(Entry(self.gone[1], 9, entries[0].modified))

@@ -37,11 +37,13 @@ def seed_and_delete(engine) -> str:
 
 
 def documents(engine) -> int:
+    """How many documents the live table holds."""
     with engine.connect() as connection:
         return connection.execute(text("SELECT count(*) FROM documents")).scalar_one()
 
 
 def restore(monkeypatch, **environment: str) -> int:
+    """Runs the restore with the given environment."""
     from archive import restore as module
 
     for name in ("SINCE", "AT", "TABLES"):

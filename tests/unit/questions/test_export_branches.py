@@ -20,7 +20,7 @@ from question_generation.export import workbook
 def test_a_title_or_heading_that_starts_like_a_formula_is_written_as_text() -> None:
     """German and English titles, a Greek heading: never a live formula."""
     titles = {
-        "=HYPERLINK(\"http://x\",\"Preisverzeichnis\")": "-Kontoführung",
+        '=HYPERLINK("http://x","Preisverzeichnis")': "-Kontoführung",
         "+Terms of sale": "@Returns",
         "-Τιμολόγιο": "=1+1",
     }
@@ -56,4 +56,3 @@ def test_a_verdict_with_no_recorded_judge_names_none_in_the_summary() -> None:
     assert counted["Judged by a model"] == 1
     assert pd.isna(notes["Judge model"])
     assert pd.isna(notes["Judge template"])
-

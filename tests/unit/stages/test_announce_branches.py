@@ -14,22 +14,27 @@ from stages import cli
 
 
 class Queue:
+    """A queue holding a number of pending rows, or failing to count them."""
+
     def __init__(self, pending: int | Exception) -> None:
         self.pending = pending
 
     def counts_by_status(self) -> dict[str, int]:
+        """The pending rows, or the failure."""
         if isinstance(self.pending, Exception):
             raise self.pending
         return {Status.PENDING: self.pending}
 
 
 def stage(estimate=None) -> SimpleNamespace:
+    """A stage as the announcement reads it."""
     return SimpleNamespace(name="extraction", unit="passage", estimate=estimate)
 
 
 def test_a_queue_that_cannot_be_counted_is_a_warning_not_a_failure(
     monkeypatch, caplog
 ) -> None:
+    """Logged with its cause; no queued line is guessed."""
     monkeypatch.delenv("SPEND_CAP", raising=False)
     with caplog.at_level(logging.INFO):
         cli.announce(stage(), Queue(ConnectionError("database restarting")))

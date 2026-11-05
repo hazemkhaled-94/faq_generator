@@ -49,4 +49,3 @@ def test_a_composed_copy_of_a_two_claim_sentence_is_refused(language, text) -> N
     copied = checker.composed(checker.passage.sentences[0].text, 0)
 
     assert copied.rejection_code == Rejection.COPIED, copied.validation_error
-
