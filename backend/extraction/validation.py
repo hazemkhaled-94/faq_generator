@@ -85,11 +85,30 @@ def _lines_of(sentence: Sentence) -> list[Sentence]:
     return lines
 
 
+def _named(sentences: Sequence[Sentence], at: int) -> Sentence | None:
+    """The sentence an index names, or the list line it counts on to, or None.
+
+    A passage whose last sentence holds list lines is read by the model line
+    by line: an index past the end, by at most the lines of that sentence
+    less one, names that line of it.
+    """
+    if 0 <= at < len(sentences):
+        return sentences[at]
+    if at < 0 or not sentences:
+        return None
+    lines = _lines_of(sentences[-1])
+    past = at - (len(sentences) - 1)
+    return lines[past] if past < len(lines) else None
+
+
 def _cited_text(passage: PassageToExtract, cited: Sequence[Sentence]) -> str:
     """The text a citation rests on: those sentences and nothing else.
 
     A run of adjacent sentences is taken whole, which keeps the passage's
-    own spacing between them and is what a reader sees highlighted.
+    own spacing between them and is what a reader sees highlighted. A list
+    line cited with the sentence before it keeps the index of its sentence,
+    so it is never part of a run: the lines of that sentence the claim did
+    not cite would come with the range.
 
     Sentences with a gap between them are joined instead. The covering range
     would hand the checks every sentence in between as well, so a claim
@@ -98,7 +117,12 @@ def _cited_text(passage: PassageToExtract, cited: Sequence[Sentence]) -> str:
     invented, would accept a number from a sentence the claim never named.
     """
     span = range(cited[0].index, cited[-1].index + 1)
-    if [one.index for one in cited] == list(span):
+    whole = all(
+        one.start == passage.sentences[one.index].start
+        and one.end == passage.sentences[one.index].end
+        for one in cited
+    )
+    if whole and [one.index for one in cited] == list(span):
         return passage.text[cited[0].start : cited[-1].end]
     return _JOIN.join(one.text for one in cited)
 
@@ -662,14 +686,10 @@ class FactChecker:
         to the last sentence, cut to the line.
         """
         ids = sorted(set(candidate.sentences))
-        sentences = passage.sentences
-        if not ids or not sentences:
+        if not ids:
             return None
-        lines = _lines_of(sentences[-1])
-        past = len(sentences) - 1
-        if any(i < 0 or (i >= len(sentences) and i - past >= len(lines)) for i in ids):
-            return None
-        return [sentences[i] if i < len(sentences) else lines[i - past] for i in ids]
+        named = [_named(passage.sentences, i) for i in ids]
+        return None if None in named else named
 
     @staticmethod
     def _judge(
@@ -909,9 +929,10 @@ def _figure_tokens(
     The unit is the lemmas of the units right after a figure written alone,
     modifiers skipped, which is finer than its kind: `days` and `weeks` are
     one kind and two units. Only a closed set is read, a language's units of
-    time and the SI symbols, because a noun is as likely another word for the
-    same thing. None where none follows, the unit is glued on, or the kind is
-    a currency or a share, whose spellings the kind already compares.
+    time and the SI symbols, up to a slash (`mg/l` is `mg` per volume), because a
+    noun is as likely another word for the same thing. None where none follows,
+    the unit is glued on, or the kind is a currency or a share, whose spellings
+    the kind already compares.
 
     The digit runs make `23.59` and `23:59`, or `9,95` and `9.95`, one figure
     however it is punctuated. A cardinal written out ("four euros") is a
@@ -931,6 +952,9 @@ def _figure_tokens(
         if digits and (kind := _kind_of(tokens, at, language)):
             nouns: set[str] = set()
             for near in tokens[at + 1 : at + 4]:
+                if "/" in near.text:
+                    # `mg/l` is a mass per volume: the unit stops at the slash.
+                    break
                 if near.pos_ in _UNIT_WORDS:
                     if (
                         word := near.lemma_.strip(".,;:()").casefold()
@@ -953,6 +977,80 @@ def _figure_tokens(
     return found
 
 
+#: A clock time written with a colon and minutes of two digits (`9:30`), or
+#: with a dot (`9.30`), which only reads a time the colon form is held against.
+_CLOCK_FIGURE = re.compile(r"(?<![\d.,:])(\d{1,2})([:.])(\d{2})(?![\d.,:]?\d)")
+
+#: A date of three digit runs joined by one repeated `/` or `-`, the year its
+#: four-digit first or last run: `2026-03-01`, `01/03/2026`.
+_DATE_FIGURE = re.compile(
+    r"(?<![\d.,])(?:(\d{4})([/-])(\d{1,2})\2(\d{1,2})|(\d{1,2})([/-])(\d{1,2})\6(\d{4}))(?![\d.,]?\d)"
+)
+
+
+def _clocks(text: str) -> list[tuple[tuple[int, int], str, str]]:
+    """The clock times of a text: hour and minute, the mark they are written with, as written.
+
+    Hour 24 is hour 0: `24:00` and `0:00` are one time.
+    """
+    return [
+        (((int(found[1]) % 24), int(found[3])), found[2], found[0])
+        for found in (match.group(0, 1, 2, 3) for match in _CLOCK_FIGURE.finditer(text))
+        if int(found[1]) <= 24 and int(found[3]) <= 59
+    ]
+
+
+def _dates(text: str) -> list[tuple[bool, tuple[int, ...], str]]:
+    """The dates of a text: whether the year comes first, its three runs in order, as written."""
+    out = []
+    for match in _DATE_FIGURE.finditer(text):
+        year_first = match.group(1) is not None
+        runs = match.group(1, 3, 4) if year_first else match.group(5, 7, 8)
+        out.append((year_first, tuple(int(run) for run in runs), match.group(0)))
+    return out
+
+
+def _repaired(statement: str, evidence: str) -> dict[str, str]:
+    """Finds the clock times and dates a statement writes with the runs of cited ones re-paired.
+
+    A clock time the cited text writes with a colon, and the statement writes
+    with other minutes or hours taken from the cited ones: "13:30 to 9:00" for
+    a cited "9:30 to 13:00". A date of three runs, the year at the same end in
+    both, whose day and month a cited date has the other way round: "12-01-2026"
+    for "01-12-2026". A date with a run over 12 is another convention's
+    spelling of the cited one, and a two-run figure, a ratio, a season or a
+    range is not read: another way to write those is not another figure.
+    """
+    swaps: dict[str, str] = {}
+    theirs = _clocks(evidence)
+    # Read modulo 12: `17:30` is the `5:30 pm` the cited text writes.
+    held = {(at[0] % 12, at[1]) for at, _, _ in theirs}
+    # An hour the cited text writes alone ("8 to 12", "9 am") is a time too.
+    rest = _CLOCK_FIGURE.sub(" ", _DATE_FIGURE.sub(" ", evidence))
+    held |= {
+        (int(hour) % 12, 0)
+        for hour in re.findall(r"(?<![\d.,])\d{1,2}(?![\d.,]?\d)", rest)
+        if int(hour) <= 24
+    }
+    colons = [(at, one) for at, mark, one in theirs if mark == ":"]
+    hours = {at[0] for at, _ in colons}
+    minutes = {at[1] for at, _ in colons}
+    for at, mark, written in _clocks(statement):
+        if mark != ":" or (at[0] % 12, at[1]) in held or not colons:
+            continue
+        if at[0] in hours and at[1] in minutes:
+            swaps.setdefault(written, colons[0][1])
+    cited = _dates(evidence)
+    for first, runs, written in _dates(statement):
+        same = [(there, one) for end, there, one in cited if end == first]
+        month_day = runs[1:] if first else runs[:2]
+        if not same or max(month_day) > 12 or runs in [there for there, _ in same]:
+            continue
+        if set(runs) <= {run for there, _ in same for run in there}:
+            swaps.setdefault(written, same[0][1])
+    return swaps
+
+
 def _swapped(
     statement: str,
     evidence: str,
@@ -973,6 +1071,9 @@ def _swapped(
     a period) is a swap too: two figures traded between their kinds, "12 %
     for 5 months" for a cited "5 % for 12 months". So is a figure whose digits
     the cited text gives only before another noun: "3 weeks" for "3 days".
+    So is a clock time written with a colon, or a date of three runs with its
+    year at the same end, that the cited text writes only with its runs in
+    another order: "13:30 to 9:00" for a cited "9:30 to 13:00".
     """
     elsewhere = numerals(passage.text, language)
     swaps: dict[str, str] = {}
@@ -1011,6 +1112,11 @@ def _swapped(
         ]
         if there and all(one and not one & nouns for _, one in there):
             swaps[unit] = there[0][0]
+    swaps |= {
+        written: cited
+        for written, cited in _repaired(statement, evidence).items()
+        if written not in swaps
+    }
     return swaps
 
 

@@ -3160,3 +3160,460 @@ def test_a_limit_after_a_preposition_that_also_sets_limits_is_no_year(
     judged = Checker(passage(text, language=language)).atomic(statement, 1)
 
     assert judged.validated, (judged.rejection_code, judged.units_added)
+
+
+#: (language, the cited sentence, a statement re-pairing the digit runs of its clock times or dates)
+_REPAIRED = [
+    (
+        "de",
+        "Die Filiale ist von 9:30 bis 13:00 Uhr geöffnet.",
+        "Die Filiale ist von 13:30 bis 9:00 Uhr geöffnet.",
+    ),
+    (
+        "en",
+        "The branch is open from 9:30 to 13:00.",
+        "The branch is open from 13:30 to 9:00.",
+    ),
+    (
+        "de",
+        "Der Kundenservice ist zwischen 8:15 und 18:00 Uhr erreichbar.",
+        "Der Kundenservice ist zwischen 8:00 und 18:15 Uhr erreichbar.",
+    ),
+    (
+        "en",
+        "Customer service answers calls between 8:15 and 18:00.",
+        "Customer service answers calls between 8:00 and 18:15.",
+    ),
+    (
+        "de",
+        "Die Preisänderung gilt ab dem 01/12/2026.",
+        "Die Preisänderung gilt ab dem 12/01/2026.",
+    ),
+    (
+        "en",
+        "The price change takes effect on 2026-12-01.",
+        "The price change takes effect on 2026-01-12.",
+    ),
+    (
+        "el",
+        "Το κατάστημα είναι ανοιχτό από 9:30 έως 13:00.",
+        "Το κατάστημα είναι ανοιχτό από 13:30 έως 9:00.",
+    ),
+    (
+        "pl",
+        "Oddział jest otwarty od 9:30 do 13:00.",
+        "Oddział jest otwarty od 13:30 do 9:00.",
+    ),
+    (
+        "de",
+        "Die Preisänderung gilt ab dem 01-12-2026.",
+        "Die Preisänderung gilt ab dem 12-01-2026.",
+    ),
+    (
+        "en",
+        "The price change takes effect on 01-12-2026.",
+        "The price change takes effect on 12-01-2026.",
+    ),
+    (
+        "pl",
+        "Zmiana cennika obowiązuje od 01-12-2026.",
+        "Zmiana cennika obowiązuje od 12-01-2026.",
+    ),
+    (
+        "el",
+        "Η αλλαγή τιμών ισχύει από 01-12-2026.",
+        "Η αλλαγή τιμών ισχύει από 12-01-2026.",
+    ),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "statement"), _REPAIRED)
+def test_a_clock_time_or_date_written_with_the_runs_of_cited_ones_in_another_order_is_refused(
+    lang, text, statement
+) -> None:
+    """13:30 is not a time "from 9:30 to 13:00" writes: each figure is read whole."""
+    fact = Checker(passage(text, language=lang)).atomic(statement, 0)
+    assert not fact.validated, (fact.rejection_code, fact.validation_error)
+    if lang in ("de", "en"):
+        assert fact.rejection_code == Rejection.UNSUPPORTED_ADDITION
+
+
+def test_a_french_re_pairing_stays_refused() -> None:
+    """A language no pipeline names is refused for its verb, as before."""
+    fact = Checker(
+        passage("L'agence est ouverte de 9:30 à 13:00.", language="fr")
+    ).atomic("L'agence est ouverte de 13:30 à 9:00.", 0)
+    assert not fact.validated
+
+
+#: (language, the cited sentence, a statement writing its figures as they are, or one of them alone)
+_KEPT = [
+    ("de", "Die Filiale öffnet um 08:30 Uhr.", "Die Filiale öffnet um 8:30 Uhr."),
+    ("en", "The shop opens at 08:30.", "The shop opens at 8:30."),
+    (
+        "de",
+        "Das Bürgeramt ist von 9 bis 13:00 Uhr geöffnet.",
+        "Das Bürgeramt öffnet um 9:00 Uhr.",
+    ),
+    (
+        "en",
+        "The office is open from 9 to 13:00.",
+        "The office opens at 9:00.",
+    ),
+    (
+        "de",
+        "Das Bürgeramt ist montags bis freitags von 9:30 bis 13:00 Uhr geöffnet.",
+        "Das Bürgeramt ist Mo–Fr 9:30–13:00 Uhr geöffnet.",
+    ),
+    (
+        "en",
+        "The shop is open on weekdays from 9:30 to 13:00.",
+        "The shop is open 9:30-13:00 on weekdays.",
+    ),
+    (
+        "en",
+        "The shop is open on weekdays and opens at 9:30.",
+        "The shop opens at 9:30.",
+    ),
+    (
+        "de",
+        "Die Filiale ist von 9:00–12:00 und 13:00–18:00 Uhr geöffnet.",
+        "Die Mittagspause dauert von 12:00 bis 13:00 Uhr.",
+    ),
+    (
+        "en",
+        "The branch is open from 9:00–12:00 and 13:00–18:00.",
+        "The branch closes for lunch from 12:00 to 13:00.",
+    ),
+    (
+        "de",
+        "Der Zeitraum läuft vom 01/03/2026 bis 31/03/2026.",
+        "Der Zeitraum endet am 31/03/2026.",
+    ),
+    (
+        "en",
+        "The period runs from 01/03/2026 to 31/03/2026.",
+        "The period ends on 31/03/2026.",
+    ),
+    (
+        "de",
+        "Die Hotline erreichen Sie unter 030-1234-5678.",
+        "Die Hotline ist unter 030-1234-5678 erreichbar.",
+    ),
+    (
+        "en",
+        "Call our hotline on 030-1234-5678.",
+        "The hotline number is 030-1234-5678.",
+    ),
+    (
+        "de",
+        "Das Paket ist zwischen 68 cm und 70 cm lang.",
+        "Das Paket ist 68-70 cm lang.",
+    ),
+    (
+        "en",
+        "The parcel is between 68 cm and 70 cm long.",
+        "The parcel is 68-70 cm long.",
+    ),
+    (
+        "en",
+        "The mix ratio of the paint is 2:1.",
+        "The paint is mixed at a ratio of 2:1.",
+    ),
+    (
+        "de",
+        "Das Mischverhältnis beträgt 2:1.",
+        "Das Mischverhältnis der Farbe beträgt 2:1.",
+    ),
+    (
+        "de",
+        "Die Gebühr ist in Abschnitt 3-2 geregelt.",
+        "Abschnitt 3-2 regelt die Gebühr.",
+    ),
+    (
+        "en",
+        "The fee is set out in section 3-2.",
+        "Section 3-2 sets out the fee.",
+    ),
+    (
+        "en",
+        "The portal is open from 9:30 to 13:00 and from 14:00 to 17:00.",
+        "The portal is open from 14:00 to 17:00.",
+    ),
+    (
+        "de",
+        "Das Verhältnis von Eigenkapital zu Fremdkapital beträgt bei der Bank 1:3.",
+        "Das Verhältnis von Fremdkapital zu Eigenkapital beträgt bei der Bank 3:1.",
+    ),
+    (
+        "en",
+        "Shares and bonds are weighted in a ratio of 2:1.",
+        "Bonds and shares are weighted in a ratio of 1:2.",
+    ),
+    (
+        "el",
+        "Οι μετοχές και τα ομόλογα σταθμίζονται σε αναλογία 2:1.",
+        "Τα ομόλογα και οι μετοχές σταθμίζονται σε αναλογία 1:2.",
+    ),
+    (
+        "de",
+        "Die Antragsfrist endet am 31-12-2026.",
+        "Die Antragsfrist endet am 2026-12-31.",
+    ),
+    (
+        "en",
+        "The offer is valid from 2026-03-01.",
+        "The offer is valid from 01-03-2026.",
+    ),
+    (
+        "de",
+        "Das Angebot gilt ab dem 2026-03-01.",
+        "Das Angebot gilt ab dem 01-03-2026.",
+    ),
+    ("pl", "Oferta obowiązuje od 2026-03-01.", "Oferta obowiązuje od 01-03-2026."),
+    ("en", "The fee is due on 12/31/2026.", "The fee is due on 31/12/2026."),
+    (
+        "en",
+        "The ISA allowance for the 2024/25 tax year is GBP 20,000, the same as for 2025/26.",
+        "The ISA allowance for the 2024/2025 tax year is GBP 20,000.",
+    ),
+    (
+        "de",
+        "Die Filiale öffnet um 9.00 Uhr und schließt um 13.30 Uhr, Beratungstermine gibt es um 9:30 und 13:00 Uhr.",
+        "Die Filiale öffnet um 9:00 Uhr.",
+    ),
+    (
+        "en",
+        "The office opens at 9.00 and closes at 13.30; appointments are at 9:30 and 13:00.",
+        "The office opens at 9:00.",
+    ),
+    (
+        "de",
+        "Die Filiale ist montags von 9-12 und 14-18 Uhr geöffnet.",
+        "Die Filiale ist montags von 12-14 Uhr geschlossen.",
+    ),
+    (
+        "en",
+        "The branch is open from 9-12 and 14-18.",
+        "The branch is closed from 12-14.",
+    ),
+    (
+        "de",
+        "Kunden von 18-25 Jahren und von 26-30 Jahren erhalten den Tarif.",
+        "Kunden von 18-30 Jahren erhalten den Tarif.",
+    ),
+    (
+        "de",
+        "Die Kasse ist bis 24:00 Uhr geöffnet.",
+        "Die Kasse ist bis 0:00 Uhr geöffnet.",
+    ),
+    ("en", "The helpline is open until 24:00.", "The helpline is open until 0:00."),
+    (
+        "el",
+        "Το κατάστημα είναι ανοιχτό 9-12 και 14-18.",
+        "Το κατάστημα είναι κλειστό 12-14.",
+    ),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "statement"), _KEPT)
+def test_a_time_or_date_the_cited_text_writes_in_another_form_or_alone_validates(
+    lang, text, statement
+) -> None:
+    """Padding, a shape the cited text lacks and a figure kept whole are no re-pairing."""
+    fact = Checker(passage(text, language=lang)).atomic(statement, 0)
+    assert fact.validated, (fact.rejection_code, fact.validation_error)
+
+
+#: Times a statement writes with minutes, where the cited text writes the hour alone ("8 to 12",
+#: "9 am") or the other 12 or 24 hour spelling of a time it holds.
+_HOURS_KEPT = [
+    (
+        "de",
+        "Die Kasse ist von 8 bis 12 Uhr geöffnet, die Beratung von 8:00 bis 12:30 Uhr.",
+        "Die Kasse schließt um 12:00 Uhr.",
+    ),
+    (
+        "de",
+        "Das Bürgeramt ist von 9 bis 12 Uhr und von 12:30 bis 18:00 Uhr geöffnet.",
+        "Das Bürgeramt schließt vormittags um 12:00 Uhr.",
+    ),
+    (
+        "en",
+        "The branch is open from 9 am to 12 pm and from 12:30 to 6:00 pm.",
+        "The branch closes for lunch at 12:00.",
+    ),
+    (
+        "en",
+        "Counter service runs from 8 to 10 am, phone service from 8:00 to 10:30.",
+        "Counter service ends at 10:00.",
+    ),
+    (
+        "de",
+        "Die Hotline ist von 8 bis 20 Uhr erreichbar, samstags von 8:00 bis 12:20 Uhr.",
+        "Die Hotline ist werktags bis 20:00 Uhr erreichbar.",
+    ),
+    (
+        "en",
+        "The branch is open 9:00–12:00 and 13:00–17:30.",
+        "The branch is closed between 12:00 and 13:00.",
+    ),
+    (
+        "de",
+        "Montags 8:00–12:00 Uhr, donnerstags 14:00–18:00 Uhr.",
+        "Donnerstags ist von 14:00 bis 18:00 Uhr geöffnet.",
+    ),
+    (
+        "en",
+        "Transfers received by 14:30 are executed the same day; the cut-off on Fridays is 13:00.",
+        "Transfers received by 14:30 are executed the same day.",
+    ),
+    (
+        "de",
+        "Der Automat ist von 0:00 bis 24:00 Uhr nutzbar.",
+        "Der Automat ist von 0:00 bis 0:00 Uhr nutzbar.",
+    ),
+    (
+        "de",
+        "Die neuen Preise gelten ab 01/12/2026.",
+        "Ab 01/12/2026 gelten neue Preise.",
+    ),
+    (
+        "en",
+        "The new prices apply from 01/12/2026.",
+        "The new prices apply from 1/12/2026.",
+    ),
+    (
+        "en",
+        "The new prices apply from 01-12-2026.",
+        "The new prices apply from 01/12/2026.",
+    ),
+    (
+        "en",
+        "The offer runs from 01/03/2026 to 15/03/2026.",
+        "The offer ends on 15/03/2026.",
+    ),
+    (
+        "en",
+        "The offer runs from 2026-03-01 to 2026-03-15.",
+        "The offer runs from 01/03/2026 to 15/03/2026.",
+    ),
+    (
+        "de",
+        "Am 01/12/2026 ist die Filiale von 9:00 bis 12:00 Uhr geöffnet.",
+        "Am 01/12/2026 öffnet die Filiale um 9:00 Uhr.",
+    ),
+    (
+        "de",
+        "Die Wartezeit beträgt durchschnittlich 0:45 Stunden, maximal 1:30 Stunden.",
+        "Die Wartezeit beträgt maximal 1:30 Stunden.",
+    ),
+    (
+        "de",
+        "Der Lageplan ist im Maßstab 1:25 gezeichnet.",
+        "Der Lageplan hat den Maßstab 1:25.",
+    ),
+    (
+        "de",
+        "Die Ausgabe erfolgt um 10 Uhr, Einlass ist von 9:30 bis 10:00 Uhr.",
+        "Die Ausgabe erfolgt um 10:00 Uhr.",
+    ),
+    (
+        "de",
+        "Termine gibt es von 9 Uhr bis 11:30 Uhr und ab 13:00 Uhr.",
+        "Termine gibt es ab 9:00 Uhr.",
+    ),
+    (
+        "en",
+        "Appointments run from 9 to 11:30 and from 13:00 to 15:00.",
+        "Appointments start at 9:00.",
+    ),
+    (
+        "en",
+        "Appointments run from 11 to 13:00 and from 13:30 to 15:00.",
+        "Appointments start at 11:00.",
+    ),
+    (
+        "de",
+        "Die Ausgabe ist von 11 bis 13:00 Uhr und von 13:30 bis 15:00 Uhr.",
+        "Die Ausgabe beginnt um 11:00 Uhr.",
+    ),
+    (
+        "de",
+        "Die Filiale ist Mo–Fr 9–12 Uhr und 12:30–18:00 Uhr geöffnet.",
+        "Die Filiale schließt mittags um 12:00 Uhr.",
+    ),
+    (
+        "de",
+        "Die Zulassungsstelle ist montags bis freitags von 7 bis 12 Uhr und donnerstags zusätzlich von 12:30 bis 17:00 Uhr geöffnet.",
+        "Die Zulassungsstelle öffnet montags bis freitags um 7:00 Uhr.",
+    ),
+    (
+        "de",
+        "Die Zulassungsstelle ist montags bis freitags von 7 bis 12 Uhr und donnerstags zusätzlich von 12:30 bis 17:00 Uhr geöffnet.",
+        "Die Zulassungsstelle schließt montags bis freitags um 12:00 Uhr.",
+    ),
+    (
+        "en",
+        "The branch is open 9 am to 12 pm and 12:30 to 6:00 pm on weekdays.",
+        "The branch closes for lunch at 12:00 on weekdays.",
+    ),
+    (
+        "en",
+        "The office is open from 9:15 am to 3:15 pm.",
+        "The office is open until 15:15.",
+    ),
+    (
+        "en",
+        "The office is open from 9:15 am to 3:15 pm.",
+        "The office is open from 9:15 to 15:15.",
+    ),
+    (
+        "en",
+        "The helpline is open from 8:20 am to 8:20 pm.",
+        "The helpline closes at 20:20.",
+    ),
+    (
+        "de",
+        "Die Annahmestelle ist von 7:15 bis 15:30 Uhr besetzt, die Hotline bis 3:30 Uhr nachts.",
+        "Die Hotline ist bis 3:30 Uhr erreichbar.",
+    ),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "statement"), _HOURS_KEPT)
+def test_a_time_the_cited_text_writes_as_a_bare_hour_or_in_another_clock_validates(
+    lang, text, statement
+) -> None:
+    """A bare hour is a time the cited text writes, and an hour is compared with hours."""
+    fact = Checker(passage(text, language=lang)).atomic(statement, 0)
+    assert fact.validated, (fact.rejection_code, fact.validation_error)
+
+
+#: A 24-hour restatement of a cited 12-hour time, where the same sentence writes 24-hour times too.
+_TWELVE_HOUR = [
+    (
+        "en",
+        "The shop is open Saturday 9:30 am - 5:30 pm and Monday to Friday 9:00-17:00.",
+        "On Saturdays the shop is open from 9:30 to 17:30.",
+    ),
+    (
+        "en",
+        "Calls are answered from 8:30 am to 8:00 pm, and at weekends from 8:00 to 20:30.",
+        "Weekday calls are answered until 20:00.",
+    ),
+    (
+        "de",
+        "Die Filiale hat Mo–Fr 9:00–17:00 und Sa 9:30 am – 5:30 pm geöffnet.",
+        "Samstags hat die Filiale von 9:30 bis 17:30 Uhr geöffnet.",
+    ),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "statement"), _TWELVE_HOUR)
+def test_a_24_hour_time_the_cited_text_writes_in_12_hours_validates_beside_24_hour_times(
+    lang, text, statement
+) -> None:
+    """Hours are held modulo 12, so 17:30 is the 5:30 pm the sentence writes."""
+    fact = Checker(passage(text, language=lang)).atomic(statement, 0)
+    assert fact.validated, (fact.rejection_code, fact.validation_error)

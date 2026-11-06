@@ -168,6 +168,7 @@ pattern.
 | `DECIMAL_MARK` | same | The decimal mark. One such mark before three digits is a fraction, not thousands | `,`, `.` |
 | `AMOUNT_WORDS` | same | Currency codes and names beside which a space-grouped number is one figure (`5 000 Euro`). One group only: `1 000 000 EUR` stays three figures | `EUR`, `Euro`, `pound` |
 | `CALENDAR_NAMES` | [`analysis.py`](analysis.py) | The month and weekday names, plurals and adverbs included, each folded to one base form (`montags` to `montag`, `Tuesdays` to `tuesday`), which the fact check reads as dates whatever the tagger calls them. A language without a row reads them by tag | `Januar`, `montags` |
+| `WEEKDAYS` | [`analysis.py`](analysis.py) | Which of those base forms are weekdays, as against months, by language: the dedup gate reads the two classes apart | `montag`, `tuesday` |
 | `_CALENDAR_TAGS` | same | The tags a month or weekday carries, so a verb spelled like a month (`may`) is none | `NOUN`, `PROPN` |
 | `CALENDAR_ABBREVIATIONS` | [`analysis.py`](analysis.py) | The abbreviations of the same names (`Mo.`, `Dez.`, `Mon`, and the stem `Sonn-`), read of the cited text only and only as the text writes one: capitalised, dotted or in a range. The cited text's compounds and ranges (`Samstagvormittag`, `Montag-Freitag`) are read for the names they open with. All of it can only add support | `Mo`, `Dec` |
 | `REFERENCE_LABELS` | same | Words that label a reference by a number: no amount follows (`Section 3 100 customers`) | `Abschnitt`, `Section` |

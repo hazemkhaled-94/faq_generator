@@ -639,6 +639,13 @@ _DE_MONTHS = (
 _DE_WEEKDAYS = "montag dienstag mittwoch donnerstag freitag samstag sonntag"
 _EN_MONTHS = "january february march april may june july august september october november december"
 _EN_WEEKDAYS = "monday tuesday wednesday thursday friday saturday sunday"
+#: The base forms of CALENDAR_NAMES that name a weekday, as against a month. A
+#: newly configured language lists its weekday base forms here beside its
+#: CALENDAR_NAMES row, or reads every name as a month.
+WEEKDAYS: dict[str, frozenset[str]] = {
+    "de": frozenset(_DE_WEEKDAYS.split()),
+    "en": frozenset(_EN_WEEKDAYS.split()),
+}
 CALENDAR_NAMES: dict[str, dict[str, str]] = {
     "de": {
         **{name: name for name in (_DE_MONTHS + " " + _DE_WEEKDAYS).split()},

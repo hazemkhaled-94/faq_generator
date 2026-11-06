@@ -18,13 +18,14 @@ import re
 from collections import defaultdict
 from collections.abc import Container, Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from functools import lru_cache
 
 import numpy as np
 
 from database.qa_generator.passages import headings_of, trail_of
 from extraction.models import PassageToExtract
 from extraction.validation import label_of, label_word, numbered
-from nlp.analysis import content, normalised, parse
+from nlp.analysis import content, normalised, parse, sentences
 
 #: A quoted span, as two patterns by what opens it. A double mark closes at a
 #: double mark and may hold apostrophes ("Customers’ rights"); a single mark
@@ -275,21 +276,93 @@ def _references(
                 label = next(s for d, s, p in held if p is reached and d == shallow)
                 edges.add(head, reached, "reference", label)
         mine = {_plain(s) for s in _segments(head)}
-        quoted = [
-            key
-            for inner in _quoted(head.text, headings)
-            if (key := _plain(inner)) in headings
-            and key not in mine
-            and content(inner, language)
-        ]
-        quoted = [
+        quoted: dict[str, str] = {}
+        for inner in _quoted(head.text, headings):
+            if (
+                (key := _plain(inner)) in headings
+                and key not in mine
+                and content(inner, language)
+            ):
+                quoted.setdefault(key, inner)
+        for key in [
             k for k in quoted if not any(k in parents[o] for o in quoted if o != k)
-        ]
-        for key in dict.fromkeys(quoted):
-            reached = _nearest(head, [p for _, p in headings[key]])
+        ]:
+            # As a numbered reference: a heading of its own document, or of
+            # another whose title the sentence of the quote names.
+            held = [h for h in headings[key] if h[1].doc_sha256 == head.doc_sha256]
+            if not held:
+                said = _forms_of(
+                    _sentence_of(head.text, quoted[key], language), language
+                )
+                named = [
+                    h for h in headings[key] if _names_title(h[1].title, said, language)
+                ]
+                # Two documents named in full leave the quote with neither.
+                if len({h[1].doc_sha256 for h in named}) == 1:
+                    held = named
+            reached = _nearest(head, [p for _, p in held])
             if reached is not None:
-                label = next(s for s, p in headings[key] if p is reached)
+                label = next(s for s, p in held if p is reached)
                 edges.add(head, reached, "reference", label)
+
+
+def _sentence_of(text: str, span: str, language: str | None) -> str:
+    """The sentence a quoted span stands in, the span cut out by its match.
+
+    The opening mark, the span and the closing mark are cut where they stand,
+    so the same letters inside a longer word stay. A span on a list line reads
+    with the lead-in line of its sentence, not with the lines beside it.
+    """
+    quote = re.compile(rf"[\"'„“”‚‘’«»‹›]\s?{re.escape(span)}\s?[\"'„“”‚‘’«»‹›]")
+    found = []
+    for sentence in sentences(text, language):
+        if not quote.search(sentence.text):
+            continue
+        lines = sentence.text.split("\n")
+        if len(lines) > 1:
+            lines = [lines[0]] + [line for line in lines[1:] if quote.search(line)]
+        found.extend(quote.sub(" ", line) for line in lines)
+    return " ".join(found)
+
+
+def _forms_of(said: str, language: str | None) -> frozenset[str]:
+    """The forms, as written and by lemma, of the nouns, names and adjectives of a sentence."""
+    return frozenset(
+        form
+        for token in parse(said, language)
+        if token.pos_ in _TITLE_WORDS
+        for form in (token.text.casefold(), token.lemma_.casefold())
+    )
+
+
+@lru_cache(maxsize=4096)
+def _title_words(title: str, language: str | None) -> tuple[frozenset[str], ...]:
+    """The words of a title, each as its forms: as written and by lemma. Read once per title."""
+    return tuple(
+        frozenset({token.text.casefold(), token.lemma_.casefold()})
+        for token in parse(title, language)
+        if token.pos_ in _TITLE_WORDS and any(c.isalpha() for c in token.lemma_)
+    )
+
+
+def _names_title(
+    title: str | None, forms: frozenset[str], language: str | None
+) -> bool:
+    """Whether a sentence, as its forms, names a document by its full title.
+
+    Every noun, name and adjective of the title is one the sentence has, by
+    its lemma or by its text as written, so the `Conditions` of a title is the
+    `Conditions` of a sentence whichever way the tagger took either.
+    """
+    if not title:
+        return False
+    words = _title_words(title, language)
+    return bool(words) and all(word & forms for word in words)
+
+
+#: The parts of speech a title's words are read from: its nouns and names, and
+#: the first half of a split compound (`Preis-`).
+_TITLE_WORDS = frozenset({"NOUN", "PROPN", "ADJ", "X"})
 
 
 def _quoted(text: str, headings: Container[str]) -> list[str]:

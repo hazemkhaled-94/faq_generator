@@ -138,7 +138,14 @@ beside another currency, share or period: "12 % for 5 months" for a cited "5 %
 for 12 months". So is a figure that keeps its digits and changes its unit of time
 or SI measure: "3 weeks" for a cited "3 days", "4 g" for "4 kg". A clock time written with a colon, and a four-digit year after a month name or a
 year word (`since`, `seit`), is a kind of its own, so "since 2023" for a
-cited "since 2024" is a swap too; a bare four-digit limit has no kind. `not_bridging` also refuses a statement naming the numbered
+cited "since 2024" is a swap too; a bare four-digit limit has no kind. So is a clock time written with a colon and
+two-digit minutes (`9:30`), or a date of three runs joined by one repeated `/` or
+`-` with its four-digit year at the same end (`01-12-2026`, `2026-12-01`), that
+the cited text writes only with its runs in another order: "13:30 to 9:00" for a
+cited "9:30 to 13:00", "12-01-2026" for "01-12-2026". A date with a day over 12,
+a time the cited text writes with a dot, `24:00` for `0:00`, a ratio whose terms
+are not a time (`2:1`), a season and a range are not read; an hour the cited text
+writes alone ("8 to 12") counts as a time it writes. `not_bridging` also refuses a statement naming the numbered
 heading of a cited passage ("Section 7"), because that is a claim about the
 document.
 
@@ -166,7 +173,15 @@ Two more refusals come from the service, not from a check:
   citing only the passage being re-read, and against facts of another kind this
   passage kept. The refusal names the stored fact it repeats (`twin_id`) and
   writes nothing onto it. Two atomic facts of one passage, a bridge, and facts
-  naming other numbers are never twins.
+  naming other numbers are never twins. Numbers are other when the digits
+  differ, when the months, or the weekdays, the two name share none (a weekday
+  added to a date, or a range against its enumeration, keeps them twins), or
+  when a value both state is a currency, a share, a period or a unit of time or
+  measure on each side and the two readings differ (`14 days` and `14 weeks`,
+  `3 % for 12 months` and `12 % for 3 months`). SI symbols are read in every
+  language, and a currency is one reading whatever its code (`EUR 5` and `USD 5`
+  stay twins); months, weekdays and units of time only where the
+  language has a table for them.
 - `over_cap`: `EXTRACTION_MIN_OTHER_SHARE` is a floor on the share of a
   passage's facts that are not atomic, which caps the atomic ones. The cap is
   never below the passage's sentences plus its list items. Facts asserting a
@@ -201,7 +216,11 @@ passage, a document and a topic.
 Passages are paired by the documents' own links (`extraction/links.py`):
 
 - a reference: a passage naming another section's heading ("Section 7",
-  "Returns");
+  "Returns"). A numbered one reaches a section of its own document, or of
+  another whose title's content words the sentence holds. A quoted one reaches
+  a section of its own document, or of another document only where the
+  sentence of the quote (the quote cut out) holds every noun, name and
+  adjective of that one document's full title, as written or by its lemma;
 - a sibling: two sections under one parent heading;
 - a shared term: one used by 0.5% of the language's passages, never fewer than
   two and never more than six. A passage keeps the eight partners it shares the

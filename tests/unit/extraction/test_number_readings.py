@@ -402,3 +402,504 @@ def test_another_fraction_is_another_number_for_the_dedup_gate(lang, text, twin)
     from extraction.service import _counted_alike
 
     assert not _counted_alike(text, twin, lang)
+
+
+#: Two statements that give one figure another unit, month, weekday or place.
+_DIFFERENT_FIGURES = [
+    (
+        "de",
+        "Die neuen Kontogebühren gelten ab dem 1. Januar 2026.",
+        "Die neuen Kontogebühren gelten ab dem 1. Juli 2026.",
+    ),
+    (
+        "en",
+        "The new account fees apply from 1 January 2026.",
+        "The new account fees apply from 1 July 2026.",
+    ),
+    (
+        "de",
+        "Das Bürgeramt ist montags geöffnet.",
+        "Das Bürgeramt ist dienstags geöffnet.",
+    ),
+    ("en", "The office opens on Mondays.", "The office opens on Tuesdays."),
+    (
+        "de",
+        "Die Rückgabefrist beträgt 14 Tage.",
+        "Die Rückgabefrist beträgt 14 Wochen.",
+    ),
+    ("en", "The return period is 14 days.", "The return period is 14 weeks."),
+    (
+        "de",
+        "Der Antrag wird innerhalb von 3 Wochen bearbeitet.",
+        "Der Antrag wird innerhalb von 3 Monaten bearbeitet.",
+    ),
+    (
+        "en",
+        "The application is processed within 3 weeks.",
+        "The application is processed within 3 months.",
+    ),
+    ("de", "Ein Paket darf bis zu 2 kg wiegen.", "Ein Paket darf bis zu 2 g wiegen."),
+    (
+        "en",
+        "A parcel may weigh up to 2 kg.",
+        "A parcel may weigh up to 2 g.",
+    ),
+    (
+        "de",
+        "Der Zinssatz beträgt 3 % für 12 Monate.",
+        "Der Zinssatz beträgt 12 % für 3 Monate.",
+    ),
+    (
+        "en",
+        "The interest rate is 3 % for 12 months.",
+        "The interest rate is 12 % for 3 months.",
+    ),
+    (
+        "de",
+        "Die Verwaltungsgebühr beträgt 2 %.",
+        "Die Verwaltungsgebühr beträgt 2 Euro.",
+    ),
+    ("en", "The administration fee is 2 %.", "The administration fee is 2 euros."),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "twin"), _DIFFERENT_FIGURES)
+def test_a_figure_of_another_unit_month_or_place_is_no_twin_for_the_dedup_gate(
+    lang, text, twin
+):
+    """The unit, the month and the pairing a figure is written with are part of it."""
+    from extraction.service import _counted_alike
+
+    assert not _counted_alike(text, twin, lang)
+    assert not _counted_alike(twin, text, lang)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "twin"), [_DIFFERENT_FIGURES[i] for i in (0, 1, 4, 5, 10, 11)]
+)
+def test_the_probed_twin_of_another_figure_is_dropped(lang, text, twin):
+    """Through `_closest`, a near fact of another figure is no twin at any cosine."""
+    from database.qa_generator import FactKind
+    from extraction.models import Twin
+    from extraction.service import _closest
+
+    probed = Twin(fact_id=7, statement=twin, similarity=0.999)
+    assert _closest(text, FactKind.ATOMIC, lang, [1.0, 0.0], probed, []) is None
+    kept = [(twin, FactKind.ATOMIC, [1.0, 0.0], 8)]
+    assert _closest(text, FactKind.ATOMIC, lang, [1.0, 0.0], None, kept) is None
+
+
+#: Two statements that write one figure in another spelling.
+_RESTATEMENTS = [
+    ("de", "Die Gebühr beträgt 5 Euro.", "Die Gebühr beträgt 5 €."),
+    ("en", "The fee is EUR 5.", "The fee is 5 euros."),
+    ("de", "Die Gebühr beträgt EUR 5.", "Die Gebühr beträgt 5 Euro."),
+    ("de", "Der Zuschlag beträgt 3 Prozent.", "Der Zuschlag beträgt 3 %."),
+    ("en", "The surcharge is 3 percent.", "The surcharge is 3 %."),
+    (
+        "de",
+        "Eine Rückgabe ist innerhalb von 14 Tagen möglich.",
+        "Eine Rückgabe ist innerhalb von 14 Kalendertagen möglich.",
+    ),
+    (
+        "de",
+        "Ein Antrag wird innerhalb von 14 Tagen bearbeitet.",
+        "Ein Antrag wird innerhalb von vierzehn Tagen bearbeitet.",
+    ),
+    (
+        "en",
+        "The loan runs for 12 months.",
+        "The loan runs for a 12-month term.",
+    ),
+    (
+        "en",
+        "Returns are accepted within 30 days.",
+        "A 30-day return window applies.",
+    ),
+    (
+        "de",
+        "Ein Paket wiegt höchstens 2 kg.",
+        "Ein Paket wiegt höchstens 2 Kilogramm.",
+    ),
+    (
+        "en",
+        "A parcel weighs at most 2 kg.",
+        "A parcel weighs at most 2 kilograms.",
+    ),
+    (
+        "en",
+        "The interest rate is 3 % for 12 months.",
+        "For 12 months the interest rate is 3 %.",
+    ),
+    (
+        "de",
+        "Die Gebühren gelten ab dem 1. Januar 2026.",
+        "Ab 1. Januar 2026 gelten die Gebühren.",
+    ),
+    ("en", "Fees apply from 1 January 2026.", "Fees apply from January 1, 2026."),
+    (
+        "de",
+        "Das Bürgeramt ist montags geöffnet.",
+        "Das Bürgeramt hat am Montag geöffnet.",
+    ),
+    ("en", "The office opens on Mondays.", "The office opens on Monday."),
+    (
+        "de",
+        "Die neuen Kontogebühren gelten ab Montag, dem 1. Juni 2026.",
+        "Die neuen Kontogebühren gelten ab dem 1. Juni 2026.",
+    ),
+    (
+        "de",
+        "Der Antrag auf Wohngeld muss bis Freitag, den 31. Juli 2026, eingereicht werden.",
+        "Der Antrag auf Wohngeld muss bis zum 31. Juli 2026 eingereicht werden.",
+    ),
+    (
+        "de",
+        "Die Filiale ist von Montag bis Freitag von 9 bis 18 Uhr geöffnet.",
+        "Die Filiale ist von Montag, Dienstag, Mittwoch, Donnerstag und Freitag von 9 bis 18 Uhr geöffnet.",
+    ),
+    (
+        "de",
+        "Die Gebühr gilt von Januar bis März 2026.",
+        "Die Gebühr gilt im Januar, Februar und März 2026.",
+    ),
+    (
+        "en",
+        "The new account fees apply from Monday, 1 June 2026.",
+        "The new account fees apply from 1 June 2026.",
+    ),
+    (
+        "en",
+        "The tax return is due by Friday 31 July 2026.",
+        "The tax return is due by 31 July 2026.",
+    ),
+    (
+        "en",
+        "The branch is open Monday to Friday from 9 to 18.",
+        "The branch is open Monday, Tuesday, Wednesday, Thursday and Friday from 9 to 18.",
+    ),
+    (
+        "en",
+        "The fee applies from January to March 2026.",
+        "The fee applies in January, February and March 2026.",
+    ),
+    (
+        "en",
+        "The branch is open from 9:30 to 13:00.",
+        "The branch is open from 9:30 until 13:00.",
+    ),
+    (
+        "en",
+        "The bank capped the waiting list at 25 applicants again.",
+        "The bank capped the waiting list at 25 again.",
+    ),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "twin"), _RESTATEMENTS)
+def test_a_figure_written_another_way_stays_a_twin_for_the_dedup_gate(lang, text, twin):
+    """A reading the other side lacks, or an open noun, never tells two figures apart."""
+    from extraction.service import _counted_alike
+
+    assert _counted_alike(text, twin, lang)
+    assert _counted_alike(twin, text, lang)
+
+
+@pytest.mark.parametrize(
+    ("lang", "text", "twin"),
+    [
+        (
+            "fr",
+            "Les nouveaux frais s'appliquent à partir du 1er janvier 2026.",
+            "Les nouveaux frais s'appliquent à partir du 1er juillet 2026.",
+        ),
+        (
+            "fr",
+            "Le délai de retour est de 14 jours.",
+            "Le délai de retour est de 14 semaines.",
+        ),
+        (
+            "fr",
+            "Le taux d'intérêt est de 3 % pour 12 mois.",
+            "Le taux d'intérêt est de 12 % pour 3 mois.",
+        ),
+        (
+            "pl",
+            "Termin zwrotu wynosi 14 dni.",
+            "Termin zwrotu wynosi 14 tygodni.",
+        ),
+        (
+            "pl",
+            "Nowe opłaty obowiązują od 1 stycznia 2026.",
+            "Nowe opłaty obowiązują od 1 lipca 2026.",
+        ),
+        (
+            "el",
+            "Τα νέα τέλη ισχύουν από την 1η Ιανουαρίου 2026.",
+            "Τα νέα τέλη ισχύουν από την 1η Ιουλίου 2026.",
+        ),
+        (
+            "el",
+            "Η προθεσμία επιστροφής είναι 14 ημέρες.",
+            "Η προθεσμία επιστροφής είναι 14 εβδομάδες.",
+        ),
+    ],
+)
+def test_a_language_without_month_and_unit_words_reads_as_before(lang, text, twin):
+    """No table names a month or a time unit there, so the cosine decides alone, as it did."""
+    from extraction.service import _counted_alike
+
+    assert _counted_alike(text, twin, lang)
+
+
+#: Restatements whose figure the language writes before another noun, as a range or with a
+#: sign, so that the one side reads a period and the other only a unit of time.
+_WRITTEN_ANOTHER_WAY = [
+    ("de", "Sie haben 14 Tage Rückgaberecht.", "Das Rückgaberecht beträgt 14 Tage."),
+    (
+        "de",
+        "Auf alle Geräte gibt es 24 Monate Garantie.",
+        "Die Garantie auf alle Geräte beträgt 24 Monate.",
+    ),
+    (
+        "de",
+        "Der Kredit hat 48 Monate Laufzeit.",
+        "Die Laufzeit des Kredits beträgt 48 Monate.",
+    ),
+    ("de", "Es gilt ein Zahlungsziel von 30 Tagen.", "Sie haben 30 Tage Zahlungsziel."),
+    ("de", "Die Lieferzeit beträgt 6 Wochen.", "Rechnen Sie mit 6 Wochen Lieferzeit."),
+    ("de", "Die Lieferung dauert 3 bis 5 Tage.", "Die Lieferung dauert 3–5 Tage."),
+    ("de", "Pakete bis 1 bis 2 kg kosten 5 Euro.", "Pakete von 1–2 kg kosten 5 Euro."),
+    (
+        "de",
+        "Die Bearbeitung dauert etwa 3 Wochen.",
+        "Die Bearbeitung dauert ~3 Wochen.",
+    ),
+    (
+        "en",
+        "You get 24 months warranty on all devices.",
+        "The warranty on all devices is 24 months.",
+    ),
+    ("en", "You have 14 days return right.", "The right of return is 14 days."),
+    ("en", "Delivery takes 3-5 days.", "Delivery takes 3–5 days."),
+    ("en", "Processing takes 4 to 6 weeks.", "Processing takes 4–6 weeks."),
+    ("en", "The loan has a 48 months term.", "The term of the loan is 48 months."),
+    ("en", "Parcels of 1-2 kg cost EUR 5.", "Parcels of 1–2 kg cost EUR 5."),
+    (
+        "de",
+        "Ein Kredit über 10.000 Euro hat 12 Monate Laufzeit.",
+        "Ein Kredit von 10.000 Euro läuft 12 Monate.",
+    ),
+    (
+        "de",
+        "Auf alle Geräte gibt es 2 Jahre Garantie.",
+        "Die Garantie auf alle Geräte beträgt 2 Jahre.",
+    ),
+    (
+        "de",
+        "Der Vertrag hat 24 Monate Mindestlaufzeit.",
+        "Die Mindestlaufzeit des Vertrags beträgt 24 Monate.",
+    ),
+    (
+        "de",
+        "Für Neukunden gelten 6 Monate Zinsgarantie.",
+        "Neukunden erhalten eine Zinsgarantie für 6 Monate.",
+    ),
+    (
+        "de",
+        "Der Antrag hat 3 Wochen Bearbeitungszeit.",
+        "Die Bearbeitung des Antrags dauert 3 Wochen.",
+    ),
+    (
+        "de",
+        "Es gilt eine Frist von 30 Tagen ab Zugang.",
+        "Die Frist beträgt 30 Tage ab Zugang.",
+    ),
+    (
+        "en",
+        "We offer 30 days money-back guarantee.",
+        "Our money-back guarantee lasts 30 days.",
+    ),
+    (
+        "en",
+        "All devices come with 2 years warranty.",
+        "The warranty on all devices is 2 years.",
+    ),
+    (
+        "en",
+        "Standard delivery takes 3 days.",
+        "Standard delivery has 3 days lead time.",
+    ),
+    (
+        "en",
+        "The account has 12 months notice period.",
+        "The notice period of the account is 12 months.",
+    ),
+    (
+        "en",
+        "Applications need 4 weeks processing time.",
+        "Processing an application takes 4 weeks.",
+    ),
+    ("en", "Passports take 6 weeks processing.", "Passport processing takes 6 weeks."),
+    (
+        "en",
+        "The loan of 5,000 euros has 12 months term.",
+        "The loan of 5,000 euros runs for 12 months.",
+    ),
+    ("en", "Shipping costs 5 euros per parcel.", "Shipping costs 5 euros."),
+    ("de", "Der Versand kostet 5 Euro pro Paket.", "Der Versand kostet 5 Euro."),
+    ("en", "The fee is 2 % per transaction.", "Each transaction costs a 2 % fee."),
+    (
+        "de",
+        "Ein Paket mit 2 kg Gewicht kostet 5 Euro.",
+        "Ein Paket von 2 kg kostet 5 Euro.",
+    ),
+    ("en", "A 2 kg parcel costs 5 euros.", "A parcel of 2 kg weight costs 5 euros."),
+    ("de", "Passbilder müssen 45 mm Höhe haben.", "Passbilder müssen 45 mm hoch sein."),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "twin"), _WRITTEN_ANOTHER_WAY)
+def test_a_period_written_before_another_noun_or_as_a_range_stays_a_twin(
+    lang, text, twin
+):
+    """A reading one side lacks, a kind as well as a unit, tells nothing."""
+    from extraction.service import _counted_alike
+
+    assert _counted_alike(text, twin, lang)
+    assert _counted_alike(twin, text, lang)
+
+
+#: A compound unit written with a slash against the same unit written with a word.
+_COMPOUND_UNITS = [
+    ("en", "The limit is 5 mg per litre.", "The limit is 5 mg/l."),
+    ("en", "The limit is 5 mg per litre.", "The limit is 5 mg / l."),
+    (
+        "de",
+        "Der Grenzwert liegt bei 5 mg pro Liter.",
+        "Der Grenzwert liegt bei 5 mg/l.",
+    ),
+    ("en", "The speed limit is 30 km per hour.", "The speed limit is 30 km/h."),
+    (
+        "de",
+        "Die Höchstgeschwindigkeit beträgt 30 km pro Stunde.",
+        "Die Höchstgeschwindigkeit beträgt 30 km/h.",
+    ),
+    ("en", "The pump delivers 2 l per minute.", "The pump delivers 2 l/min."),
+    ("de", "Die Pumpe fördert 2 l pro Minute.", "Die Pumpe fördert 2 l/min."),
+    (
+        "en",
+        "Fertiliser is applied at 5 kg per m2.",
+        "Fertiliser is applied at 5 kg/m2.",
+    ),
+    ("en", "Apples cost EUR 3 per kg.", "Apples cost EUR 3/kg."),
+    ("de", "Äpfel kosten 3 Euro pro kg.", "Äpfel kosten 3 €/kg."),
+    (
+        "en",
+        "The drink holds 5 g of sugar per 100 ml.",
+        "The drink holds 5 g sugar/100 ml.",
+    ),
+    (
+        "de",
+        "Das Getränk enthält 5 g Zucker pro 100 ml.",
+        "Das Getränk enthält 5 g Zucker je 100 ml.",
+    ),
+    (
+        "en",
+        "Each passenger may bring 23 kg of luggage.",
+        "Each passenger may bring 23 kg luggage.",
+    ),
+    (
+        "en",
+        "Each passenger may bring one bag of 23 kg.",
+        "Each passenger may bring one 23 kg bag.",
+    ),
+    (
+        "de",
+        "Jeder Fahrgast darf 1 Koffer mit 23 kg mitnehmen.",
+        "Jeder Fahrgast darf 1 Koffer von 23 kg mitnehmen.",
+    ),
+    ("en", "The cable is 2 m long.", "The cable is 2 metres long."),
+    ("en", "The cable measures 2 m.", "The cable measures 2 m in length."),
+    (
+        "de",
+        "Die Frist beträgt 4 Wochen ab Erhalt.",
+        "Die Frist beträgt 4 Wochen nach Erhalt der Ware.",
+    ),
+    ("en", "The parking fee is 2 euros per hour.", "Parking costs EUR 2 an hour."),
+    ("de", "Parken kostet 2 Euro pro Stunde.", "Parken kostet 2 € je Stunde."),
+    ("de", "Parken kostet 2 Euro pro Stunde.", "Parken kostet 2 €/Stunde."),
+    ("en", "Parking costs 2 euros per hour.", "Parking costs 2 euros/hour."),
+    (
+        "en",
+        "The fine is 5 euros per day of delay.",
+        "The fine is 5 euros for each day of delay.",
+    ),
+    (
+        "de",
+        "Die Gebühr beträgt 10 Euro je angefangene 30 Minuten.",
+        "Je angefangene 30 Minuten kostet es 10 Euro.",
+    ),
+    ("en", "Calls cost 9 cents per minute.", "Calls cost 9 cents a minute."),
+    ("en", "Calls cost 9 cents per minute.", "Calls cost 9 cents/min."),
+    ("de", "Anrufe kosten 9 Cent pro Minute.", "Anrufe kosten 9 Cent/Minute."),
+    ("de", "Die Miete beträgt 12 Euro pro m2.", "Die Miete beträgt 12 €/m2."),
+    ("de", "Das Wasser hat 20 Grad.", "Das Wasser hat 20 °C."),
+    (
+        "de",
+        "Der Kredit läuft 5 Jahre, also 60 Monate.",
+        "Der Kredit läuft 60 Monate, also 5 Jahre.",
+    ),
+    ("en", "The loan runs 5 years (60 months).", "The loan runs 60 months (5 years)."),
+    ("en", "Monday, 1 June is a holiday.", "1 June is a holiday."),
+    (
+        "en",
+        "The office is open Monday to Friday.",
+        "The office is open Monday, Tuesday, Wednesday, Thursday and Friday.",
+    ),
+    (
+        "de",
+        "Das Amt ist vom 1. bis 5. Juni geschlossen.",
+        "Das Amt ist vom 1. Juni bis 5. Juni geschlossen.",
+    ),
+    ("de", "Am Samstag, 6. Juni, ist das Amt zu.", "Am 6. Juni ist das Amt zu."),
+    (
+        "en",
+        "On Saturdays in June the office opens at 9.",
+        "In June the office opens at 9 on Saturdays.",
+    ),
+    (
+        "en",
+        "The office opens at 9 on Saturdays in June.",
+        "On Saturdays the office opens at 9.",
+    ),
+    (
+        "en",
+        "Sales run from 1 May to 31 May.",
+        "Sales run through May, from the 1st to the 31st.",
+    ),
+    ("en", "Tax returns are due by 31 July.", "Tax returns must be filed by July 31."),
+    ("en", "Tax returns are due by 31 July.", "Tax returns are due by 31 Jul."),
+    (
+        "de",
+        "Die Steuererklärung ist bis 31. Juli fällig.",
+        "Die Steuererklärung ist bis 31. Jul. fällig.",
+    ),
+    (
+        "en",
+        "Payments made on a Saturday are booked on Monday.",
+        "A payment made on Saturday is booked the next Monday.",
+    ),
+    ("fr", "La limite est de 5 mg par litre.", "La limite est de 5 mg/l."),
+    ("pl", "Limit wynosi 5 mg na litr.", "Limit wynosi 5 mg/l."),
+    ("el", "Το όριο είναι 5 mg ανά λίτρο.", "Το όριο είναι 5 mg/l."),
+]
+
+
+@pytest.mark.parametrize(("lang", "text", "twin"), _COMPOUND_UNITS)
+def test_a_unit_per_another_unit_written_with_a_slash_stays_a_twin(lang, text, twin):
+    """`5 mg/l` is `5 mg` per volume: the unit stops at the slash."""
+    from extraction.service import _counted_alike
+
+    assert _counted_alike(text, twin, lang)
+    assert _counted_alike(twin, text, lang)
