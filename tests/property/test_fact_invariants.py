@@ -565,3 +565,78 @@ def test_a_rule_of_one_claim_is_one_claim_whatever_figure_or_reference_it_holds(
     language, text = case
 
     assert claim(text, language).predicates == 1, text
+
+
+# ── A figure taken from the uncited sentence ─────────────────────────────
+
+#: Two rules of one kind side by side, by language: a bank's fees, a shop's
+#: periods, an office's rates. A fact cites the first. French, Polish and
+#: Greek name no `NLP_MODELS` row.
+_SIDE_BY_SIDE = {
+    "de": (
+        ("Die Ersatzkarte kostet {} EUR.", "Die Zusatzkarte kostet {} EUR."),
+        (
+            "Die Rücksendung ist binnen {} Tagen möglich.",
+            "Der Umtausch ist binnen {} Tagen möglich.",
+        ),
+        ("Der Antrag kostet {} EUR.", "Der Widerspruch kostet {} EUR."),
+    ),
+    "en": (
+        ("A replacement card costs {} EUR.", "An additional card costs {} EUR."),
+        (
+            "Returns are accepted within {} days.",
+            "Exchanges are accepted within {} days.",
+        ),
+        ("An application costs {} EUR.", "An appeal costs {} EUR."),
+    ),
+    "fr": (
+        (
+            "Une carte de remplacement coûte {} EUR.",
+            "Une carte supplémentaire coûte {} EUR.",
+        ),
+    ),
+    "pl": (("Karta zastępcza kosztuje {} EUR.", "Karta dodatkowa kosztuje {} EUR."),),
+    "el": (
+        (
+            "Η κάρτα αντικατάστασης κοστίζει {} EUR.",
+            "Η πρόσθετη κάρτα κοστίζει {} EUR.",
+        ),
+    ),
+}
+
+
+@st.composite
+def _side_by_side(draw, languages):
+    """A language, a passage of two rules of one kind, the cited rule and that rule with the other's figure."""
+    language = draw(st.sampled_from(languages))
+    cited, other = draw(st.sampled_from(_SIDE_BY_SIDE[language]))
+    own, theirs = draw(st.permutations(range(2, 500)))[:2]
+    return (
+        language,
+        f"{cited.format(own)} {other.format(theirs)}",
+        cited.format(own),
+        cited.format(theirs),
+    )
+
+
+@given(case=_side_by_side(["de", "en"]))
+@pytest.mark.nlp
+def test_a_rule_given_the_figure_of_the_rule_beside_it_is_refused(case) -> None:
+    """`The replacement card costs 7 EUR` for a cited 5 EUR is a swap, the faithful 5 EUR is not."""
+    language, text, faithful, swapped = case
+    read = Checker(passage(text, language=language))
+
+    assert read.atomic(swapped, 0).rejection_code == Rejection.UNSUPPORTED_ADDITION
+    assert read.atomic(faithful, 0).validated, faithful
+
+
+@given(case=_side_by_side(["fr", "pl", "el"]))
+@pytest.mark.nlp
+def test_a_faithful_rule_is_never_refused_as_a_swap_in_a_language_with_no_pipeline(
+    case,
+) -> None:
+    """The currency code is read in any language, so the swap may be refused; the faithful rule never is."""
+    language, text, faithful, _ = case
+    read = Checker(passage(text, language=language))
+
+    assert read.atomic(faithful, 0).rejection_code != Rejection.UNSUPPORTED_ADDITION
