@@ -23,7 +23,7 @@ make mutation       # change a gate and see whether a test notices. Hours
 |---|---|---|
 | [`static/`](static/) | The repository against itself: settings, migrations, locks, workflows, env files, compose, Makefile recipes, dashboards, prompt digests, import contracts, documentation links and pyright at zero | nothing |
 | [`unit/`](unit/) | One module at a time, with no network or disk. Includes the Dagster code location | spaCy, for some |
-| [`property/`](property/) | Invariants over generated input, with hypothesis | spaCy, for some |
+| [`property/`](property/) | Invariants over generated input, with hypothesis, the text readers' among them: figures, dates, units, ranges, references, sentence cuts, list depth and headings, in five languages | spaCy, for some |
 | [`regression/`](regression/) | The verdicts the checks have always reached | spaCy |
 | [`contract/`](contract/) | The OpenAPI surface, declared refusals, and calls generated from the OpenAPI document against every read route (`unsupported_method` is off, because `POST /questions/{action}` is a real route) | a container |
 | [`integration/`](integration/) | The database, the object store and the HTTP surface | a container |
@@ -92,6 +92,23 @@ refuses a frontend test that reads `view.app.<widget>` past it, and
 [`static/test_fake_backend_matches_the_api.py`](static/test_fake_backend_matches_the_api.py)
 compares its fake responses with the API's dataclasses.
 
+## Tests written against mutants and missed branches
+
+`make mutation` changes six modules one mutant at a time: the question
+gates, `balance`, `selection`, `models` and `planning`, and
+`extraction.validation`. A mutant that no test notices is a survivor. The
+unit tests of those modules in [`unit/questions/`](unit/questions/) and
+[`unit/extraction/test_fact_checker.py`](unit/extraction/test_fact_checker.py)
+include tests written to kill survivors: each asserts the behaviour one
+surviving mutant changed. The Nightly's `mutation` job lists the survivors
+left.
+
+The files named `*_branches.py`, and some named `*_refusals.py`, test the
+branches a coverage report showed missed in the code where a miss costs
+most: parsing, validation, the gates, the release draw, the export,
+deletion, the archive, migrations and the ports' error paths. `make
+test-coverage` shows what is still missed.
+
 ## Continuous integration
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every pull
@@ -129,6 +146,15 @@ as cancelled, not failed. The short jobs have no limit, and neither has
 prints every thread's stack for a test that runs over ten minutes. A manual
 run of the nightly takes an optional integer `seed`, which repeats the test
 order of an earlier run.
+
+A test that waits on a background process waits only as a hang guard, not
+as a bound on the host's speed.
+[`static/test_hosted_profile.py`](static/test_hosted_profile.py) gives a
+background `make corpus-hosted` 300 s, under the ten minutes, and reaps every
+process a test started, pass or fail, so a run that never ends fails its own
+test and leaves nothing for a later one to trip on.
+[`integration/database/test_furniture_locks.py`](integration/database/test_furniture_locks.py)
+asserts that two languages' scoring windows overlap, not how long both take.
 
 ## Limits
 
