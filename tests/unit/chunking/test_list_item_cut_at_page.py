@@ -78,7 +78,6 @@ def passage(language: str, rest_at: float = 72, marker: str = "") -> str:
         text=rest, marker=marker, parent=page_two, prov=placed(2, 60, rest_at)
     )
     document.add_list_item(text=after, marker="b)", parent=page_two, prov=placed(2, 74))
-    document.add_text(label=DocItemLabel.TEXT, text=lead, prov=placed(2, 120, 54))
     _, chunks = chunks_of(document, word_chunker(200), language)
     return chunks[0].text
 
@@ -157,7 +156,6 @@ def test_a_joined_rest_takes_no_part_in_the_depth_of_its_list(language: str) -> 
     document.add_list_item(
         text=after, marker="b)", parent=page_two, prov=placed(2, 74, 72)
     )
-    document.add_text(label=DocItemLabel.TEXT, text=lead, prov=placed(1, 680, 54))
     document.add_text(label=DocItemLabel.TEXT, text=lead, prov=placed(2, 120, 54))
     _, chunks = chunks_of(document, word_chunker(200), language)
     assert chunks[0].text.splitlines()[:3] == [
