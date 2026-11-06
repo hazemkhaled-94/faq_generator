@@ -8,12 +8,121 @@ A fix changes what the next run writes. Stored rows improve only through the
 re-runs that operations.md lists for
 [v0.2.2](operations.md#upgrading-to-v022),
 [v0.3.0](operations.md#upgrading-to-v030),
-[v0.5.2](operations.md#upgrading-to-v052) and
-[v0.5.3](operations.md#upgrading-to-v053). v0.5.4 needs no rerun.
+[v0.5.2](operations.md#upgrading-to-v052),
+[v0.5.3](operations.md#upgrading-to-v053) and
+[v0.5.5](operations.md#upgrading-to-v055). v0.5.4 needs no rerun.
 
 ## Fixed defects
 
 Fixed defects by release, newest review first.
+
+## Found by the deep QA pass of 2026-11-04
+
+The deep QA pass after v0.5.4, the last of this QA cycle, read the code of
+v0.5.4 again in six hunts: parsing and passages; facts, references and
+topics; questions, the gates, the release and the export; the platform;
+security and secrets; and language and domain. Four test tracks ran beside
+them. T1 wrote tests that kill the mutants `make mutation` left alive, T2
+wrote properties over the text readers, T3 wrote tests over the risky
+branches the coverage report showed missed, and T4 ran the suite in random
+orders and guarded it against hangs. Their findings and the reviewers' make
+57 items, `N-101` to `N-157`. 22 were fixed, 2 closed and 22 accepted.
+
+<!-- v0.5.5 pending: N-145, N-147, N-148, N-149, N-150, N-151, N-152, N-153, N-155, N-156, N-157 -->
+
+A fix has a test that failed before it and a bar written before its measure.
+Two reviewers read each group of fixes to the code, in up to three rounds;
+fixes to the tests alone were held to their own runs in three orders. A fix
+that failed its bar or its third round of review was withdrawn, and its item
+accepted: [bugs.md](bugs.md#failed-bar) gives its numbers.
+
+Passage arms parse the 30 football and 50 shop PDFs once, replay the chunker
+over them with and without the change, and a reader reads every changed
+passage blind. Fact replays run the changed validation over the 20,888 facts
+stored in three copies: the football build (13,716), the shop corpus (2,838)
+and a copy of the football rules that holds facts only (4,334). Question
+replays read the 4,348 stored questions, 3,885 of the football build and 463
+of two shop runs.
+
+### Fixed in v0.5.5
+
+| Item | Defect | Fix | Measure and bar |
+|---|---|---|---|
+| N-101 | Across a page break, a list read the next page's indent off the previous page's column edge, so mirrored margins nested an outer item or flattened a sub-item | Each page's list indent is read off that page's own column edge. A page that holds only the list's items reads it off the nearest page of the same parity that has one, since facing pages mirror their margins. One commit with N-102 | As N-102. The 8 cases of its red test pass |
+| N-102 | A list the converter splits at a page break lost its depth: the nesting read each list group alone, and Docling starts a new group on every page, so sub-items going on onto the next page fell to the outer level (stored passages 2836, 2906, 3984 and 4035) | A list that opens on a later page right where the one before it ends, with nothing between them, is walked as one list and goes on at the levels open there, each page's indent read off its own edge (N-101) | Passage arm: 37 football passages in 7 documents change their depth, 0 shop, and no letter or digit changes. Blind reader in the third round, on 44 changed passages that still held N-103's joins (since withdrawn): the fix as printed in 41, both in 1, neither in 2 (a page cut neither version joins), the fix worse in 0, v0.5.4 worse in 42. The 4 stored passages print their sub-items under their item. Bar: at least 90% at the printed depth, at most 2 worse, shop unchanged |
+| N-154 | Before the release, the parsing branch flattened by one level a list going on at the top of the next page with only its sub-items there, at two indents: a regression of N-102's code that T2's properties found | Where no edge can be read for such a page, the edge before is kept when the page's leftmost item sits within half a step of a level open before. Otherwise the levels restart at level 0 | T2's repro and property pass, 3 red before. 4,154 tests pass. Passage arm: 0 passages differ from the branch before the fix on the 80 PDFs, and N-102 still changes 37 football passages in 7 documents |
+| N-104 | When a table's rest was joined from the next page, the captions and footnotes the converter attached to the rest went to the furniture layer with it and reached no passage | The rest hands its footnotes, and the captions the table lacks, to the table. A caption repeating the table's (`X (Fortsetzung)` after `X`) or a footnote the table already holds is not printed again | Red tests green in German, English, French and Greek. On a fresh parse of the 80 PDFs, none of the 21 joined rests carries a caption or a footnote, so no document changes |
+| N-106 | A passage stored as already extracted because no pipeline named its language stayed extracted after that language was configured, through both `make chunk-revocabulary` and a `chunk-rerun` that keeps its row | Such a passage goes back to `new` when either step gives it a language, unless a fact cites it, so `make extract-start` reads it | Red tests and their controls green; 120 integration tests pass. No stored passage is affected: 0 of the 2,504 passages of the 80 PDFs read as no language |
+| N-107 | The duplicate gate counted two statements alike when a figure kept its digits but changed its unit, its month or its pairing, so a different fact was refused as a twin | Two statements are twins only where the months, or the weekdays, both name share one, and where a value both state as a currency, a share, a period or a unit of time or measure reads the same on each side. 1 January and 1 July, 14 days and 14 weeks, 3 % for 12 months and 12 % for 3 months are apart. A date with its weekday, a range against its enumeration, and 5 mg/l against 5 mg per litre stay twins. SI symbols are read in every language, months, weekdays and units of time only where the language has a table | 14 German and English pairs apart both ways. The reviewers' restatement pairs alike both ways: 33 in the second round, and 45 of a later list once a unit is read up to its slash. French, Polish and Greek pairs as before. Replay of the 753 stored duplicate refusals: 0 freed (bar: under 20 freed, at most 1 restatement). 0 of 20,888 stored facts change |
+| N-108 | A citation of a sentence and a list line of the next sentence took the whole range between them as evidence, so the swap guard read an uncited line's figure as cited | A list line cited together with the sentence before it is its own piece of evidence, so a statement lifting an uncited line's figure is refused `unsupported_addition`, as it is when the line is cited alone | Repro green in German, English, French and Greek. Fact replay: 0 of 20,888 verdicts change |
+| N-109 | A statement that re-paired the digits of the cited clock times or dates was validated, because a time or a date was read as the set of its digit runs | A colon clock time with two-digit minutes, or a three-run date with its four-digit year at the same end, that the cited text writes only with its runs in another order is refused `unsupported_addition` ("13:30 to 9:00" for "9:30 to 13:00", "12-01-2026" for "01-12-2026"), for atomic facts. Hours are compared with hours and minutes with minutes, an hour the cited text writes alone counts as a time, and a 12-hour time is held modulo 12. Ratios, seasons, ranges, another convention's date, dotted times and 24:00 for 0:00 keep their verdict | The re-pairs refused in German, English, Polish and Greek. 30 keep probes of both reviewers, and the C-158 pins, validate as before. Fact replay: 0 of 20,888 change (bar: under 20 newly refused, at most 1 sound) |
+| N-111 | A quoted span linked to a heading of any document, so a page quoting a button label or a term became a reference to another document's section of that name | A quoted heading links to a section of its own document, or of another document only where the quote's sentence, the quote cut out, names that one document's full title: every noun, name and adjective of it, as written or by its lemma. Where two documents' titles are named it links to neither. Numbered references are read as before | Link replay over 3,335 stored passages: 9 of 314 reference links removed (8 football, 1 shop), 0 added, no numbered link changed, and 15 heads take another best link. A blind reader of the 10 links the first version removed found 2 references the sentence makes to the other document's section and 8 terms or labels (bar: at most 3). Each title's words are read once a pass: 200 documents take 3.3 s, against 1.8 s on v0.5.4 |
+| N-114 | Two release writes at once left the rows of both draws released, under two release ids | `release()` takes a transaction-scoped advisory lock first, so the second write waits for the first | Red test green; 35 integration and 1,806 unit tests pass |
+| N-115 | The run comparison counted every restored question twice, once live and once from the archive | A restored question counts once, from its live row or else its newest archived copy | Repro green, and the 6 earlier tests of `runs.py` unchanged |
+| N-117 | Two comments in the question code still said the trigger deletes a question whose last fact goes, which migration `4a7c2e91d3b8` replaced with a `source_changed` rejection, and the `questions.status` column comment said rejected questions are never deleted | Six texts say what the code does: a question that loses its last citation is rejected as `source_changed` and kept, and deleting a document, or what came from it, deletes its questions. Revision `c5a82e17d3f9` rewrites the column comment | tests/static green. The only change in the database is one column comment |
+| N-133 | A German comparison answered in its plainest form, *X ist schneller als Y*, was refused as naming one thing, because no noun phrase was read for the term after *als* | A noun the comparison particle governs (`COMPARISON_TAG`, `KOKOM` in German) counts as a phrase when no chunk holds it. English already reads the noun after *than* as a chunk, and French, Polish and Greek read as before | Red German cases green; the English twins and the controls unchanged. Replay of the structural and type gates over the 4,348 stored questions: 0 verdicts change |
+| N-134 | A German date-range key *1.–3. Mai* never agreed with a recovery saying *vom 1. bis 3. Mai*: the range's second end was read as the count 3 | The range's second end takes the ordinal stop its first end carries | Red German cases green; the English twin and a verbatim recovery unchanged; French, Polish and Greek give their earlier verdicts. None of the 4,348 stored keys holds such a range |
+| N-118 | `S3_BUCKETS` accepted the archive role on the same bucket as a live role, and an archive purge then deleted the live documents in it | Two roles that resolve to one bucket, a default name included, are refused when the setting is read, with a message naming both roles and the bucket | 4 red cases green. The shipped `S3_BUCKETS` resolves to five distinct buckets, and the contract, unit, static and smoke tests pass |
+| N-119 | Restoring an older deletion put back the newest archived copy of each object, not the copy that deletion archived | A restore of a chosen deletion puts back the archived copy stamped nearest that deletion's `archived_at`, the latest chosen one's where two took the same key. A rollback of a failed delete still takes the newest copy | Red tests in German, English, French and Greek, and a document with its parsed form, green; 97 integration tests pass |
+| N-121 | A passage deleted while extraction read it raised `Gone` out of the drain, as the judge did before C-136 | A row deleted (`Gone`) or claimed by another worker (`Lost`) while a drain fails or releases it is logged once as a warning naming the key and counted as no failure, so extraction's drain, `make extract` and `make corpus-hosted` take the next row instead of ending with a traceback | Red tests in German, English, Polish and Greek, and a queue raising `Gone` then `Lost`, green. An integration drain extracts the next document's passage with 0 failed |
+| N-130 | Dagster's error text, the exception its storage raised, reached `GET /pipeline/runs` (the 503 detail) and `GET /pipeline` (`orchestration.detail`), both open reads, with the database's host, address and role | The orchestrator adapter logs Dagster's text under a trace id and answers with a fixed sentence naming the error's type and that id, on both reads and on the pipeline writes | Repro green. A refusal now reads, for example, `the orchestrator could not list its runs (PythonError); the api log holds why, trace <id>`, and the log holds the text under that id |
+| N-131 | `make dagster-dev` ran plain `dagster dev`, which serves Dagster's webserver without `orchestration/serve.py`, so a cross-site GET could still run a GraphQL mutation on the host's UI | `make dagster-dev` is gone. The compose webserver serves the same code through `orchestration.serve`, with `compose.dev.yaml`'s source mounts on the development profile. A static test fails on any recipe, compose command, image command, workflow or script that starts the webserver another way. It reads text, so a start assembled at run time is not seen | The static test fails on v0.5.4 and passes. Starts planted in the Makefile, a script, a Containerfile and a YAML block list fail it |
+| N-132 | `make ingest DIR=` read every PDF whole before the size limit applied, unlike `POST /documents`, which reads at most `MAX_FILE_SIZE_MB` plus one byte | A file whose size is past the limit is refused unread, and any other is read to at most the limit plus one byte, as `POST /documents` reads it. An oversized file with a name the database cannot store is refused `invalid_value` and the batch goes on | Red tests green. On v0.5.4 five of them fail by assertion: a 65,536-byte file read whole where 1,025 bytes are the most allowed |
+| N-122 | The 2.8 s bound of `test_two_workers_on_different_languages_do_not_wait` measured the host, not whether one language's store waits on another's lock | The test asserts that the two scoring windows overlap. A second test gives both languages one lock and finds that they then do not | Passes alone and under a parallel full-suite run, and fails where one store waits on the other's lock |
+| N-136 | The waits of `tests/static/test_hosted_profile.py` gave a background `make corpus-hosted` 30 s (20 and 60 s elsewhere), which a loaded host exceeded. In one random order 9 tests of the file failed, one through a process an earlier timed-out test left running | Each wait is a hang guard of 300 s, and every process a test started is reaped | The file passes alone and under both seeds that failed, 83 tests each. A run that never ends fails its own test and no other, and leaves no process behind |
+
+<!-- v0.5.5 pending: N-145, N-147, N-148, N-149, N-150, N-151, N-152, N-153, N-155, N-156, N-157 -->
+
+### Closed and accepted in v0.5.5
+
+N-110 and N-146 were closed as unreachable. No producer hands the bridge
+check an index past a passage's last sentence, so N-110's input exists only
+in a test built by hand; its variant on the real path is N-141. A Greek or
+Polish text is refused at parse while no configuration names its language
+([C-252](bugs.md#c-252-language-columns-hold-bare-iso-639-1-codes)), so
+N-146's sentence never reaches the checker. 22 items were accepted, each
+with its effect, its cure and what reopens it: 10 under [Failed
+bar](bugs.md#failed-bar) (N-103, N-105, N-120, N-123, N-124, N-126, N-127,
+N-129, N-135 and N-140), 8 of them fixes withdrawn in this release and two
+whose designs were measured and never applied, and 12 under
+[Cost](bugs.md#cost) (N-112, N-113, N-116, N-125, N-128, N-137, N-138,
+N-139, N-141, N-142, N-143 and N-144).
+
+### Tests added in v0.5.5
+
+Each track's new tests pass in three orders.
+
+- T1, mutants. 181 tests in `tests/unit/questions` kill survivors of the
+  question gates, and 84 over seven files those of planning, models,
+  selection, balance and `extraction.validation`. Measured locally from a
+  fresh `mutants/` on the two test branches, killed of generated: gates
+  1,804 to 2,000 of 2,164, planning 237 to 245 of 253, models 60 to 68 of
+  69, selection 680 to 758 of 791, balance 654 to 717 of 757, and
+  `extraction.validation` 983 to 1,067 of 1,166. The six modules together
+  kill 4,855 of 5,200, with 340 survived and 5 timed out, against v0.5.4's
+  4,418 killed, 777 survived and 5 timed out. The Nightly on the release
+  commit gives the figures of record, which replace these. Every survivor
+  left is classified as killed, equivalent, a timeout, a real defect or
+  unclassified with what was tried. The track's findings are N-133, N-134
+  and N-135.
+  <!-- v0.5.5 measure: release Nightly mutation -->
+- T2, properties. 30 properties over the readers of figures, dates, units,
+  ranges, references, sentence cuts, list depth and headings, in five
+  languages: `tests/property` goes from 122 tests to 152. They pass at the
+  `ci` and `nightly` profiles. One of the track's findings, N-154, is fixed
+  above.
+  <!-- v0.5.5 pending: N-148, N-149, N-150, N-151, N-152, N-153, N-155, N-156 -->
+- T3, coverage. 94 tests in 26 new files over the risky branches the
+  coverage report of v0.5.4 showed missed: parsing, validation, the gates,
+  the draw, the export, deletion, the archive, migrations and the ports'
+  error paths. The risky branches missed fall from 140 to 85. The track's
+  one finding, N-146, is closed above.
+- T4, order and hangs. Four random orders on v0.5.4 passed twice and failed
+  1 and 9 tests of `tests/static/test_hosted_profile.py` under load, which
+  is N-136. Its waits are hang guards now, every process a test starts is
+  reaped, and the store-lock test asserts overlap rather than wall time
+  (N-122). Five random orders on the release tree:
+  <!-- v0.5.5 measure: five orders -->
 
 ## Found after v0.5.3, closed on 2026-11-04
 
