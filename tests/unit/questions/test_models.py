@@ -157,3 +157,39 @@ def test_a_single_question_is_banded_by_points_as_before() -> None:
     assert _read(passages=2).difficulty == "easy"
     assert _read(passages=2, topics=2).difficulty == "medium"
     assert _read(passages=2, documents=2, topics=2).difficulty == "hard"
+
+
+def test_a_long_answer_adds_its_point() -> None:
+    """An answer at the long-answer boundary is one more thing to get right."""
+    assert _read(answer_chars=60).difficulty == "easy"
+    assert _read(passages=2, answer_chars=60).difficulty == "medium"
+    assert _read(passages=2, answer_chars=59).difficulty == "easy"
+
+
+def test_the_long_answer_boundary_is_the_one_given() -> None:
+    """A setting that moves the boundary moves the band, and is kept for `score`."""
+    from question_generation.models import criteria_of
+
+    read = criteria_of(
+        passages=2, documents=1, topics=1, answer_chars=30, long_answer=25
+    )
+
+    assert (read.difficulty, read.long_answer, read.answer_chars) == ("medium", 25, 30)
+
+
+def test_a_kind_with_no_entry_is_banded_by_points() -> None:
+    """A stored kind no longer in KINDS is read back by its spread, not refused."""
+    assert _read("retired", passages=2, topics=2).difficulty == "medium"
+
+
+def test_a_group_passes_the_answer_length_and_the_boundary_through() -> None:
+    """The service reads a group's band off what it is about to write."""
+    from factories import group, source
+
+    facts = group(source(1, document="a"), source(2, document="a", passage_id=2))
+
+    read = facts.criteria(answer_chars=30, long_answer=25)
+    plain = facts.criteria(answer_chars=30)
+
+    assert (read.difficulty, read.answer_chars, read.long_answer) == ("medium", 30, 25)
+    assert (plain.difficulty, plain.follows) == ("easy", False)

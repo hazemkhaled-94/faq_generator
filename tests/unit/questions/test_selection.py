@@ -1449,3 +1449,653 @@ def test_a_topic_of_one_document_is_dealt_as_before() -> None:
 
     spread_ids = [s.facts[0].passage_id for s in firsts if s]
     assert spread_ids == [1, 6, 11, 16]
+
+
+# ── How alike two facts or passages read ───────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("one", "other", "language", "expected"),
+    [
+        (
+            "Die Kontogebühr beträgt 5 Euro.",
+            "Die Kontogebühren betragen 7 Euro.",
+            "de",
+            1.0,
+        ),
+        (
+            "Die Kontogebühren betragen 5 Euro.",
+            "Die Kontogebühr beträgt 7 Euro.",
+            "de",
+            1.0,
+        ),
+        ("The account fee is 5 euros.", "Account fees are 7 euros.", "en", 1.0),
+        (
+            "Les frais de dossier sont offerts.",
+            "Le guichet ouvre à neuf heures.",
+            "fr",
+            0.0,
+        ),
+        ("Τα τέλη είναι 5 ευρώ.", "Το γραφείο ανοίγει στις 9.", "el", 0.0),
+    ],
+    ids=["de", "de-plural", "en", "fr", "el"],
+)
+def test_a_fact_meets_another_by_the_lemmas_of_its_own_language(
+    one: str, other: str, language: str, expected: float
+) -> None:
+    """Two inflections of one subject meet in full; two subjects do not meet.
+
+    Read in another language's pipeline, `Kontogebühren` is not
+    `Kontogebühr`, and a related German partner falls under the floor.
+    """
+    chosen = source(1, statement=one, language=language)
+    candidate = source(2, passage_id=2, statement=other, language=language)
+
+    assert meets([chosen], candidate) == expected
+
+
+def test_a_fact_of_no_content_words_meets_nothing() -> None:
+    """Nothing to weigh is not a match, so it cannot clear a floor."""
+    assert (
+        meets([source(1, statement="The fee is 42 euros.")], source(2, statement="42."))
+        == 0.0
+    )
+
+
+def test_facts_sharing_part_of_their_words_meet_by_that_share() -> None:
+    """Jaccard: one lemma of four in common is a quarter, never more than one."""
+    found = meets(
+        [source(1, statement="The account fee is waived.")],
+        source(2, statement="The account card is blue."),
+    )
+
+    assert 0.0 < found < 1.0
+
+
+def test_a_passage_with_no_lemmas_is_like_nothing() -> None:
+    """A passage the parser kept no words of is no evidence of likeness."""
+    left = [source(1, passage_id=1, lemmas=("fee", "account"))]
+    right = [source(2, passage_id=2, lemmas=())]
+
+    assert overlap(left, right) == 0.0
+
+
+def test_a_passage_without_a_vector_is_compared_by_its_lemmas() -> None:
+    """One side carrying a vector is not enough for a cosine."""
+    left = [source(1, passage_id=1, lemmas=("fee", "account"), passage_axis=3)]
+    right = [source(2, passage_id=2, lemmas=("fee", "account"))]
+
+    assert overlap(left, right) == 1.0
+
+
+# ── Which passage a slot is partnered with ─────────────────────────────────
+
+
+def test_a_cross_sample_prefers_another_document_over_a_closer_passage_of_its_own() -> (
+    None
+):
+    """Two points need two documents; the likeliest neighbour is only the fallback."""
+    deal = Deal(
+        [
+            source(100, document="a", passage_id=1, axis=3, passage_axis=3),
+            source(200, document="a", passage_id=2, axis=3, passage_axis=3),
+            source(300, document="b", passage_id=3, axis=9, passage_axis=9),
+        ],
+        wanted=1,
+        size=2,
+    )
+
+    sample = deal.sample(Shape.CROSS)
+
+    assert sample is not None
+    assert {fact.passage_id for fact in sample.facts} == {1, 3}
+
+
+def test_neighbours_equally_alike_are_paired_by_nearness_in_reading_order() -> None:
+    """The passage next to the head, not the first of the document."""
+    deal = Deal(
+        facts_of(5, "a", ordinal=5)
+        + facts_of(1, "a", ordinal=1)
+        + facts_of(6, "a", ordinal=6),
+        wanted=1,
+        size=4,
+    )
+    deal._order.sort(key=lambda passage: passage[0].passage_id != 5)
+
+    sample = deal.sample(Shape.CROSS)
+
+    assert sample is not None
+    assert {fact.passage_id for fact in sample.facts} == {5, 6}
+
+
+def _mixed(document: str = "b") -> list:
+    """A head, a candidate sharing every lemma, and one sharing a third.
+
+    The first carries a vector pointing away from the head, the second none.
+
+    Only lemmas compare the two candidates; a cosine of one against a Jaccard
+    of the other is no ranking.
+    """
+    return [
+        source(
+            100, document="a", passage_id=1, lemmas=("fee", "account"), passage_axis=0
+        ),
+        source(
+            200,
+            document=document,
+            passage_id=2,
+            lemmas=("fee", "account"),
+            passage_axis=1,
+        ),
+        source(300, document=document, passage_id=3, lemmas=("fee", "card")),
+    ]
+
+
+def _vectored(document: str = "b") -> list:
+    """A head and two candidates, every one with a vector.
+
+    One points the head's way with no lemma in common, the other away with
+    every lemma in common.
+
+    Vectors on every side rank by cosine, which sees what lemmas cannot.
+    """
+    return [
+        source(
+            100, document="a", passage_id=1, lemmas=("fee", "account"), passage_axis=0
+        ),
+        source(
+            200, document=document, passage_id=2, lemmas=("charge",), passage_axis=0
+        ),
+        source(
+            300,
+            document=document,
+            passage_id=3,
+            lemmas=("fee", "account"),
+            passage_axis=1,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("facts", "partner"), [(_mixed(), 2), (_vectored(), 2)], ids=["mixed", "vectors"]
+)
+def test_the_likeliest_partner_is_ranked_on_one_scale(facts, partner: int) -> None:
+    """Cosine where every candidate has a vector, lemmas where one has not."""
+    sample = Deal(facts, wanted=1, size=2).sample(Shape.CROSS)
+
+    assert sample is not None
+    assert {fact.passage_id for fact in sample.facts} == {1, partner}
+
+
+@pytest.mark.parametrize(
+    ("facts", "partner"),
+    [(_mixed("a"), 2), (_vectored("a"), 2)],
+    ids=["mixed", "vectors"],
+)
+def test_the_likeliest_neighbour_is_ranked_on_one_scale(facts, partner: int) -> None:
+    """The same rule for a topic in one document."""
+    sample = Deal(facts, wanted=1, size=2).sample(Shape.CROSS)
+
+    assert sample is not None
+    assert {fact.passage_id for fact in sample.facts} == {1, partner}
+
+
+@pytest.mark.parametrize(
+    ("facts", "partner"), [(_mixed(), 3), (_vectored(), 3)], ids=["mixed", "vectors"]
+)
+def test_the_least_alike_compound_partner_is_ranked_on_one_scale(
+    facts, partner: int
+) -> None:
+    """A compound slot wants the passage sharing least, read on one scale too."""
+    sample = Deal(facts, wanted=1, size=2).sample(Shape.APART)
+
+    assert sample is not None
+    assert {fact.passage_id for fact in sample.facts} == {1, partner}
+
+
+def _bridging(fact_id: int, passage_id: int, document: str, axis: int):
+    """A bridge of another topic resting on this one's passage 50."""
+    return bridge(
+        resting(50, document="z"),
+        fact_id=fact_id,
+        passage_id=passage_id,
+        document=document,
+        topic_id=9,
+        passage_axis=axis,
+    )
+
+
+def test_a_bridge_slot_takes_a_bridge_in_another_document_first() -> None:
+    """Another document and another subject: every scope above one at once."""
+    head = source(100, document="a", passage_id=1, passage_axis=0, topic_id=1)
+    plain = source(200, document="b", passage_id=2, passage_axis=0, topic_id=1)
+    near = _bridging(300, 3, "a", 0)
+    far = _bridging(400, 4, "c", 1)
+
+    sample = Deal([head, plain], [near, far], wanted=1, size=2).sample(Shape.BRIDGE)
+
+    assert sample is not None
+    assert [fact.id for fact in sample.facts] == [400]
+
+
+def test_a_bridge_slot_takes_a_bridge_of_its_own_document_over_a_plain_pair() -> None:
+    """A bridge in the same document still adds the subject a plain pair lacks."""
+    head = source(100, document="a", passage_id=1, passage_axis=0, topic_id=1)
+    plain = source(200, document="b", passage_id=2, passage_axis=0, topic_id=1)
+    near = _bridging(300, 3, "a", 1)
+
+    sample = Deal([head, plain], [near], wanted=1, size=2).sample(Shape.BRIDGE)
+
+    assert sample is not None
+    assert [fact.id for fact in sample.facts] == [300]
+
+
+# ── What the floor weighs ──────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("one", "other", "language", "paired"),
+    [
+        (
+            "Die Kontogebühr beträgt 1.000 Euro.",
+            "Die Kontogebühren betragen 1.000 Euro.",
+            "de",
+            False,
+        ),
+        (
+            "Die Kontogebühren betragen 1.000 Euro.",
+            "Die Kontogebühr beträgt 1.000 Euro.",
+            "de",
+            False,
+        ),
+        (
+            "The account fee is 1,000 euros.",
+            "Account fees are 1,000 euros.",
+            "en",
+            False,
+        ),
+        (
+            "Les frais de compte sont de 1 000 euros.",
+            "Les frais de compte sont de 2 000 euros.",
+            "fr",
+            True,
+        ),
+        (
+            "Τα τέλη λογαριασμού είναι 1.000 ευρώ.",
+            "Τα τέλη λογαριασμού είναι 2.000 ευρώ.",
+            "el",
+            True,
+        ),
+    ],
+    ids=["de", "de-plural", "en", "fr", "el"],
+)
+def test_a_partner_only_restating_the_head_is_refused_under_a_floor(
+    one: str, other: str, language: str, paired: bool
+) -> None:
+    """The same clause in a sibling document, inflected or not, answers nothing new.
+
+    Its lemmas and its numbers are read in its own language: `1.000` in German
+    is a thousand. Another number is another claim, and is still offered.
+    """
+    deal = Deal(
+        [
+            source(1, document="a", passage_id=1, statement=one, language=language),
+            source(2, document="b", passage_id=2, statement=other, language=language),
+        ],
+        wanted=1,
+        size=2,
+        floor=0.1,
+    )
+
+    sample = deal.sample(Shape.CROSS)
+
+    assert sample is not None
+    assert (len(sample.resting) == 2) is paired
+
+
+def test_a_floor_reads_words_where_any_fact_of_the_topic_lacks_a_vector() -> None:
+    """A topic part-embedded is weighed on one scale: lemmas, for every pair."""
+    deal = Deal(
+        [
+            source(
+                1,
+                document="a",
+                passage_id=1,
+                statement="The device weighs 4 kg.",
+                axis=3,
+                passage_axis=3,
+            ),
+            source(
+                2,
+                document="b",
+                passage_id=2,
+                statement="The device weighs 7 kg.",
+                axis=9,
+                passage_axis=3,
+            ),
+            source(3, document="c", passage_id=3, statement="Opening hours vary."),
+        ],
+        wanted=1,
+        size=2,
+        floor=0.5,
+    )
+
+    sample = deal.sample(Shape.CROSS)
+
+    assert sample is not None
+    assert {fact.passage_id for fact in sample.facts} == {1, 2}
+
+
+def test_the_floor_weighs_the_head_fact_the_slot_prefers() -> None:
+    """A slot preferring the second claim is offered it first, so that is the one weighed."""
+    deal = Deal(
+        [
+            source(
+                1,
+                document="a",
+                passage_id=1,
+                statement="Branches open at nine.",
+                axis=9,
+                passage_axis=3,
+            ),
+            source(
+                2,
+                document="a",
+                passage_id=1,
+                statement="A transfer costs 2 EUR.",
+                axis=3,
+                passage_axis=3,
+            ),
+            source(
+                3,
+                document="b",
+                passage_id=2,
+                statement="A standing order costs 1 EUR.",
+                axis=3,
+                passage_axis=3,
+            ),
+        ],
+        wanted=1,
+        size=2,
+        floor=0.5,
+    )
+
+    sample = deal.sample(Shape.CROSS, prefer=lambda fact: fact.id == 2)
+
+    assert sample is not None
+    assert len(sample.resting) == 2
+
+
+def test_the_floor_weighs_only_the_head_fact_offered_first() -> None:
+    """A second head fact meeting the partner does not carry the first one over."""
+    deal = Deal(
+        [
+            source(
+                1,
+                document="a",
+                passage_id=1,
+                statement="Branches open at nine.",
+                axis=9,
+                passage_axis=3,
+            ),
+            source(
+                2,
+                document="a",
+                passage_id=1,
+                statement="A transfer costs 2 EUR.",
+                axis=3,
+                passage_axis=3,
+            ),
+            source(
+                3,
+                document="b",
+                passage_id=2,
+                statement="A standing order costs 1 EUR.",
+                axis=3,
+                passage_axis=3,
+            ),
+        ],
+        wanted=1,
+        size=2,
+        floor=0.5,
+    )
+
+    sample = deal.sample(Shape.CROSS)
+
+    assert sample is not None
+    assert len(sample.resting) == 1
+
+
+def test_a_reading_pair_is_weighed_on_the_condensed_fact_it_offers() -> None:
+    """The summary meets the partner and the claim does not, so a reading pairs them."""
+    deal = Deal(
+        [
+            source(
+                1,
+                document="a",
+                passage_id=1,
+                statement="Branches open at nine.",
+                axis=9,
+                passage_axis=3,
+            ),
+            source(
+                2,
+                document="a",
+                passage_id=1,
+                statement="Transfers and their costs.",
+                axis=3,
+                passage_axis=3,
+                kind=FactKind.SUMMARY,
+            ),
+            source(
+                3,
+                document="b",
+                passage_id=2,
+                statement="A standing order costs 1 EUR.",
+                axis=3,
+                passage_axis=3,
+            ),
+        ],
+        wanted=1,
+        size=2,
+        floor=0.5,
+    )
+
+    sample = deal.sample(Shape.CROSS, condensed=True)
+
+    assert sample is not None
+    assert [fact.id for fact in sample.facts] == [2, 3]
+
+
+# ── What a two-passage sample spends ───────────────────────────────────────
+
+
+def test_a_two_passage_sample_spends_the_size_the_slot_asks_for() -> None:
+    """An unanswerable slot shows the writer one fact, whatever the deal's cap."""
+    deal = Deal(facts_of(1, "a", count=3) + facts_of(2, "b", count=3), wanted=1, size=6)
+
+    sample = deal.sample(Shape.CROSS, size=2)
+
+    assert sample is not None
+    assert len(sample.facts) == 2
+
+
+def test_a_reading_across_two_passages_is_offered_a_whole_list() -> None:
+    """A list's items stay one unit when the slot spans two passages too."""
+    sample = Deal([*_listed(3), *facts_of(2, "b", count=1)], wanted=1, size=2).sample(
+        Shape.CROSS, condensed=True
+    )
+
+    assert sample is not None
+    assert {100, 101, 102} <= {fact.id for fact in sample.facts}
+
+
+def test_a_second_passage_list_fills_what_the_ceiling_leaves() -> None:
+    """The last passage takes the room up to eight facts, no more and no less."""
+    head = source(1, document="a", passage_id=1)
+    sample = Deal([head, *_listed(12, passage_id=2)], wanted=1, size=2).sample(
+        Shape.CROSS, condensed=True
+    )
+
+    assert sample is not None
+    assert len(sample.facts) == 8
+
+
+def test_the_rounds_ceiling_holds_past_one_round() -> None:
+    """Two rounds of a passage of five is two samples, then the passage is spent."""
+    deal = Deal(facts_of(1, "a", count=5), wanted=10, size=1, rounds=2)
+
+    dealt = [deal.sample() for _ in range(3)]
+
+    assert [one is not None for one in dealt] == [True, True, False]
+
+
+def test_a_passage_of_bridges_spends_its_round_when_one_is_offered() -> None:
+    """One round a passage: a bridge offered from it is that passage's turn."""
+    first = bridge(resting(8, "z"), fact_id=1, passage_id=1, document="a")
+    second = bridge(resting(9, "z"), fact_id=2, passage_id=1, document="a")
+    deal = Deal(
+        [first, second, *facts_of(3, "b", count=1)], wanted=10, size=1, rounds=1
+    )
+
+    for shape in (Shape.SINGLE, Shape.CROSS):
+        deal = Deal(
+            [first, second, *facts_of(3, "b", count=1)], wanted=10, size=1, rounds=1
+        )
+        offered = deal.sample(shape)
+        after = deal.sample()
+        assert offered is not None and after is not None
+        assert [fact.id for fact in offered.facts] == [1]
+        assert {fact.passage_id for fact in after.facts} == {3}, shape
+
+
+# ── What a list gathers ────────────────────────────────────────────────────
+
+
+def test_a_reading_gathers_only_the_items_of_the_chosen_list() -> None:
+    """Claims cited from other sentences are not items of the list."""
+    from dataclasses import replace
+
+    unrelated = [
+        replace(
+            source(150 + at, passage_id=1, statement=f"Branch {at} opens at nine."),
+            evidence=f"Branch {at} opens at nine.",
+        )
+        for at in range(3)
+    ]
+    loose = [
+        source(160 + at, passage_id=1, statement=f"Fee {at} is waived.")
+        for at in range(2)
+    ]
+    facts = [*_listed(3), *unrelated, *loose]
+
+    offered = Deal(facts, wanted=1, size=1).sample(Shape.SINGLE, condensed=True)
+
+    assert offered is not None
+    ids = [fact.id for fact in offered.facts]
+    assert sorted(ids) == [100, 101, 102] and len(ids) == len(set(ids))
+
+
+def test_a_claim_cited_from_no_sentence_gathers_no_list() -> None:
+    """Claims without evidence share no sentence, so none is another's list item."""
+    facts = [
+        source(170 + at, passage_id=1, statement=f"Fee {at} is waived.")
+        for at in range(4)
+    ]
+
+    offered = Deal(facts, wanted=1, size=1).sample(Shape.SINGLE, condensed=True)
+
+    assert offered is not None
+    assert len(offered.facts) == 1
+
+
+def test_a_reading_gathers_a_list_after_a_condensed_fact() -> None:
+    """A summary offered first does not stop the list behind it being gathered."""
+    from dataclasses import replace
+
+    summary = replace(source(1, passage_id=1, kind=FactKind.SUMMARY), evidence="")
+    offered = Deal([summary, *_listed(4)], wanted=1, size=2).sample(
+        Shape.SINGLE, condensed=True
+    )
+
+    assert offered is not None
+    assert {100, 101, 102, 103} <= {fact.id for fact in offered.facts}
+
+
+# ── What a follow-up is widened by ─────────────────────────────────────────
+
+
+def test_a_widened_sample_adds_one_fact_by_default() -> None:
+    """One more fact a turn: a thread is followed down a step at a time."""
+    deal = Deal(facts_of(1, "a", count=5), wanted=1, size=1)
+    root = deal.sample()
+    assert root is not None
+
+    assert len(deal.widen(root).facts) == len(root.facts) + 1
+
+
+def test_a_widened_sample_adds_the_fact_closest_to_the_root() -> None:
+    """The next step of the same subject, not the passage's next-ranked claim."""
+    deal = Deal(
+        [
+            source(1, passage_id=1, axis=3, passage_axis=3),
+            source(2, passage_id=1, axis=9, passage_axis=3),
+            source(3, passage_id=1, axis=3, passage_axis=3),
+        ],
+        wanted=1,
+        size=1,
+    )
+    root = deal.sample()
+    assert root is not None and [fact.id for fact in root.facts] == [1]
+
+    assert [fact.id for fact in deal.widen(root).facts] == [1, 3]
+
+
+def test_a_widened_sample_under_a_floor_adds_no_copy_of_the_root() -> None:
+    """A copy of a clause is the closest fact there is, and asks nothing new."""
+    deal = Deal(
+        [
+            source(1, passage_id=1, statement="Card fees are waived for students."),
+            source(2, passage_id=1, statement="Card fees are waived for students!"),
+            source(3, passage_id=1, statement="Card fees are charged monthly."),
+        ],
+        wanted=1,
+        size=1,
+        floor=0.1,
+    )
+    root = deal.sample()
+    assert root is not None and [fact.id for fact in root.facts] == [1]
+
+    assert [fact.id for fact in deal.widen(root).facts] == [1, 3]
+
+
+def test_widening_reaches_past_a_passage_the_deal_does_not_hold() -> None:
+    """A bridge resting on another topic's passage still widens on this topic's ones."""
+    from question_generation.models import FactGroup
+
+    deal = Deal(facts_of(1, "a", count=1) + facts_of(2, "a", count=2), wanted=1, size=1)
+    spanning = bridge(
+        resting(50, "z"), resting(2, "a"), fact_id=9, passage_id=1, document="a"
+    )
+
+    wider = deal.widen(FactGroup((spanning,)))
+
+    assert {fact.passage_id for fact in wider.facts} - {1} == {2}
+
+
+# ── How a topic's documents take turns ─────────────────────────────────────
+
+
+def test_the_documents_take_turns_before_any_is_dealt_twice() -> None:
+    """A topic reaches every document before it reaches one twice."""
+    from question_generation.selection import interleaved
+
+    passages = [
+        facts_of(1, "a", count=1),
+        facts_of(2, "a", count=1),
+        facts_of(3, "b", count=1),
+    ]
+
+    order = interleaved(passages)
+
+    assert [passage[0].passage_id for passage in order] == [1, 3, 2]

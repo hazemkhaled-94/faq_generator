@@ -24,6 +24,16 @@ def test_one_document_is_shown_the_way_it_always_was() -> None:
     assert [heading for heading, _ in facts.context] == ["Under: Support\n"]
 
 
+def test_one_document_under_no_heading_gets_no_heading_line() -> None:
+    """A passage the parser found no heading for is shown as its text alone.
+
+    An empty "Under:" line is a heading the writer is told exists.
+    """
+    facts = group(source(1, document="a", passage_id=1, section_path=None))
+
+    assert [heading for heading, _ in facts.context] == [""]
+
+
 def test_two_documents_are_told_apart() -> None:
     """The defect this exists for."""
     facts = group(

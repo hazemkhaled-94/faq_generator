@@ -684,3 +684,507 @@ def test_a_release_written_whole_does_not_warn(caplog) -> None:
 
     assert "drew 2, wrote 2" in caplog.text
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+# ── What a follow-up may spend ─────────────────────────────────────────────
+
+
+def _thread(follow: Row, **quota) -> list[int]:
+    """What a draw of root 1 and its follow-up 2 releases under this quota."""
+    root = Row(1, True, Difficulty.EASY, QuestionType.FACTOID, language="de")
+    wanted = {
+        "size": 2,
+        "unanswerable": 0,
+        "difficulty": {Difficulty.EASY: 2},
+        "types": {QuestionType.FACTOID: 2},
+        "languages": {"de": 2},
+    } | quota
+    return choose([root, follow], Quota(**wanted)).ids
+
+
+@pytest.mark.parametrize(
+    ("follow", "quota"),
+    [
+        (Row(2, True, Difficulty.HARD, QuestionType.FACTOID, 1, "de"), {}),
+        (
+            Row(2, True, Difficulty.HARD, QuestionType.FACTOID, 1, "de"),
+            {"difficulty": {Difficulty.EASY: 2, Difficulty.HARD: 0}},
+        ),
+        (Row(2, True, Difficulty.EASY, QuestionType.REASON, 1, "de"), {}),
+        (Row(2, True, Difficulty.EASY, QuestionType.FACTOID, 1, "el"), {}),
+        (
+            Row(2, True, Difficulty.EASY, QuestionType.FACTOID, 1, "el"),
+            {"languages": {"de": 2, "el": 0}},
+        ),
+        (Row(2, False, Difficulty.EASY, QuestionType.FACTOID, 1, "de"), {}),
+    ],
+    ids=[
+        "band-unweighted",
+        "band-full",
+        "kind-unweighted",
+        "language-unweighted",
+        "language-full",
+        "no-unanswerable-place",
+    ],
+)
+def test_a_follow_up_with_no_place_left_in_a_bucket_ends_the_thread(
+    follow: Row, quota: dict
+) -> None:
+    """The same test a root passes: a release never holds a bucket past its quota."""
+    assert _thread(follow, **quota) == [1]
+
+
+def test_a_follow_up_taking_the_last_place_of_its_language_is_released() -> None:
+    """One place left is a place."""
+    follow = Row(2, True, Difficulty.EASY, QuestionType.FACTOID, 1, "fr")
+
+    assert _thread(follow, languages={"de": 1, "fr": 1}) == [1, 2]
+
+
+def test_a_refused_follow_up_does_not_take_its_sibling_with_it() -> None:
+    """Two follow-ups of one root: the one that fits is still released."""
+    held = [
+        ranked(1),
+        Row(2, True, Difficulty.EASY, QuestionType.REASON, follows_id=1),
+        Row(3, True, Difficulty.EASY, QuestionType.FACTOID, follows_id=1),
+    ]
+    quota = quota_of(2, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0)
+
+    assert choose(held, quota).ids == [1, 3]
+
+
+def test_a_follow_up_twinning_the_thread_does_not_take_its_sibling_with_it() -> None:
+    """A follow-up asking its root's question again is cut, not the root's others."""
+    held = [
+        ranked(1),
+        Row(2, True, Difficulty.EASY, QuestionType.FACTOID, follows_id=1),
+        Row(3, True, Difficulty.EASY, QuestionType.FACTOID, follows_id=1),
+    ]
+    quota = quota_of(3, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0)
+
+    assert choose(held, quota, twins={1: {2}, 2: {1}}).ids == [1, 3]
+
+
+def test_a_root_of_a_band_the_mix_does_not_weigh_is_never_drawn() -> None:
+    """A band switched off is not a band with places to spare."""
+    held = [ranked(1), Row(2, True, Difficulty.HARD, QuestionType.FACTOID)]
+    quota = quota_of(2, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0)
+
+    assert choose(held, quota).ids == [1]
+
+
+def test_a_twin_in_another_cell_ranked_first_is_drawn_in_its_place() -> None:
+    """Of twins 5 and 7 the draw keeps 7, ranked first, though 5's cell leads."""
+    quota = Quota(
+        size=6,
+        unanswerable=1,
+        difficulty={E: 2, M: 4},
+        types={F: 2, R: 4},
+        languages={"de": 3, "en": 3},
+    )
+    held = _rows(
+        (1, True, M, F, "en"),
+        (2, True, E, R, "de"),
+        (3, True, E, F, "de"),
+        (4, True, E, F, "de"),
+        (5, True, M, R, "de"),
+        (6, True, E, F, "de"),
+        (7, True, E, R, "en"),
+        (8, False, M, F, "en"),
+    )
+
+    drawn = set(choose(held, quota, twins={5: {7}, 7: {5}}).ids)
+
+    assert 7 in drawn and 5 not in drawn, drawn
+
+
+# ── What a release reports short ──────────────────────────────────────────
+
+
+def test_a_release_one_place_short_reports_the_one_place() -> None:
+    """One place missing is still missing, in its band, its kind and its answerable count."""
+    release = choose(
+        [ranked(1), ranked(2)],
+        quota_of(3, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0),
+    )
+
+    assert release.short == {
+        Difficulty.EASY: 1,
+        QuestionType.FACTOID: 1,
+        "answerable": 1,
+    }
+
+
+def test_unanswerable_places_left_unfilled_are_not_reported_short() -> None:
+    """The unanswerable share is a ceiling, not a target."""
+    held = [ranked(1), ranked(2), Row(3, False, Difficulty.EASY, QuestionType.FACTOID)]
+    release = choose(
+        held, quota_of(4, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.5)
+    )
+
+    assert release.short == {
+        Difficulty.EASY: 1,
+        QuestionType.FACTOID: 1,
+        "answerable": 1,
+    }
+
+
+def test_two_places_short_of_a_small_quota_is_not_close_enough() -> None:
+    """One place is always forgiven; two of ten at a tenth's tolerance are not."""
+    short = Release(
+        ids=[1],
+        quota=quota_of(
+            20, {Difficulty.EASY: 1, Difficulty.HARD: 1}, {QuestionType.FACTOID: 1}, 0.0
+        ),
+        short={Difficulty.HARD: 2},
+    )
+
+    assert not close_enough(short)
+
+
+def test_answerable_places_short_are_weighed_against_the_answerable_quota() -> None:
+    """Twenty places, ten unanswerable: two answerable short of ten is too many."""
+    short = Release(
+        ids=[1],
+        quota=quota_of(20, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.5),
+        short={"answerable": 2},
+    )
+
+    assert not close_enough(short)
+
+
+# ── What the scan hands back ───────────────────────────────────────────────
+
+
+def test_an_empty_pool_hands_back_an_empty_quota() -> None:
+    """Nothing to draw asks for nothing, in every language it weighs."""
+    release = largest([], BANDS, TYPES, 0.0, languages={"de": 1, "en": 1})
+
+    assert release.quota.size == 0
+    assert release.quota.languages == {"de": 0, "en": 0}
+
+
+def test_a_pool_of_one_question_releases_it() -> None:
+    """The smallest release is one question, not none."""
+    assert largest(
+        [ranked(1)], {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0
+    ).ids == [1]
+
+
+def test_a_language_the_mix_does_not_weigh_leaves_the_rest_drawable() -> None:
+    """A Greek question ranked first is passed over, not the end of the pool."""
+    held = [Row(27, True, Difficulty.EASY, QuestionType.FACTOID, language="el")] + [
+        Row(i, True, Difficulty.EASY, QuestionType.FACTOID, language="de")
+        for i in (6, 33, 36)
+    ]
+
+    release = largest(
+        held, {Difficulty.EASY: 1}, {QuestionType.FACTOID: 1}, 0.0, languages={"de": 1}
+    )
+
+    assert release.ids == [6, 33, 36]
+
+
+E, M = Difficulty.EASY, Difficulty.MEDIUM
+F, R = QuestionType.FACTOID, QuestionType.REASON
+
+
+def _rows(*cells: tuple[int, bool, str, str, str]) -> list[Row]:
+    """Rows given as (id, answerable, band, kind, language)."""
+    return [
+        Row(i, answerable, band, kind, language=lang)
+        for i, answerable, band, kind, lang in cells
+    ]
+
+
+#: Pools each holding a release that meets every quota exactly, beside the quota.
+_FILLABLE = {
+    "bands": (
+        _rows(
+            (1, True, M, R, "de"),
+            (2, False, M, F, "en"),
+            (3, True, M, F, "en"),
+            (4, True, M, R, "de"),
+            (5, False, E, F, "de"),
+            (6, False, E, R, "en"),
+            (7, True, M, R, "en"),
+        ),
+        Quota(3, 1, {E: 1, M: 2}, {F: 1, R: 2}),
+    ),
+    "kinds": (
+        _rows(
+            (1, True, E, R, "en"),
+            (2, True, E, R, "en"),
+            (3, False, M, R, "de"),
+            (4, True, E, F, "en"),
+            (5, True, M, F, "en"),
+            (6, False, E, R, "de"),
+            (7, True, M, R, "de"),
+            (8, False, E, R, "en"),
+            (9, True, M, F, "de"),
+            (10, True, M, F, "de"),
+        ),
+        Quota(4, 0, {E: 2, M: 2}, {F: 3, R: 1}),
+    ),
+    "answerability": (
+        _rows(
+            (1, True, E, R, "de"),
+            (2, True, M, F, "de"),
+            (3, True, E, F, "en"),
+            (4, True, E, F, "de"),
+            (5, True, M, R, "de"),
+            (6, True, E, F, "en"),
+            (7, False, M, R, "de"),
+            (8, True, E, F, "en"),
+            (9, True, E, F, "de"),
+            (10, True, E, F, "en"),
+        ),
+        Quota(4, 1, {E: 2, M: 2}, {F: 3, R: 1}),
+    ),
+    "languages": (
+        _rows(
+            (1, True, E, F, "de"),
+            (2, True, M, F, "de"),
+            (3, True, E, F, "en"),
+            (4, True, M, F, "de"),
+            (5, True, M, R, "de"),
+            (6, True, M, R, "en"),
+            (7, True, E, R, "de"),
+        ),
+        Quota(5, 1, {E: 3, M: 2}, {F: 3, R: 2}, {"de": 3, "en": 2}),
+    ),
+    "one-language-place": (
+        _rows(
+            (1, False, M, F, "en"),
+            (2, True, E, F, "de"),
+            (3, True, E, R, "en"),
+            (4, True, E, F, "en"),
+            (5, True, M, R, "en"),
+            (6, False, M, F, "de"),
+            (7, False, E, R, "en"),
+        ),
+        Quota(4, 1, {E: 2, M: 2}, {F: 2, R: 2}, {"de": 1, "en": 3}),
+    ),
+}
+
+
+@pytest.mark.parametrize("case", list(_FILLABLE))
+def test_a_quota_the_pool_can_fill_is_filled_whole(case: str) -> None:
+    """Largest deficit first, as a share of each bucket's quota.
+
+    Each pool holds a release meeting every quota exactly. A draw weighing
+    the buckets by raw counts, or one of them by a share of the wrong size,
+    takes a cell early that another bucket needed and ends short.
+    """
+    held, quota = _FILLABLE[case]
+
+    release = choose(held, quota)
+
+    assert (release.size, release.short) == (quota.size, {})
+
+
+# ── The scan past `_BY_ONES`, at a size a unit test can hold ────────────────
+
+#: Pools the scan reads with its stride lowered from 100 above 2,000 to a
+#: few above a few, beside the mixes, the unanswerable share and the
+#: tolerance, the stride and where it starts, and the release size it finds.
+_STRIDED = {
+    "steps-back-over-a-stride": (
+        {
+            (E, F, True): 8,
+            (E, R, True): 9,
+            (M, F, True): 9,
+            (M, F, False): 1,
+            (M, R, True): 7,
+            (M, R, False): 3,
+        },
+        {E: 2, M: 2},
+        {F: 3, R: 2},
+        0.1,
+        0.0,
+        (10, 4),
+        33,
+    ),
+    "fills-one-below-a-failure": (
+        {
+            (E, F, True): 2,
+            (E, F, False): 1,
+            (E, R, True): 1,
+            (E, R, False): 2,
+            (M, F, True): 8,
+            (M, F, False): 3,
+            (M, R, True): 5,
+            (M, R, False): 3,
+        },
+        {E: 2, M: 3},
+        {F: 1, R: 1},
+        0.2,
+        0.0,
+        (10, 4),
+        12,
+    ),
+    "loose-tolerance": (
+        {
+            (E, F, True): 6,
+            (E, R, True): 2,
+            (E, R, False): 1,
+            (M, F, True): 2,
+            (M, R, True): 2,
+            (M, R, False): 3,
+        },
+        {E: 3, M: 1},
+        {F: 3, R: 3},
+        0.1,
+        0.3,
+        (6, 2),
+        12,
+    ),
+    "loose-tolerance-wide-stride": (
+        {
+            (E, F, True): 5,
+            (E, F, False): 1,
+            (E, R, True): 7,
+            (E, R, False): 3,
+            (M, R, True): 8,
+            (M, R, False): 2,
+        },
+        {E: 2, M: 3},
+        {F: 2, R: 3},
+        0.1,
+        0.3,
+        (12, 5),
+        17,
+    ),
+    "strided-from-the-threshold": (
+        {
+            (E, F, True): 5,
+            (E, F, False): 2,
+            (E, R, True): 1,
+            (E, R, False): 3,
+            (M, F, True): 1,
+            (M, F, False): 1,
+            (M, R, True): 4,
+            (M, R, False): 1,
+        },
+        {E: 2, M: 3},
+        {F: 3, R: 1},
+        0.0,
+        0.3,
+        (8, 3),
+        4,
+    ),
+}
+
+
+@pytest.mark.parametrize("case", list(_STRIDED))
+def test_the_strided_scan_finds_the_largest_fill_below_the_size_that_failed(
+    monkeypatch, case: str
+) -> None:
+    """The sizes the last stride stepped over are tried from the top.
+
+    The first of them that fills is the release, at the tolerance asked for,
+    so the stride costs at most the sizes it passed over between two that
+    both failed.
+    """
+    from question_generation import balance
+
+    counts, bands, types, unanswerable, tolerance, (by_ones, stride), size = _STRIDED[
+        case
+    ]
+    monkeypatch.setattr(balance, "_BY_ONES", by_ones)
+    monkeypatch.setattr(balance, "_STRIDE", stride)
+
+    release = largest(pool(counts), bands, types, unanswerable, tolerance)
+
+    assert release.size == size
+
+
+def test_the_scan_never_asks_for_more_than_the_pool_holds() -> None:
+    """The largest size tried is the pool's own: a quota past it is one no row can fill."""
+    counts = {
+        (E, F, True): 7,
+        (E, F, False): 2,
+        (E, R, True): 1,
+        (M, F, True): 6,
+        (M, F, False): 1,
+        (M, R, True): 7,
+        (M, R, False): 1,
+    }
+    held = pool(counts)
+
+    release = largest(held, {E: 2, M: 3}, {F: 2, R: 1}, 0.2)
+
+    assert release.quota.size <= len(held)
+
+
+# ── A kind capped at what the pool holds ───────────────────────────────────
+
+C, A = QuestionType.CONDITION, QuestionType.AGGREGATION
+
+
+def test_a_kind_the_pool_holds_none_of_is_given_no_freed_place() -> None:
+    """The places a capped kind gives up go to kinds that have rows for them."""
+    quota = quota_of(
+        6,
+        {E: 1},
+        {F: 4, R: 4, C: 1, A: 5},
+        0.0,
+        supply={F: 1, R: 10, A: 0},
+        tolerance=0.2,
+    )
+
+    assert quota.types[C] == 0
+
+
+def test_every_place_a_capped_kind_frees_is_placed_where_there_is_room() -> None:
+    """Five places, one kind with no rows: the others take all five between them."""
+    quota = quota_of(
+        5, {E: 1}, {F: 1, R: 2, C: 1, A: 3}, 0.0, supply={F: 3, C: 7}, tolerance=0.2
+    )
+
+    assert sum(quota.types.values()) == 5
+    assert quota.types[A] == 0
+
+
+@pytest.mark.parametrize(
+    ("counts", "bands", "types", "unanswerable", "tolerance", "size"),
+    [
+        (
+            {
+                (E, F, False): 4,
+                (E, R, True): 1,
+                (M, F, False): 1,
+                (M, R, True): 3,
+                (M, R, False): 4,
+            },
+            {E: 1, M: 2},
+            {F: 2, R: 2},
+            0.3,
+            0.1,
+            6,
+        ),
+        (
+            {
+                (E, F, True): 6,
+                (E, F, False): 2,
+                (E, R, True): 7,
+                (E, R, False): 1,
+                (M, F, True): 6,
+                (M, F, False): 2,
+                (M, R, True): 8,
+                (M, R, False): 2,
+            },
+            {E: 3, M: 3},
+            {F: 2, R: 3},
+            0.3,
+            0.0,
+            33,
+        ),
+    ],
+    ids=["unanswerable-heavy", "exact-tolerance"],
+)
+def test_the_scan_starts_no_lower_than_the_largest_size_that_fills(
+    counts, bands, types, unanswerable: float, tolerance: float, size: int
+) -> None:
+    """A start bound counting the wrong rows, or at the wrong tolerance, begins under a fill."""
+    assert largest(pool(counts), bands, types, unanswerable, tolerance).size == size
