@@ -29,7 +29,14 @@ from question_generation.balance import (
     quota_of,
     shares,
 )
-from question_generation.gates import BOUNDS, agrees, figures, fitting, restates
+from question_generation.gates import (
+    BOUNDS,
+    adds_up,
+    agrees,
+    figures,
+    fitting,
+    restates,
+)
 from question_generation.models import Categorization, Category, band, criteria_of
 from question_generation.planning import categories
 from question_generation.selection import spread, strided
@@ -488,6 +495,76 @@ def test_a_count_is_the_same_count_in_words_or_digits_and_no_other(
     assert agrees(recovered, _written(n, language, target_in_words), language)
     assert not agrees(recovered, _written(n + 1, language, target_in_words), language)
     assert not agrees(_written(n + 1, language, target_in_words), recovered, language)
+
+
+# ── A total, whatever marks its terms are written with ───────────────────
+
+#: Each language's thousands and decimal marks, and a fee line of a bank, a
+#: shop and an office stating one amount. French and Polish group by a space,
+#: which is one amount beside a currency code; Greek by a full stop.
+_TERMS = {
+    "de": (
+        (".", ","),
+        ("Kontoführung: {} EUR.", "Versand: {} EUR.", "Antragsgebühr: {} EUR."),
+    ),
+    "en": (
+        (",", "."),
+        ("Account fee: {} EUR.", "Shipping: {} EUR.", "Application fee: {} EUR."),
+    ),
+    "fr": (
+        (" ", ","),
+        (
+            "Tenue de compte : {} EUR.",
+            "Livraison : {} EUR.",
+            "Frais de dossier : {} EUR.",
+        ),
+    ),
+    "pl": (
+        (" ", ","),
+        (
+            "Prowadzenie konta: {} EUR.",
+            "Wysyłka: {} EUR.",
+            "Opłata za wniosek: {} EUR.",
+        ),
+    ),
+    "el": (
+        (".", ","),
+        ("Τήρηση λογαριασμού: {} EUR.", "Αποστολή: {} EUR.", "Τέλος αίτησης: {} EUR."),
+    ),
+}
+
+
+def _marked(cents: int, marks: tuple[str, str]) -> str:
+    """An amount in cents with a thousands mark (none if empty) and a decimal mark."""
+    whole, part = divmod(cents, 100)
+    return f"{whole:,}".replace(",", marks[0]) + f"{marks[1]}{part:02d}"
+
+
+@pytest.mark.nlp
+@given(
+    language=st.sampled_from(sorted(_TERMS)),
+    terms=st.lists(st.integers(100_000, 24_999_999), min_size=2, max_size=4),
+    grouped=st.booleans(),
+)
+def test_a_total_of_amounts_written_with_their_marks_adds_up_and_a_cent_more_does_not(
+    language, terms, grouped
+) -> None:
+    """`1.250,00 EUR` and `2.400,50 EUR` come to `3650,50`, and never to `3650,51`.
+
+    The total is written with or without its thousands marks, so the reading
+    of the terms, not the spelling of the sum, decides. Under a million: a
+    longer run of space-grouped digits is `AMOUNT_WORDS`' shortcut.
+    """
+    marks, lines = _TERMS[language]
+    passages = [
+        lines[at % 3].format(_marked(one, marks)) for at, one in enumerate(terms)
+    ]
+    spelled = marks if grouped else ("", marks[1])
+    total = sum(terms)
+
+    assert adds_up(f"{_marked(total, spelled)} EUR", passages, language), passages
+    # More than every term together: no combination of them can reach it.
+    assert not adds_up(f"{_marked(total + 1, spelled)} EUR", passages, language)
 
 
 # ── Dealing the paper's categories ───────────────────────────────────────
