@@ -195,7 +195,7 @@ def test_every_word_of_the_body_reaches_a_passage(drawn, budget) -> None:
                 assert word in held, (word, item.text)
 
 
-# ── A list's depth, wherever the page sets it ─────────────────────────────
+# ── A list's depth and a heading's number, wherever the page sets them ────
 
 #: One rule a list item states, by language: a bank's, a shop's, an office's.
 ITEMS = {
@@ -312,3 +312,77 @@ def test_a_list_going_on_over_a_page_keeps_each_items_depth(case, margin, turn) 
     assert [len(line) - len(line.lstrip()) for line in lines] == [
         4 * depth for depth in depths
     ], (lines, at)
+
+
+#: A numbered heading of each language, as a label, a number and its words.
+HEADINGS = {
+    "de": ("Artikel", "Haftung des Kontoinhabers bei Missbrauch der Karte"),
+    "en": ("Article", "Liability of the account holder for misuse of the card"),
+    "fr": ("Article", "Responsabilité du titulaire en cas d'abus de la carte"),
+    "pl": ("Artykuł", "Odpowiedzialność posiadacza rachunku za użycie karty"),
+    "el": ("Άρθρο", "Ευθύνη του δικαιούχου για κατάχρηση της κάρτας"),
+}
+
+#: The paragraph each heading is over.
+BODIES = {
+    "de": "Die Bank haftet nicht für Schäden durch eine verschuldete Weitergabe.",
+    "en": "The bank is not liable for losses caused by the customer passing on a code.",
+    "fr": "La banque ne répond pas des pertes dues à la transmission d'un code.",
+    "pl": "Bank nie odpowiada za szkody wynikłe z przekazania kodu przez klienta.",
+    "el": "Η τράπεζα δεν ευθύνεται για ζημίες από τη μετάδοση κωδικού.",
+}
+
+
+@st.composite
+def justified(draw) -> tuple[str, str, list[tuple[str, float, float]]]:
+    """A language, its whole heading, and the heading cut into fragments set side by side on one line.
+
+    A justified line's gaps: wider than a space, narrower than eight line heights.
+    """
+    language = draw(st.sampled_from(sorted(HEADINGS)))
+    label, rest = HEADINGS[language]
+    number = ".".join(
+        map(str, draw(st.lists(st.integers(1, 19), min_size=1, max_size=3)))
+    )
+    words = [f"{label} {number}", *rest.split()]
+    cuts = sorted(draw(st.sets(st.integers(1, len(words) - 1), min_size=1, max_size=4)))
+    pieces = [
+        " ".join(words[a:b])
+        for a, b in zip([0, *cuts], [*cuts, len(words)], strict=True)
+    ]
+    placed, left = [], 30.0
+    for piece in pieces:
+        placed.append((piece, left, 100.0))
+        left += 4 * len(piece) + draw(st.floats(3, 40))
+    return language, " ".join(words), placed
+
+
+@given(case=justified())
+def test_a_numbered_heading_cut_into_fragments_on_its_line_heads_its_passage_whole(
+    case,
+) -> None:
+    """The trail holds the heading whole, label and number first, however the converter cut it."""
+    language, whole, placed = case
+    document = DoclingDocument(name="terms")
+    document.add_page(page_no=1, size=Size(width=595, height=842))
+    for text, left, top in placed:
+        document.add_heading(
+            text=text,
+            level=2,
+            prov=ProvenanceItem(
+                page_no=1,
+                bbox=BoundingBox(
+                    l=left,
+                    t=top,
+                    r=left + 4 * len(text),
+                    b=top + 12,
+                    coord_origin=CoordOrigin.TOPLEFT,
+                ),
+                charspan=(0, 1),
+            ),
+        )
+    document.add_text(label=DocItemLabel.TEXT, text=BODIES[language], prov=on(1, 300))
+
+    _, chunks = chunks_of(document, word_chunker(80), language)
+
+    assert [chunk.meta.headings for chunk in chunks] == [[whole]], placed
