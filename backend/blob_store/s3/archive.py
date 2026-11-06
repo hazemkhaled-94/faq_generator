@@ -9,6 +9,17 @@ from blob_store import store
 from blob_store.s3.bucket import Bucket
 from blob_store.store import bucket_name
 
+#: How a copy's key says when it was taken.
+_STAMP = "%Y%m%dT%H%M%S.%fZ"
+
+
+def _stamp(suffix: str) -> datetime | None:
+    """When a copy was taken, read from the `@stamp` of its key, or None."""
+    try:
+        return datetime.strptime(suffix.removeprefix("@"), _STAMP).replace(tzinfo=UTC)
+    except ValueError:
+        return None
+
 
 class ArchiveBucket(Bucket):
     """What a deletion took out of another bucket, until somebody purges it.
@@ -49,7 +60,7 @@ class ArchiveBucket(Bucket):
                 such key".
         """
         objects = store.object_store()
-        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
+        stamp = datetime.now(UTC).strftime(_STAMP)
         target = self.scoped(f"{self.key_for(origin, key)}@{stamp}")
         # The database's own object is moved. A bare key from before keys were
         # prefixed is only copied, because another database may be reading it,
@@ -65,15 +76,21 @@ class ArchiveBucket(Bucket):
             return True
         return False
 
-    def give_back(self, origin: str, key: str) -> bool:
+    def give_back(self, origin: str, key: str, near: datetime | None = None) -> bool:
         """Copies an archived object back into `origin`, unless one is there.
 
-        The newest copy, by when the store wrote it and then by its stamp.
+        The newest copy, by when the store wrote it and then by its stamp, which
+        is what a rollback of a failed delete wants. With `near`, the copy
+        stamped nearest that time, which is what a restore of a chosen deletion
+        wants: a later deletion of the same key archived a later copy. A copy
+        taken before copies were stamped is chosen only where none is stamped.
         The archived copies stay.
 
         Args:
             origin: The bucket the object was taken from.
             key: Its key there.
+            near: When the deletion to put back archived it, or None for the
+                newest copy.
 
         Returns:
             Whether `origin` holds the object now.
@@ -93,8 +110,18 @@ class ArchiveBucket(Bucket):
         ]
         if not copies:
             return False
-        newest = max(copies, key=lambda entry: (entry.modified, entry.key))
-        return objects.copy(self.name, newest.key, origin, self.scoped(key))
+        chosen = max(copies, key=lambda entry: (entry.modified, entry.key))
+        if near is not None:
+            stamped = [
+                (taken, entry)
+                for entry in copies
+                if (taken := _stamp(entry.key.removeprefix(prefix))) is not None
+            ]
+            if stamped:
+                chosen = min(stamped, key=lambda one: (abs(one[0] - near), one[1].key))[
+                    1
+                ]
+        return objects.copy(self.name, chosen.key, origin, self.scoped(key))
 
     def held(self, *, before: datetime | None = None) -> list[tuple[str, int]]:
         """Lists what the database's part of the archive holds, as (key, bytes).

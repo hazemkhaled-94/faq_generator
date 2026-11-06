@@ -67,9 +67,8 @@ resumes on the recorded database and keeps its spend. `RESET=1` starts afresh.
 
 Targets read `configs/env/backend.env`, `configs/env/deployment.env`,
 `configs/env/provider.env` then `.env`, and a later file wins. The review and
-evaluation targets and `dagster-dev` also read `review.env`, `evaluation.env`
-or `orchestration.env`. The api and the workers take only `backend.env` whole,
-plus `provider.env` where they call a model. compose reads `deployment.env`
+evaluation targets also read `review.env` or `evaluation.env`. The api and
+the workers take only `backend.env` whole, plus `provider.env` where they call a model. compose reads `deployment.env`
 and `.env` only for the values `compose.yaml` names.
 
 `.env` is `ENV_FILE`: `make up ENV_FILE=/etc/qa/secrets.env`, or export it
@@ -577,7 +576,6 @@ doing** dashboard or Phoenix.
 | `make pipeline` | Every stage but the topic fit once, as a recorded Dagster run |
 | `make auto` | Start the `arrivals` sensor: an upload starts a run on its own. Ships stopped |
 | `make manual` | Stop it again |
-| `make dagster-dev` | Run the code location on the host |
 
 `pipeline` runs the stages of `make corpus` in the container workers. It skips
 the bridge pass (`make extract-bridge MISSING=1`) and the release draw, and

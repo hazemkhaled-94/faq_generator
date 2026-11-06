@@ -4,8 +4,7 @@
 # dagster.yaml is.
 #
 # One location. `orchestration` is a top-level package beside `telemetry`,
-# on PYTHONPATH in the image and at the repository root for
-# `make dagster-dev`, so the same line serves both.
+# on PYTHONPATH in the image.
 #
 # python_module rather than python_package: the project is not installed
 # (package-mode = false in pyproject.toml), so there is no distribution for

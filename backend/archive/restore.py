@@ -378,36 +378,42 @@ def _defaults(connection: Connection, table: str, chosen: list[datetime]) -> str
 def _objects(connection: Connection, chosen: list[datetime]) -> list[tuple[str, str]]:
     """Copies back the objects of the documents and topics the chosen deletions took.
 
+    Each comes from the copy its own deletion archived: when a later deletion
+    archived the same key too, the copy nearest the latest chosen one.
+
     Returns:
         The (bucket, key) of each object in neither its bucket nor the archive.
     """
-    wanted = []
-    for sha256, mime_type in connection.execute(
+    wanted: dict[tuple[str, str], datetime] = {}
+
+    def want(bucket: str, key: str, at: datetime) -> None:
+        wanted[bucket, key] = max(at, wanted.get((bucket, key), at))
+
+    for sha256, mime_type, at in connection.execute(
         text(
-            "SELECT DISTINCT payload->>'sha256', payload->>'mime_type' "
-            "FROM archived_rows a WHERE table_name = 'documents' AND " + _CHOSEN
+            "SELECT payload->>'sha256', payload->>'mime_type', max(a.archived_at) "
+            "FROM archived_rows a WHERE table_name = 'documents' AND " + _CHOSEN + " "
+            "GROUP BY 1, 2"
         ),
         {"chosen": chosen},
     ):
-        wanted += [
-            (DocumentsBucket.name, DocumentsBucket.key_for(sha256, mime_type)),
-            (ParsedBucket.name, ParsedBucket.key_for(sha256)),
-        ]
-    for language in connection.execute(
+        want(DocumentsBucket.name, DocumentsBucket.key_for(sha256, mime_type), at)
+        want(ParsedBucket.name, ParsedBucket.key_for(sha256), at)
+    for language, at in connection.execute(
         text(
-            "SELECT DISTINCT payload->>'language' FROM archived_rows a "
+            "SELECT payload->>'language', max(a.archived_at) FROM archived_rows a "
             "WHERE table_name = 'topics' AND " + _CHOSEN + " "
-            "AND payload->>'topic_index' IS NOT NULL"
+            "AND payload->>'topic_index' IS NOT NULL GROUP BY 1"
         ),
         {"chosen": chosen},
-    ).scalars():
-        wanted += [
-            (ExportBucket.name, ExportBucket.topic_visualisation_key(language)),
-            (ModelsBucket.name, ModelsBucket.topic_model_key(language)),
-        ]
+    ):
+        want(ExportBucket.name, ExportBucket.topic_visualisation_key(language), at)
+        want(ModelsBucket.name, ModelsBucket.topic_model_key(language), at)
     archive = ArchiveBucket()
     return [
-        (bucket, key) for bucket, key in wanted if not archive.give_back(bucket, key)
+        (bucket, key)
+        for (bucket, key), at in wanted.items()
+        if not archive.give_back(bucket, key, near=at)
     ]
 
 

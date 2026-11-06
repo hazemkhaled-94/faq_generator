@@ -64,7 +64,7 @@ JSON object per line in a file that reaches Elasticsearch.
 ```
 api, 6 workers, streamlit, dagster  ──▶  logs volume  ─┐
                                                        ├─▶  filebeat  ──▶  elasticsearch  ──▶  grafana
-a make target, dagster dev, by hand  ──▶  ./logs  ─────┘
+a make target, by hand  ──▶  ./logs  ─────────────────┘
 ```
 
 Every level from `LOG_LEVEL` upwards is shipped. An exception is written

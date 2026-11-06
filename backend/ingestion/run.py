@@ -74,7 +74,15 @@ def _add(folder: Path, service) -> int:
     for path in sorted(folder.iterdir()):
         if not (path.is_file() and path.suffix.lower() == ".pdf"):
             continue
-        result = service.ingest(UploadedFile(path.name, path.read_bytes()))
+        # A file past the limit is refused on its size, unread. One within it
+        # is read to at most one byte past, in case it grew since the stat.
+        size = path.stat().st_size
+        if size > service.max_file_size_bytes:
+            result = service.refuse_oversized(path.name, size)
+        else:
+            with path.open("rb") as handle:
+                data = handle.read(service.max_file_size_bytes + 1)
+            result = service.ingest(UploadedFile(path.name, data))
         outcomes[result.outcome] += 1
         log.info(
             "%s: %s%s",

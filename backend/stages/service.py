@@ -19,7 +19,7 @@ from opentelemetry.trace import Span
 
 from llm.config import spend_cap
 from llm.tally import spent_usd
-from stages.queue import StageQueue
+from stages.queue import Lost, StageQueue
 from telemetry.evaluations import current_ids
 
 log = logging.getLogger(__name__)
@@ -222,7 +222,11 @@ class StageService(ABC):
         said so. A `standing` stop is not lifted by the next drain, which
         would pay for the same rows again: only a new service lifts it.
         """
-        self._repository.release(*keys)
+        for key in keys:
+            try:
+                self._repository.release(key)
+            except Lost as lost:
+                self._lost(key, lost)
         self.stalled = reason
         if standing:
             self._standing = reason
@@ -268,19 +272,54 @@ class StageService(ABC):
         )
         return True
 
-    def _fail(self, key: Any, error: str, current: Span, outage: bool = False) -> None:
+    def _fail(
+        self,
+        key: Any,
+        error: str,
+        current: Span,
+        outage: bool = False,
+        crash: Callable[[], None] | None = None,
+    ) -> None:
         """Marks a row failed and annotates the span.
 
         `outage` says the model could not be reached for it, which is what a
-        run of rows failing together is counted on.
+        run of rows failing together is counted on. `crash` logs the error the
+        row failed by. Both lines are written once the failure has landed: a
+        row the queue no longer holds logs only what `_lost` says.
         """
         current.set_attribute("stage.name", self.name)
         current.set_attribute("stage.outcome", "failed")
-        log.warning("%s: failed %s %s: %s", self.name, self.unit, key, error)
+
+        def report() -> None:
+            if crash is not None:
+                crash()
+            log.warning("%s: failed %s %s: %s", self.name, self.unit, key, error)
+
         if self._missed(key, outage):
+            report()
             return
-        self._repository.fail(key, error)
+        try:
+            self._repository.fail(key, error)
+        except Lost as lost:
+            self._lost(key, lost)
+            return
+        except Exception:
+            # The row could not be failed (the database went away): the crash
+            # and its trace id are still wanted in the log.
+            report()
+            raise
+        report()
         self.failed += 1
+
+    def _lost(self, key: Any, lost: Lost) -> None:
+        """Lets go of a row a delete or another worker took while it was held.
+
+        The failure has nowhere to be written, and it is not one: the drain
+        takes the next row.
+        """
+        # What the queue says: deleted (`Gone`), or claimed by another worker.
+        log.warning("%s: %s %s: %s", self.name, self.unit, key, lost)
+        self._gone(key)
 
     def _crashed(
         self, key: Any, exc: Exception, current: Span, outage: bool = False
@@ -293,19 +332,23 @@ class StageService(ABC):
         that id, as `api.errors.failed` does for a request.
         """
         trace = current_ids()[0] or uuid.uuid4().hex
-        log.error(
-            "%s: %s %s crashed (trace %s)",
-            self.name,
-            self.unit,
-            key,
-            trace,
-            exc_info=exc,
-        )
+
+        def crash() -> None:
+            log.error(
+                "%s: %s %s crashed (trace %s)",
+                self.name,
+                self.unit,
+                key,
+                trace,
+                exc_info=exc,
+            )
+
         self._fail(
             key,
             f"{type(exc).__name__} (the log holds the rest, trace {trace})",
             current,
             outage,
+            crash,
         )
 
     def _done(self, current: Span) -> None:

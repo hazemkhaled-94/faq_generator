@@ -237,9 +237,9 @@ known_first_party = [
 # DEP002: declared and never imported, and right to be. Everything not on
 # this list that deptry reported has been deleted rather than excused.
 DEP002 = [
-    # A command line and a server, not an import: `dagster dev` reads
-    # orchestration/definitions.py, the webserver serves it, and
-    # dagster-postgres is named in orchestration/requirements.txt as the
+    # A command line and a server, not an import: the webserver, started by
+    # orchestration/serve.py, reads orchestration/definitions.py and serves it,
+    # and dagster-postgres is named in orchestration/requirements.txt as the
     # storage the run reads and writes through its own configuration.
     "dagster-webserver",
     "dagster-dg-cli",

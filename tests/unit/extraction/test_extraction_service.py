@@ -15,6 +15,7 @@ from drivers import Extraction, Vectors, passage, table_passage
 from database.qa_generator import FactKind, Rejection
 from extraction.models import Twin
 from llm.client import ModelRefused, ModelUnavailable
+from stages.queue import Gone
 
 pytestmark = pytest.mark.nlp
 
@@ -293,6 +294,25 @@ def test_a_digest_pass_cut_short_releases_its_row() -> None:
 
     assert run.queue.released == [1]
     assert run.queue.failed == {}
+
+
+def test_an_interrupted_digest_pass_on_a_deleted_row_still_raises_the_interrupt(
+    monkeypatch, caplog
+) -> None:
+    """The release finds the row gone: Ctrl-C stays a KeyboardInterrupt."""
+    run = Extraction(
+        passage(), digest=KeyboardInterrupt(), kinds=BOTH, digests_only=True
+    )
+
+    def gone(*keys: int) -> None:
+        raise Gone("1 was deleted while this worker held it")
+
+    monkeypatch.setattr(run.queue, "release", gone)
+
+    with pytest.raises(KeyboardInterrupt):
+        run.run()
+
+    assert "1 was deleted while this worker held it" in caplog.text
 
 
 def test_an_unexpected_failure_is_named_by_its_type() -> None:

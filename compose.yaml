@@ -236,7 +236,7 @@ x-dagster: &dagster
     DAGSTER_DB_PASSWORD: ${DAGSTER_DB_PASSWORD:?add it to .env; .env.example names every secret}
     DAGSTER_DB_NAME: ${DAGSTER_DB_NAME}
     # The container's view of the database, not the host's. dagster.yaml
-    # reads both through `env:`, so one file serves this and `dagster dev`.
+    # reads both through `env:`.
     DAGSTER_DB_HOST: postgres
     DAGSTER_DB_PORT: 5432
     # The database the corpus job drives, tagged on every run it makes.
@@ -952,7 +952,7 @@ services:
       # managing. `make logs-prune` and `make logs-wipe` delete them.
       - logs:/var/log/qa:ro
       # The same lines from a process that ran on the HOST - a make target,
-      # `dagster dev`, anything by hand. A bind mount rather than the volume
+      # anything by hand. A bind mount rather than the volume
       # above, because a named volume is inside the podman machine on macOS
       # and a host process cannot write to it. Created by `make up`, so the
       # engine does not create it as root and lock the writer out.

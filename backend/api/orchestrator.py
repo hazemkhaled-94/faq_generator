@@ -29,12 +29,14 @@ document against Dagster's own schema.
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 import requests
 
 from settings.env import optional
+from telemetry.evaluations import current_ids
 
 log = logging.getLogger(__name__)
 
@@ -246,8 +248,9 @@ class Dagster:
             Unavailable: If there is no URL, the webserver cannot be reached,
                 or it answered with something that is not a GraphQL body.
             Refused: If the query ran and Dagster reported an error. The
-                message is Dagster's, because it is the one that says which
-                of a job, a sensor or a run it could not find.
+                message names the error's type and a trace id; Dagster's own
+                text, which can carry its database's host and role, is in the
+                log under that id.
         """
         if not self._url:
             raise Unavailable(
@@ -279,9 +282,14 @@ class Dagster:
                 "The orchestrator is unreachable; see the api log."
             ) from unreadable
         if body.get("errors"):
-            raise Refused(
-                "; ".join(error.get("message", "") for error in body["errors"]).strip()
-                or "the orchestrator refused the request"
+            raise _refused(
+                {
+                    "__typename": "GraphQLError",
+                    "message": "; ".join(
+                        error.get("message", "") for error in body["errors"]
+                    ).strip(),
+                },
+                "the orchestrator refused the request",
             )
         return body.get("data") or {}
 
@@ -355,7 +363,7 @@ class Dagster:
         )
         answer = data.get("launchRun") or {}
         if answer.get("__typename") != "LaunchRunSuccess":
-            raise Refused(_why(answer, f"the orchestrator would not start {JOB}"))
+            raise _refused(answer, f"the orchestrator would not start {JOB}")
         launched = answer["run"]
         log.info("pipeline: run %s of %s launched", launched["runId"], JOB)
         return _run(launched)
@@ -381,7 +389,7 @@ class Dagster:
             data = self._query(_TERMINATE, runId=run_id, policy=policy)
             answer = data.get("terminateRuns") or {}
             if answer.get("__typename") != "TerminateRunsResult":
-                raise Refused(_why(answer, f"the orchestrator would not stop {run_id}"))
+                raise _refused(answer, f"the orchestrator would not stop {run_id}")
             one = (answer.get("terminateRunResults") or [{}])[0]
             if one.get("__typename") == "TerminateRunSuccess":
                 log.info("pipeline: run %s terminated", run_id)
@@ -393,7 +401,7 @@ class Dagster:
                 if status == "STARTED" and policy is None:
                     policy = _FORCE
                     continue
-            raise Refused(_why(one, f"the orchestrator would not stop {run_id}"))
+            raise _refused(one, f"the orchestrator would not stop {run_id}")
 
     def _status(self, run_id: str) -> str:
         """The state Dagster holds one run in, or an empty string when it holds none."""
@@ -442,7 +450,7 @@ class Dagster:
         # ways so a union that grows a third shape is refused rather than
         # read as success.
         if "Error" in (result.get("__typename") or "") or result.get("message"):
-            raise Refused(_why(result, f"the orchestrator would not switch {name}"))
+            raise _refused(result, f"the orchestrator would not switch {name}")
         log.info("pipeline: %s %s %s", kind, name, "started" if on else "stopped")
 
 
@@ -461,7 +469,7 @@ def _results(answer: Any) -> list[dict]:
     if not isinstance(answer, dict):
         return []
     if answer.get("__typename") != "Runs":
-        raise Refused(_why(answer, "the orchestrator could not list its runs"))
+        raise _refused(answer, "the orchestrator could not list its runs")
     return answer.get("results") or []
 
 
@@ -496,9 +504,23 @@ def _triggers(repository: dict, *, ids: bool = False) -> dict[str, Any]:
     return found
 
 
-def _why(answer: dict, fallback: str) -> str:
-    """The reason out of whichever error shape Dagster answered with."""
-    return answer.get("message") or answer.get("__typename") or fallback
+def _refused(answer: dict, fallback: str) -> Refused:
+    """The refusal for whichever error shape Dagster answered with.
+
+    Dagster's text is the exception its storage raised, which names the
+    database's host, address and role, and both reads of the api carry a
+    refusal. It goes to the log under a trace id; the answer is a fixed
+    sentence with the error's type and that id, as `api.errors.failed` does.
+    """
+    kind = answer.get("__typename") or "unknown"
+    trace = current_ids()[0] or uuid.uuid4().hex
+    log.error(
+        "orchestrator refused (%s, trace %s): %s",
+        kind,
+        trace,
+        answer.get("message") or fallback,
+    )
+    return Refused(f"{fallback} ({kind}); the api log holds why, trace {trace}")
 
 
 #: What a run is read back as, everywhere one is.
@@ -549,7 +571,7 @@ query Triggers($repositoryName: String!, $repositoryLocationName: String!) {{
 
 #: Only the failure branches that carry a `message` are asked for one:
 #: `RunConfigValidationInvalid` and `InvalidSubsetError` do not have the
-#: field, and asking anyway is a query the server rejects outright. `_why`
+#: field, and asking anyway is a query the server rejects outright. `_refused`
 #: falls back to the `__typename`, which names those well enough.
 _LAUNCH = f"""
 mutation Launch($params: ExecutionParams!) {{

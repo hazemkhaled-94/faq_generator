@@ -17,6 +17,7 @@ from opentelemetry import trace
 
 from llm.client import ModelRefused, ModelUnavailable
 from stages.cli import FAILED, STOPPED, exit_code
+from stages.queue import Gone, Lost
 from stages.service import STOP_AFTER, StageService, is_outage
 
 
@@ -117,6 +118,110 @@ def test_a_model_that_fails_from_one_row_on_stops_the_drain() -> None:
     assert stage.rows.released == held
     assert stage.rows.pending == list(range(11, 41)), "all pending again"
     assert exit_code(stage) == STOPPED == 75
+
+
+class Vanishing(Rows):
+    """Rows whose row 3 was deleted, or claimed elsewhere, while it was held."""
+
+    def __init__(self, count: int, error: Lost, refuses: str = "fail") -> None:
+        """Queues the rows; `refuses` names the write to row 3 that meets `error`."""
+        super().__init__(count)
+        self._error = error
+        self._refuses = refuses
+
+    def fail(self, key: int, error: str) -> None:
+        """Refuses row 3 as the queue does for a row it no longer holds."""
+        if key == 3 and self._refuses == "fail":
+            raise self._error
+        super().fail(key, error)
+
+    def release(self, *keys: int) -> None:
+        """Refuses row 3 as `fail` does."""
+        if 3 in keys and self._refuses == "release":
+            raise self._error
+        super().release(*keys)
+
+
+@pytest.mark.parametrize("error", [Gone("3 was deleted"), Lost("3 was claimed")])
+def test_a_row_deleted_while_it_fails_is_logged_and_not_counted(
+    error: Lost, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The queue has nothing to record the failure on; the drain takes the next."""
+    stage = Stage(Vanishing(6, error), {3: ValueError("nonsense")})
+
+    with caplog.at_level("WARNING"):
+        assert stage.drain() == 6
+
+    assert stage.failed == 0 and exit_code(stage) == 0
+    assert [r.getMessage() for r in caplog.records if str(error) in r.getMessage()]
+
+
+@pytest.mark.parametrize("error", [Gone("3 was deleted"), Lost("3 was claimed")])
+def test_a_stop_gives_back_the_rest_when_one_held_row_is_gone(
+    error: Lost, caplog: pytest.LogCaptureFixture
+) -> None:
+    """One row deleted under the stop must not keep the others from the queue."""
+    stage = Stage(Vanishing(40, error, "release"), down_from(1))
+
+    with caplog.at_level("WARNING"):
+        stage.drain()
+
+    assert stage.stalled, "the drain still stops"
+    held = range(1, 1 + STOP_AFTER)
+    assert 3 in held, "the gone row is one the stop gives back"
+    assert stage.rows.released == [key for key in held if key != 3]
+    assert [r for r in caplog.records if str(error) in r.getMessage()]
+    assert exit_code(stage) == STOPPED
+
+
+class Crashing(Stage):
+    """A stage whose rows all end in an error nobody planned for."""
+
+    def process_next(self) -> Any | None:
+        """Crashes on the next row."""
+        key = self.rows.claim()
+        if key is None:
+            return None
+        self._crashed(key, ValueError("secret"), trace.get_current_span())
+        return key
+
+
+@pytest.mark.parametrize("error", [Gone("3 was deleted"), Lost("3 was claimed")])
+def test_a_crash_on_a_lost_row_logs_only_the_lost_warning(
+    error: Lost, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The crash and the failed line are written once the failure has landed."""
+    stage = Crashing(Vanishing(4, error), {})
+
+    with caplog.at_level("WARNING"):
+        stage.drain()
+
+    lines = [r.getMessage() for r in caplog.records]
+    about_three = [one for one in lines if "row 3" in one]
+    assert about_three == [f"stub: row 3: {error}"]
+    assert stage.failed == 3
+
+
+class Unreachable(Rows):
+    """Rows whose queue cannot record a failure: the database went away."""
+
+    def fail(self, key: int, error: str) -> None:
+        """Raises what a lost connection raises."""
+        raise ConnectionError("connection refused")
+
+
+def test_a_crash_the_queue_cannot_record_is_still_logged_with_its_trace(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Only a lost row skips the lines; any other error writes them and goes on up."""
+    stage = Crashing(Unreachable(2), {})
+
+    with caplog.at_level("WARNING"), pytest.raises(ConnectionError):
+        stage.drain()
+
+    lines = [r.getMessage() for r in caplog.records]
+    assert any("row 1 crashed (trace " in one for one in lines), lines
+    assert any("failed row 1: ValueError" in one for one in lines), lines
 
 
 def test_one_failed_row_among_good_ones_exits_3() -> None:

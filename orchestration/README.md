@@ -111,8 +111,6 @@ own requests and the API's calls by service name still run.
 
 ```bash
 make logs-orchestration   # follow the webserver and the daemon
-make dagster-dev          # the code location on the host, against the
-                          #   containerised PostgreSQL and API
 ```
 
 ## Configuration
