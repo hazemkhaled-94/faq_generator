@@ -368,3 +368,139 @@ def test_opening_hours_with_their_minutes_re_paired_are_refused(case) -> None:
     judged = _citing_all(cited, language, re_paired)
 
     assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, (cited, re_paired)
+
+
+# ── Two statements, one figure, read apart by its unit or its month ──────
+
+#: A statement of each domain counting a period or a measure, by configured
+#: language: `{}` is the figure and its unit. The units are the inflected
+#: forms a writer puts after a count above one.
+_PERIODS = {
+    "de": (
+        "Die Kündigungsfrist für das Girokonto beträgt {}.",
+        "Die Rücksendung ist innerhalb von {} möglich.",
+        "Das Amt bearbeitet den Antrag binnen {}.",
+    ),
+    "en": (
+        "The notice period for the current account is {}.",
+        "Returns are accepted within {}.",
+        "The office decides on the application within {}.",
+    ),
+}
+#: The same in French, Polish and Greek, which no `NLP_MODELS` row names and
+#: whose units the default parse may not tag as one: there a unit tells
+#: nothing, and only the figures read apart.
+_MEASURED = {
+    "fr": ("Le colis pèse au plus {}.", "La carte mesure {} de large."),
+    "pl": ("Paczka waży najwyżej {}.", "Karta ma szerokość {}."),
+    "el": ("Το δέμα ζυγίζει έως {}.", "Η κάρτα έχει πλάτος {}."),
+}
+_PERIOD_UNITS = {
+    "de": ("Stunden", "Tage", "Wochen", "Monate", "Jahre"),
+    "en": ("hours", "days", "weeks", "months", "years"),
+}
+_MEASURE_UNITS = ("g", "kg", "mm", "cm", "m", "km", "ml", "l")
+
+
+@st.composite
+def _twin_units(draw):
+    """A language, a sentence, a count, and two different units of one closed set."""
+    language = draw(st.sampled_from(sorted(_PERIODS)))
+    units = draw(st.sampled_from([_PERIOD_UNITS[language], _MEASURE_UNITS]))
+    first, second = draw(st.permutations(units))[:2]
+    return (
+        language,
+        draw(st.sampled_from(_PERIODS[language])),
+        draw(st.integers(2, 500)),
+        first,
+        second,
+    )
+
+
+@given(case=_twin_units())
+@pytest.mark.nlp
+def test_one_figure_beside_two_units_of_time_or_measure_names_two_values(
+    case,
+) -> None:
+    """`14 Tage` and `14 Wochen`, `5 kg` and `5 g`, are two facts however alike their words."""
+    from extraction.service import _counted_alike
+
+    language, frame, count, unit, other = case
+    statement, twin = frame.format(f"{count} {unit}"), frame.format(f"{count} {other}")
+
+    assert not _counted_alike(statement, twin, language), (statement, twin)
+    assert not _counted_alike(twin, statement, language), (twin, statement)
+
+
+@given(case=_twin_units())
+@pytest.mark.nlp
+def test_one_figure_beside_one_unit_names_one_value(case) -> None:
+    """The guard above refuses nothing it should keep: a statement is counted alike with itself."""
+    from extraction.service import _counted_alike
+
+    language, frame, count, unit, _ = case
+    statement = frame.format(f"{count} {unit}")
+
+    assert _counted_alike(statement, statement, language), statement
+
+
+@given(
+    language=st.sampled_from(sorted(_MEASURED)),
+    frame=st.integers(0, 1),
+    counts=st.permutations(range(1, 200)),
+    unit=st.sampled_from(_MEASURE_UNITS),
+)
+@pytest.mark.nlp
+def test_two_counts_in_a_language_with_no_pipeline_name_two_values(
+    language, frame, counts, unit
+) -> None:
+    """Inert, not misread: `2 kg` and `3 kg` stay two in French, Polish and Greek."""
+    from extraction.service import _counted_alike
+
+    written = _MEASURED[language][frame]
+    statement = written.format(f"{counts[0]} {unit}")
+    twin = written.format(f"{counts[1]} {unit}")
+
+    assert not _counted_alike(statement, twin, language), (statement, twin)
+    assert _counted_alike(statement, statement, language), statement
+
+
+#: A statement of each domain naming a day of a month, by configured language.
+_DAYS = {
+    "de": (
+        "Die neuen Gebühren gelten ab dem {}. {}.",
+        "Der Schlussverkauf beginnt am {}. {}.",
+        "Anträge sind bis zum {}. {} einzureichen.",
+    ),
+    "en": (
+        "The new fees apply from {} {}.",
+        "The sale starts on {} {}.",
+        "Applications are due by {} {}.",
+    ),
+}
+_MONTHS = {
+    "de": "Januar Februar März April Mai Juni Juli August September Oktober November Dezember",
+    "en": "January February March April May June July August September October November December",
+}
+
+
+@given(
+    language=st.sampled_from(sorted(_DAYS)),
+    frame=st.integers(0, 2),
+    day=st.integers(1, 28),
+    months=st.permutations(range(12)),
+)
+@pytest.mark.nlp
+def test_one_day_of_two_different_months_names_two_dates(
+    language, frame, day, months
+) -> None:
+    """`ab dem 1. Januar` and `ab dem 1. Juli` are two facts; `1. Januar` twice is one."""
+    from extraction.service import _counted_alike
+
+    names = _MONTHS[language].split()
+    written = _DAYS[language][frame]
+    statement = written.format(day, names[months[0]])
+    twin = written.format(day, names[months[1]])
+
+    assert not _counted_alike(statement, twin, language), (statement, twin)
+    assert _counted_alike(statement, statement, language), statement
