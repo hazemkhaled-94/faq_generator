@@ -16,6 +16,7 @@ from question_generation.gates import (
     explains,
     fitting,
     periods,
+    recalled,
     relabelled,
     structural,
 )
@@ -721,3 +722,76 @@ def test_qa_questions_3_an_ordinal_past_twelve_agrees_with_its_figure(
 def test_qa_questions_3_an_ordinal_past_twelve_does_not_agree_with_its_cardinal():
     """`thirteenth` is the ordinal, never the count 13."""
     assert not agrees("It applies from the thirteenth month.", "13 months", "en")
+
+
+# N-145: a German key's lower-case unit, read beside its figure in a sentence that capitalises its nouns.
+_STATES_THE_UNIT = [
+    ("Die Breite des Schalters beträgt 80 cm.", "80 cm", "de"),
+    ("Das Paket darf höchstens 30 kg wiegen.", "30 kg", "de"),
+    ("Die Glasplatte des Tresens ist 5 mm dick.", "5 mm", "de"),
+    ("Die Lieferung ist im Umkreis von 10 km kostenlos.", "10 km", "de"),
+    ("Das Regal ist 110 cm hoch.", "110 cm", "de"),
+    ("Die Flasche fasst 750 ml.", "750 ml", "de"),
+    ("Die Ladenfläche beträgt 20 m².", "20 m²", "de"),
+    ("Die Beratung am Schalter dauert 15 min.", "15 min", "de"),
+    ("Der Weg zum Bürgeramt ist 3 km lang.", "3 km", "de"),
+    (
+        "Die Regale stehen im Abstand von jeweils 5,5 m (6 yds) zur Wand.",
+        "jeweils 5,5 m (6 yds)",
+        "de",
+    ),
+    ("Das Passfoto darf höchstens 7,5 cm hoch sein.", "höchstens 7,5 cm", "de"),
+    ("Die Versicherung gilt für Pakete bis 30 kg.", "Pakete bis 30 kg", "de"),
+    ("Das Kabel ist 110 m lang.", "110 m", "de"),
+    ("Die Kündigungsfrist beträgt drei Monate.", "3 Monate", "de"),
+    ("The counter is 80 cm wide.", "80 cm", "en"),
+    ("The parcel may weigh at most 30 kg.", "30 kg", "en"),
+    ("The shelf is 110 cm high.", "110 cm", "en"),
+    ("La largeur du guichet est de 80 cm.", "80 cm", "fr"),
+    ("Szerokość okienka wynosi 80 cm.", "80 cm", "pl"),
+    ("Το πλάτος του γκισέ είναι 80 cm.", "80 cm", "el"),
+    ("Το βάρος του δέματος είναι 30 kg.", "30 kg", "el"),
+]
+
+
+@pytest.mark.parametrize(("recovered", "key", "language"), _STATES_THE_UNIT)
+def test_n145_a_unit_beside_its_figure_agrees(recovered, key, language):
+    """`80 cm` agrees with `Die Breite beträgt 80 cm.`, as it does in English."""
+    assert agrees(recovered, key, language, AnswerForm.VALUE)
+
+
+@pytest.mark.parametrize(("recovered", "key", "language"), _STATES_THE_UNIT)
+def test_n145_the_recall_reading_says_what_the_verdict_says(recovered, key, language):
+    """The recorded recall of a key that came back whole is no shortfall."""
+    assert recalled(recovered, key, language, AnswerForm.VALUE) in (None, 1.0)
+
+
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        # Another unit beside the same figure.
+        ("Die Breite des Schalters beträgt 80 mm.", "80 cm", "de"),
+        ("Das Paket darf höchstens 30 g wiegen.", "30 kg", "de"),
+        ("Das Paket darf höchstens 30 kg wiegen.", "30 g", "de"),
+        ("Die Lieferung ist im Umkreis von 10 m kostenlos.", "10 km", "de"),
+        ("Die Versicherung gilt für Pakete bis 30 g.", "Pakete bis 30 kg", "de"),
+        ("The counter is 80 mm wide.", "80 cm", "en"),
+        ("The parcel may weigh at most 30 g.", "30 kg", "en"),
+        ("La largeur du guichet est de 80 mm.", "80 cm", "fr"),
+        ("Le colis pèse au maximum 30 g.", "30 kg", "fr"),
+        ("Szerokość okienka wynosi 80 mm.", "80 cm", "pl"),
+        ("Paczka może ważyć maksymalnie 30 g.", "30 kg", "pl"),
+        ("Το πλάτος του γκισέ είναι 80 mm.", "80 cm", "el"),
+        ("Το δέμα ζυγίζει έως 30 g.", "30 kg", "el"),
+        # Another figure with the same unit.
+        ("Die Breite des Schalters beträgt 90 cm.", "80 cm", "de"),
+        ("The counter is 90 cm wide.", "80 cm", "en"),
+        # The key's unit beside another figure only.
+        ("Die Breite beträgt 80 mm, die Höhe 5 cm.", "80 cm", "de"),
+        ("The width is 80 mm and the height 5 cm.", "80 cm", "en"),
+        ("Die Breite beträgt nicht 80 cm, sondern 80 mm.", "80 km", "de"),
+    ],
+)
+def test_n145_another_unit_or_figure_still_disagrees(recovered, key, language):
+    """A unit counts only beside the same figure: `80 mm` is not `80 cm`."""
+    assert not agrees(recovered, key, language, AnswerForm.VALUE)

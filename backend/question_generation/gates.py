@@ -2722,6 +2722,29 @@ def _named(
     return names(_values(question, language)) | headed
 
 
+def _units(
+    text: str, language: str | None
+) -> list[tuple[frozenset[str], frozenset[str]]]:
+    """Each figure of a text, by its readings, with the forms of the word right after it: its unit.
+
+    `content` reads a lower-case noun in a text that capitalises its nouns as
+    a foreign word, so `cm` is no content lemma of `Die Breite beträgt 80 cm.`
+    and is one of the bare key `80 cm`, which capitalises nothing. Read beside
+    its figure it is one unit in both, and `80 mm` is still not `80 cm`.
+    """
+    return [
+        (
+            frozenset().union(
+                *_ends(frozenset({_readings(token.text, language)}), language)
+            ),
+            frozenset({after.lemma_.casefold(), after.lower_, _bare(after.text)}),
+        )
+        for token, after in pairwise(parse(text, language))
+        if any(char.isdigit() for char in token.text)
+        and any(char.isalpha() for char in after.text)
+    ]
+
+
 def _back(
     recovered: str,
     target: str,
@@ -2739,7 +2762,8 @@ def _back(
     where the recovery says no more, see `_says_more`: a key naming the
     heading's `Tagesgeldkonto` that its clause never repeats could not have
     it come back. A lemma comes back under `_BRIDGED` parts of speech too,
-    where no negation denies it.
+    where no negation denies it, and a word written right after a figure comes
+    back where the recovery writes it right after the same figure, see `_units`.
     """
     wanted = _compared(target, language, form)
     if form != AnswerForm.VALUE and question:
@@ -2758,6 +2782,13 @@ def _back(
             for one in (token.lemma_.casefold(), token.text.casefold())
         )
         hit |= (wanted - hit) & bridged
+        said = _units(recovered, language)
+        hit |= (wanted - hit) & frozenset(
+            one
+            for values, forms in _units(target, language)
+            if any(values & other and forms & written for other, written in said)
+            for one in forms
+        )
     return wanted, hit
 
 
