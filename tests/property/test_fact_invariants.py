@@ -15,6 +15,7 @@ from database.qa_generator import FactKind, Rejection
 from extraction.links import linked
 from extraction.models import BULLET, MIN_POINTS, CandidateFact, Cited, Twin
 from extraction.validation import FactChecker
+from nlp.analysis import claim
 
 #: Passages of one topic, as (document, passage id).
 TOPIC = st.lists(
@@ -504,3 +505,63 @@ def test_one_day_of_two_different_months_names_two_dates(
 
     assert not _counted_alike(statement, twin, language), (statement, twin)
     assert _counted_alike(statement, statement, language), statement
+
+
+# ── One claim, whatever figure or reference it holds ─────────────────────
+
+#: A one-claim rule of each domain, by configured language: `{}` is a figure
+#: or a reference.
+_ONE_CLAIM = {
+    "de": (
+        "Die Gebühr für die Ersatzkarte beträgt {}.",
+        "Der Versand kostet {} pro Bestellung.",
+        "Das Amt erhebt für den Antrag {}.",
+    ),
+    "en": (
+        "The fee for a replacement card is {}.",
+        "Shipping costs {} per order.",
+        "The office charges {} for the application.",
+    ),
+}
+_CITED = {
+    "de": ("Gemäß {} gilt die Frist.", ("§ {} Abs. 2", "Artikel {}", "Ziff. {}.1")),
+    "en": (
+        "Under {} the period applies.",
+        ("Article {}(2)", "Section {}.1", "clause {}"),
+    ),
+}
+
+
+@st.composite
+def _one_claims(draw):
+    """A language and a one-claim rule holding an amount, a rate, a period or a reference."""
+    language = draw(st.sampled_from(sorted(_ONE_CLAIM)))
+    thousands, decimal = (".", ",") if language == "de" else (",", ".")
+    whole, cents = draw(st.integers(1, 9_999_999)), draw(st.integers(0, 99))
+    number = draw(st.integers(1, 30))
+    amounts = [
+        f"{whole:,}".replace(",", thousands) + f"{decimal}{cents:02d} EUR",
+        f"{whole}{decimal}{cents:02d} EUR",
+        f"{whole % 100}{decimal}5 %",
+    ]
+    if draw(st.booleans()):
+        frame, written = _CITED[language]
+        return language, frame.format(draw(st.sampled_from(written)).format(number))
+    return language, draw(st.sampled_from(_ONE_CLAIM[language])).format(
+        draw(st.sampled_from(amounts))
+    )
+
+
+@given(case=_one_claims())
+@pytest.mark.nlp
+def test_a_rule_of_one_claim_is_one_claim_whatever_figure_or_reference_it_holds(
+    case,
+) -> None:
+    """`Die Gebühr beträgt 1.234,56 EUR.` makes one claim, as `... 5 EUR.` does.
+
+    In German and English: in a language no `NLP_MODELS` row names the count
+    is the default parse's, which N-146 says is unreliable.
+    """
+    language, text = case
+
+    assert claim(text, language).predicates == 1, text
