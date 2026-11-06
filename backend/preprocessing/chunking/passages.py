@@ -24,7 +24,7 @@ from docling_core.transforms.serializer.markdown import (
     MarkdownTableSerializer,
     MarkdownTextSerializer,
 )
-from docling_core.types.doc.common.reference import RefItem
+from docling_core.types.doc.common.reference import ProvenanceItem, RefItem
 from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.items.group import ListGroup
 from docling_core.types.doc.items.node import DocItem, FloatingItem
@@ -42,10 +42,7 @@ from nlp.windows import reserved
 from preprocessing.chunking.furniture import (
     _PROSE,
     LEAD_IN,
-    _blocks,
-    _column_edge,
     _resolved,
-    _sides,
     furniture_of,
     headed,
     tidied,
@@ -389,6 +386,48 @@ def _lists(document: DoclingDocument) -> list[list[ListItem]]:
             found.append(list(items))
         tail = group
     return found
+
+
+#: The blocks a column's left edge is read off: its paragraphs and list
+#: items. A picture, a table or a heading may be set into the margin or run
+#: across the page, and is no column's edge.
+_COLUMN_BLOCKS = frozenset(
+    {DocItemLabel.TEXT, DocItemLabel.PARAGRAPH, DocItemLabel.LIST_ITEM}
+)
+
+
+def _sides(prov: ProvenanceItem, reverse: bool) -> tuple[float, float]:
+    """Where a block starts and ends across the page, from the right if `reverse`.
+
+    Measured so that a block set in from where its column begins starts
+    further along, whichever way the script runs.
+    """
+    box = prov.bbox
+    return (-box.r, -box.l) if reverse else (box.l, box.r)
+
+
+def _blocks(
+    document: DoclingDocument, reverse: bool = False
+) -> dict[int, list[tuple[float, float, str]]]:
+    """The start, end and reference of every paragraph and list item, by page."""
+    found: dict[int, list[tuple[float, float, str]]] = {}
+    for item, _ in document.iterate_items():
+        if isinstance(item, DocItem) and item.label in _COLUMN_BLOCKS:
+            for prov in item.prov:
+                found.setdefault(prov.page_no, []).append(
+                    (*_sides(prov, reverse), item.self_ref)
+                )
+    return found
+
+
+def _column_edge(
+    page: int, start: float, edges: dict[int, list[tuple[float, float, str]]]
+) -> float:
+    """The start of the column a block starts in, read off its page's blocks."""
+    return min(
+        (first for first, end, _ in edges.get(page, ()) if first <= start < end),
+        default=start,
+    )
 
 
 def _page_edge(
