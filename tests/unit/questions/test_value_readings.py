@@ -958,3 +958,104 @@ def test_n151_an_ordinal_word_past_twelve_agrees_with_its_figure(
     """`seventieth` and `70th` agree both ways, however the tagger tags the word."""
     assert agrees(first, second, language, AnswerForm.VALUE)
     assert agrees(second, first, language, AnswerForm.VALUE)
+
+
+# N-156: a figure in the year band is a year only where it is written as one.
+@pytest.mark.parametrize(
+    ("answer", "passages", "language"),
+    [
+        (
+            "4000,00 EUR",
+            ["Kontoführung: 2.000,00 EUR.", "Versand: 2.000,00 EUR."],
+            "de",
+        ),
+        (
+            "4.000 EUR",
+            ["Das Tageslimit beträgt 1.950 EUR.", "Das Wochenlimit beträgt 2.050 EUR."],
+            "de",
+        ),
+        (
+            "4000 EUR",
+            [
+                "Die Kontoführung kostet 2000 EUR im Jahr.",
+                "Der Versand kostet 2000 EUR.",
+            ],
+            "de",
+        ),
+        (
+            "4000 EUR",
+            [
+                "Seit 2000 kostet die Kontoführung 2000 EUR.",
+                "Der Versand kostet 2000 EUR.",
+            ],
+            "de",
+        ),
+        (
+            "4,000 EUR",
+            ["The daily limit is 2,000 EUR.", "The card limit is 2,000 EUR."],
+            "en",
+        ),
+        (
+            "3,950 customers",
+            [
+                "The branch serves 1,950 customers.",
+                "The office serves 2,000 customers.",
+            ],
+            "en",
+        ),
+        ("EUR 4000", ["The fee is EUR 2000.", "The deposit is EUR 2000."], "en"),
+        (
+            "4 000 EUR",
+            ["Les frais sont de 2 000 EUR.", "Le dépôt est de 2 000 EUR."],
+            "fr",
+        ),
+        ("4 000 PLN", ["Opłata wynosi 2 000 PLN.", "Kaucja wynosi 2 000 PLN."], "pl"),
+        ("4.000 EUR", ["Το όριο είναι 2.000 EUR.", "Η χρέωση είναι 2.000 EUR."], "el"),
+    ],
+)
+def test_n156_a_total_of_amounts_in_the_year_band_adds_up(answer, passages, language):
+    """`2.000,00 EUR` twice is `4000,00 EUR`, and no sum of years."""
+    assert adds_up(answer, passages, language)
+
+
+@pytest.mark.parametrize(
+    ("answer", "passages", "language"),
+    [
+        (
+            "4034",
+            [
+                "Die Satzung wurde 2017 veröffentlicht.",
+                "Die Fassung von 2017 gilt seit März.",
+            ],
+            "de",
+        ),
+        (
+            "4034",
+            [
+                "The rules were published in 2017.",
+                "The version of 2017 applies since March.",
+            ],
+            "en",
+        ),
+        (
+            "4034",
+            [
+                "Le règlement a été publié en 2017.",
+                "La version de 2017 s'applique depuis mars.",
+            ],
+            "fr",
+        ),
+        (
+            "4034",
+            [
+                "Ο κανονισμός δημοσιεύθηκε το 2017.",
+                "Η έκδοση του 2017 ισχύει από τον Μάρτιο.",
+            ],
+            "el",
+        ),
+        ("4000", ["Seit 2000 gilt die Regel.", "Seit 2000 gilt die Gebühr."], "de"),
+    ],
+)
+def test_n156_two_years_added_together_are_still_refused(answer, passages, language):
+    """Two figures written as years come to no quantity, so their sum is refused."""
+    assert adds_up(answer, passages, language) is False

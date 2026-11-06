@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from itertools import combinations, pairwise
 from math import isclose
@@ -50,6 +51,7 @@ from nlp.analysis import (
     figures,
     fraction_value,
     interrogatives,
+    is_currency,
     is_number,
     normalised,
     ordinal,
@@ -3039,7 +3041,13 @@ def adds_up(
         return None
     total = wanted[0]
 
-    stated = [one for text in passages for one in figures(text, language)]
+    stated: list[tuple[float, bool]] = []
+    for text in passages:
+        years = _years(text, language)
+        for one in figures(text, language):
+            stated.append((one, years[one] > 0))
+            if years[one]:
+                years[one] -= 1
     available = stated[:_FIGURE_CAP]
     if len(available) < 2:
         return None
@@ -3047,7 +3055,7 @@ def adds_up(
     # Stated outright is not an aggregation, but it is not wrong arithmetic
     # either; `relabelled` stores a lookup wearing this name as what it is.
     return any(
-        isclose(sum(combination), total, rel_tol=1e-14, abs_tol=1e-9)
+        isclose(sum(one for one, _ in combination), total, rel_tol=1e-14, abs_tol=1e-9)
         and not _summed_years(combination, size)
         for size in range(1, _TERM_CAP + 1)
         for combination in combinations(available, size)
@@ -3089,7 +3097,31 @@ def counts_something_else(
     )
 
 
-def _summed_years(combination: tuple[float, ...], size: int) -> bool:
+#: The shape of a year: four digits and no mark.
+_FOUR_DIGITS = re.compile(r"\d{4}")
+
+
+def _years(text: str, language: str | None) -> Counter[float]:
+    """The figures a passage writes in the shape of a year, by value.
+
+    Four digits with no mark and no currency beside them: `seit 2017` has
+    that shape, and `2.000,00 EUR`, `1,950 customers` and `2000 EUR` are
+    amounts in the year band that do not. A unit word beside the figure is
+    not read, so `2000 kg` keeps the shape: telling a unit apart takes a list
+    of units or a tag, and the English pipeline that reads the unconfigured
+    languages tags a Greek verb after a year as a noun.
+    """
+    found: Counter[float] = Counter()
+    for match in FIGURE.finditer(text):
+        if not _FOUR_DIGITS.fullmatch(match.group()):
+            continue
+        beside = text[: match.start()].split()[-1:] + text[match.end() :].split()[:1]
+        if not any(is_currency(word, language) for word in beside):
+            found[float(match.group())] += 1
+    return found
+
+
+def _summed_years(combination: tuple[tuple[float, bool], ...], size: int) -> bool:
     """Whether a total is two or more years added together.
 
     Refused rather than accepted, because the arithmetic is right and the
@@ -3097,7 +3129,9 @@ def _summed_years(combination: tuple[float, ...], size: int) -> bool:
     come to nothing. This corpus produced `Welche Jahreszahl ergibt sich aus
     dem Veroeffentlichungsjahr ... und der Versionsjahreszahl ...?` answered
     `4034`, which the model checking the arithmetic correctly confirmed.
+
+    Each figure comes with whether it has the shape of a year, see `_years`.
     """
     return size > 1 and all(
-        one.is_integer() and int(one) in _YEAR for one in combination
+        year and one.is_integer() and int(one) in _YEAR for one, year in combination
     )
