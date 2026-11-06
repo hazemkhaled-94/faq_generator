@@ -193,3 +193,122 @@ def test_every_word_of_the_body_reaches_a_passage(drawn, budget) -> None:
         for word in item.text.lower().replace(":", " ").replace(".", " ").split():
             if word.isalpha():
                 assert word in held, (word, item.text)
+
+
+# ── A list's depth, wherever the page sets it ─────────────────────────────
+
+#: One rule a list item states, by language: a bank's, a shop's, an office's.
+ITEMS = {
+    "de": [
+        "Kontoführung monatlich",
+        "Ersatzkarte auf Antrag",
+        "Rücksendung binnen 14 Tagen",
+        "Antrag beim Bürgeramt",
+    ],
+    "en": [
+        "Account kept monthly",
+        "Replacement card on request",
+        "Returns within 14 days",
+        "Application at the office",
+    ],
+    "fr": [
+        "Tenue de compte mensuelle",
+        "Carte de remplacement",
+        "Retour sous 14 jours",
+        "Demande à la mairie",
+    ],
+    "pl": [
+        "Prowadzenie konta co miesiąc",
+        "Karta zastępcza na wniosek",
+        "Zwrot w ciągu 14 dni",
+        "Wniosek w urzędzie",
+    ],
+    "el": [
+        "Τήρηση λογαριασμού μηνιαία",
+        "Κάρτα αντικατάστασης",
+        "Επιστροφή εντός 14 ημερών",
+        "Αίτηση στην υπηρεσία",
+    ],
+}
+
+#: How far right one level of a list is set: more than half a line.
+INDENT = 18.0
+
+
+@st.composite
+def nestings(draw) -> tuple[str, list[int]]:
+    """A language and the depth of each item of one list: from 0, one deeper at most each step."""
+    language = draw(st.sampled_from(sorted(ITEMS)))
+    depths = [0]
+    for _ in range(draw(st.integers(1, 7))):
+        depths.append(draw(st.integers(0, depths[-1] + 1)))
+    return language, depths
+
+
+def listed_lines(
+    language: str, depths: list[int], margin: float, turn: int | None = None
+) -> list[str]:
+    """The lines one list cuts to, set at `margin`, each item a line 200 wide.
+
+    On one page, or from item `turn` on at the top of a second page.
+    """
+    document = DoclingDocument(name="terms")
+    for page in (1, 2):
+        document.add_page(page_no=page, size=Size(width=595, height=842))
+    group = document.add_list_group()
+    for at, depth in enumerate(depths):
+        left = margin + INDENT * depth
+        page, row = (2, at - turn) if turn is not None and at >= turn else (1, at)
+        top = (60 if page == 2 else 100 if turn is None else 700 - 14 * turn) + 14 * row
+        document.add_list_item(
+            text=f"{ITEMS[language][at % 4]} {at + 1}",
+            parent=group,
+            prov=ProvenanceItem(
+                page_no=page,
+                bbox=BoundingBox(
+                    l=left,
+                    t=top,
+                    r=left + 200,
+                    b=top + 10,
+                    coord_origin=CoordOrigin.TOPLEFT,
+                ),
+                charspan=(0, 1),
+            ),
+        )
+    _, chunks = chunks_of(document, word_chunker(200), language)
+    return [line for chunk in chunks for line in chunk.text.splitlines()]
+
+
+@given(case=nestings(), margin=st.floats(20, 300))
+def test_a_list_items_depth_is_its_indent_wherever_the_page_margin_lies(
+    case, margin
+) -> None:
+    """Each item nests as deep as it is set in, from the list's own edge, not the page's."""
+    language, depths = case
+
+    lines = listed_lines(language, depths, margin)
+
+    assert [len(line) - len(line.lstrip()) for line in lines] == [
+        4 * depth for depth in depths
+    ], lines
+
+
+@given(case=nestings(), margin=st.floats(20, 300), turn=st.data())
+def test_a_list_going_on_over_a_page_keeps_each_items_depth(case, margin, turn) -> None:
+    """Sub-items at the top of the next page stay as deep as they are set in.
+
+    No level opens across the break, as `nested` says: the first item of the
+    page is drawn no deeper than the last of the page before. Both pages set
+    the list at one margin: a facing page's other margin is N-101's.
+    """
+    language, depths = case
+    at = turn.draw(st.integers(1, len(depths) - 1))
+    depths[at] = min(depths[at], depths[at - 1])
+    for i in range(at + 1, len(depths)):
+        depths[i] = min(depths[i], depths[i - 1] + 1)
+
+    lines = listed_lines(language, depths, margin, at)
+
+    assert [len(line) - len(line.lstrip()) for line in lines] == [
+        4 * depth for depth in depths
+    ], (lines, at)
