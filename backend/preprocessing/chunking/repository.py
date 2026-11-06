@@ -242,6 +242,14 @@ class ChunkQueue(RowQueue):
             # among that language's, and whatever took its score from a passage
             # of this document that is gone or moved is read again.
             before = {row.id: row.language for row in stored}
+            _reopened(
+                session,
+                [
+                    one
+                    for one, chunk in kept.items()
+                    if before[one] is None and chunk.language and chunk.extractable
+                ],
+            )
             moved = [
                 one for one, chunk in kept.items() if before[one] != chunk.language
             ]
@@ -256,6 +264,28 @@ class ChunkQueue(RowQueue):
         with self._session() as session:
             passages = session.scalar(select(func.count()).select_from(Passage))
         return {**self.counts_by_status(), "passages": passages}
+
+
+def _reopened(session, passage_ids: list[int]) -> None:
+    """Puts a passage stored as read for want of a language back to new.
+
+    A passage no pipeline named the language of is stored as extracted with
+    nothing found. Once its language is configured it may be read, unless a
+    fact already cites it: that fact came from a reading, and the passage
+    stays as it is.
+    """
+    if passage_ids:
+        session.execute(
+            update(_PASSAGES)
+            .where(
+                _PASSAGES.c.id.in_(passage_ids),
+                _PASSAGES.c.extract_status == Status.EXTRACTED,
+                ~select(FactPassage.fact_id)
+                .where(FactPassage.passage_id == _PASSAGES.c.id)
+                .exists(),
+            )
+            .values(extract_status=Status.NEW)
+        )
 
 
 def _identity(
@@ -406,6 +436,10 @@ class PassageCatalog(Repository):
             # language's, and what took its score from it in the old one is
             # read again: the score is per language.
             changed = [one for one, language, _ in read if before[one][0] != language]
+            _reopened(
+                session,
+                [one for one, language, _ in read if language and not before[one][0]],
+            )
             furniture.score(session, changed)
             furniture.rescore_from(session, {before[one][1] for one in changed})
             session.execute(

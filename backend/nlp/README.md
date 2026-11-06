@@ -123,6 +123,8 @@ features; a handful are word lists.
 
 ### 1. Configure it
 
+On a chunked corpus, run `make chunk-revocabulary` after the change, then `make extract-start`.
+
 | Where | What |
 |---|---|
 | `NLP_MODELS` | `xx:xx_core_news_md`. Names the pipeline for a language and the languages the detector may answer with |
@@ -324,7 +326,10 @@ only when they are cached.
   figures, still takes the document's language.
 - Sentence numbering is stored, not recomputed. After `NLP_MODELS` changes on
   a chunked corpus, `make chunk-revocabulary` re-reads language and lemmas,
-  and the sentence offsets need `chunk-rerun`.
+  and the sentence offsets need `chunk-rerun`. A passage stored as read for
+  want of a pipeline (language `None`, status `extracted`, nothing found) goes
+  back to `new` when either step gives it a language, unless a fact already
+  cites it; `make extract-start` then reads it.
 - One capital switches the case rule back on: in
   `girokonto kündigungsfrist Musterbank`, the lower-case nouns are dropped
   again in a language named in `NLP_CAPITALISED_NOUNS`.

@@ -35,7 +35,7 @@ from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.items.node import DocItem
 from docling_core.types.doc.items.table.table import TableItem
 from docling_core.types.doc.items.table.table_data import TableCell
-from docling_core.types.doc.items.text import SectionHeaderItem, TitleItem
+from docling_core.types.doc.items.text import SectionHeaderItem, TextItem, TitleItem
 from docling_core.types.doc.labels import DocItemLabel
 
 from nlp.text import printed, rejoined, unfinished
@@ -843,7 +843,7 @@ def _tabled(document: DoclingDocument, data: bytes | None = None) -> DoclingDocu
         elif anchor is not None and _continues(anchor, own, item, font):
             for cell in item.data.table_cells:
                 cell.column_header = False
-            _append(anchor, item)
+            _append(document, anchor, item)
             item.content_layer = ContentLayer.FURNITURE
         else:
             anchor, own = item, item.data.num_rows
@@ -1010,8 +1010,16 @@ def _spans(data: bytes, page_no: int) -> tuple[float, list[dict]] | None:
         return None
 
 
-def _append(table: TableItem, rest: TableItem) -> None:
-    """Puts the rows of `rest` under the rows of `table`."""
+def _append(document: DoclingDocument, table: TableItem, rest: TableItem) -> None:
+    """Puts the rows of `rest` under the rows of `table`.
+
+    The footnotes the converter attached to the rest, which printed them
+    under the table's end, become the table's, unless the table already holds
+    one of that text, and so do its captions unless the table already holds
+    one whose text theirs repeats or opens with, as `(continued)` follows a
+    title. Each moves under the table as a child, so
+    that the rest, which leaves the body, takes none of them along.
+    """
     offset = table.data.num_rows
     for cell in rest.data.table_cells:
         table.data.table_cells.append(
@@ -1024,6 +1032,25 @@ def _append(table: TableItem, rest: TableItem) -> None:
         )
     table.data.num_rows += rest.data.num_rows
     table.prov.extend(rest.prov)
+    for name, opens in (("footnotes", False), ("captions", True)):
+        held = {
+            found.text.strip()
+            for ref in getattr(table, name)
+            if isinstance(found := ref.resolve(document), TextItem)
+        }
+        for ref in getattr(rest, name):
+            found = ref.resolve(document)
+            text = found.text.strip() if isinstance(found, TextItem) else ""
+            if not isinstance(found, TextItem) or (
+                text in held
+                or (opens and any(text.startswith(one) for one in held if one))
+            ):
+                continue
+            getattr(table, name).append(ref)
+            if found.parent is not None:
+                found.parent.resolve(document).children.remove(ref)
+            found.parent = table.get_ref()
+            table.children.append(ref)
 
 
 def _unwrapped(table: TableItem, whole: frozenset[tuple[str, str]]) -> None:

@@ -149,7 +149,10 @@ document's language when the passage is too short. A passage surely in a
 language `NLP_MODELS` does not name is labelled `None` and stored as already
 extracted, so extraction never reads it; the chunk log counts them (`make
 chunk-revocabulary` moves the label only, so a re-chunk is what skips a passage
-already stored). A chunk ends where its
+already stored). A passage stored as read for want of a pipeline, once its
+language is configured, goes back to `new` through `chunk-revocabulary` or a
+`chunk-rerun` that keeps its row, unless a fact cites it, and `make
+extract-start` reads it. A chunk ends where its
 paragraphs or list items change language, a foreign one included. A table passage takes the
 document's language without detection.
 
@@ -185,7 +188,9 @@ or vocabulary is read without re-chunking. It replaces `passages.language` and
 `passages.lemmas` in place and moves `facts.language` with the passage each
 fact opens on, so the dedup probe still finds the facts. A table passage takes
 the document's language without detection. Sentence offsets are left alone,
-because moving them would point every citation at different text.
+because moving them would point every citation at different text. A passage
+that goes from no language to a configured one, with no fact citing it, goes
+back to `new` for `make extract-start`.
 
 ## spaCy
 
@@ -342,5 +347,16 @@ Unit tests stand in only for the database and the passage builder
   apart from the fragments of one line.
 - A flattened list is nested again by its indents. An item whose left edge
   lies more than half a line right of the item before it, in the same column
-  and page, nests under it. Across a column or page break no level opens. A
-  nested item is rendered indented four spaces per level.
+  and page, nests under it. Across a column or page break no level opens. The
+  converter starts a new list on every page, so a list that opens on a later
+  page right where the one before it ends, with nothing between them, goes on
+  at the levels open there, each page's indent read off that page's own column
+  edge. A page that holds only the list's items has no such edge: it is read
+  off the nearest page of the same parity that has one (facing pages mirror
+  their margins), else off the page before but never right of the list's own
+  leftmost item there; a page whose leftmost item lies further right than that,
+  and not where a level open before sits, restarts at level 0, as a list of its
+  own does.
+  A page of outer items alone at one indent, set further right than the page
+  before, with no page of its parity holding a block to read the edge off, is
+  read as sub-items of the open level: its geometry is the same as theirs. A nested item is rendered indented four spaces per level.
