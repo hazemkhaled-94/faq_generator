@@ -287,3 +287,87 @@ def test_the_numbers_a_statement_states_do_not_change_with_its_thousands_marks(
     plain = numbers(frame.format(_spelled(cents, "", decimal)), language)
 
     assert grouped == plain, (grouped, plain)
+
+
+#: The ordinals past twelve as each configured language writes them, built
+#: here rather than read off the readings' own table. English only where it
+#: is one word: a hyphenated `twenty-first` is C-270's, accepted.
+_EN_PAST_TWELVE = {
+    **dict(
+        zip(
+            range(13, 20),
+            "thirteenth fourteenth fifteenth sixteenth seventeenth eighteenth nineteenth".split(),
+            strict=True,
+        )
+    ),
+    **dict(
+        zip(
+            range(20, 100, 10),
+            "twentieth thirtieth fortieth fiftieth sixtieth seventieth eightieth ninetieth".split(),
+            strict=True,
+        )
+    ),
+}
+_DE_UNITS = "ein zwei drei vier fünf sechs sieben acht neun".split()
+_DE_TEENS = "dreizehn vierzehn fünfzehn sechzehn siebzehn achtzehn neunzehn".split()
+_DE_TENS = "zwanzig dreißig vierzig fünfzig sechzig siebzig achtzig neunzig".split()
+
+
+def _de_past_twelve(value: int) -> str:
+    """A German ordinal from 13 to 99 in the dative after `der`: `dreizehnten`, `einundzwanzigsten`."""
+    if value < 20:
+        return _DE_TEENS[value - 13] + "ten"
+    tens, unit = divmod(value, 10)
+    cardinal = _DE_TENS[tens - 2]
+    if unit:
+        cardinal = f"{_DE_UNITS[unit - 1]}und{cardinal}"
+    return cardinal + "sten"
+
+
+_PAST_TWELVE = st.one_of(
+    st.tuples(st.just("en"), st.sampled_from(sorted(_EN_PAST_TWELVE))),
+    st.tuples(st.just("de"), st.integers(13, 99)),
+)
+
+
+def _past_twelve(language: str, value: int, spelled: bool) -> str:
+    """`value` as an ordinal in a sentence, as a word or as a figure."""
+    if language == "en":
+        written = _EN_PAST_TWELVE[value] if spelled else f"{value}th"
+        return f"from the {written} reminder on"
+    written = _de_past_twelve(value) if spelled else f"{value}."
+    return f"ab der {written} Mahnung"
+
+
+#: An ordinal figure and the count of its digits, as French and Greek write
+#: them before a noun of one form: languages no `ORDINAL_SUFFIX` row reads,
+#: whose suffix stays on the figure as written.
+_UNREAD_ORDINALS = {
+    "fr": ("dès le {}e versement", "dès le {} versement"),
+    "el": ("από την {}η δόση", "από την {} δόση"),
+}
+
+
+@given(
+    case=st.one_of(
+        _PAST_TWELVE,
+        st.tuples(st.sampled_from(sorted(_UNREAD_ORDINALS)), st.integers(13, 99)),
+    )
+)
+def test_an_ordinal_figure_past_twelve_never_agrees_with_the_count_of_its_digits(
+    case,
+) -> None:
+    """`the 14th reminder` is no `14 reminders`, `der 21. Mahnung` no `21 Mahnungen`.
+
+    As a figure only: a word the tagger reads as a noun or a name is T2-04's.
+    In French and Greek the suffix is read as part of what the figure says.
+    """
+    language, value = case
+    if language in _UNREAD_ORDINALS:
+        ordinal, count = (one.format(value) for one in _UNREAD_ORDINALS[language])
+    else:
+        ordinal = _past_twelve(language, value, spelled=False)
+        count = f"{value} reminders" if language == "en" else f"{value} Mahnungen"
+
+    assert not agrees(ordinal, count, language, AnswerForm.VALUE), (ordinal, count)
+    assert not agrees(count, ordinal, language, AnswerForm.VALUE), (count, ordinal)
