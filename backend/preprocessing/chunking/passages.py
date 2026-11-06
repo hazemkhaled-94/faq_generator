@@ -241,9 +241,14 @@ def nested(document: DoclingDocument) -> DoclingDocument:
     open level its indent matches, each indent measured from the left edge
     of its own column - the leftmost edge of the page's paragraphs and list
     items reaching across the item's - so depth open at a column's foot is
-    not carried into the next. Across a page break no level opens either,
-    and the indent is read off the edge before it: a page holding only a
-    list's sub-items would put its own edge at theirs. A line is the height
+    not carried into the next. Across a page break no level opens either.
+    The converter starts a new list on every page, so two lists that follow
+    each other in the body with nothing between them, the second on a later
+    page, are read as one: the levels open at the first's end go on into the
+    second. The indent on the new page is read off that page's own column
+    edge, found among the paragraphs and list items outside the list, since a
+    facing page's text block may be set further left or right; a page with no
+    such block at the item is read as `_page_edge` says. A line is the height
     of the list's shortest item, which is one line in nearly every list: the
     median is a two-line item's wherever items wrap. A nested list is
     rendered as indented Markdown, as the converter renders one it built
@@ -252,17 +257,7 @@ def nested(document: DoclingDocument) -> DoclingDocument:
     Returns:
         `document` itself when no list is indented, otherwise a copy.
     """
-    lists: list[list[ListItem]] = []
-    for group in document.groups:
-        if not isinstance(group, ListGroup):
-            continue
-        items = [
-            one
-            for child in group.children
-            if isinstance(one := child.resolve(document), ListItem) and one.prov
-        ]
-        if len(items) > 1:
-            lists.append(items)
+    lists = [items for items in _lists(document) if len(items) > 1]
     if not lists:
         return document
     blocks = {direction: _blocks(document, direction) for direction in (False, True)}
@@ -273,6 +268,12 @@ def nested(document: DoclingDocument) -> DoclingDocument:
         # items start at their right and a column lies left of the one before.
         reverse = right_to_left(" ".join(one.text for one in items))
         edges = blocks[reverse]
+        listed = {one.self_ref for one in items}
+        leftmost: dict[int, float] = {}
+        for one in items:
+            first = _sides(one.prov[0], reverse)[0]
+            page = one.prov[0].page_no
+            leftmost[page] = min(first, leftmost.get(page, first))
         edge = _column_edge(
             items[0].prov[0].page_no, _sides(items[0].prov[0], reverse)[0], edges
         )
@@ -290,6 +291,26 @@ def nested(document: DoclingDocument) -> DoclingDocument:
                     edge = _column_edge(here.page_no, start, edges)
                 elif before_start + step < start:
                     levels.append((start - edge, before.self_ref))
+            else:
+                found = _page_edge(
+                    here.page_no, start, edges, listed, edge, leftmost, step
+                )
+                if found is None and any(
+                    abs(leftmost[here.page_no] - edge - indent) <= step / 2
+                    for indent, _ in levels
+                ):
+                    # The page's leftmost item sits where a level open before
+                    # sits, within a quarter line, off the edge before: sub-items going on at their
+                    # depth, as likely as a page set further right, and the
+                    # page before is what is known.
+                    found = edge
+                if found is None:
+                    # No edge to read the page's indents off: the levels open
+                    # before are not carried onto it, as for a list of its own.
+                    levels = [(0.0, None)]
+                    edge = leftmost[here.page_no]
+                else:
+                    edge = found
             indent = start - edge
             while len(levels) > 1 and indent < levels[-1][0] - step:
                 levels.pop()
@@ -315,6 +336,57 @@ def nested(document: DoclingDocument) -> DoclingDocument:
     return tidy
 
 
+def _lists(document: DoclingDocument) -> list[list[ListItem]]:
+    """The body's lists, each of the items it holds in reading order.
+
+    Only items of the body layer with a position count: one the furniture
+    layer holds, a rest the page join moved there, is no part of a list. A
+    list that starts right where the one before ends, in the body, with
+    nothing between them and on a later page than the last item began on, is
+    the same list: the converter starts one on every page.
+    """
+    where: dict[str, int] = {}
+    for item, _ in document.iterate_items():
+        if isinstance(item, DocItem):
+            where[item.self_ref] = len(where)
+    # Where each list group ends, over everything it holds, nested lists too.
+    ends: dict[str, int] = {}
+    for reference, index in where.items():
+        node = _resolved(reference, document)
+        while node.parent is not None:
+            node = node.parent.resolve(document)
+            ends[node.self_ref] = max(ends.get(node.self_ref, index), index)
+    groups: list[tuple[ListGroup, list[ListItem]]] = []
+    for group in document.groups:
+        if not isinstance(group, ListGroup):
+            continue
+        items = [
+            one
+            for child in group.children
+            if isinstance(one := child.resolve(document), ListItem)
+            and one.prov
+            and one.self_ref in where
+        ]
+        if items:
+            groups.append((group, items))
+    groups.sort(key=lambda found: where[found[1][0].self_ref])
+    found: list[list[ListItem]] = []
+    tail: ListGroup | None = None
+    for group, items in groups:
+        if (
+            found
+            and tail is not None
+            and group.parent == tail.parent
+            and where[items[0].self_ref] == ends[tail.self_ref] + 1
+            and items[0].prov[0].page_no > found[-1][-1].prov[0].page_no
+        ):
+            found[-1].extend(items)
+        else:
+            found.append(list(items))
+        tail = group
+    return found
+
+
 #: The blocks a column's left edge is read off: its paragraphs and list
 #: items. A picture, a table or a heading may be set into the margin or run
 #: across the page, and is no column's edge.
@@ -335,24 +407,71 @@ def _sides(prov: ProvenanceItem, reverse: bool) -> tuple[float, float]:
 
 def _blocks(
     document: DoclingDocument, reverse: bool = False
-) -> dict[int, list[tuple[float, float]]]:
-    """The start and end of every paragraph and list item, by page."""
-    found: dict[int, list[tuple[float, float]]] = {}
+) -> dict[int, list[tuple[float, float, str]]]:
+    """The start, end and reference of every paragraph and list item, by page."""
+    found: dict[int, list[tuple[float, float, str]]] = {}
     for item, _ in document.iterate_items():
         if isinstance(item, DocItem) and item.label in _COLUMN_BLOCKS:
             for prov in item.prov:
-                found.setdefault(prov.page_no, []).append(_sides(prov, reverse))
+                found.setdefault(prov.page_no, []).append(
+                    (*_sides(prov, reverse), item.self_ref)
+                )
     return found
 
 
 def _column_edge(
-    page: int, start: float, edges: dict[int, list[tuple[float, float]]]
+    page: int, start: float, edges: dict[int, list[tuple[float, float, str]]]
 ) -> float:
     """The start of the column a block starts in, read off its page's blocks."""
     return min(
-        (first for first, end in edges.get(page, ()) if first <= start < end),
+        (first for first, end, _ in edges.get(page, ()) if first <= start < end),
         default=start,
     )
+
+
+def _page_edge(
+    page: int,
+    start: float,
+    edges: dict[int, list[tuple[float, float, str]]],
+    listed: set[str],
+    before: float,
+    leftmost: dict[int, float],
+    step: float,
+) -> float | None:
+    """The column edge of a page a list goes on at, or None where none can be read.
+
+    Read off the blocks outside the list that reach across `start`, since its
+    own items on a page that holds only them would put the edge at theirs.
+    Where none does, off the nearest page of the same parity that has one:
+    facing pages mirror their margins, so the page two before or after is set
+    as this one is. Either edge is bounded by the list's own leftmost item on
+    the page, which cannot print left of its outer level. Failing both, the
+    edge `before`, likewise bounded; unless that item lies more than `step`
+    right of `before`, where a page set further right cannot be told from one
+    that holds only sub-items, and nothing is read. `nested` then reads a page
+    whose items all start at one indent off the edge before, as sub-items of
+    the open level, and restarts at level 0 on any other.
+    """
+
+    def reaching(on: int) -> list[float]:
+        return [
+            first
+            for first, end, reference in edges.get(on, ())
+            if reference not in listed and first <= start < end
+        ]
+
+    own = reaching(page)
+    if own:
+        return min(min(own), leftmost[page])
+    for near in sorted(
+        (other for other in edges if other != page and (other - page) % 2 == 0),
+        key=lambda other: (abs(other - page), other),
+    ):
+        if found := reaching(near):
+            return min(min(found), leftmost[page])
+    if leftmost[page] > before + step:
+        return None
+    return min(before, leftmost[page])
 
 
 def _ref(reference: str) -> RefItem:

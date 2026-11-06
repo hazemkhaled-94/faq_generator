@@ -468,7 +468,12 @@ def test_an_answered_question_of_the_wrong_shape_for_its_type_is_refused(
 @pytest.mark.parametrize(
     ("kind", "question", "answer", "language"),
     [
-        (QuestionType.ENTITY, "Wer genehmigt einen Kredit?", "der Kreditausschuss", "de"),
+        (
+            QuestionType.ENTITY,
+            "Wer genehmigt einen Kredit?",
+            "der Kreditausschuss",
+            "de",
+        ),
         (QuestionType.ENTITY, "Which office approves a loan?", "Northbank Ltd", "en"),
         (
             QuestionType.ENUMERATION,
@@ -534,8 +539,20 @@ def test_an_answered_question_of_the_shape_its_type_asks_for_is_kept(
             "en",
             QuestionType.CONDITION,
         ),
-        (QuestionType.AGGREGATION, AnswerForm.VALUE, "zwei Karten", "de", QuestionType.AGGREGATION),
-        (QuestionType.AGGREGATION, AnswerForm.VALUE, "Q3", "en", QuestionType.AGGREGATION),
+        (
+            QuestionType.AGGREGATION,
+            AnswerForm.VALUE,
+            "zwei Karten",
+            "de",
+            QuestionType.AGGREGATION,
+        ),
+        (
+            QuestionType.AGGREGATION,
+            AnswerForm.VALUE,
+            "Q3",
+            "en",
+            QuestionType.AGGREGATION,
+        ),
     ],
 )
 def test_only_a_derived_list_or_value_is_relabelled_and_a_number_in_any_spelling_keeps_it(

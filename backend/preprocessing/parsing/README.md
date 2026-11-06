@@ -127,7 +127,9 @@ the grid and the case, never a word. The rules are:
 
 - A table with no header row that follows a table of its width, on the same
   page or the next, is that table's rest. Its rows go under the first
-  table's. It moves to the furniture layer, so no stored reference moves.
+  table's. It moves to the furniture layer, so no stored reference moves;
+  its footnotes, which the page prints under the table's end, and its
+  captions the table does not already have, become the table's.
   A rest the converter flagged as having a header joins as data when each
   cell of its first row uses its column's data font and holds a figure where
   that data does.
