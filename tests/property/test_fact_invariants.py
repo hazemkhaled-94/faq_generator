@@ -230,3 +230,141 @@ def test_statements_naming_different_numbers_are_never_duplicates(
 
     (stored,) = run.queue.stored[1]
     assert stored.validated, (statement, twin, stored.validation_error)
+
+
+# ── A date or a clock time, re-paired ────────────────────────────────────
+
+#: A sentence of each domain naming one date, by configured language: `{}`
+#: is the date.
+_DATED = {
+    "de": (
+        "Die neuen Kontogebühren gelten ab dem {}.",
+        "Das Amt nimmt Anträge bis zum {} entgegen.",
+        "Der Sommerschlussverkauf endet am {}.",
+    ),
+    "en": (
+        "The new account fees apply from {}.",
+        "The office accepts applications until {}.",
+        "The summer sale ends on {}.",
+    ),
+}
+
+
+#: The same in French, Polish and Greek, which no `NLP_MODELS` row names.
+_UNREAD_DATED = {
+    "fr": ("Les nouveaux frais s'appliquent à partir du {}.",),
+    "pl": ("Nowe opłaty obowiązują od {}.",),
+    "el": ("Οι νέες χρεώσεις ισχύουν από {}.",),
+}
+
+
+def _dated(day: int, month: int, year: int, form: str) -> str:
+    """A date with its year at one end, its runs joined by `/` or `-`."""
+    mark = form[-1]
+    if form.startswith("y"):
+        return f"{year}{mark}{month:02d}{mark}{day:02d}"
+    return f"{day:02d}{mark}{month:02d}{mark}{year}"
+
+
+def _citing_all(text: str, language: str, statement: str):
+    """The verdict on a statement citing every sentence of a one-rule passage.
+
+    Every one, because the splitter may cut `ab | dem 01/09/2030.` (T2-06),
+    and what is asked here is how the date is read, not where the rule is cut.
+    """
+    read = passage(text, language=language)
+    return Checker(read).atomic(statement, tuple(range(len(read.sentences))))
+
+
+@st.composite
+def _dates(draw, frames=_DATED):
+    """A language, a sentence, a date whose day and month differ, both 12 or less, and its form."""
+    language = draw(st.sampled_from(sorted(frames)))
+    day, month = draw(st.permutations(range(1, 13)))[:2]
+    return (
+        language,
+        draw(st.sampled_from(frames[language])),
+        day,
+        month,
+        draw(st.integers(2020, 2035)),
+        draw(st.sampled_from(["d/", "d-", "y-", "y/"])),
+    )
+
+
+@given(case=_dates())
+@pytest.mark.nlp
+def test_a_date_with_its_day_and_month_swapped_is_refused(case) -> None:
+    """`12-01-2026` for a cited `01-12-2026` moves the date by eleven months."""
+    language, frame, day, month, year, form = case
+    cited = frame.format(_dated(day, month, year, form))
+    swapped = frame.format(_dated(month, day, year, form))
+
+    judged = _citing_all(cited, language, swapped)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, (cited, swapped)
+
+
+@given(case=_dates(_UNREAD_DATED))
+@pytest.mark.nlp
+def test_a_date_swapped_in_a_language_with_no_pipeline_is_never_validated(
+    case,
+) -> None:
+    """Refused for whatever the default parse makes of it, never passed."""
+    language, frame, day, month, year, form = case
+    cited = frame.format(_dated(day, month, year, form))
+    swapped = frame.format(_dated(month, day, year, form))
+
+    assert not _citing_all(cited, language, swapped).validated, (cited, swapped)
+
+
+@given(case=_dates())
+@pytest.mark.nlp
+def test_a_date_restated_as_the_cited_text_writes_it_is_validated(case) -> None:
+    """The guard above is no refusal of every date: the cited date is no addition.
+
+    Not a German date of dashes, day first, whose year the German parse may
+    tag a finite verb (`endet am 01-11-2030.`): T2-06's.
+    """
+    language, frame, day, month, year, form = case
+    assume(not (language == "de" and form == "d-"))
+    cited = frame.format(_dated(day, month, year, form))
+
+    judged = _citing_all(cited, language, cited)
+
+    assert judged.validated, (cited, judged.validation_error)
+
+
+#: Opening hours of each domain, by language: `{}` and `{}` are the times.
+_OPEN = {
+    "de": (
+        "Die Filiale ist von {} bis {} Uhr geöffnet.",
+        "Das Bürgeramt ist von {} bis {} Uhr erreichbar.",
+    ),
+    "en": (
+        "The branch is open from {} to {}.",
+        "The citizens' office answers calls from {} to {}.",
+    ),
+}
+
+
+@st.composite
+def _hours(draw):
+    """A language, a sentence and two times whose hours and minutes all differ, even read on a 12-hour clock."""
+    language = draw(st.sampled_from(sorted(_OPEN)))
+    opens = draw(st.integers(6, 11))
+    closes = draw(st.integers(12, 20).filter(lambda hour: hour % 12 != opens))
+    early, late = draw(st.permutations([0, 15, 30, 45]))[:2]
+    return language, draw(st.sampled_from(_OPEN[language])), opens, closes, early, late
+
+
+@given(case=_hours())
+@pytest.mark.nlp
+def test_opening_hours_with_their_minutes_re_paired_are_refused(case) -> None:
+    """`13:30 to 9:00` is not what a cited `9:30 to 13:00` says."""
+    language, frame, opens, closes, early, late = case
+    cited = frame.format(f"{opens}:{early:02d}", f"{closes}:{late:02d}")
+    re_paired = frame.format(f"{opens}:{late:02d}", f"{closes}:{early:02d}")
+
+    judged = _citing_all(cited, language, re_paired)
+
+    assert judged.rejection_code == Rejection.UNSUPPORTED_ADDITION, (cited, re_paired)
