@@ -151,6 +151,101 @@ def test_a_query_still_asks_one_thing() -> None:
     assert code(failed) == QuestionRejection.MALFORMED
 
 
+@pytest.mark.parametrize(
+    "question", ["  ", "Which documents does a loan application need"]
+)
+def test_a_refused_question_reports_the_form_its_type_asked_for(question) -> None:
+    """The form stored beside a refusal is the type's first, not a value."""
+    failed, form = structural(
+        question_text=question,
+        target_answer="a passport, a payslip and proof of address",
+        answerable=True,
+        language="en",
+        forms=(AnswerForm.LIST, AnswerForm.VALUE),
+    )
+
+    assert code(failed) == QuestionRejection.MALFORMED
+    assert form == AnswerForm.LIST
+
+
+def test_a_type_declaring_no_form_is_read_as_a_value() -> None:
+    """No form declared is the value fallback, not an IndexError."""
+    failed, form = structural(
+        question_text="  ",
+        target_answer="5 EUR",
+        answerable=True,
+        language="en",
+        forms=(),
+    )
+
+    assert code(failed) == QuestionRejection.MALFORMED
+    assert form == AnswerForm.VALUE
+
+
+def test_a_count_of_the_prompt_is_refused_in_a_row_with_no_language() -> None:
+    """With no language table to read, `How many` alone still asks for a count."""
+    failed = checked(
+        question_text="How many documents does a loan application need?",
+        target_answer="2",
+        language=None,
+        statements=(
+            "A loan application needs a passport.",
+            "A loan application needs a payslip.",
+        ),
+    )
+
+    assert code(failed) == QuestionRejection.MALFORMED
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "statement", "language"),
+    [
+        (
+            "How many documents does a loan application need?",
+            "1",
+            "A loan application needs a passport.",
+            "en",
+        ),
+        (
+            "Wie viele Unterlagen braucht ein Kreditantrag?",
+            "1",
+            "Ein Kreditantrag braucht einen Ausweis.",
+            "de",
+        ),
+    ],
+)
+def test_one_cited_fact_answered_one_is_no_count_of_the_prompt(
+    question, answer, statement, language
+) -> None:
+    """A single fact is a fact, so a count of one counts no prompt."""
+    assert (
+        checked(
+            question_text=question,
+            target_answer=answer,
+            language=language,
+            statements=(statement,),
+        )
+        is None
+    )
+
+
+def test_a_question_whose_answer_shows_its_language_is_read_with_it() -> None:
+    """`Was kostet das?` alone is too short to read; with its answer it is German."""
+    failed = checked(
+        question_text="Was kostet das?",
+        target_answer=(
+            "Die Bank berechnet fünf Euro im Monat für jedes Girokonto, das sie führt."
+        ),
+        language="en",
+        form=AnswerForm.EXPLANATION,
+    )
+
+    assert failed == (
+        QuestionRejection.MALFORMED,
+        "it is written in de and its facts are in en",
+    )
+
+
 def test_a_fact_handed_straight_back_is_not_a_question() -> None:
     """The laziest thing a model can do with the prompt."""
     failed = checked(
@@ -200,6 +295,20 @@ def test_nothing_near_enough_is_not_a_duplicate() -> None:
     near = Neighbour("Something else entirely?", answerable=True, similarity=0.5)
 
     assert near_verdict(near, answerable=True, threshold=0.93) is None
+
+
+def test_a_neighbour_exactly_at_the_bar_is_a_duplicate() -> None:
+    """The bar is inclusive: a cosine equal to it on a shared fact refuses."""
+    near = Neighbour(
+        "What does a card cost?",
+        answerable=True,
+        similarity=0.93,
+        fact_ids=frozenset({7}),
+    )
+
+    assert code(
+        near_verdict(near, answerable=True, threshold=0.93, facts=(7,))
+    ) == (QuestionRejection.DUPLICATE)
 
 
 def test_an_empty_corpus_of_questions_rejects_nothing() -> None:
@@ -1398,6 +1507,18 @@ def test_a_title_too_short_to_be_a_name_is_not_matched() -> None:
     )
 
 
+def test_a_title_exactly_as_long_as_a_name_is_matched() -> None:
+    """Twelve characters is a title: `Tarifblatt A` is a document's name."""
+    failed = checked(
+        question_text="Was kostet die Karte im Tarifblatt A?",
+        target_answer="5 EUR",
+        language="de",
+        titles=("Tarifblatt A",),
+    )
+
+    assert code(failed) == QuestionRejection.LEAKS_SOURCE
+
+
 def test_a_question_naming_no_title_passes_the_free_half() -> None:
     """Naming a party or a period is not naming a source."""
     assert (
@@ -1836,6 +1957,198 @@ def test_a_hyphen_range_with_its_unit_comes_back_end_by_end() -> None:
         question="How long?",
         passages=(recovered,),
     )
+
+
+@pytest.mark.parametrize(
+    ("language", "target", "recovered"),
+    [
+        ("de", "1.–3. Mai", "Die Filiale ist vom 1.–3. Mai geschlossen."),
+        ("en", "1–3 May", "The branch is closed from 1–3 May."),
+    ],
+)
+def test_a_date_range_written_as_its_key_writes_it_agrees(
+    language, target, recovered
+) -> None:
+    """Both sides' ends are read in the text's language: `1.` is a German ordinal."""
+    assert agrees(
+        recovered,
+        target,
+        language,
+        AnswerForm.VALUE,
+        question="Wann ist die Filiale geschlossen?"
+        if language == "de"
+        else "When is the branch closed?",
+        passages=(recovered,),
+    )
+
+
+def test_a_range_key_whose_other_words_come_back_as_lemmas_agrees() -> None:
+    """`am Rand` is back as `Der Rand`: the lemmas decide, not every token."""
+    assert agrees("Der Rand ist 1–3 cm breit.", "1–3 cm am Rand", "de")
+
+
+def test_a_bare_range_key_needs_every_word_besides_its_ends_back() -> None:
+    """`about 1–3 cm` has no content lemma to compare, so each word must return."""
+    assert not agrees("between 1 and 3 cm", "about 1–3 cm", "en")
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered", "same"),
+    [
+        (
+            "de",
+            "Welche Leistungen kosten Gebühren, Karten oder Überweisungen?",
+            "eine Karte, eine Überweisung",
+            "Karten",
+            True,
+        ),
+        (
+            "de",
+            "Welche Leistungen kosten Gebühren, Karten oder Überweisungen?",
+            "eine Karte, eine Überweisung",
+            "ein Kredit",
+            False,
+        ),
+        (
+            "en",
+            "Which services cost a fee, cards or transfers?",
+            "a card, a transfer",
+            "cards",
+            True,
+        ),
+        (
+            "en",
+            "Which services cost a fee, cards or transfers?",
+            "a card, a transfer",
+            "a loan",
+            False,
+        ),
+    ],
+)
+def test_a_list_the_question_already_names_agrees_on_any_item_back(
+    language, question, target, recovered, same
+) -> None:
+    """Where the answer adds nothing to the question, one shared item is the answer."""
+    assert (
+        agrees(recovered, target, language, AnswerForm.LIST, question=question)
+        is same
+    )
+
+
+def test_a_list_recalling_exactly_the_overlap_share_agrees() -> None:
+    """The share is a floor: two of four items back meet an overlap of one half."""
+    assert agrees(
+        "ein Ausweis und ein Lohnzettel",
+        "ein Ausweis, ein Lohnzettel, ein Vertrag, eine Rechnung",
+        "de",
+        AnswerForm.LIST,
+        overlap=0.5,
+        question="Welche Unterlagen braucht ein Antrag?",
+    )
+
+
+@pytest.mark.parametrize(
+    ("form", "overlap", "target", "recovered", "question"),
+    [
+        (
+            AnswerForm.VALUE,
+            OVERLAP,
+            "2 % Zins auf dem Tagesgeldkonto",
+            "2 % Zins",
+            "Welchen Zins zahlt die Bank?",
+        ),
+        (
+            AnswerForm.LIST,
+            0.9,
+            "2 % Zins auf dem Tagesgeldkonto, eine Prämie",
+            "2 % Zins und eine Prämie",
+            "Was bietet die Bank?",
+        ),
+    ],
+)
+def test_a_word_only_the_heading_carries_need_not_come_back(
+    form, overlap, target, recovered, question
+) -> None:
+    """The verifier never sees `Tagesgeldkonto` when only the heading says it."""
+    assert agrees(
+        recovered,
+        target,
+        "de",
+        form,
+        overlap,
+        question=question,
+        given="Konten > Tagesgeldkonto",
+        passages=("Der Zins beträgt 2 %.",),
+    )
+
+
+@pytest.mark.parametrize(
+    ("form", "overlap", "target", "recovered", "question"),
+    [
+        (
+            AnswerForm.VALUE,
+            OVERLAP,
+            "2 % Zins auf dem Tagesgeldkonto",
+            "2 % Zins",
+            "Welchen Zins zahlt die Bank?",
+        ),
+        (
+            AnswerForm.LIST,
+            0.9,
+            "2 % Zins auf dem Tagesgeldkonto, eine Prämie",
+            "2 % Zins und eine Prämie",
+            "Was bietet die Bank?",
+        ),
+    ],
+)
+def test_a_heading_word_the_passages_also_state_must_come_back(
+    form, overlap, target, recovered, question
+) -> None:
+    """Once a cited cell says `Tagesgeldkonto`, the verifier saw it, so it is owed."""
+    assert not agrees(
+        recovered,
+        target,
+        "de",
+        form,
+        overlap,
+        question=question,
+        given="Konten > Tagesgeldkonto",
+        passages=("Zins auf dem Tagesgeldkonto", "Prämie", "2 %"),
+    )
+
+
+def test_a_value_key_is_compared_on_its_participle_too() -> None:
+    """`a signed form` is not `a form`: a value's verbs are part of it."""
+    assert not agrees("a form", "a signed form", "en")
+
+
+def test_the_recall_recorded_for_a_value_counts_its_participle() -> None:
+    """The reading beside the verdict: half of `a signed form` came back."""
+    assert recalled("a form", "a signed form", "en", AnswerForm.VALUE) == 0.5
+
+
+@pytest.mark.parametrize(
+    ("language", "target", "recovered", "question"),
+    [
+        (
+            "de",
+            "ein Rand von 1–3 cm, eine Prämie, ein Zins",
+            "ein Rand von 1–3 mm, eine Prämie und ein Zins",
+            "Was gilt?",
+        ),
+        (
+            "en",
+            "an edge of 1–3 cm, a bonus, an interest rate",
+            "an edge of 1–3 mm, a bonus and an interest rate",
+            "What applies?",
+        ),
+    ],
+)
+def test_a_list_holding_a_range_needs_its_unit_back_whatever_the_share(
+    language, target, recovered, question
+) -> None:
+    """`1–3 mm` is not `1–3 cm`, however many of the other items came back."""
+    assert not agrees(recovered, target, language, AnswerForm.LIST, question=question)
 
 
 def test_a_three_decimal_rate_is_not_its_digits() -> None:
@@ -3255,6 +3568,103 @@ def test_the_complaint_reported_is_the_asked_for_forms() -> None:
 
     assert form == AnswerForm.VALUE
     assert code(failed) == QuestionRejection.ANSWER_TOO_LONG
+
+
+def test_an_answer_too_long_for_the_form_it_looks_like_falls_to_another_one() -> None:
+    """Three items past a list's bound are still a value its type takes."""
+    form, failed = fitting(
+        "Ausweis, Lohnzettel, Vertrag",
+        (AnswerForm.LIST, AnswerForm.VALUE),
+        {**BOUNDS, AnswerForm.LIST: (3, 10)},
+        "de",
+    )
+
+    assert failed is None
+    assert form == AnswerForm.VALUE
+
+
+@pytest.mark.parametrize(
+    ("answer", "language"), [("zahlt monatlich", "de"), ("pays monthly", "en")]
+)
+def test_a_value_carrying_a_verb_is_refused_for_that_not_for_a_later_forms_length(
+    answer, language
+) -> None:
+    """The asked-for value's complaint is the code stored, not the explanation's."""
+    form, failed = fitting(
+        answer, (AnswerForm.VALUE, AnswerForm.EXPLANATION), BOUNDS, language
+    )
+
+    assert form == AnswerForm.VALUE
+    assert code(failed) == QuestionRejection.WRONG_FORM
+
+
+@pytest.mark.parametrize(
+    ("answer", "expected"),
+    [
+        ("x" * 81, QuestionRejection.ANSWER_TOO_LONG),
+        ("pays the fee", QuestionRejection.WRONG_FORM),
+        ("two missing documents", None),
+    ],
+)
+def test_a_type_declaring_no_form_holds_its_answer_to_a_value(answer, expected) -> None:
+    """The value fallback measures the answer, bounds, verbs and all."""
+    form, failed = fitting(answer, (), BOUNDS, "en")
+
+    assert form == AnswerForm.VALUE
+    assert code(failed) == expected
+
+
+def test_a_participle_inside_a_noun_phrase_is_a_verb_for_an_explanation() -> None:
+    """`missing` and `supporting` describe things, and still are verbs to that reading."""
+    form, failed = fitting(
+        "the two missing documents and the supporting letter",
+        (AnswerForm.EXPLANATION,),
+        BOUNDS,
+        "en",
+    )
+
+    assert failed is None
+    assert form == AnswerForm.EXPLANATION
+
+
+def test_a_form_the_settings_bound_nothing_for_is_held_to_a_values_bounds() -> None:
+    """A row read with only the value's bounds to hand is not an error."""
+    form, failed = fitting(
+        "Ausweis, Lohnzettel, Vertrag",
+        (AnswerForm.LIST,),
+        {AnswerForm.VALUE: (1, 80)},
+        "de",
+    )
+
+    assert failed is None
+    assert form == AnswerForm.LIST
+
+
+def test_a_value_exactly_at_its_upper_bound_is_kept() -> None:
+    """The bound is inclusive: 80 characters is a value, 81 is not."""
+    _, failed = fitting("x" * 80, (AnswerForm.VALUE,), BOUNDS, "en")
+
+    assert failed is None
+
+
+@pytest.mark.parametrize(
+    ("answer", "language", "expected"),
+    [
+        ("ist kostenlos", "de", QuestionRejection.WRONG_FORM),
+        ("is free of charge", "en", QuestionRejection.WRONG_FORM),
+        ("Unterlagen, die fehlen", "de", QuestionRejection.WRONG_FORM),
+        ("documents that are missing", "en", QuestionRejection.WRONG_FORM),
+        ("est gratuit", "fr", None),
+        ("είναι δωρεάν", "el", QuestionRejection.WRONG_FORM),
+    ],
+)
+def test_a_value_asserting_something_through_a_copula_or_a_clause_is_an_action(
+    answer, language, expected
+) -> None:
+    """`ist kostenlos` and `die fehlen` assert; French stays inert, Greek refuses."""
+    _, failed = fitting(answer, (AnswerForm.VALUE,), BOUNDS, language)
+
+    assert code(failed) == expected
 
 
 # ── The gates an unanswerable question faces ───────────────────────────────
@@ -6921,3 +7331,672 @@ def test_a_participle_inside_a_noun_phrase_is_not_an_action(
     )
 
     assert (code(failed) == QuestionRejection.WRONG_FORM) is refused
+
+
+# ── Passages of names, threads that move on, questions the passages are about ──
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "We thank Anna Schmidt for the review.",
+        "Wir danken Anna Schmidt für die Prüfung.",
+    ],
+)
+def test_a_short_thanks_to_one_person_is_mostly_names(text) -> None:
+    """Two names of seven words is past the floor, in either language's labels."""
+    assert names_parties(text, "en" if text.startswith("We") else "de")
+
+
+@pytest.mark.parametrize(
+    ("text", "language"),
+    [
+        (
+            "The bank thanks Anna Schmidt for her review of the fee tables in this guide.",
+            "en",
+        ),
+        (
+            "Die Bank dankt Anna Schmidt für die Prüfung der Gebührentabellen in diesem "
+            "Leitfaden.",
+            "de",
+        ),
+        ("123 456", "en"),
+    ],
+)
+def test_a_passage_naming_one_person_among_its_subject_is_not_a_credits_page(
+    text, language
+) -> None:
+    """One name in a sentence about fee tables, or no word at all, is no acknowledgement."""
+    assert not names_parties(text, language)
+
+
+def test_a_share_of_names_equal_to_the_floor_is_not_mostly_names() -> None:
+    """The floor is exclusive: two names of four words against one half."""
+    assert not names_parties("Anna Schmidt reviewed it.", "en", 0.5)
+
+
+_THREAD = (("Which card fees apply to a transfer at the branch?", "the transfer fee"),)
+
+
+@pytest.mark.parametrize(
+    ("key", "thread", "language", "moves_on_"),
+    [
+        (
+            "the card fees",
+            (
+                ("Which fees does the guide cover?", "the card fees"),
+                ("What does a transfer cost?", "a flat fee"),
+            ),
+            "en",
+            False,
+        ),
+        (
+            "die Kartengebühren",
+            (
+                ("Welche Gebühren nennt der Leitfaden?", "die Kartengebühren"),
+                ("Was kostet eine Auslandsüberweisung?", "eine Pauschale"),
+            ),
+            "de",
+            False,
+        ),
+        (
+            "Gebühren für Karten",
+            (("Welche Gebühr gilt für eine Karte?", "eine Gebühr"),),
+            "de",
+            False,
+        ),
+        ("the card fee for a transfer at the branch counter", _THREAD, "en", False),
+        ("card fee transfer branch", (("Which card fees apply?", "a fee"),), "en", True),
+        ("", _THREAD, "en", False),
+    ],
+)
+def test_a_key_moves_its_thread_on_only_with_a_quarter_of_it_new(
+    key, thread, language, moves_on_
+) -> None:
+    """Any earlier turn counts, read in the thread's language; one new lemma of five is too few."""
+    from question_generation.gates import adds_to
+
+    assert adds_to(key, thread, language) is moves_on_
+
+
+def test_a_key_with_exactly_a_quarter_of_it_new_moves_on() -> None:
+    """The share is a floor: one new lemma of four is enough."""
+    from question_generation.gates import adds_to
+
+    assert adds_to(
+        "card fee transfer branch",
+        (("Which card fees apply to a transfer?", "the transfer fee"),),
+        "en",
+    )
+
+
+@pytest.mark.parametrize(
+    ("question", "passages", "language", "floor", "expected"),
+    [
+        (
+            "Was ist ein Liquiditätsmanagementtool?",
+            ["Die Rückgabefrist beträgt ein Jahr."],
+            "de",
+            0,
+            True,
+        ),
+        (
+            "Welche Gebühren berechnet die Bank für Karten?",
+            ["Die Bank berechnet Gebühren für Karten."],
+            "de",
+            0.3,
+            True,
+        ),
+        (
+            "Welche Gebühren berechnet die Bank für Karten?",
+            ["Für Karten", "Gebühren"],
+            "de",
+            0.3,
+            True,
+        ),
+        ("Which fees does the bank charge?", ["The bank pays interest."], "en", 1 / 3, True),
+    ],
+)
+def test_passages_sharing_the_floor_of_what_the_question_asks_are_about_it(
+    question, passages, language, floor, expected
+) -> None:
+    """Read in the question's language, cell by cell; a floor of nought lets anything through."""
+    from question_generation.gates import about
+
+    assert about(question, passages, language, floor) is expected
+
+
+@pytest.mark.parametrize(
+    ("explanation", "target", "passages", "language", "span", "expected"),
+    [
+        ("The bank refunds fees.", "fees", (), "en", (22, 60), True),
+        ("The bank refunds every fee it charged in error.", "fees", (), "en", (20, 47), True),
+        (
+            "The monthly fee is 5 EUR and the yearly fee is 60 EUR.",
+            "5 EUR",
+            ("Monatsgebühr 5", "60 Jahresgebühr"),
+            "en",
+            (20, 200),
+            True,
+        ),
+        (
+            "The bank refunds every fee it charged in error within 14 days.",
+            "",
+            ("Refunds are paid within 14 days.",),
+            "en",
+            (20, 200),
+            True,
+        ),
+        (
+            "Die Bank erstattet Gebühren innerhalb von Tagen, die Gebühren werden von "
+            "der Bank erstattet.",
+            "Die Bank erstattet die Gebühren innerhalb von Tagen.",
+            (),
+            "de",
+            (20, 200),
+            False,
+        ),
+        (
+            "The bank refunds the fee, and the fee is refunded by the bank.",
+            "The bank refunds the fee.",
+            (),
+            "en",
+            (20, 200),
+            False,
+        ),
+        (
+            "The card fee, transfer, branch, account, loan, rate, deposit and limit "
+            "and the refund.",
+            "card fee transfer branch account loan rate deposit limit",
+            (),
+            "en",
+            (20, 200),
+            False,
+        ),
+        ("It is what it is, and so it is for all of them.", "fees", (), "en", (20, 200), False),
+    ],
+)
+def test_a_long_answer_is_usable_only_in_its_span_backed_and_saying_more_than_its_key(
+    explanation, target, passages, language, span, expected
+) -> None:
+    """Both ends of the span count, figures are read cell by cell, nine tenths of the key is a restatement."""
+    assert explains(explanation, target, passages, language, span) is expected
+
+
+# ── Probes, lemma shares and question words ────────────────────────────────
+
+
+def test_an_answerable_question_is_probed_among_answerable_ones_only() -> None:
+    """An unanswerable one is probed among both kinds, an answerable one not."""
+    from question_generation.gates import rivals
+
+    assert rivals(True) == (True,)
+    assert rivals(False) == (False, True)
+
+
+@pytest.mark.parametrize(("similarity", "refused"), [(0.96, False), (0.97, True)])
+def test_a_neighbour_sharing_nothing_is_refused_only_past_halfway_to_identical(
+    similarity, refused
+) -> None:
+    """Against 0.93, a pair citing nothing in common is held to 0.965."""
+    near = Neighbour("What does a card cost?", answerable=True, similarity=similarity)
+
+    assert (near_verdict(near, answerable=True, threshold=0.93) is not None) is refused
+
+
+@pytest.mark.parametrize(
+    ("question", "neighbour", "language"),
+    [
+        ("Wann wird eine Karte gesperrt?", "Warum wird eine Karte gesperrt?", "de"),
+        ("When is a card blocked?", "Why is a card blocked?", "en"),
+    ],
+)
+def test_a_neighbour_asking_with_another_question_word_is_held_to_the_higher_bar(
+    question, neighbour, language
+) -> None:
+    """`Wann` and `Warum` about one fact are a thread, not a twin."""
+    near = Neighbour(
+        neighbour,
+        answerable=True,
+        similarity=0.94,
+        fact_ids=frozenset({1}),
+        language=language,
+    )
+
+    assert (
+        near_verdict(
+            near,
+            answerable=True,
+            threshold=0.93,
+            question=question,
+            language=language,
+            facts=(1,),
+        )
+        is None
+    )
+
+
+def _decided(neighbours, **probed):
+    from question_generation.gates import deciding
+
+    found = deciding(neighbours, answerable=True, threshold=0.93, facts=(1,), **probed)
+    return found and found[0].question_text
+
+
+def test_the_deciding_neighbour_is_the_one_furthest_past_its_bar() -> None:
+    """0.99 against 0.965 beats 0.95 against 0.93, in either order; a tie keeps the first."""
+    shared = Neighbour("A?", answerable=True, similarity=0.95, fact_ids=frozenset({1}))
+    far = Neighbour("B?", answerable=True, similarity=0.99)
+    tied = Neighbour("C?", answerable=True, similarity=0.96, fact_ids=frozenset({1}))
+    level = Neighbour("D?", answerable=True, similarity=0.995)
+
+    assert _decided([far, shared]) == "B?"
+    assert _decided([tied, level]) == "C?"
+
+
+def test_a_neighbour_that_cannot_refuse_does_not_end_the_search() -> None:
+    """One in another language is skipped, and the next is still read."""
+    other = Neighbour(
+        "X?", answerable=True, similarity=0.99, fact_ids=frozenset({1}), language="en"
+    )
+    same = Neighbour(
+        "A?", answerable=True, similarity=0.95, fact_ids=frozenset({1}), language="de"
+    )
+
+    assert _decided([None, other, same], language="de") == "A?"
+
+
+@pytest.mark.parametrize(
+    ("question", "passage", "language"),
+    [
+        ("Welche Gebühren berechnet die Bank?", "Die Bank zahlt Zinsen.", "de"),
+        ("Which fees does the bank charge?", "The bank pays interest.", "en"),
+    ],
+)
+def test_an_unanswerable_question_sharing_the_floor_of_its_lemmas_is_on_topic(
+    question, passage, language
+) -> None:
+    """One of three lemmas meets a floor of one third, read in the question's language."""
+    from nlp.analysis import content
+
+    assert on_topic(question, language, content(passage, language), 1 / 3)
+
+
+def test_the_share_of_a_questions_lemmas_is_read_in_its_language() -> None:
+    """`Gebühren` and `berechnet` are `Gebühr` and `berechnen`: two of four."""
+    from nlp.analysis import content
+
+    from question_generation.gates import shared_lemmas
+
+    assert (
+        shared_lemmas(
+            "Welche Gebühren berechnet die Bank?",
+            content("Die Bank berechnet Zinsen.", "de"),
+            "de",
+        )
+        == 0.5
+    )
+
+
+@pytest.mark.parametrize(
+    ("recovered", "target", "share"),
+    [
+        ("eine Gebühr", "Karte und Konto", 1.0),
+        ("Gebühren und Zinsen", "Karte und Konto", 1.0),
+        ("die Gebühren, die Zinsen und die Prämien", "die Gebühren und die Zinsen", 2 / 3),
+    ],
+)
+def test_a_key_covers_what_the_verifier_found_unless_it_found_more(
+    recovered, target, share
+) -> None:
+    """No more lemmas found than the key holds is full cover; three found, two keyed, two thirds."""
+    from question_generation.gates import covered
+
+    assert covered(recovered, target, "de") == pytest.approx(share)
+
+
+def test_a_figure_in_one_cited_cell_is_asserted_by_the_passages() -> None:
+    """Cells are read apart: `5` closing one and `60` opening the next are both stated."""
+    assert asserted("5 und 60", ("Monatsgebühr 5", "60 Jahresgebühr"), "de")
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        (
+            "Wie hoch ist die Gebühr?",
+            "5 EUR für das Girokonto und 0 EUR für das Sparkonto",
+            "de",
+        ),
+        (
+            "What is the fee?",
+            "5 EUR for the current account and 0 EUR for the savings account",
+            "en",
+        ),
+    ],
+)
+def test_a_comparison_whose_question_names_one_thing_compares_nothing(
+    question, answer, language
+) -> None:
+    """Two sides in the answer do not make up for one subject in the question."""
+    assert not compares(question, answer, language)
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "same"),
+    [
+        ("Wann wird eine Karte gesperrt?", "Warum wird eine Karte gesperrt?", False),
+        ("Wann wird eine Karte gesperrt?", "Die Karte wird gesperrt?", True),
+        ("Wer genehmigt den Kredit?", "Wer prüft den Kredit?", True),
+    ],
+)
+def test_two_questions_ask_the_same_unless_their_question_words_differ(
+    first, second, same
+) -> None:
+    """German question words read by the German parse; one with none tells nothing."""
+    from question_generation.gates import asks_the_same
+
+    assert asks_the_same(first, second, "de") is same
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        ("Wer genehmigt einen Kredit?", "der Ausschuss", "de"),
+        ("Welche Mitarbeiterin genehmigt den Kredit?", "Herr Schneider", "de"),
+        ("Which employee approves the loan?", "John Smith", "en"),
+    ],
+)
+def test_an_entity_question_asks_after_a_party_by_its_word_or_its_answers_person(
+    question, answer, language
+) -> None:
+    """`Wer`, or a person the German or the English tagger labels as one."""
+    assert asks_for_an_agent(question, answer, language)
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language", "expected"),
+    [
+        ("Gilt keine Gebühr für ein Girokonto?", "keine Gebühr für ein Girokonto", "de", True),
+        ("Welche Gebühr gilt für ein Girokonto?", "ja, die Gebühr für ein Girokonto", "de", True),
+        (
+            "What fee applies to a current account?",
+            "the monthly fee for a current account",
+            "en",
+            False,
+        ),
+    ],
+)
+def test_an_answer_restates_unless_a_quarter_of_it_or_its_polarity_is_new(
+    question, answer, language, expected
+) -> None:
+    """A `keine` the question already says adds nothing; one new lemma of four is enough."""
+    assert restates(question, answer, language) is expected
+
+
+@pytest.mark.parametrize(
+    ("question", "language", "expected"),
+    [
+        (
+            "Wie hoch ist die Gebühr für das Girokonto im Jahr 2025?",
+            "de",
+            "die Gebühr das Girokonto Jahr 2025",
+        ),
+        (
+            "What is the fee for the current account in 2025?",
+            "en",
+            "the current account the fee 2025",
+        ),
+    ],
+)
+def test_a_questions_subject_is_its_phrases_and_figures_read_in_its_language(
+    question, language, expected
+) -> None:
+    """One space between spans, and a German question's units read by the German parse."""
+    from question_generation.gates import subject
+
+    assert subject(question, language) == expected
+
+
+def test_a_relation_word_is_read_by_its_lemma() -> None:
+    """`unterscheidet` is `unterscheiden`, which neither half says."""
+    from question_generation.gates import relates
+
+    assert (
+        relates(
+            "Was unterscheidet die Kündigung von der Sperre?",
+            "de",
+            ("Die Kündigung gilt ab Mai.", "Die Sperre gilt ab Juni."),
+        )
+        == "unterscheiden"
+    )
+
+
+# ── Readings of figures, words and languages no table names ────────────────
+
+
+@pytest.mark.parametrize(
+    ("token", "folded"), [("00:00", "0.0"), ("8:30:00", "8.0:30.0"), ("08:00", "8.0")]
+)
+def test_a_clock_time_folds_group_by_group_dropping_only_closing_zeros(
+    token, folded
+) -> None:
+    """Midnight is one zero, and `8:30:00` is `8:30`: `:00` closing a time adds nothing."""
+    assert _folded(token, "en") == folded
+
+
+@pytest.mark.parametrize(
+    ("recovered", "target", "language"),
+    [
+        ("La commission est de 5 EUR.", "5 EUR", "fr"),
+        ("Η χρέωση είναι 5 EUR.", "5 EUR", "el"),
+    ],
+)
+def test_a_figure_in_a_language_no_table_names_is_still_compared(
+    recovered, target, language
+) -> None:
+    """No ordinal suffixes and no count words for it: the digits alone are read."""
+    assert agrees(recovered, target, language)
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        ("Quels frais s'appliquent ?", "les frais", "fr"),
+        ("Ποιες χρεώσεις ισχύουν;", "οι χρεώσεις", "el"),
+    ],
+)
+def test_a_restatement_in_a_language_with_no_polarity_words_is_read_inert(
+    question, answer, language
+) -> None:
+    """No `yes` or `no` words and no model for it: the gate stays inert, never errs."""
+    assert restates(question, answer, language) is False
+
+
+def test_a_count_answer_opening_with_a_space_is_still_read_as_its_count() -> None:
+    """` 2` is `2`: a key's leading whitespace hides no count of the prompt."""
+    failed = checked(
+        question_text="How many documents does a loan application need?",
+        target_answer=" 2",
+        statements=(
+            "A loan application needs a passport.",
+            "A loan application needs a payslip.",
+        ),
+    )
+
+    assert code(failed) == QuestionRejection.MALFORMED
+
+
+def test_two_question_words_in_a_row_with_no_language_are_two_questions() -> None:
+    """No table of asking adverbs for it is no table, not an error."""
+    failed, _ = structural(
+        question_text="Which fee applies and when is it charged?",
+        target_answer="5 EUR",
+        answerable=True,
+        language=None,
+    )
+
+    assert code(failed) == QuestionRejection.COMPOUND
+
+
+def test_a_two_letter_suspended_compound_is_an_item_of_a_set() -> None:
+    """`E- und Kreditkarten` is e-cards and credit cards."""
+    assert enumerates("E- und Kreditkarten", "de")
+
+
+@pytest.mark.parametrize(
+    ("recovered", "target", "language"),
+    [
+        ("Ausweis, Lohnzettel und 2025", "Ausweis und Lohnzettel aus 2025", "de"),
+        ("passport, payslip and 2025", "passport and payslip from 2025", "en"),
+    ],
+)
+def test_a_figure_the_key_closes_on_is_not_one_it_left_unnamed(
+    recovered, target, language
+) -> None:
+    """`2025` ends the key, so the recovery's `2025` was named."""
+    assert unnamed(recovered, target, language) == ()
+
+
+_CARDS = "How do card payments and bank transfers differ?"
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        (
+            _CARDS,
+            "card payments, in seconds and with a fee; bank transfers, in a day and "
+            "with a fee",
+            "en",
+        ),
+        (
+            "Wie unterscheiden sich Kartenzahlungen und Überweisungen?",
+            "Kartenzahlungen, in Sekunden und mit Gebühr; Überweisungen, in einem Tag "
+            "und mit Gebühr",
+            "de",
+        ),
+        (
+            _CARDS,
+            "card payments in seconds and with a fee, bank transfers in a day with a fee",
+            "en",
+        ),
+        (
+            "How do the reply times for standard and urgent requests differ?",
+            "48 hours, 4 hours,",
+            "en",
+        ),
+        (_CARDS, "faster card payments, slower bank transfers", "en"),
+        ("How do cards and transfers differ in speed?", "Cards settle faster than transfers", "en"),
+        (
+            "How do cards and transfers differ in speed?",
+            "fees apply; cards are faster than transfers",
+            "en",
+        ),
+        (
+            _CARDS,
+            "card payments with a fee in seconds, bank transfers with a fee in a day; "
+            "both are common",
+            "en",
+        ),
+    ],
+)
+def test_a_comparison_is_split_at_its_best_ranked_dividing_seam(
+    question, answer, language
+) -> None:
+    """`;` before `,` before `and`, among the seams that divide; a comparative in its own stretch."""
+    assert compares(question, answer, language)
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        (_CARDS, "card payments need a card; a cheque is faster than bank transfers", "en"),
+        (
+            "Wie unterscheiden sich Kartenzahlungen und Überweisungen?",
+            "Kartenzahlungen brauchen eine Karte; ein Scheck dauert länger als eine "
+            "Überweisung",
+            "de",
+        ),
+        (_CARDS, "a card payment with a bank transfer fee", "en"),
+        (
+            "Wie unterscheiden sich Kartenzahlungen und Überweisungen?",
+            "eine Kartenzahlung mit einer Überweisungsgebühr",
+            "de",
+        ),
+    ],
+)
+def test_a_comparative_past_a_seam_or_an_answer_in_one_piece_compares_nothing(
+    question, answer, language
+) -> None:
+    """A cheque faster than transfers says nothing of card payments; no seam is no two sides."""
+    assert not compares(question, answer, language)
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "language"),
+    [
+        (
+            "How do card payments and bank transfers differ in speed?",
+            "Card payments are faster and bank transfers take a day",
+            "en",
+        ),
+        (
+            "Wie unterscheiden sich Kartenzahlungen und Überweisungen in der Dauer?",
+            "Kartenzahlungen sind schneller und Überweisungen dauern einen Tag",
+            "de",
+        ),
+        (
+            "How do card payments and bank transfers differ in speed?",
+            "Card payments are faster, bank transfers take a day",
+            "en",
+        ),
+    ],
+)
+def test_one_comparative_at_a_coordinating_seam_compares_one_side(
+    question, answer, language
+) -> None:
+    """Only a subordinate seam (`while`, `während`) lets one side's comparative stand for both."""
+    assert not compares(question, answer, language)
+
+
+@pytest.mark.parametrize(
+    ("recovered", "target", "language"),
+    [
+        (
+            "(1) Ausweis, (2) Lohnzettel, (3) Vertrag und (4) Pass",
+            "Ausweis, Lohnzettel, Vertrag und Pass",
+            "de",
+        ),
+        (
+            "- Ausweis und Lohnzettel\n- Vertrag und Pass",
+            "Ausweis, Lohnzettel, Vertrag und Pass",
+            "de",
+        ),
+        (
+            "Schritt 1: Ausweis und Lohnzettel\nSchritt 2: Vertrag und Pass",
+            "Ausweis, Lohnzettel, Vertrag und Pass",
+            "de",
+        ),
+        (
+            "(1) passport, (2) payslip and (3) contract",
+            "passport, payslip and contract",
+            "en",
+        ),
+        (
+            "1. passport and payslip\n2. contract and ID card",
+            "passport, payslip, contract and ID card",
+            "en",
+        ),
+        (
+            "Step 1: passport and payslip\nStep 2: contract and ID card",
+            "passport, payslip, contract and ID card",
+            "en",
+        ),
+    ],
+)
+def test_a_key_naming_every_item_of_a_numbered_or_bulleted_list_leaves_none_unnamed(
+    recovered, target, language
+) -> None:
+    """Item numbers, bullets and step labels are markup, not items the key left out."""
+    assert unnamed(recovered, target, language) == ()

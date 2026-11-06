@@ -140,3 +140,50 @@ def test_a_question_cites_its_source_alike_in_german_and_english(german, english
 def test_an_unconfigured_language_stays_inert(question, language):
     """No table row, no reading."""
     assert cites_source(question, language) is None
+
+
+@pytest.mark.parametrize(
+    ("question", "language"), [("Gebühren Kapitel 5", "de"), ("fees chapter 5", "en")]
+)
+def test_a_numbered_division_closing_a_search_query_is_a_citation(question, language):
+    """With no question mark after it, the number is the query's last token."""
+    assert cites_source(question, language) is True
+
+
+@pytest.mark.parametrize(
+    ("question", "language"),
+    [
+        ("Wie hoch ist laut Northbank die Gebühr?", "de"),
+        ("What is the fee according to Northbank?", "en"),
+    ],
+)
+def test_an_attribution_to_the_name_right_after_it_is_a_citation(question, language):
+    """`laut Northbank`: the name is the very next token, and it is attributed to."""
+    assert cites_source(question, language) is True
+
+
+@pytest.mark.parametrize(
+    ("question", "language"),
+    [
+        ("Welche Frist nennt der Text des Artikels 5?", "de"),
+        ("Which deadline does Article 5 set?", "en"),
+    ],
+)
+def test_a_numbered_rule_in_any_case_is_what_the_question_is_about(question, language):
+    """`des Artikels 5` is the genitive of `Artikel`: read by its lemma, it is a subject."""
+    assert cites_source(question, language) is False
+
+
+@pytest.mark.parametrize(
+    ("question", "language"),
+    [
+        ("How often must staff report 2 or more failed logins?", "en"),
+        ("Must the branch report 5 suspicious transfers to the police?", "en"),
+        ("Wann muss die Filiale 3 Vorfälle melden?", "de"),
+        ("Quelle commission fixe la directive 2015/2366 ?", "fr"),
+        ("Ποια χρέωση ορίζει η οδηγία 2015/2366;", "el"),
+    ],
+)
+def test_a_lower_case_verb_spelled_like_a_document_settles_nothing(question, language):
+    """`report 2 or more` is an action with a count, not a report numbered 2."""
+    assert cites_source(question, language) is None

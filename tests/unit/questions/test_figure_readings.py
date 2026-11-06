@@ -335,3 +335,126 @@ def test_a_fraction_agrees_with_its_decimal_spelling(
 def test_another_fraction_does_not_agree(language, recovered, target) -> None:
     """The fraction is part of the value."""
     assert not agrees(recovered, target, language)
+
+
+@pytest.mark.parametrize(
+    ("question", "passage", "language"),
+    [
+        (
+            "How many branches does the bank run in the city?",
+            "Each branch is at least 120 m² large and opens 6 days a week.",
+            "en",
+        ),
+        (
+            "Wie viele Filialen betreibt die Bank in der Stadt?",
+            "Jede Filiale ist mindestens 120 Quadratmeter groß und an 6 Tagen geöffnet.",
+            "de",
+        ),
+        (
+            "How many Mastercards does a customer hold?",
+            "A customer holds 2 Visa cards and pays 5 EUR a month.",
+            "en",
+        ),
+    ],
+)
+def test_a_count_over_figures_that_count_another_thing_is_left_to_the_model(
+    question, passage, language
+) -> None:
+    """Square metres and days are no sum of branches, and Visa cards none of Mastercards."""
+    from question_generation.gates import counts_something_else
+
+    assert counts_something_else(question, [passage], language)
+
+
+@pytest.mark.parametrize(
+    ("question", "passage", "language"),
+    [
+        (
+            "How many branches does the bank run in the city?",
+            "The bank runs 40 branches in the city.",
+            "en",
+        ),
+        (
+            "Wie viele Filialen betreibt die Bank in der Stadt?",
+            "Die Bank betreibt 40 Filialen in der Stadt.",
+            "de",
+        ),
+        ("How many branches does the bank run?", "The bank employs 1200.", "en"),
+        ("How many are employed at a branch?", "Each branch has 3 counters.", "en"),
+        (
+            "Which branches does the bank run in the city?",
+            "Each branch is at least 120 m² large.",
+            "en",
+        ),
+        (
+            "Combien d'agences la banque gère-t-elle ?",
+            "Chaque agence fait au moins 120 m².",
+            "fr",
+        ),
+        (
+            "Πόσα καταστήματα έχει η τράπεζα;",
+            "Κάθε κατάστημα έχει τουλάχιστον 120 m².",
+            "el",
+        ),
+    ],
+)
+def test_a_count_whose_figures_may_count_what_it_asks_is_left_to_the_arithmetic(
+    question, passage, language
+) -> None:
+    """A figure of the thing asked, of nothing named, or no count asked: `adds_up` decides."""
+    from question_generation.gates import counts_something_else
+
+    assert not counts_something_else(question, [passage], language)
+
+
+@pytest.mark.parametrize(
+    ("answer", "passage", "language", "expected"),
+    [
+        ("40", "40 branches and 25 ATMs", "en", True),
+        ("2025", "Since 2025 the fee is 3 EUR.", "en", True),
+        ("0", "2 cards and 3 loans", "en", False),
+        ("31", "1, 2, 4, 8 and 16 cards", "en", False),
+        ("1,500", "1.000 EUR und 500 EUR", "de", False),
+    ],
+)
+def test_a_total_is_one_to_four_of_the_figures_read_in_the_texts_language(
+    answer, passage, language, expected
+) -> None:
+    """A figure stated outright adds up, a year alone included; no terms or five do not."""
+    assert adds_up(answer, [passage], language) is expected
+
+
+@pytest.mark.parametrize(
+    ("question", "answer", "statements", "language", "expected"),
+    [
+        (
+            "Wie viele Gebühren berechnet die Bank?",
+            "2",
+            ["Die Bank berechnet eine Kontoführungsgebühr und eine Kartengebühr."],
+            "de",
+            True,
+        ),
+        (
+            "How many cards are issued?",
+            "3",
+            ["The bank issues a debit card, a credit card and a prepaid card."],
+            "en",
+            True,
+        ),
+        (
+            "How many days does a refund take?",
+            "3",
+            ["The shop accepts Visa, Mastercard and PayPal."],
+            "en",
+            False,
+        ),
+        ("Wie viele Gebühren berechnet die Bank?", "3", [], "de", False),
+    ],
+)
+def test_a_count_is_a_lookup_only_of_a_list_the_fact_asked_about_holds(
+    question, answer, statements, language, expected
+) -> None:
+    """Two items are a list; one shared word picks the fact; an unrelated list counts nothing."""
+    from question_generation.gates import counts_a_list
+
+    assert counts_a_list(question, answer, statements, language) is expected

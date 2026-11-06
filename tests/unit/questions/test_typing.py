@@ -362,3 +362,186 @@ def test_an_explanation_naming_a_term_the_passages_do_not_is_still_usable() -> N
 
     assert explains(good, "within 14 days", passages, "en")
     assert not explains(bad, "within 14 days", passages, "en")
+
+
+@pytest.mark.parametrize(
+    ("kind", "question", "answer", "language", "code"),
+    [
+        (
+            QuestionType.ENTITY,
+            "Womit können Anträge gestellt werden?",
+            "mit Formularen und Tabellen",
+            "de",
+            "wrong_type",
+        ),
+        (
+            QuestionType.ENTITY,
+            "Which office approves a loan?",
+            "with a form",
+            "en",
+            "wrong_type",
+        ),
+        (
+            QuestionType.ENUMERATION,
+            "Welche Unterlagen braucht ein Antrag?",
+            "ein Ausweis",
+            "de",
+            "wrong_type",
+        ),
+        (
+            QuestionType.ENUMERATION,
+            "Which documents does an application need?",
+            "a passport",
+            "en",
+            "wrong_type",
+        ),
+        (
+            QuestionType.ENUMERATION,
+            "Quels documents faut-il fournir ?",
+            "une pièce d'identité",
+            "fr",
+            "wrong_type",
+        ),
+        (
+            QuestionType.ENUMERATION,
+            "Ποια έγγραφα χρειάζονται;",
+            "ένα διαβατήριο",
+            "el",
+            "wrong_type",
+        ),
+        (
+            QuestionType.COMPARISON,
+            "Wie unterscheiden sich Girokonto und Sparkonto?",
+            "ein Konto",
+            "de",
+            "wrong_type",
+        ),
+        (
+            QuestionType.COMPARISON,
+            "How do a current account and a savings account differ?",
+            "an account",
+            "en",
+            "wrong_type",
+        ),
+        (
+            QuestionType.TEMPORAL,
+            "Wie hat sich die Gebühr verändert?",
+            "Die Gebühr stieg von 1.900 EUR auf 2.050 EUR.",
+            "de",
+            "wrong_type",
+        ),
+        (
+            QuestionType.TEMPORAL,
+            "How did the fee change?",
+            "The fee rose from 5 to 7 EUR.",
+            "en",
+            "wrong_type",
+        ),
+        (
+            QuestionType.CONDITION,
+            "Wann werden Karten gesperrt?",
+            "wenn die Karte gesperrt wird",
+            "de",
+            "restates_question",
+        ),
+        (
+            QuestionType.FACTOID,
+            "What is the fee for a current account?",
+            "the fee for a current account",
+            "en",
+            "restates_question",
+        ),
+    ],
+)
+def test_an_answered_question_of_the_wrong_shape_for_its_type_is_refused(
+    kind, question, answer, language, code
+) -> None:
+    """One thing for a set, one side for a comparison, one period for a change."""
+    from question_generation.gates import typed
+
+    refused = typed(question, answer, True, kind, language)
+
+    assert refused is not None
+    assert refused[0] == code
+
+
+@pytest.mark.parametrize(
+    ("kind", "question", "answer", "language"),
+    [
+        (QuestionType.ENTITY, "Wer genehmigt einen Kredit?", "der Kreditausschuss", "de"),
+        (QuestionType.ENTITY, "Which office approves a loan?", "Northbank Ltd", "en"),
+        (
+            QuestionType.ENUMERATION,
+            "Welche Unterlagen braucht ein Antrag?",
+            "ein Ausweis, ein Meldenachweis und ein Lohnzettel",
+            "de",
+        ),
+        (
+            QuestionType.ENUMERATION,
+            "Which documents does an application need?",
+            "a passport, a payslip and proof of address",
+            "en",
+        ),
+        (
+            QuestionType.COMPARISON,
+            "Wie unterscheiden sich die Gebühren für Girokonto und Sparkonto?",
+            "5 EUR für das Girokonto und 0 EUR für das Sparkonto",
+            "de",
+        ),
+        (
+            QuestionType.COMPARISON,
+            "How do the reply times for standard and urgent requests differ?",
+            "48 hours for a standard request and 4 hours for an urgent one",
+            "en",
+        ),
+        (
+            QuestionType.TEMPORAL,
+            "Wie hat sich die Gebühr verändert?",
+            "Von 2024 auf 2025 stieg die Gebühr von 5 auf 7 EUR.",
+            "de",
+        ),
+        (
+            QuestionType.TEMPORAL,
+            "How did the fee change?",
+            "From 2024 to 2025 the fee rose from 5 to 7 EUR.",
+            "en",
+        ),
+    ],
+)
+def test_an_answered_question_of_the_shape_its_type_asks_for_is_kept(
+    kind, question, answer, language
+) -> None:
+    """A party, a set, both sides, two periods: what each type exists to hold."""
+    from question_generation.gates import typed
+
+    assert typed(question, answer, True, kind, language) is None
+
+
+@pytest.mark.parametrize(
+    ("kind", "form", "answer", "language", "expected"),
+    [
+        (
+            QuestionType.AGGREGATION,
+            AnswerForm.EXPLANATION,
+            "3 cards and 2 loans",
+            "en",
+            QuestionType.AGGREGATION,
+        ),
+        (
+            QuestionType.CONDITION,
+            AnswerForm.VALUE,
+            "when it is lost",
+            "en",
+            QuestionType.CONDITION,
+        ),
+        (QuestionType.AGGREGATION, AnswerForm.VALUE, "zwei Karten", "de", QuestionType.AGGREGATION),
+        (QuestionType.AGGREGATION, AnswerForm.VALUE, "Q3", "en", QuestionType.AGGREGATION),
+    ],
+)
+def test_only_a_derived_list_or_value_is_relabelled_and_a_number_in_any_spelling_keeps_it(
+    kind, form, answer, language, expected
+) -> None:
+    """`zwei` is a German number to the German tagger alone, and `Q3` carries a digit."""
+    from question_generation.gates import relabelled
+
+    assert relabelled(kind, form, answer, language) == expected
