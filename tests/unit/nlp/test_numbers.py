@@ -327,3 +327,31 @@ def test_a_language_with_no_entry_composes_no_ordinal_past_twelve(
     from nlp.analysis import _ordinals_past_twelve
 
     assert _ordinals_past_twelve(language) == {}
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "wanted"),
+    [
+        ("The fee is 5 €.", "en", ("5",)),
+        ("Application fee: 42,803.48 €", "en", ("42803.48",)),
+        ("The + symbol marks an extra fee of 5 €.", "en", ("5",)),
+        ("Der Zins beträgt 10-15 %.", "de", ("10", "15")),
+        ("Die Lieferung dauert 2-3 Tage.", "de", ("2", "3")),
+        ("Opłata wynosi 5 €.", "pl", ("5",)),
+        ("Η χρέωση είναι 5 €.", "el", ("5",)),
+    ],
+)
+def test_a_sign_is_no_number(text, language, wanted) -> None:
+    """A currency sign, a plus or a range's hyphen the tagger calls a numeral states no number."""
+    from nlp.analysis import numbers
+
+    assert numbers(text, language) == wanted
+
+
+def test_an_amount_beside_a_sign_states_one_number_however_it_is_grouped() -> None:
+    """`42,803.48 €` and `42803.48 €` are one amount, so one statement of it."""
+    from nlp.analysis import numbers
+
+    assert numbers("Application fee: 42,803.48 €", "en") == numbers(
+        "Application fee: 42803.48 €", "en"
+    )

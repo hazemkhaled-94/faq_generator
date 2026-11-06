@@ -271,18 +271,20 @@ def test_an_amount_in_a_language_with_no_mark_reads_its_value_whichever_marks_it
     language=st.sampled_from(sorted(_MARKS)),
     cents=st.integers(100_000, 10**11),
     domain=st.integers(0, 2),
+    signed=st.booleans(),
 )
 def test_the_numbers_a_statement_states_do_not_change_with_its_thousands_marks(
-    language, cents, domain
+    language, cents, domain, signed
 ) -> None:
-    """The duplicate gate reads `1.500,00 EUR` and `1500,00 EUR` as one number.
+    """The duplicate gate reads `1.500,00 EUR` and `1500,00 €` as one number.
 
-    In German and English. In a language no `NLP_MODELS` row names, the
-    default parse now and then tags a word `NUM` (`od`, `είναι`) and the word
-    is read as a number, as a currency sign is in English: T2-01's.
+    In German and English, the code or the sign. In a language no
+    `NLP_MODELS` row names, the default parse now and then tags a word `NUM`
+    (`od`, `είναι`) and the word is read as a number.
     """
     thousands, decimal = _MARKS[language]
     frame = _STATING[language][domain]
+    frame = frame.replace("EUR", "€") if signed else frame
 
     grouped = numbers(frame.format(_spelled(cents, thousands, decimal)), language)
     plain = numbers(frame.format(_spelled(cents, "", decimal)), language)
