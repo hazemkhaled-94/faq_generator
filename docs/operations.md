@@ -919,8 +919,9 @@ database, and a re-chunk over questions refuses unless `FORCE=1`.
 
 - When the orchestrator refuses, the answer no longer carries Dagster's
   text, which named its database's host, address and role (N-130). The
-  `orchestrator_refused` detail of `GET /pipeline/runs` and of the pipeline
-  writes, and `orchestration.detail` of `GET /pipeline`, are a fixed
+  `orchestrator_refused` detail of `GET /pipeline/runs`, `POST
+  /pipeline/run` and `PUT /pipeline/automation`, the refused runs a Stop's
+  202 answer names, and `orchestration.detail` of `GET /pipeline`, are a fixed
   sentence with the error's type and a trace id, such as `the orchestrator
   could not list its runs (PythonError); the api log holds why, trace <id>`.
   Dagster's words are in the api log under that id. A caller that

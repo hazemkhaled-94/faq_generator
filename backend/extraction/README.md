@@ -132,7 +132,8 @@ reads a vulgar fraction as its value (`2½` is `2.5`),
 and a proper noun is lemmatised. A fact may rest on the sentences it cites, the
 passage's heading trail and the document's title. A name or number found only
 in an uncited sentence is an addition. So is a figure only the rest of the
-passage states, when the cited sentences state another of its kind: "costs EUR
+passage states, when the cited sentences state another of its kind (this and
+the swaps below are read for an atomic fact only): "costs EUR
 2" for a cited "costs EUR 5". So is a figure the cited sentences give only
 beside another currency, share or period: "12 % for 5 months" for a cited "5 %
 for 12 months". So is a figure that keeps its digits and changes its unit of time
