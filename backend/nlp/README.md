@@ -62,7 +62,8 @@ line before the model is called.
 ### Vocabulary
 
 Chunking writes onto every passage the lemmas of its nouns, proper nouns and
-adjectives, leaving out web addresses, lemmas with no letter and
+adjectives, leaving out web addresses, lemmas with no letter, words with no
+letter (a figure the lemmatiser gives a letter, `3.948.006,39r`, is none) and
 one-character lemmas. The topic model fits over them.
 
 `NLP_CAPITALISED_NOUNS` names the languages where capitalisation says nothing

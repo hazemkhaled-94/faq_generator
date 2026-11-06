@@ -415,6 +415,25 @@ def test_a_name_written_with_a_lower_case_initial_is_kept() -> None:
 
 
 @pytest.mark.parametrize(
+    ("text", "language"),
+    [
+        ("Die Gebühr für die Ersatzkarte beträgt 3.948.006,39 EUR.", "de"),
+        ("Der Versand kostet 1.495.953,05 EUR pro Bestellung.", "de"),
+        ("Die Bearbeitung des Antrags dauert 3667–5224 Tage.", "de"),
+        ("The fee for a replacement card is 3,948,006.39 EUR.", "en"),
+        ("Processing the application takes 3667–5224 days.", "en"),
+        ("Opłata za kartę zastępczą wynosi 3 948 006,39 EUR.", "pl"),
+        ("Η χρέωση για κάρτα αντικατάστασης είναι 3.948.006,39 EUR.", "el"),
+    ],
+)
+def test_a_figure_is_no_content_lemma(text, language) -> None:
+    """A lemmatiser's letter on an amount or a range (`3.948.006,39r`) makes no word of it."""
+    from nlp.analysis import content
+
+    assert not [one for one in content(text, language) if any(c.isdigit() for c in one)]
+
+
+@pytest.mark.parametrize(
     ("question", "asked"),
     [
         ("What happens when a test fails?", ("What",)),

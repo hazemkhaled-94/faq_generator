@@ -2630,8 +2630,11 @@ def _lemmas(document: Doc) -> list[str]:
         # The lemma, not the token: the lemma is what is stored, and a
         # lemmatiser handed a word from another language returns the
         # placeholder "--" for a token that is itself perfectly alphabetic.
-        # Any letter rather than every one, so `KI-Verordnung` is kept.
+        # Any letter rather than every one, so `KI-Verordnung` is kept. The
+        # token's own as well: a figure the lemmatiser suffixes a letter to
+        # (`3.948.006,39r`) is no word.
         and any(char.isalpha() for char in token.lemma_)
+        and any(char.isalpha() for char in token.text)
         and len(token.lemma_) > 1
         and not any(start <= token.idx < end for start, end in addresses)
     ]
