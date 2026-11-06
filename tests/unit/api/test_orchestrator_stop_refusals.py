@@ -1,7 +1,8 @@
-"""A Stop that Dagster answers with an error is raised with Dagster's words.
+"""A Stop that Dagster answers with an error is raised as a refusal.
 
 Neither a whole-call error nor a per-run answer that is neither success nor
 failure means the run stopped, and neither may be read as "already finished".
+The refusal names the error's type; Dagster's own words go to the log only.
 """
 
 from __future__ import annotations
@@ -37,7 +38,9 @@ class Session:
         return Replied(self.bodies.pop(0))
 
 
-def test_a_whole_call_error_is_raised_as_a_refusal() -> None:
+def test_a_whole_call_error_is_raised_as_a_refusal(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Dagster could not run the mutation at all."""
     session = Session(
         {
@@ -50,12 +53,16 @@ def test_a_whole_call_error_is_raised_as_a_refusal() -> None:
         }
     )
 
-    with pytest.raises(Refused, match="run storage is locked"):
+    with pytest.raises(Refused, match=r"\(PythonError\)") as refused:
         Dagster("http://dagster:3000", session=session).terminate("run-7")
+    assert "run storage is locked" not in str(refused.value)
+    assert "run storage is locked" in caplog.text
     assert len(session.sent) == 1
 
 
-def test_a_per_run_answer_that_is_neither_success_nor_failure_is_a_refusal() -> None:
+def test_a_per_run_answer_that_is_neither_success_nor_failure_is_a_refusal(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """An unauthorised stop is not looked up as if the run had finished."""
     session = Session(
         {
@@ -73,6 +80,8 @@ def test_a_per_run_answer_that_is_neither_success_nor_failure_is_a_refusal() -> 
         }
     )
 
-    with pytest.raises(Refused, match="not permitted to terminate run-7"):
+    with pytest.raises(Refused, match=r"\(UnauthorizedError\)") as refused:
         Dagster("http://dagster:3000", session=session).terminate("run-7")
+    assert "not permitted" not in str(refused.value)
+    assert "not permitted to terminate run-7" in caplog.text
     assert len(session.sent) == 1, "no status lookup, no forced cancel"
