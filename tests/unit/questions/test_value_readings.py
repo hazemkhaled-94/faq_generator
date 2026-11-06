@@ -863,3 +863,52 @@ def test_n157_another_unit_beside_the_figure_disagrees(recovered, key, language)
 def test_n157_the_same_unit_beside_the_figure_agrees(recovered, key, language):
     """The key's unit comes back beside the same figure, so the key agrees."""
     assert agrees(recovered, key, language, AnswerForm.VALUE)
+
+
+# N-147: a key that ends in a figure's unit is found in the recovery only where that unit ends.
+_FORMS = [AnswerForm.VALUE, AnswerForm.LIST, AnswerForm.EXPLANATION]
+
+
+@pytest.mark.parametrize("form", _FORMS)
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        ("Die Bankkarte ist 5 mm dick.", "5 m", "de"),
+        ("Das Paket wiegt 2 lb.", "2 l", "de"),
+        ("Die Wohnung hat 20 m² Wohnfläche.", "20 m", "de"),
+        ("Das Speicherpaket umfasst 5 GB.", "5 g", "de"),
+        ("The card is 5 mm thick.", "5 m", "en"),
+        ("The parcel weighs 2 lb.", "2 l", "en"),
+        ("The flat has 20 m² of floor space.", "20 m", "en"),
+        ("La carte a une épaisseur de 5 mm.", "5 m", "fr"),
+        ("Karta ma grubość 5 mm.", "5 m", "pl"),
+        ("Η κάρτα έχει πάχος 5 mm.", "5 m", "el"),
+    ],
+)
+def test_n147_a_longer_unit_beside_the_figure_disagrees(recovered, key, language, form):
+    """`5 m` is not found in `5 mm`, whatever form the answer takes."""
+    assert not agrees(recovered, key, language, form)
+
+
+@pytest.mark.parametrize("form", _FORMS)
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        ("Das Kabel im Sortiment ist 5 m lang.", "5 m", "de"),
+        ("Der Kanister fasst 2 l.", "2 l", "de"),
+        ("Dicke: 5 mm", "5 mm", "de"),
+        ("The cable is 5 m long.", "5 m", "en"),
+        ("The length is 5 m.", "5 m", "en"),
+        ("Le câble mesure 5 m.", "5 m", "fr"),
+        ("Kabel ma 5 m długości.", "5 m", "pl"),
+        ("Το καλώδιο έχει μήκος 5 m.", "5 m", "el"),
+        ("Ja, das Konto ist kostenlos.", "ja", "de"),
+        ("No, the office is closed on Sundays.", "No", "en"),
+        # A word, not a unit, goes on into its inflection, and stays found.
+        ("Eine sofortige Ausführung ist möglich.", "sofort", "de"),
+        ("Es fällt eine jährliche Gebühr an.", "jährlich", "de"),
+    ],
+)
+def test_n147_the_same_unit_and_words_are_still_found(recovered, key, language, form):
+    """The same unit, and a word going on into its inflection, keep agreeing."""
+    assert agrees(recovered, key, language, form)

@@ -2967,6 +2967,11 @@ def agrees(
             )
         )
     left, right = normalised(recovered), normalised(target)
+    # A key that ends in a figure's unit ends where a word ends: `5 m` is not
+    # the `5 mm` it is the start of, nor `2 l` the `2 lb`.
+    words = [token for token in read if not token.is_punct]
+    if len(words) > 1 and is_number(words[-2]):
+        return bool(left) and re.search(re.escape(right) + r"(?!\w)", left) is not None
     return bool(left) and right in left
 
 
