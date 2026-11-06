@@ -15,6 +15,7 @@ import subprocess
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 import yaml
@@ -76,6 +77,67 @@ def test_the_example_turns_the_host_runner_on_and_backend_env_does_not_set_it() 
 
 
 # ── make ───────────────────────────────────────────────────────────────────
+
+#: Seconds a wait on a background run is given: a hang guard far above the run's
+#: length on a loaded host, under faulthandler_timeout (600), not a speed bound.
+HANG = 300
+
+
+class _Started(subprocess.Popen):
+    """A Popen that lists itself, so the test's teardown can reap it."""
+
+    every: ClassVar[list[subprocess.Popen]] = []
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.every.append(self)
+
+
+def _holding(directory: Path) -> list[int]:
+    """The processes whose environment names this test's directory: its runs' leftovers."""
+    listing = subprocess.run(
+        ["ps", "axeww", "-o", "pid=,args="], capture_output=True, text=True, check=False
+    ).stdout
+    marker = f"LOG={directory}/drains.log"
+    return [
+        int(line.split(None, 1)[0])
+        for line in listing.splitlines()
+        if marker in line and int(line.split(None, 1)[0]) != os.getpid()
+    ]
+
+
+@pytest.fixture(autouse=True)
+def _reaped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Whatever the test left running, pass or fail, is terminated and waited for.
+
+    A run that timed out would otherwise outlive its test, and its Popen's
+    ResourceWarning would fail a later one under filterwarnings = error.
+    """
+    _Started.every = []
+    monkeypatch.setattr(subprocess, "Popen", _Started)
+    yield
+    for one in _Started.every:
+        if one.poll() is None:
+            one.terminate()
+    for one in _Started.every:
+        try:
+            one.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            one.kill()
+            one.wait()
+    if not (tmp_path / "bin").exists():
+        return
+    for signum in (signal.SIGTERM, signal.SIGKILL):
+        left = _holding(tmp_path)
+        for pid in left:
+            try:
+                os.kill(pid, signum)
+            except ProcessLookupError:
+                pass
+        for _ in range(50):
+            if not _holding(tmp_path):
+                break
+            time.sleep(0.1)
 
 
 def _project(
@@ -341,7 +403,7 @@ def test_a_resume_returns_failed_rows_to_the_queue_first(tmp_path: Path) -> None
 def _waited(project: Path, runs: int = 1) -> None:
     """Until the runner has said `runs` times that its run ended."""
     log = project / "logs/corpus-hosted.log"
-    for _ in range(300):
+    for _ in range(HANG * 10):
         if log.exists() and log.read_text().count("the run ended") >= runs:
             return
         time.sleep(0.1)
@@ -402,7 +464,7 @@ GO_LIVE = "HOST_RUNNER=1\nLLM_MODEL=azure/gpt-5.4\n"
 LEDGER = "state/corpus-spend-qa_scratch.usd"
 
 
-def _until(done: Callable[[], bool], seconds: float = 20) -> None:
+def _until(done: Callable[[], bool], seconds: float = HANG) -> None:
     end = time.time() + seconds
     while not done():
         if time.time() > end:
@@ -652,7 +714,7 @@ def test_a_runner_told_to_stop_stops_its_run_and_exits_75(tmp_path: Path) -> Non
     try:
         _until(lambda: _extracting(project))
         runner.terminate()
-        code = runner.wait(timeout=60)
+        code = runner.wait(timeout=HANG)
     finally:
         runner.kill()
 
