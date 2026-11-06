@@ -296,21 +296,55 @@ _EN_PAST_TWELVE = {
     **dict(
         zip(
             range(13, 20),
-            "thirteenth fourteenth fifteenth sixteenth seventeenth eighteenth nineteenth".split(),
+            [
+                "thirteenth",
+                "fourteenth",
+                "fifteenth",
+                "sixteenth",
+                "seventeenth",
+                "eighteenth",
+                "nineteenth",
+            ],
             strict=True,
         )
     ),
     **dict(
         zip(
             range(20, 100, 10),
-            "twentieth thirtieth fortieth fiftieth sixtieth seventieth eightieth ninetieth".split(),
+            [
+                "twentieth",
+                "thirtieth",
+                "fortieth",
+                "fiftieth",
+                "sixtieth",
+                "seventieth",
+                "eightieth",
+                "ninetieth",
+            ],
             strict=True,
         )
     ),
 }
-_DE_UNITS = "ein zwei drei vier fünf sechs sieben acht neun".split()
-_DE_TEENS = "dreizehn vierzehn fünfzehn sechzehn siebzehn achtzehn neunzehn".split()
-_DE_TENS = "zwanzig dreißig vierzig fünfzig sechzig siebzig achtzig neunzig".split()
+_DE_UNITS = ["ein", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun"]
+_DE_TEENS = [
+    "dreizehn",
+    "vierzehn",
+    "fünfzehn",
+    "sechzehn",
+    "siebzehn",
+    "achtzehn",
+    "neunzehn",
+]
+_DE_TENS = [
+    "zwanzig",
+    "dreißig",
+    "vierzig",
+    "fünfzig",
+    "sechzig",
+    "siebzig",
+    "achtzig",
+    "neunzig",
+]
 
 
 def _de_past_twelve(value: int) -> str:
