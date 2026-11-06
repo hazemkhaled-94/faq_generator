@@ -306,9 +306,9 @@ def test_a_neighbour_exactly_at_the_bar_is_a_duplicate() -> None:
         fact_ids=frozenset({7}),
     )
 
-    assert code(
-        near_verdict(near, answerable=True, threshold=0.93, facts=(7,))
-    ) == (QuestionRejection.DUPLICATE)
+    assert code(near_verdict(near, answerable=True, threshold=0.93, facts=(7,))) == (
+        QuestionRejection.DUPLICATE
+    )
 
 
 def test_an_empty_corpus_of_questions_rejects_nothing() -> None:
@@ -2030,8 +2030,7 @@ def test_a_list_the_question_already_names_agrees_on_any_item_back(
 ) -> None:
     """Where the answer adds nothing to the question, one shared item is the answer."""
     assert (
-        agrees(recovered, target, language, AnswerForm.LIST, question=question)
-        is same
+        agrees(recovered, target, language, AnswerForm.LIST, question=question) is same
     )
 
 
@@ -7356,8 +7355,10 @@ def test_a_short_thanks_to_one_person_is_mostly_names(text) -> None:
             "en",
         ),
         (
-            "Die Bank dankt Anna Schmidt für die Prüfung der Gebührentabellen in diesem "
-            "Leitfaden.",
+            (
+                "Die Bank dankt Anna Schmidt für die Prüfung der Gebührentabellen in diesem "
+                "Leitfaden."
+            ),
             "de",
         ),
         ("123 456", "en"),
@@ -7406,7 +7407,12 @@ _THREAD = (("Which card fees apply to a transfer at the branch?", "the transfer 
             False,
         ),
         ("the card fee for a transfer at the branch counter", _THREAD, "en", False),
-        ("card fee transfer branch", (("Which card fees apply?", "a fee"),), "en", True),
+        (
+            "card fee transfer branch",
+            (("Which card fees apply?", "a fee"),),
+            "en",
+            True,
+        ),
         ("", _THREAD, "en", False),
     ],
 )
@@ -7454,7 +7460,13 @@ def test_a_key_with_exactly_a_quarter_of_it_new_moves_on() -> None:
             0.3,
             True,
         ),
-        ("Which fees does the bank charge?", ["The bank pays interest."], "en", 1 / 3, True),
+        (
+            "Which fees does the bank charge?",
+            ["The bank pays interest."],
+            "en",
+            1 / 3,
+            True,
+        ),
     ],
 )
 def test_passages_sharing_the_floor_of_what_the_question_asks_are_about_it(
@@ -7470,7 +7482,14 @@ def test_passages_sharing_the_floor_of_what_the_question_asks_are_about_it(
     ("explanation", "target", "passages", "language", "span", "expected"),
     [
         ("The bank refunds fees.", "fees", (), "en", (22, 60), True),
-        ("The bank refunds every fee it charged in error.", "fees", (), "en", (20, 47), True),
+        (
+            "The bank refunds every fee it charged in error.",
+            "fees",
+            (),
+            "en",
+            (20, 47),
+            True,
+        ),
         (
             "The monthly fee is 5 EUR and the yearly fee is 60 EUR.",
             "5 EUR",
@@ -7488,8 +7507,10 @@ def test_passages_sharing_the_floor_of_what_the_question_asks_are_about_it(
             True,
         ),
         (
-            "Die Bank erstattet Gebühren innerhalb von Tagen, die Gebühren werden von "
-            "der Bank erstattet.",
+            (
+                "Die Bank erstattet Gebühren innerhalb von Tagen, die Gebühren werden von "
+                "der Bank erstattet."
+            ),
             "Die Bank erstattet die Gebühren innerhalb von Tagen.",
             (),
             "de",
@@ -7505,15 +7526,24 @@ def test_passages_sharing_the_floor_of_what_the_question_asks_are_about_it(
             False,
         ),
         (
-            "The card fee, transfer, branch, account, loan, rate, deposit and limit "
-            "and the refund.",
+            (
+                "The card fee, transfer, branch, account, loan, rate, deposit and limit "
+                "and the refund."
+            ),
             "card fee transfer branch account loan rate deposit limit",
             (),
             "en",
             (20, 200),
             False,
         ),
-        ("It is what it is, and so it is for all of them.", "fees", (), "en", (20, 200), False),
+        (
+            "It is what it is, and so it is for all of them.",
+            "fees",
+            (),
+            "en",
+            (20, 200),
+            False,
+        ),
     ],
 )
 def test_a_long_answer_is_usable_only_in_its_span_backed_and_saying_more_than_its_key(
@@ -7625,7 +7655,6 @@ def test_an_unanswerable_question_sharing_the_floor_of_its_lemmas_is_on_topic(
 def test_the_share_of_a_questions_lemmas_is_read_in_its_language() -> None:
     """`Gebühren` and `berechnet` are `Gebühr` and `berechnen`: two of four."""
     from nlp.analysis import content
-
     from question_generation.gates import shared_lemmas
 
     assert (
@@ -7643,7 +7672,11 @@ def test_the_share_of_a_questions_lemmas_is_read_in_its_language() -> None:
     [
         ("eine Gebühr", "Karte und Konto", 1.0),
         ("Gebühren und Zinsen", "Karte und Konto", 1.0),
-        ("die Gebühren, die Zinsen und die Prämien", "die Gebühren und die Zinsen", 2 / 3),
+        (
+            "die Gebühren, die Zinsen und die Prämien",
+            "die Gebühren und die Zinsen",
+            2 / 3,
+        ),
     ],
 )
 def test_a_key_covers_what_the_verifier_found_unless_it_found_more(
@@ -7717,8 +7750,18 @@ def test_an_entity_question_asks_after_a_party_by_its_word_or_its_answers_person
 @pytest.mark.parametrize(
     ("question", "answer", "language", "expected"),
     [
-        ("Gilt keine Gebühr für ein Girokonto?", "keine Gebühr für ein Girokonto", "de", True),
-        ("Welche Gebühr gilt für ein Girokonto?", "ja, die Gebühr für ein Girokonto", "de", True),
+        (
+            "Gilt keine Gebühr für ein Girokonto?",
+            "keine Gebühr für ein Girokonto",
+            "de",
+            True,
+        ),
+        (
+            "Welche Gebühr gilt für ein Girokonto?",
+            "ja, die Gebühr für ein Girokonto",
+            "de",
+            True,
+        ),
         (
             "What fee applies to a current account?",
             "the monthly fee for a current account",
@@ -7866,14 +7909,18 @@ _CARDS = "How do card payments and bank transfers differ?"
     [
         (
             _CARDS,
-            "card payments, in seconds and with a fee; bank transfers, in a day and "
-            "with a fee",
+            (
+                "card payments, in seconds and with a fee; bank transfers, in a day and "
+                "with a fee"
+            ),
             "en",
         ),
         (
             "Wie unterscheiden sich Kartenzahlungen und Überweisungen?",
-            "Kartenzahlungen, in Sekunden und mit Gebühr; Überweisungen, in einem Tag "
-            "und mit Gebühr",
+            (
+                "Kartenzahlungen, in Sekunden und mit Gebühr; Überweisungen, in einem Tag "
+                "und mit Gebühr"
+            ),
             "de",
         ),
         (
@@ -7887,7 +7934,11 @@ _CARDS = "How do card payments and bank transfers differ?"
             "en",
         ),
         (_CARDS, "faster card payments, slower bank transfers", "en"),
-        ("How do cards and transfers differ in speed?", "Cards settle faster than transfers", "en"),
+        (
+            "How do cards and transfers differ in speed?",
+            "Cards settle faster than transfers",
+            "en",
+        ),
         (
             "How do cards and transfers differ in speed?",
             "fees apply; cards are faster than transfers",
@@ -7895,8 +7946,10 @@ _CARDS = "How do card payments and bank transfers differ?"
         ),
         (
             _CARDS,
-            "card payments with a fee in seconds, bank transfers with a fee in a day; "
-            "both are common",
+            (
+                "card payments with a fee in seconds, bank transfers with a fee in a day; "
+                "both are common"
+            ),
             "en",
         ),
     ],
@@ -7911,11 +7964,17 @@ def test_a_comparison_is_split_at_its_best_ranked_dividing_seam(
 @pytest.mark.parametrize(
     ("question", "answer", "language"),
     [
-        (_CARDS, "card payments need a card; a cheque is faster than bank transfers", "en"),
+        (
+            _CARDS,
+            "card payments need a card; a cheque is faster than bank transfers",
+            "en",
+        ),
         (
             "Wie unterscheiden sich Kartenzahlungen und Überweisungen?",
-            "Kartenzahlungen brauchen eine Karte; ein Scheck dauert länger als eine "
-            "Überweisung",
+            (
+                "Kartenzahlungen brauchen eine Karte; ein Scheck dauert länger als eine "
+                "Überweisung"
+            ),
             "de",
         ),
         (_CARDS, "a card payment with a bank transfer fee", "en"),
