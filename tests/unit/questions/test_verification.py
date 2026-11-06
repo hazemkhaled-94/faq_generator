@@ -46,6 +46,7 @@ from question_generation.gates import (
     restates,
     same_material,
     structural,
+    typed,
     unnamed,
 )
 from question_generation.models import Neighbour
@@ -1582,6 +1583,128 @@ def test_a_range_comes_back_end_by_end(language, question, target, recovered) ->
         language,
         AnswerForm.VALUE,
         question=question,
+        passages=(recovered,),
+    )
+
+
+# N-134: both ends of a range written with an ordinal stop are read as ordinals.
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered"),
+    [
+        (
+            "de",
+            "Wann ist die Filiale geschlossen?",
+            "1.–3. Mai",
+            "Die Filiale ist vom 1. bis 3. Mai geschlossen.",
+        ),
+        (
+            "de",
+            "Wann ist die Filiale geschlossen?",
+            "1.–3. Mai",
+            "Die Filiale ist vom 1. bis zum 3. Mai geschlossen.",
+        ),
+        (
+            "de",
+            "Wann ist die Filiale geschlossen?",
+            "1.–3. Mai",
+            "Die Filiale ist vom 1.–3. Mai geschlossen.",
+        ),
+        (
+            "en",
+            "When is the branch closed?",
+            "1–3 May",
+            "The branch is closed from 1 to 3 May.",
+        ),
+    ],
+)
+def test_a_range_written_with_ordinal_stops_comes_back_end_by_end(
+    language, question, target, recovered
+) -> None:
+    """`1.–3. Mai` is the 1st to the 3rd of May, however the recovery writes the ends."""
+    assert agrees(
+        recovered,
+        target,
+        language,
+        AnswerForm.VALUE,
+        question=question,
+        passages=(recovered,),
+    )
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "target", "recovered", "agreeing"),
+    [
+        (
+            "fr",
+            "Quand la filiale est-elle fermée?",
+            "1–3 mai",
+            "La filiale est fermée du 1 au 3 mai.",
+            True,
+        ),
+        (
+            "fr",
+            "Quand la filiale est-elle fermée?",
+            "1–3 mai",
+            "La filiale est fermée du 1 au 4 mai.",
+            False,
+        ),
+        # Polish has no ordinal-stop row, so `1.–3.` is read as it was.
+        (
+            "pl",
+            "Kiedy oddział jest zamknięty?",
+            "1.–3. maja",
+            "Oddział jest zamknięty od 1. do 3. maja.",
+            False,
+        ),
+        (
+            "pl",
+            "Kiedy oddział jest zamknięty?",
+            "1.–3. maja",
+            "Oddział jest zamknięty od 1. do 4. maja.",
+            False,
+        ),
+        (
+            "el",
+            "Πότε είναι κλειστό το υποκατάστημα;",
+            "1–3 Μαΐου",
+            "Το υποκατάστημα είναι κλειστό από 1 έως 3 Μαΐου.",
+            True,
+        ),
+        (
+            "el",
+            "Πότε είναι κλειστό το υποκατάστημα;",
+            "1–3 Μαΐου",
+            "Το υποκατάστημα είναι κλειστό από 1 έως 4 Μαΐου.",
+            False,
+        ),
+    ],
+)
+def test_a_range_in_a_language_without_ordinal_stops_keeps_its_verdict(
+    language, question, target, recovered, agreeing
+) -> None:
+    """Only a language with an `ORDINAL_SUFFIX` row reads the second end as an ordinal."""
+    assert (
+        agrees(
+            recovered,
+            target,
+            language,
+            AnswerForm.VALUE,
+            question=question,
+            passages=(recovered,),
+        )
+        is agreeing
+    )
+
+
+def test_a_range_with_ordinal_stops_is_still_held_to_both_ends() -> None:
+    """The control: `bis 4.` is not `bis 3.`."""
+    recovered = "Die Filiale ist vom 1. bis 4. Mai geschlossen."
+    assert not agrees(
+        recovered,
+        "1.–3. Mai",
+        "de",
+        AnswerForm.VALUE,
+        question="Wann ist die Filiale geschlossen?",
         passages=(recovered,),
     )
 
@@ -4847,6 +4970,80 @@ def test_a_range_the_recovery_writes_is_held_to_both_of_the_keys_ends(
 
 
 # ── Two more types a rule can settle ───────────────────────────────────────
+
+
+# N-133: a noun the comparison particle governs is the second thing a comparison names.
+@pytest.mark.parametrize(
+    ("question", "answer"),
+    [
+        (
+            "Wie unterscheiden sich Kartenzahlungen und Überweisungen in der Dauer?",
+            "Kartenzahlungen sind schneller als Überweisungen",
+        ),
+        (
+            "Wie unterscheiden sich Karten und Überweisungen in der Dauer?",
+            "Eine Karte ist schneller als eine Überweisung.",
+        ),
+    ],
+)
+def test_a_german_comparison_answered_with_als_names_both_sides(question, answer):
+    """`X ist schneller als Y` names two things as `X dauert länger als Y` does."""
+    assert compares(question, answer, "de")
+    assert typed(question, answer, True, QuestionType.COMPARISON, "de") is None
+
+
+def test_a_german_comparison_with_a_full_verb_is_read_as_before():
+    """The control: `als eine Lastschrift` is already a phrase of its own."""
+    assert compares(
+        "Wie unterscheiden sich Überweisungen und Lastschriften in der Dauer?",
+        "Eine Überweisung dauert länger als eine Lastschrift.",
+        "de",
+    )
+
+
+def test_an_english_comparison_with_than_names_both_sides():
+    """The English twin, already read: `than` heads its noun inside a phrase."""
+    assert compares(
+        "How do card payments and bank transfers differ in speed?",
+        "Card payments are faster than bank transfers",
+        "en",
+    )
+
+
+@pytest.mark.parametrize(
+    ("language", "question", "answer"),
+    [
+        (
+            "fr",
+            "En quoi les paiements par carte et les virements diffèrent-ils en vitesse?",
+            "Les cartes sont plus rapides que les virements",
+        ),
+        (
+            "pl",
+            "Czym różnią się płatności kartą i przelewy pod względem szybkości?",
+            "Karty są szybsze niż przelewy",
+        ),
+        (
+            "el",
+            "Πώς διαφέρουν οι πληρωμές με κάρτα και οι μεταφορές ως προς την ταχύτητα;",
+            "Οι κάρτες είναι ταχύτερες από τις μεταφορές",
+        ),
+    ],
+)
+def test_a_comparison_in_a_language_without_the_particle_tag_keeps_its_verdict(
+    language, question, answer
+):
+    """No KOKOM, no extra phrase: these were refused before and are refused now."""
+    assert not compares(question, answer, language)
+
+
+def test_a_german_equal_comparison_with_wie_states_no_difference():
+    """`wie` carries the same tag, and with no comparative nothing is stated."""
+    assert not compares(
+        "Wie unterscheiden sich Kartenzahlungen und Überweisungen in der Dauer?",
+        "Kartenzahlungen sind genauso schnell wie Überweisungen",
+        "de",
+    )
 
 
 def test_a_comparison_naming_one_thing_is_refused() -> None:

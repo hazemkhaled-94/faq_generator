@@ -136,8 +136,9 @@ class RemovalService:
         """Removes every document, its file, its converted form and its rows.
 
         What a document's deletion cascades to is everything drawn from it:
-        its passages, their topic memberships, the facts on them, and by the
-        orphan trigger the questions resting on those facts. What it does not
+        its passages, their topic memberships, the facts on them, and the
+        questions resting on those facts, which are deleted explicitly (the
+        trigger on `question_facts` only rejects a question that loses a fact). What it does not
         reach is `topics`, which has no foreign key to a document because a
         fit is over the corpus rather than over a file. Emptying the corpus
         is therefore two commands, and `make wipe` is the one that runs both

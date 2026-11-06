@@ -26,13 +26,36 @@ import sys
 from collections import Counter
 from dataclasses import dataclass, field
 
-from sqlalchemy import BigInteger, func, literal, select, union_all
+from sqlalchemy import BigInteger, exists, func, literal, select, tuple_, union_all
+from sqlalchemy.orm import aliased
 
 from database.qa_generator import Question, QuestionStatus
 from database.qa_generator.archived_rows import ArchivedRow
 from database.qa_generator.repository import Repository
 
 log = logging.getLogger(__name__)
+
+_NEWER = aliased(ArchivedRow)
+
+
+def _archived_only() -> list:
+    """Keeps an archived question that is neither live nor archived again later.
+
+    A restore copies and leaves the archive as it was, and a question deleted
+    again is archived again, so the same question is counted once: by its
+    live row, or else by its newest archived copy.
+    """
+    one = ArchivedRow.payload["id"].astext
+    return [
+        ~exists().where(Question.id == one.cast(BigInteger)),
+        ~exists().where(
+            _NEWER.table_name == "questions",
+            _NEWER.payload["id"].astext == one,
+            tuple_(_NEWER.archived_at, _NEWER.id)
+            > tuple_(ArchivedRow.archived_at, ArchivedRow.id),
+        ),
+    ]
+
 
 #: What an accepted question is grouped under. `rejected_reason` is NULL for
 #: one, and NULL is not a group a reader can read.
@@ -108,6 +131,7 @@ class RunCatalog(Repository):
             ArchivedRow.table_name == "questions",
             ArchivedRow.payload["run_id"].astext.in_(runs),
             ArchivedRow.payload["status"].astext != QuestionStatus.DRAFT,
+            *_archived_only(),
         )
 
         return union_all(
@@ -152,6 +176,7 @@ class RunCatalog(Repository):
         ).where(
             ArchivedRow.table_name == "questions",
             ArchivedRow.payload["run_id"].astext.is_not(None),
+            *_archived_only(),
         )
         combined = union_all(
             live.group_by("run", "archived"), archived.group_by("run", "archived")

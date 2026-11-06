@@ -329,8 +329,10 @@ class Question(Base):
         Text,
         server_default=QuestionStatus.DRAFT,
         comment="draft | accepted | rejected, enforced by a CHECK constraint. "
-        "Rejected questions are never deleted: they are the drop-rate evidence in "
-        "the coverage report.",
+        "A rejected question is kept as the drop-rate evidence in the coverage "
+        "report, and so is one that lost its last citation (source_changed). "
+        "Deleting a document, or what was derived from it, deletes its "
+        "questions, rejected ones included.",
     )
     rejected_reason: Mapped[str | None] = mapped_column(
         Text,

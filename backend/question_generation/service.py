@@ -387,9 +387,10 @@ def _recheck(
         return None
 
     # A cross-document question that lost a citation is still a question and
-    # is not deleted: the trigger takes one only when its last fact goes. It
-    # is a question whose stored scopes stopped being true, which is a
-    # quieter kind of wrong and so worth naming. Compared on the scopes and
+    # is not deleted: the trigger rejects one as source_changed whenever one
+    # of its facts goes, its last included, and keeps the row. It is a
+    # question whose stored scopes stopped being true, which is a quieter kind
+    # of wrong and so worth naming. Compared on the scopes and
     # not on the band, because two different spreads can land in one band
     # and the scopes are what a reader filters on. Not on the topic scope,
     # which a refit moves with no fact or citation changing.
@@ -1615,10 +1616,10 @@ class QuestionGenerationService(StageService):
 
             # On the ROW as well, which is the only durable end of the
             # link: the span is written now and aged out by Phoenix's own
-            # retention, and the question is append-only and never
-            # hard-deleted. Without them nothing joins the two - a span
-            # carries no question id, because the question has none yet
-            # when this runs.
+            # retention, and the question lives until its document, or what
+            # was derived from it, is deleted. Without them nothing joins the
+            # two - a span carries no question id, because the question has
+            # none yet when this runs.
             trace_id, span_id = current_ids()
             checked = replace(checked, trace_id=trace_id, span_id=span_id)
 

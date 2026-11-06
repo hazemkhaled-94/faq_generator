@@ -114,3 +114,50 @@ def test_a_deleted_run_is_listed_by_when_it_ran(stored, engine) -> None:
         connection.execute(text("DELETE FROM questions WHERE run_id = 'run-a'"))
 
     assert [run for run, _, _ in stored.known()] == ["run-b", "run-a"]
+
+
+def _restored_run(engine, monkeypatch) -> None:
+    """Deletes run-a and puts it back from the archive, which copies and keeps it."""
+    from archive import restore
+
+    with engine.connect() as connection:
+        since = connection.execute(text("SELECT now()")).scalar_one().isoformat()
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM questions WHERE run_id = 'run-a'"))
+    with engine.connect() as connection:
+        at = ",".join(
+            one.isoformat()
+            for one in connection.execute(
+                text(
+                    "SELECT DISTINCT archived_at FROM archived_rows "
+                    "WHERE archived_at >= CAST(:since AS timestamptz)"
+                ),
+                {"since": since},
+            ).scalars()
+        )
+    monkeypatch.setenv("AT", at)
+    assert restore.main() == 0
+
+
+def test_a_restored_run_is_counted_once(stored, engine, buckets, monkeypatch) -> None:
+    """A restore is a copy: the archive still holds what is live again."""
+    _restored_run(engine, monkeypatch)
+
+    counted = stored.counts(["run-a"])["run-a"]
+
+    assert (counted.total, counted.accepted, counted.archived) == (10, 6, 0)
+    assert {run: total for run, total, _ in stored.known()}["run-a"] == 10
+
+
+def test_a_run_deleted_again_after_a_restore_is_counted_once(
+    stored, engine, buckets, monkeypatch
+) -> None:
+    """Two archived copies of one question are one question."""
+    _restored_run(engine, monkeypatch)
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM questions WHERE run_id = 'run-a'"))
+
+    counted = stored.counts(["run-a"])["run-a"]
+
+    assert (counted.total, counted.archived) == (10, 10)
+    assert {run: total for run, total, _ in stored.known()}["run-a"] == 10

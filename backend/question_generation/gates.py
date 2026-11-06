@@ -40,6 +40,7 @@ from database.qa_generator import (
 )
 from nlp.analysis import (
     CARDINALS,
+    COMPARISON_TAG,
     FIGURE,
     ORDINAL_SUFFIX,
     UNAMBIGUOUS,
@@ -166,7 +167,14 @@ def _ends(
     for one in units:
         ranges = [found.groups() for unit in one if (found := _RANGE.fullmatch(unit))]
         if ranges:
-            read.update(_readings(end, language) for end in ranges[0])
+            first, second = ranges[0]
+            # The tokenizer splits the stop off `1.–3.`, so the second end
+            # comes without the one the first carries: both are ordinals.
+            for suffix in ORDINAL_SUFFIX.get((language or "").lower(), ()):
+                if first.endswith(suffix) and first[: -len(suffix)].isdigit():
+                    second = second + suffix if second.isdigit() else second
+                    break
+            read.update(_readings(end, language) for end in (first, second))
         else:
             read.add(one)
     return frozenset(read)
@@ -2177,11 +2185,45 @@ def compares(question: str, answer: str, language: str | None) -> bool:
     comparison is punctuated differently in every language and `A und B`,
     `A gegenüber B` and `A, B` are one shape to a phrase count.
 
+    A noun the comparison particle governs counts as a phrase of the answer
+    when no chunk holds it: German `schneller als Überweisungen` has no chunk
+    for `Überweisungen`, which the parse tags as governed by `als`.
+
     The answer also has to state a difference: see `_contrasts`.
     """
-    if len(phrases(question, language)) < 2 or len(phrases(answer, language)) < 2:
+    if (
+        len(phrases(question, language)) < 2
+        or len(phrases(answer, language)) + _after_a_comparison(answer, language) < 2
+    ):
         return False
     return _contrasts(question, answer, language)
+
+
+def _after_a_comparison(answer: str, language: str | None) -> int:
+    """How many nouns a comparison particle governs outside every noun chunk.
+
+    `Kartenzahlungen sind schneller als Überweisungen`: the parse makes
+    `Überweisungen` the head of `als`, and the chunker leaves it out after a
+    copula and a comparative. Read off the tag, not a word list, so a language
+    whose `COMPARISON_TAG` row is empty reads none.
+    """
+    tag = COMPARISON_TAG.get((language or "").lower())
+    if not tag:
+        return 0
+    read = pipeline(language)(answer)
+    try:
+        held = {token.i for chunk in read.noun_chunks for token in chunk}
+    except NotImplementedError:
+        return 0
+    return len(
+        {
+            token.head.i
+            for token in read
+            if token.tag_ == tag
+            and token.head.pos_ in ("NOUN", "PROPN")
+            and token.head.i not in held
+        }
+    )
 
 
 def _contrasts(question: str, answer: str, language: str | None) -> bool:
