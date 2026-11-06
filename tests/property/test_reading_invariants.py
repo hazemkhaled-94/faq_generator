@@ -14,7 +14,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from database.qa_generator import AnswerForm
-from nlp.analysis import AMOUNT_WORDS, REFERENCE_LABELS, figures, parse
+from nlp.analysis import AMOUNT_WORDS, REFERENCE_LABELS, figures, numbers, parse
 from question_generation.gates import agrees
 
 pytestmark = pytest.mark.nlp
@@ -182,3 +182,108 @@ def test_an_ordinal_agrees_with_itself_written_the_other_way(
         language,
         AnswerForm.VALUE,
     )
+
+
+# ── A figure, with or without its language's marks ───────────────────────
+
+#: A sentence of each domain that states an amount, by language: a bank's
+#: fee, a shop's order value, an office's charge. `{}` is the figure, and
+#: the word after it a currency word every row of `AMOUNT_WORDS` lists or an
+#: ISO code, so no space-grouped run is in play.
+_STATING = {
+    "de": (
+        "Die Gebühr für die Ersatzkarte beträgt {} EUR.",
+        "Ab einem Bestellwert von {} Euro ist der Versand kostenlos.",
+        "Für den Antrag erhebt das Amt {} EUR.",
+    ),
+    "en": (
+        "The fee for a replacement card is {} EUR.",
+        "Orders over {} euros ship free of charge.",
+        "The office charges {} EUR for the application.",
+    ),
+    "fr": (
+        "Les frais pour une carte de remplacement sont de {} EUR.",
+        "La livraison est gratuite dès {} EUR de commande.",
+        "La mairie facture {} EUR pour la demande.",
+    ),
+    "pl": (
+        "Opłata za kartę zastępczą wynosi {} EUR.",
+        "Dostawa jest bezpłatna od {} EUR.",
+        "Urząd pobiera {} EUR za wniosek.",
+    ),
+    "el": (
+        "Η χρέωση για κάρτα αντικατάστασης είναι {} EUR.",
+        "Η αποστολή είναι δωρεάν για παραγγελίες άνω των {} EUR.",
+        "Η υπηρεσία χρεώνει {} EUR για την αίτηση.",
+    ),
+}
+
+#: The thousands and decimal marks each configured language writes.
+_MARKS = {"de": (".", ","), "en": (",", ".")}
+
+
+def _spelled(cents: int, thousands: str, decimal: str) -> str:
+    """An amount in cents, its whole part grouped by `thousands` (none if empty)."""
+    whole, part = divmod(cents, 100)
+    grouped = f"{whole:,}".replace(",", thousands)
+    return f"{grouped}{decimal}{part:02d}"
+
+
+@given(
+    language=st.sampled_from(sorted(_MARKS)),
+    cents=st.integers(100_000, 10**11),
+    domain=st.integers(0, 2),
+)
+def test_an_amount_reads_the_same_with_or_without_its_languages_thousands_marks(
+    language, cents, domain
+) -> None:
+    """`1.234.567,89 EUR` is `1234567,89 EUR` in German, as `1,234,567.89` is in English."""
+    thousands, decimal = _MARKS[language]
+    frame = _STATING[language][domain]
+
+    grouped = figures(frame.format(_spelled(cents, thousands, decimal)), language)
+    plain = figures(frame.format(_spelled(cents, "", decimal)), language)
+
+    assert grouped == plain == [cents / 100], (grouped, plain)
+
+
+@given(
+    language=st.sampled_from(["fr", "pl", "el"]),
+    cents=st.integers(100_000, 10**11),
+    marks=st.sampled_from([(".", ","), (",", "."), ("", ","), ("", ".")]),
+    domain=st.integers(0, 2),
+)
+def test_an_amount_in_a_language_with_no_mark_reads_its_value_whichever_marks_it_takes(
+    language, cents, marks, domain
+) -> None:
+    """With no `DECIMAL_MARK` row, the last of two marks or two digits after one is the decimal.
+
+    French, Polish and Greek write `1 234,56` or `1.234,56`; a model writing
+    about them may write `1,234.56`. Each is the one amount, never two
+    figures and never a thousandfold one.
+    """
+    text = _STATING[language][domain].format(_spelled(cents, *marks))
+
+    assert figures(text, language) == [cents / 100], text
+
+
+@given(
+    language=st.sampled_from(sorted(_STATING)),
+    cents=st.integers(100_000, 10**11),
+    domain=st.integers(0, 2),
+)
+def test_the_numbers_a_statement_states_do_not_change_with_its_thousands_marks(
+    language, cents, domain
+) -> None:
+    """The duplicate gate reads `1.500,00 EUR` and `1500,00 EUR` as one number.
+
+    In each language's own marks where it has a row, and in German marks,
+    which French, Polish and Greek share, where it has none.
+    """
+    thousands, decimal = _MARKS.get(language, _MARKS["de"])
+    frame = _STATING[language][domain]
+
+    grouped = numbers(frame.format(_spelled(cents, thousands, decimal)), language)
+    plain = numbers(frame.format(_spelled(cents, "", decimal)), language)
+
+    assert grouped == plain, (grouped, plain)
