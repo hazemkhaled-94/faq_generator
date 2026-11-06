@@ -205,8 +205,9 @@ def _written(text: str, language: str | None, ordinals: bool = False) -> dict[st
     `_COUNTED` holds the word for, because `elf` is eleven in German and a
     word in English; and only a token tagged `NUM`, because `außer Acht` is
     a phrase and `die Elf` a team, and both models tag those as nouns. An
-    ordinal word, an adjective, is `third` and `dritten`: the ordinal that
-    `3rd` and `3.` are, where `ordinals` asks for it, and not the count 3.
+    ordinal word, an adjective or one past twelve (`_ordinal_of`), is `third`
+    and `dritten`: the ordinal that `3rd` and `3.` are, where `ordinals` asks
+    for it, and not the count 3.
     What a text asserts of its own is not one: a recovery's `first month` is
     not a figure its key lacks.
     """
@@ -217,9 +218,25 @@ def _written(text: str, language: str | None, ordinals: bool = False) -> dict[st
             token.pos_ == "NUM" or counted[token.lower_] >= UNAMBIGUOUS
         ):
             written[token.lower_] = repr(float(counted[token.lower_]))
-        elif ordinals and token.pos_ in ("NUM", "ADJ") and (digits := ordinal(token)):
+        elif ordinals and (digits := _ordinal_of(token)):
             written[token.lower_] = _ordinal_value(digits)
     return written
+
+
+def _ordinal_of(token: Token) -> str | None:
+    """The digits an ordinal token names, where it reads as one.
+
+    Tagged a numeral or an adjective, or a word past twelve whatever its tag,
+    as `UNAMBIGUOUS` reads a cardinal: `dreiundvierzigsten` is the 43rd where
+    the tagger made a noun of it, while `Dritte` may be the third parties it
+    names.
+    """
+    digits = ordinal(token)
+    if digits and (
+        token.pos_ in ("NUM", "ADJ") or (token.is_alpha and int(digits) >= UNAMBIGUOUS)
+    ):
+        return digits
+    return None
 
 
 def _values(text: str, language: str | None) -> frozenset[str]:
@@ -2610,7 +2627,7 @@ def _ordinals(text: str, language: str | None) -> frozenset[str]:
     return frozenset(
         token.lemma_.casefold()
         for token in pipeline(language)(text)
-        if token.pos_ in ("NUM", "ADJ") and ordinal(token)
+        if _ordinal_of(token)
     )
 
 

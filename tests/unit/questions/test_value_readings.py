@@ -912,3 +912,49 @@ def test_n147_a_longer_unit_beside_the_figure_disagrees(recovered, key, language
 def test_n147_the_same_unit_and_words_are_still_found(recovered, key, language, form):
     """The same unit, and a word going on into its inflection, keep agreeing."""
     assert agrees(recovered, key, language, form)
+
+
+# N-151: an ordinal word past twelve is the ordinal it is, whatever the tagger tags it.
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        ("ab der 5. Mahnung", "ab der dreiundvierzigsten Mahnung", "de"),
+        ("ab der zwölften Mahnung", "ab der dreiundvierzigsten Mahnung", "de"),
+        ("43 Mahnungen", "ab der dreiundvierzigsten Mahnung", "de"),
+        ("from the 7th reminder on", "from the seventieth reminder on", "en"),
+        ("à partir du 5e rappel", "à partir du quarante-troisième rappel", "fr"),
+        ("od 5. upomnienia", "od czterdziestego trzeciego upomnienia", "pl"),
+        ("από την 5η υπενθύμιση", "από την σαραντατρίτη υπενθύμιση", "el"),
+    ],
+)
+def test_n151_an_ordinal_word_past_twelve_disagrees_with_another_value(
+    recovered, key, language
+):
+    """`dreiundvierzigsten` asserts the 43rd, so `5.` and `43` do not give it back."""
+    assert not agrees(recovered, key, language, AnswerForm.VALUE)
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "language"),
+    [
+        ("ab der 43. Mahnung", "ab der dreiundvierzigsten Mahnung", "de"),
+        ("from the 70th reminder on", "from the seventieth reminder on", "en"),
+        (
+            "The refund is paid on the 70th day.",
+            "The refund is paid on the seventieth day.",
+            "en",
+        ),
+        ("ab der 20. Mahnung", "ab der zwanzigsten Mahnung", "de"),
+        (
+            "Zahlungen an Dritte sind gebührenpflichtig.",
+            "Zahlungen an Dritte sind gebührenpflichtig.",
+            "de",
+        ),
+    ],
+)
+def test_n151_an_ordinal_word_past_twelve_agrees_with_its_figure(
+    first, second, language
+):
+    """`seventieth` and `70th` agree both ways, however the tagger tags the word."""
+    assert agrees(first, second, language, AnswerForm.VALUE)
+    assert agrees(second, first, language, AnswerForm.VALUE)
