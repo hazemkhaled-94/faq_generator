@@ -2724,7 +2724,7 @@ def _named(
 
 def _units(
     text: str, language: str | None
-) -> list[tuple[frozenset[str], frozenset[str]]]:
+) -> list[tuple[frozenset[str], frozenset[str], Token]]:
     """Each figure of a text, by its readings, with the forms of the word right after it: its unit.
 
     `content` reads a lower-case noun in a text that capitalises its nouns as
@@ -2738,11 +2738,26 @@ def _units(
                 *_ends(frozenset({_readings(token.text, language)}), language)
             ),
             frozenset({after.lemma_.casefold(), after.lower_, _bare(after.text)}),
+            after,
         )
         for token, after in pairwise(parse(text, language))
         if any(char.isdigit() for char in token.text)
         and any(char.isalpha() for char in after.text)
     ]
+
+
+def _dropped(target: str, language: str | None, kept: frozenset[str]) -> frozenset[str]:
+    """The units `_units` reads in a key that `kept`, its compared lemmas, leaves out.
+
+    A key that capitalises its nouns drops its own `kg` as a foreign word, and
+    no lemma reads a one-letter `m`, so `je 10 kg` asked nothing back and
+    agreed with `je 10 g`.
+    """
+    return frozenset(
+        _bare(after.text)
+        for _, forms, after in _units(target, language)
+        if after.pos_ in _NAMING and not forms & kept
+    )
 
 
 def _back(
@@ -2766,6 +2781,8 @@ def _back(
     back where the recovery writes it right after the same figure, see `_units`.
     """
     wanted = _compared(target, language, form)
+    if form == AnswerForm.VALUE:
+        wanted |= _dropped(target, language, wanted)
     if form != AnswerForm.VALUE and question:
         wanted = (wanted - content(question, language)) or wanted
     if given and not _says_more(recovered, target, language, question):
@@ -2785,8 +2802,8 @@ def _back(
         said = _units(recovered, language)
         hit |= (wanted - hit) & frozenset(
             one
-            for values, forms in _units(target, language)
-            if any(values & other and forms & written for other, written in said)
+            for values, forms, _ in _units(target, language)
+            if any(values & other and forms & written for other, written, _ in said)
             for one in forms
         )
     return wanted, hit
@@ -2899,6 +2916,8 @@ def agrees(
         return False
 
     wanted = content(target, language) - _ordinals(target, language)
+    if form == AnswerForm.VALUE:
+        wanted |= _dropped(target, language, _compared(target, language, form))
     # The unit a range carries, `cm` in `1–3 cm`, is a number to the tagger in
     # one sentence and a noun in the other, so its lemma cannot be compared
     # like a content word's: it has to come back by surface form or lemma, and

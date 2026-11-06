@@ -795,3 +795,71 @@ def test_n145_the_recall_reading_says_what_the_verdict_says(recovered, key, lang
 def test_n145_another_unit_or_figure_still_disagrees(recovered, key, language):
     """A unit counts only beside the same figure: `80 mm` is not `80 cm`."""
     assert not agrees(recovered, key, language, AnswerForm.VALUE)
+
+
+# N-157: a unit the key writes right after a figure has to come back beside that figure, whatever the key's case.
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        (
+            "Der Versand kostet 5 EUR je 10 g.",
+            "Der Versand kostet 5 EUR je 10 kg.",
+            "de",
+        ),
+        ("Das Paket darf 10 g wiegen.", "Das Paket darf 10 kg wiegen.", "de"),
+        ("Die Breite beträgt 80 mm.", "Die Breite beträgt 80 cm.", "de"),
+        ("Das Kabel ist 90 mm lang.", "Das Kabel ist 90 m lang.", "de"),
+        ("Die Flasche fasst 2 kg Wasser.", "Die Flasche fasst 2 l Wasser.", "de"),
+        ("The cable is 90 mm long.", "The cable is 90 m long.", "en"),
+        ("The bottle holds 2 kg of water.", "The bottle holds 2 l of water.", "en"),
+        # The unit beside another figure does not stand in for it.
+        (
+            "Der Versand kostet 5 EUR je 10 g, ab 20 kg frei.",
+            "Der Versand kostet 5 EUR je 10 kg.",
+            "de",
+        ),
+        ("Shipping costs 5 EUR per 10 g.", "Shipping costs 5 EUR per 10 kg.", "en"),
+        ("L'envoi coûte 5 EUR par 10 g.", "L'envoi coûte 5 EUR par 10 kg.", "fr"),
+        ("Wysyłka kosztuje 5 EUR za 10 g.", "Wysyłka kosztuje 5 EUR za 10 kg.", "pl"),
+        (
+            "Η αποστολή κοστίζει 5 EUR ανά 10 g.",
+            "Η αποστολή κοστίζει 5 EUR ανά 10 kg.",
+            "el",
+        ),
+    ],
+)
+def test_n157_another_unit_beside_the_figure_disagrees(recovered, key, language):
+    """`je 10 g` is not `je 10 kg`, in a key that writes capitals as in one that does not."""
+    assert not agrees(recovered, key, language, AnswerForm.VALUE)
+
+
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        (
+            "Der Versand kostet 5 EUR je 10 kg.",
+            "Der Versand kostet 5 EUR je 10 kg.",
+            "de",
+        ),
+        ("Shipping costs 5 EUR per 10 kg.", "Shipping costs 5 EUR per 10 kg.", "en"),
+        ("L'envoi coûte 5 EUR par 10 kg.", "L'envoi coûte 5 EUR par 10 kg.", "fr"),
+        ("Wysyłka kosztuje 5 EUR za 10 kg.", "Wysyłka kosztuje 5 EUR za 10 kg.", "pl"),
+        (
+            "Η αποστολή κοστίζει 5 EUR ανά 10 kg.",
+            "Η αποστολή κοστίζει 5 EUR ανά 10 kg.",
+            "el",
+        ),
+        ("Das Kabel ist 90 m lang.", "Das Kabel ist 90 m lang.", "de"),
+        ("The cable is 90 m long.", "The cable is 90 m long.", "en"),
+        ("Die Rolle hält mindestens 100 m und höchstens 110 m.", "100–110 m", "de"),
+        (
+            "Ein Paket muss mindestens 410 g und höchstens 450 g wiegen.",
+            "410 bis 450 g",
+            "de",
+        ),
+        ("Die Frist beträgt 14 Tage ab Zugang.", "Die Frist beträgt 14 Tage.", "de"),
+    ],
+)
+def test_n157_the_same_unit_beside_the_figure_agrees(recovered, key, language):
+    """The key's unit comes back beside the same figure, so the key agrees."""
+    assert agrees(recovered, key, language, AnswerForm.VALUE)
