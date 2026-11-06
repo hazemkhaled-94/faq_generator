@@ -2733,12 +2733,14 @@ def _boundaries(document: Doc) -> list[int]:
     slash, before a clause opened by a comma, after an abbreviation that
     ends no sentence on its line ("incl. VAT") or one followed by a
     lower-case word or, on its line, a figure ("max. 3 days", "Sect. 4."),
-    before a figure ending a sentence on its line ("EUR 5."), and between
-    an item's number, which opens its line, and the item, leaving
-    the number at the end of the item before. A citation resolves against
-    these sentences, so a cut there leaves a fact's evidence half a rule.
-    A cut is dropped in the first four cases and moved to the number in
-    the last. Only ever drops or moves a cut the parser made: a full stop
+    before a figure ending a sentence on its line ("EUR 5."), after an
+    amount with no end mark before its currency or a lower-case word on
+    its line ("1.000,18 | EUR", "56.455,35 EUR | an"), before a lone full
+    stop, and between an item's number, which opens its line, and the item,
+    leaving the number at the end of the item before. A citation resolves
+    against these sentences, so a cut there leaves a fact's evidence half a
+    rule. A cut is dropped in the first six cases and moved to the number
+    in the last. Only ever drops or moves a cut the parser made: a full stop
     with no space after it still ends a sentence, as it does in a PDF that
     lost its spaces.
 
@@ -2797,18 +2799,41 @@ def _boundaries(document: Doc) -> list[int]:
             previous.start_char + len(left) : sentence.end_char - len(right)
         ]
         figure = right[0].isdigit() and "\n" not in gap
+        # The sentence so far, not the parser's span, which may hold alone
+        # the figure it cut off the sentence before.
+        so_far = document.text[
+            document[starts[-1]].idx : previous.start_char + len(left)
+        ]
+        words = so_far.split()
+        amount = words[-1][-1].isdigit() or (
+            left[-1] not in _SENTENCE_ENDS
+            and len(words) > 1
+            and words[-2][-1].isdigit()
+            and is_currency(words[-1], document.lang_)
+        )
+        # An amount with no end mark, cut on its line from its currency or the
+        # rest of its clause, or a lone full stop: "1.000,18 | EUR",
+        # "56.455,35 EUR | an | .".
+        unended = "\n" not in gap and (
+            (
+                amount
+                and (
+                    right[0].islower() or is_currency(right.split()[0], document.lang_)
+                )
+            )
+            or not right.strip(_SENTENCE_ENDS)
+        )
         if (
             joined
+            or unended
             or right[0] in _CONTINUING
             or (figure and left[-1].isalnum())
             or (last_word in abbreviations and (right[0].islower() or figure))
             or (last_word in medial and not compound and "\n" not in gap)
         ):
             continue
-        # The line as the sentence so far reads it, not the parser's span,
-        # which may hold alone the figure it cut off the sentence before.
-        line = document.text[document[starts[-1]].idx : previous.start_char + len(left)]
-        line = line[line.rfind("\n") + 1 :]
+        # The line as the sentence so far reads it.
+        line = so_far[so_far.rfind("\n") + 1 :]
         if _ENUMERATOR.fullmatch(line.strip()):
             numbered = previous.start_char + len(left) - len(line.lstrip())
             token = next(one for one in document[starts[-1] :] if one.idx >= numbered)

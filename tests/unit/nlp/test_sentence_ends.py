@@ -71,6 +71,101 @@ def test_an_item_number_opening_its_line_opens_its_item(text, language) -> None:
 
 
 @pytest.mark.parametrize(
+    ("first", "second", "language"),
+    [
+        (
+            "Die Bank berechnet 1.000,18 EUR.",
+            "Der Betrag wird vom Konto abgebucht.",
+            "de",
+        ),
+        (
+            "Für eine Auslandsüberweisung fallen 56.455,35 EUR an.",
+            "Der Betrag wird vom Konto abgebucht.",
+            "de",
+        ),
+        (
+            "Die Bank berechnet 47.043.841,70 EUR für die Ersatzkarte.",
+            "Der Betrag wird vom Konto abgebucht.",
+            "de",
+        ),
+        (
+            "Das Amt erhebt 15131,36 EUR für den Antrag.",
+            "Die Gebühr ist sofort fällig.",
+            "de",
+        ),
+        (
+            "The bank charges 1,000.18 EUR for a replacement card.",
+            "The amount is debited from the account.",
+            "en",
+        ),
+        (
+            "Bank pobiera 1,01 EUR za kartę zastępczą.",
+            "Kwota jest pobierana z konta.",
+            "pl",
+        ),
+        (
+            "Η τράπεζα χρεώνει 9.993,06 EUR για την κάρτα αντικατάστασης.",
+            "Το ποσό χρεώνεται στον λογαριασμό.",
+            "el",
+        ),
+    ],
+)
+def test_an_amount_stays_in_one_sentence_with_its_currency(
+    first, second, language
+) -> None:
+    """The parser's cut after a figure with no end mark, on its line, ends no sentence."""
+    assert texts(f"{first} {second}", language) == [first, second]
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "split"),
+    [
+        (
+            "Die Gebühr beträgt 1.234,56 EUR. Der Betrag wird abgebucht.",
+            "de",
+            ["Die Gebühr beträgt 1.234,56 EUR.", "Der Betrag wird abgebucht."],
+        ),
+        (
+            "The fee is 1,234.56 EUR. The amount is debited.",
+            "en",
+            ["The fee is 1,234.56 EUR.", "The amount is debited."],
+        ),
+        (
+            "Η χρέωση είναι 1.234,56 EUR. Το ποσό χρεώνεται στον λογαριασμό.",
+            "el",
+            ["Η χρέωση είναι 1.234,56 EUR.", "Το ποσό χρεώνεται στον λογαριασμό."],
+        ),
+        (
+            "Seite 12 von 30\nDer Betrag wird abgebucht.",
+            "de",
+            ["Seite 12 von 30\nDer Betrag wird abgebucht."],
+        ),
+        ("Gebühr: 5 EUR\nzzgl. Versand", "de", ["Gebühr: 5 EUR\nzzgl. Versand"]),
+        (
+            "- 2.01 Die Bank berechnet die Gebühren monatlich.",
+            "de",
+            ["- 2.01", "Die Bank berechnet die Gebühren monatlich."],
+        ),
+        (
+            "4. 3 Die Gebühr wird monatlich berechnet.",
+            "de",
+            ["4. 3", "Die Gebühr wird monatlich berechnet."],
+        ),
+        (
+            "| 36 | Die Bank | 15 EUR | Ersatzkarte",
+            "de",
+            ["| 36 |", "Die Bank | 15 EUR | Ersatzkarte"],
+        ),
+    ],
+)
+def test_a_cut_after_an_amount_an_item_number_or_a_table_cell_stays(
+    text, language, split
+) -> None:
+    """A sentence ending on an amount, an item's number and a table cell keep their cuts."""
+    assert texts(text, language) == split
+
+
+@pytest.mark.parametrize(
     "text",
     [
         "See the rules (cf. Section 4) for details. The bank pays.",
@@ -211,10 +306,16 @@ def test_an_abbreviation_ending_its_line_may_end_its_sentence(text, language) ->
     "text",
     [
         "Der Kunde zahlt gem. Preisverzeichnis eine Gebühr.",
-        "Der Kunde zahlt gem. Ziff. 3 eine Gebühr.",
         "Die Gebühr wird gem. AGB berechnet.",
     ],
 )
 def test_a_cut_before_a_lower_case_word_after_an_abbreviation_is_dropped(text) -> None:
     """The parser's later cut before a lower-case word ends no sentence either."""
+    assert texts(text, "de") == [text]
+
+
+def test_a_figure_after_an_abbreviation_stays_with_the_words_after_it() -> None:
+    """`gem. Ziff. 3 | eine Gebühr`: the cut after the figure goes, as after an amount."""
+    text = "Der Kunde zahlt gem. Ziff. 3 eine Gebühr."
+
     assert texts(text, "de") == [text]

@@ -41,6 +41,10 @@ The splitter's cuts are corrected where a statement would not end:
   follows, or a figure on its line (`max. 3 days`, `Sect. 4.`; not `etc.`
   before a line opening `2.`).
 - Before a figure that ends a sentence on its line (`EUR 5.`, `Ziffer 3.`).
+- After an amount or other figure with no full stop, when its currency or a
+  lower-case word follows on its line (`1.000,18 EUR`, `56.455,35 EUR an`,
+  `gem. Ziff. 3 eine Gebühr`), and before a full stop standing alone. An
+  item's number or a table cell before a capitalised word keeps its cut.
 - Between an item's number and the item. Only a number opening its line
   numbers an item.
 
