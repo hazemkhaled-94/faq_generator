@@ -270,12 +270,10 @@ def nested(document: DoclingDocument) -> DoclingDocument:
         edges = blocks[reverse]
         listed = {one.self_ref for one in items}
         leftmost: dict[int, float] = {}
-        rightmost: dict[int, float] = {}
         for one in items:
             first = _sides(one.prov[0], reverse)[0]
             page = one.prov[0].page_no
             leftmost[page] = min(first, leftmost.get(page, first))
-            rightmost[page] = max(first, rightmost.get(page, first))
         edge = _column_edge(
             items[0].prov[0].page_no, _sides(items[0].prov[0], reverse)[0], edges
         )
@@ -297,13 +295,14 @@ def nested(document: DoclingDocument) -> DoclingDocument:
                 found = _page_edge(
                     here.page_no, start, edges, listed, edge, leftmost, step
                 )
-                if (
-                    found is None
-                    and rightmost[here.page_no] - leftmost[here.page_no] <= step
+                if found is None and any(
+                    abs(leftmost[here.page_no] - edge - indent) <= step / 2
+                    for indent, _ in levels
                 ):
-                    # One indent alone on the page: sub-items of the open level
-                    # as likely as a page set further right, and the page before
-                    # is what is known.
+                    # The page's leftmost item sits where a level open before
+                    # sits, within a quarter line, off the edge before: sub-items going on at their
+                    # depth, as likely as a page set further right, and the
+                    # page before is what is known.
                     found = edge
                 if found is None:
                     # No edge to read the page's indents off: the levels open

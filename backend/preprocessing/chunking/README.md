@@ -354,8 +354,9 @@ Unit tests stand in only for the database and the passage builder
   edge. A page that holds only the list's items has no such edge: it is read
   off the nearest page of the same parity that has one (facing pages mirror
   their margins), else off the page before but never right of the list's own
-  leftmost item there; a page whose items start at several indents and lie
-  further right than that restarts at level 0, as a list of its own does.
+  leftmost item there; a page whose leftmost item lies further right than that,
+  and not where a level open before sits, restarts at level 0, as a list of its
+  own does.
   A page of outer items alone at one indent, set further right than the page
   before, with no page of its parity holding a block to read the edge off, is
   read as sub-items of the open level: its geometry is the same as theirs. A nested item is rendered indented four spaces per level.
