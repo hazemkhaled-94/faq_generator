@@ -7,11 +7,11 @@ rate, `§ 3 Abs. 1`, `Article 5(2)`, an abbreviation of the language's tables
 - cuts nothing, and that a sentence ending on an amount is cut from the next.
 
 A bare figure right after an abbreviation and before a lower-case word
-(`Ziff. 3 für`) is C-220's, accepted, and is not drawn. An amount is written
-with its decimal mark and no thousands marks: one grouped by them may be cut
-from its currency in German, which is T2-05's. French, Polish and Greek have
-no abbreviation table and are read by the default parse, which may cut an
-amount with a decimal comma so too, so only references are written there.
+(`Ziff. 3 für`) is C-220's, accepted, and is not drawn. An amount inside a
+sentence is drawn in English: in German the parse may cut it from its
+currency (T2-05), as the default parse does in French, Polish and Greek,
+where only references are written. A sentence ending on an amount is drawn
+in both configured languages, its amount without thousands marks.
 """
 
 from __future__ import annotations
@@ -24,7 +24,8 @@ from nlp.analysis import _ABBREVIATIONS, _CLOSING_ABBREVIATIONS, sentences
 
 pytestmark = pytest.mark.nlp
 
-#: Two sentences of each domain, by language: the first holds `{}`.
+#: Two sentences of each domain, by language: the first holds an amount at
+#: `{}`, where the domain states one.
 _PAIRS = {
     "de": (
         (
@@ -32,13 +33,10 @@ _PAIRS = {
             "Der Betrag wird vom Konto abgebucht.",
         ),
         (
-            "Das Amt bearbeitet den Antrag {} binnen eines Monats.",
-            "Die Behörde informiert schriftlich.",
-        ),
-        (
-            "Im Shop gilt {} für jede Rücksendung.",
+            "Der Shop erstattet {} für jede Rücksendung.",
             "Die Erstattung erfolgt auf das Zahlungsmittel.",
         ),
+        ("Das Amt erhebt {} für den Antrag.", "Die Gebühr ist sofort fällig."),
     ),
     "en": (
         (
@@ -46,18 +44,39 @@ _PAIRS = {
             "The amount is debited from the account.",
         ),
         (
-            "The office decides on the application {} within a month.",
-            "The applicant is told in writing.",
+            "The shop refunds {} for every return.",
+            "The refund goes to the original payment method.",
+        ),
+        ("The office charges {} for the application.", "The fee is due at once."),
+    ),
+}
+
+#: The same, the first naming a reference at `{}`, in every language.
+_CITING = {
+    "de": (
+        (
+            "Die Bank sperrt die Karte nach {} der Bedingungen.",
+            "Der Kunde wird schriftlich informiert.",
         ),
         (
-            "The shop applies {} to every return.",
-            "The refund goes to the original payment method.",
+            "Das Amt bearbeitet den Antrag nach {} binnen eines Monats.",
+            "Die Behörde informiert schriftlich.",
+        ),
+    ),
+    "en": (
+        (
+            "The bank blocks the card under {} of the terms.",
+            "The customer is told in writing.",
+        ),
+        (
+            "The office decides on the application under {} within a month.",
+            "The applicant is told in writing.",
         ),
     ),
     "fr": (
         (
-            "La banque facture {} pour la carte de remplacement.",
-            "Le montant est débité du compte.",
+            "La banque bloque la carte selon {} des conditions.",
+            "Le client est informé par écrit.",
         ),
         (
             "La mairie traite la demande selon {} sous un mois.",
@@ -65,7 +84,10 @@ _PAIRS = {
         ),
     ),
     "pl": (
-        ("Bank pobiera {} za kartę zastępczą.", "Kwota jest pobierana z konta."),
+        (
+            "Bank blokuje kartę zgodnie z {} regulaminu.",
+            "Klient jest informowany na piśmie.",
+        ),
         (
             "Urząd rozpatruje wniosek zgodnie z {} w ciągu miesiąca.",
             "Wnioskodawca otrzymuje decyzję na piśmie.",
@@ -73,8 +95,8 @@ _PAIRS = {
     ),
     "el": (
         (
-            "Η τράπεζα χρεώνει {} για την κάρτα αντικατάστασης.",
-            "Το ποσό χρεώνεται στον λογαριασμό.",
+            "Η τράπεζα μπλοκάρει την κάρτα σύμφωνα με {} των όρων.",
+            "Ο πελάτης ενημερώνεται γραπτώς.",
         ),
         (
             "Η υπηρεσία εξετάζει την αίτηση σύμφωνα με {} εντός ενός μήνα.",
@@ -82,9 +104,6 @@ _PAIRS = {
         ),
     ),
 }
-
-#: The languages whose amounts the default parse may cut from their currency: T2-05.
-_CUT = frozenset({"fr", "pl", "el"})
 
 #: The decimal mark each language writes an amount with.
 _DECIMAL = {"de": ",", "en": "."}
@@ -115,21 +134,23 @@ def _amount(draw, language: str) -> str:
 
 
 @st.composite
-def _inside(draw, languages: list[str]):
-    """A language, the two sentences and a figure or reference to put in the first."""
-    language = draw(st.sampled_from(languages))
-    first, second = draw(st.sampled_from(_PAIRS[language]))
+def _inside(draw):
+    """A language, two sentences and an amount or a reference put in the first.
+
+    An amount in English only: a German one is now and then cut from its
+    currency, with or without thousands marks, which is T2-05's.
+    """
+    language = draw(st.sampled_from(sorted(_CITING)))
+    if language == "en" and draw(st.booleans()):
+        first, second = draw(st.sampled_from(_PAIRS[language]))
+        return language, first.format(draw(_amount(language))), second
+    first, second = draw(st.sampled_from(_CITING[language]))
     number = draw(st.integers(1, 99))
-    reference = st.sampled_from(_REFERENCES[language]).map(
-        lambda one: one.format(number)
-    )
-    held = draw(
-        reference if language in _CUT else st.one_of(_amount(language), reference)
-    )
-    return language, first.format(held), second
+    reference = draw(st.sampled_from(_REFERENCES[language])).format(number)
+    return language, first.format(reference), second
 
 
-@given(case=_inside(sorted(_PAIRS)))
+@given(case=_inside())
 def test_a_figure_or_reference_inside_a_sentence_never_cuts_it(case) -> None:
     """`1234,56 EUR`, `§ 3 Abs. 2` or `Article 5(2)` mid-sentence leave two sentences two."""
     language, first, second = case
@@ -202,8 +223,8 @@ def test_an_abbreviation_of_the_languages_tables_inside_a_sentence_never_cuts_it
 
 
 @given(
-    language=st.sampled_from(sorted(set(_PAIRS) - _CUT)),
-    pair=st.integers(0, 1),
+    language=st.sampled_from(sorted(_PAIRS)),
+    pair=st.integers(0, 2),
     amount=st.data(),
 )
 def test_a_sentence_ending_on_an_amount_is_cut_from_the_next(
