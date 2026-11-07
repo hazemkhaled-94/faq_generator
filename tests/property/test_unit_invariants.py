@@ -7,9 +7,9 @@ apart are the range, and one alone, or a range sharing one end, is not.
 In German and English, and in French, Polish and Greek, which no
 `NLP_MODELS` row names and where the gate must refuse rather than misfire.
 
-Units are words of one form each, none inside another: a lower-case German
-unit symbol is N-145's and a unit spelled inside another N-147's, both
-accepted.
+Units are words of one form each, and the unit symbols, one inside another
+(`m` in `mm`): each is read beside its figure, a lower-case German symbol in
+a capitalised sentence (N-145) as a unit spelled inside another (N-147).
 """
 
 from __future__ import annotations
@@ -22,27 +22,33 @@ from question_generation.gates import agrees
 
 pytestmark = pytest.mark.nlp
 
+#: The unit symbols every language writes alike, one inside another.
+_SYMBOLS = ("cm", "mm", "m", "kg", "g", "l", "ml")
+
 #: What a bank, a shop and an office count, by language, and a sentence of
 #: the verifier's that states a figure and its unit.
 _UNITS = {
     "de": (
-        ("Euro", "Prozent", "Tage", "Wochen", "Monate", "Stück", "Kunden", "Karten"),
+        ("Euro", "Prozent", "Tage", "Wochen", "Monate", "Stück", "Kunden", "Karten")
+        + _SYMBOLS,
         "Laut den Bedingungen sind es {} {}.",
     ),
     "en": (
-        ("euros", "percent", "days", "weeks", "months", "items", "customers", "cards"),
+        ("euros", "percent", "days", "weeks", "months", "items", "customers", "cards")
+        + _SYMBOLS,
         "Under the terms it is {} {}.",
     ),
     "fr": (
-        ("euros", "jours", "semaines", "mois", "clients", "comptes", "cartes"),
+        ("euros", "jours", "semaines", "mois", "clients", "comptes", "cartes")
+        + _SYMBOLS,
         "Selon les conditions, il s'agit de {} {}.",
     ),
     "pl": (
-        ("złotych", "dni", "tygodni", "miesięcy", "klientów", "kart"),
+        ("złotych", "dni", "tygodni", "miesięcy", "klientów", "kart") + _SYMBOLS,
         "Według regulaminu jest to {} {}.",
     ),
     "el": (
-        ("ευρώ", "ημέρες", "εβδομάδες", "μήνες", "πελάτες", "κάρτες"),
+        ("ευρώ", "ημέρες", "εβδομάδες", "μήνες", "πελάτες", "κάρτες") + _SYMBOLS,
         "Σύμφωνα με τους όρους είναι {} {}.",
     ),
 }

@@ -394,7 +394,6 @@ def test_an_ordinal_figure_past_twelve_never_agrees_with_the_count_of_its_digits
 ) -> None:
     """`the 14th reminder` is no `14 reminders`, `der 21. Mahnung` no `21 Mahnungen`.
 
-    As a figure only: a word the tagger reads as a noun or a name is T2-04's.
     In French and Greek the suffix is read as part of what the figure says.
     """
     language, value = case
