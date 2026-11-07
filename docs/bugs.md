@@ -18,7 +18,7 @@ category:
 | [Domain-specific](#domain-specific) | 3 | Only a rule fitted to one corpus would cure it |
 | [Upstream](#upstream) | 2 | A dependency must change first |
 
-<!-- v0.5.5 pending: N-145, N-147, N-148, N-151, N-152, N-155, N-156, N-157 -->
+<!-- v0.5.5 pending: N-148 -->
 
 Within a category, entries run in pipeline order: parsing and passages, facts
 and topics, questions and the release, then the platform. Each carries its
