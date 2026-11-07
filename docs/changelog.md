@@ -26,7 +26,7 @@ them. T1 wrote tests that kill the mutants `make mutation` left alive, T2
 wrote properties over the text readers, T3 wrote tests over the risky
 branches the coverage report showed missed, and T4 ran the suite in random
 orders and guarded it against hangs. Their findings and the reviewers' make
-57 items, `N-101` to `N-157`. 29 were fixed, 2 closed and 22 accepted.
+57 items, `N-101` to `N-157`. 29 were fixed, 2 closed and 25 accepted.
 
 <!-- v0.5.5 pending: N-148 -->
 
@@ -87,13 +87,14 @@ check an index past a passage's last sentence, so N-110's input exists only
 in a test built by hand; its variant on the real path is N-141. A Greek or
 Polish text is refused at parse while no configuration names its language
 ([C-252](bugs.md#c-252-language-columns-hold-bare-iso-639-1-codes)), so
-N-146's sentence never reaches the checker. 22 items were accepted, each
+N-146's sentence never reaches the checker. 25 items were accepted, each
 with its effect, its cure and what reopens it: 10 under [Failed
 bar](bugs.md#failed-bar) (N-103, N-105, N-120, N-123, N-124, N-126, N-127,
 N-129, N-135 and N-140), 8 of them fixes withdrawn in this release and two
-whose designs were measured and never applied, and 12 under
+whose designs were measured and never applied, and 15 under
 [Cost](bugs.md#cost) (N-112, N-113, N-116, N-125, N-128, N-137, N-138,
-N-139, N-141, N-142, N-143 and N-144).
+N-139, N-141, N-142, N-143, N-144, N-149, N-150 and N-153). The bug page
+holds 158 accepted items in all.
 
 ### Tests added in v0.5.5
 
@@ -117,7 +118,8 @@ Each track's new tests pass in three orders.
   ranges, references, sentence cuts, list depth and headings, in five
   languages: `tests/property` goes from 122 tests to 152. They pass at the
   `ci` and `nightly` profiles. Of the track's nine findings, N-148 to N-156,
-  five are fixed above (N-151, N-152, N-154, N-155 and N-156).
+  five are fixed above (N-151, N-152, N-154, N-155 and N-156) and three
+  accepted for their cost (N-149, N-150 and N-153).
   <!-- v0.5.5 pending: N-148 -->
 - T3, coverage. 94 tests in 26 new files over the risky branches the
   coverage report of v0.5.4 showed missed: parsing, validation, the gates,
