@@ -703,7 +703,8 @@ in *80 cm* or *30 kg* agrees with a recovery that writes the same unit after
 the same figure: 12 stored German football keys, and one half of 2
 two-part keys, moved from refused to agreed. A value key also asks back its
 own lower-case or one-letter unit (N-157), so *5 m* no longer agrees with
-*5 mm*, nor *je 10 kg* with *je 10 g*. Newly refused in v0.5.5, where
+*5 mm*, nor, in the value form, a German key such as *Der Versand kostet 5 EUR je 10 kg.*
+with *Der Versand kostet 5 EUR je 10 g.* Newly refused in v0.5.5, where
 v0.5.4 agreed, unless the entailment rescue keeps the row on the round
 trip: a recovery that spells the unit out, in every form for a key as short
 as these and in German and English (*90 Meter* or *90 meters* for *90 m*, *5 metres* for *5 m*), and
