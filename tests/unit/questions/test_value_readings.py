@@ -937,6 +937,28 @@ def test_n147_the_same_unit_and_words_are_still_found(recovered, key, language, 
     assert agrees(recovered, key, language, form)
 
 
+@pytest.mark.parametrize(
+    "form",
+    [
+        pytest.param(
+            AnswerForm.VALUE,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=(
+                    "the German tokenizer keeps 'm-Kabel' one token, so no unit "
+                    "is read beside the 5 and the value form asks for 'm' back"
+                ),
+            ),
+        ),
+        AnswerForm.LIST,
+        AnswerForm.EXPLANATION,
+    ],
+)
+def test_n147_the_same_unit_before_a_hyphen_is_still_found(form):
+    """`5 m` is found in `Das 5 m-Kabel`: the hyphen ends the unit."""
+    assert agrees("Das 5 m-Kabel ist vorrätig.", "5 m", "de", form)
+
+
 # N-151: an ordinal word past twelve is the ordinal it is, whatever the tagger tags it.
 @pytest.mark.parametrize(
     ("recovered", "key", "language"),
