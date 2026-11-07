@@ -2343,8 +2343,8 @@ make questions-export OUT=audit.xlsx FILTER="--released"
 
 Two analysts, working apart, confirmed each entry's mechanism in the code of
 v0.5.2, and its figures come from the run, replay or arm it names. The
-entries of v0.5.5 rest on a test that reproduces each, or for N-142 a
-reading of the code, and their figures on the replay, arm or review round
+entries of v0.5.5 rest on a test or a probe that reproduces each, or for
+N-142 a reading of the code, and their figures on the replay, arm or review round
 they name.
 Re-measuring means taking a corpus through again and rewriting this page and
 [measurements.md](measurements.md).
