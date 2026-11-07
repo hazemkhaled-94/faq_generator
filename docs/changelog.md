@@ -144,8 +144,9 @@ Polish text is refused at parse while no configuration names its language
 N-146's sentence never reaches the checker. 25 items were accepted, each
 with its effect, its cure and what reopens it: 10 under [Failed
 bar](bugs.md#failed-bar) (N-103, N-105, N-120, N-123, N-124, N-126, N-127,
-N-129, N-135 and N-140), 8 of them fixes withdrawn in this release and two
-whose designs were measured and never applied, and 15 under
+N-129, N-135 and N-140): 8 fixes withdrawn in this release, N-135, whose
+four designs were measured and never applied, and N-140, its mirror, which
+shares its cure. 15 are under
 [Cost](bugs.md#cost) (N-112, N-113, N-116, N-125, N-128, N-137, N-138,
 N-139, N-141, N-142, N-143, N-144, N-149, N-150 and N-153). The bug page
 holds 158 accepted items in all.
