@@ -296,8 +296,11 @@ paragraph in the body area: the 4 found all sit in a margin.
 A list passage whose items are each under 40 characters, in French, Polish
 or Greek, is labelled German or English and extracted by that pipeline,
 because the line-by-line reading counts a short line for neither side.
-N-004's fix covered paragraphs only. Not measured on the stored corpora,
-which are German and English only.
+Such a passage should be kept and left unread. Instead the model writes
+facts from it, the wrong language's pipeline checks them and reads its
+words, which enter that language's topic vocabulary; a re-chunk repairs it
+once a fix ships. N-004's fix covered paragraphs only. Not measured on the
+stored corpora, which are German and English only.
 
 - Why accepted: withdrawn in v0.5.5. Its fix read a passage of short lines
   joined, through the all-language reading the document gate uses. That
