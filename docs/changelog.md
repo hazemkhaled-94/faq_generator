@@ -18,15 +18,15 @@ Fixed defects by release, newest review first.
 
 ## Found by the deep QA pass of 2026-11-04
 
-The deep QA pass after v0.5.4, the last of this QA cycle, read the code of
-v0.5.4 again in six hunts: parsing and passages; facts, references and
-topics; questions, the gates, the release and the export; the platform;
-security and secrets; and language and domain. Four test tracks ran beside
-them. T1 wrote tests that kill the mutants `make mutation` left alive, T2
-wrote properties over the text readers, T3 wrote tests over the risky
-branches the coverage report showed missed, and T4 ran the suite in random
-orders and guarded it against hangs. Their findings and the reviewers' make
-57 items, `N-101` to `N-157`. 30 were fixed, 2 closed and 25 accepted.
+The deep QA pass after v0.5.4, for the final release of this development
+cycle, read the code of v0.5.4 again in six hunts: parsing and passages;
+facts, references and topics; questions, the gates, the release and the
+export; the platform; security and secrets; and language and domain. Four test
+tracks ran beside them. T1 wrote tests that kill the mutants `make mutation`
+left alive, T2 wrote properties over the text readers, T3 wrote tests over the
+risky branches the coverage report showed missed, and T4 ran the suite in
+random orders and guarded it against hangs. Their findings and the reviewers'
+make 57 items, `N-101` to `N-157`. 30 were fixed, 2 closed and 25 accepted.
 
 A fix has a test that failed before it and a bar written before its measure.
 Two reviewers read each group of fixes to the code, in up to three rounds;
@@ -51,10 +51,10 @@ of two shop runs.
 | N-154 | Before the release, the parsing branch flattened by one level a list going on at the top of the next page with only its sub-items there, at two indents: a regression of N-102's code that T2's properties found | Where no edge can be read for such a page, the edge before is kept when the page's leftmost item sits within half a step of a level open before. Otherwise the levels restart at level 0 | T2's repro and property pass, 3 red before. 4,154 tests pass. Passage arm: 0 passages differ from the branch before the fix on the 80 PDFs, and N-102 still changes 37 football passages in 7 documents |
 | N-104 | When a table's rest was joined from the next page, the captions and footnotes the converter attached to the rest went to the furniture layer with it and reached no passage | The rest hands its footnotes, and the captions the table lacks, to the table. A caption repeating the table's (`X (Fortsetzung)` after `X`) or a footnote the table already holds is not printed again | Red tests green in German, English, French and Greek. On a fresh parse of the 80 PDFs, none of the 21 joined rests carries a caption or a footnote, so no document changes |
 | N-106 | A passage stored as already extracted because no pipeline named its language stayed extracted after that language was configured, through both `make chunk-revocabulary` and a `chunk-rerun` that keeps its row | Such a passage goes back to `new` when either step gives it a language, unless a fact cites it, so `make extract-start` reads it | Red tests and their controls green; 120 integration tests pass. No stored passage is affected: 0 of the 2,504 passages of the 80 PDFs read as no language |
-| N-152 | A German sentence stating an amount with thousands marks (*1.000,18 EUR*, *56.455,35 EUR an*) was cut after the figure, before its currency or the rest of its clause, because the splitter kept the parser's cut after a figure with no end mark on its line | The amount stays in one sentence with its currency and the rest of its clause. A sentence ending on a full stop (*5 EUR.*) never joins the next one this way | Red tests green. German bank sentences with a dot-grouped amount cut this way: 25 of 700 before, 0 after. A re-split of the 3,272 stored prose passages of the three copies moves 5 (0.15%), all English, each one join that a blind reader found right; no item-number or table-row cut moves, and the 15 facts on them keep their verdicts. Bar: no moved cut joins two sentences, under 1% of passages move |
-| N-107 | The duplicate gate counted two statements alike when a figure kept its digits but changed its unit, its month or its pairing, so a different fact was refused as a twin | Two statements are twins only where the months, or the weekdays, both name share one, and where a value both state as a currency, a share, a period or a unit of time or measure reads the same on each side. 1 January and 1 July, 14 days and 14 weeks, 3 % for 12 months and 12 % for 3 months are apart. A date with its weekday, a range against its enumeration, and 5 mg/l against 5 mg per litre stay twins. SI symbols are read in every language, months, weekdays and units of time only where the language has a table | 14 German and English pairs apart both ways. The reviewers' restatement pairs alike both ways: 33 in the second round, and 45 of a later list once a unit is read up to its slash. French, Polish and Greek pairs as before. Replay of the 753 stored duplicate refusals: 0 freed (bar: under 20 freed, at most 1 restatement). 0 of 20,888 stored facts change |
-| N-108 | A citation of a sentence and a list line of the next sentence took the whole range between them as evidence, so the swap guard read an uncited line's figure as cited | A list line cited together with the sentence before it is its own piece of evidence, so a statement lifting an uncited line's figure is refused `unsupported_addition`, as it is when the line is cited alone | Repro green in German, English, French and Greek. Fact replay: 0 of 20,888 verdicts change |
-| N-109 | A statement that re-paired the digits of the cited clock times or dates was validated, because a time or a date was read as the set of its digit runs | A colon clock time with two-digit minutes, or a three-run date with its four-digit year at the same end, that the cited text writes only with its runs in another order is refused `unsupported_addition` ("13:30 to 9:00" for "9:30 to 13:00", "12-01-2026" for "01-12-2026"), for atomic facts. Hours are compared with hours and minutes with minutes, an hour the cited text writes alone counts as a time, and a 12-hour time is held modulo 12. Ratios, seasons, ranges, another convention's date, dotted times and 24:00 for 0:00 keep their verdict | The re-pairs refused in German, English, Polish and Greek. 30 keep probes of both reviewers, and the C-158 pins, validate as before. Fact replay: 0 of 20,888 change (bar: under 20 newly refused, at most 1 sound) |
+| N-152 | A German sentence stating an amount with thousands marks (*1.000,18 EUR*, *56.455,35 EUR an*) was cut after the figure, before its currency or the rest of its clause, because the splitter kept the parser's cut after a figure with no end mark on its line | A figure with no end mark stays in one sentence with what follows on its line when that is its currency or a lower-case word, so the amount keeps its currency and the rest of its clause. A sentence ending on a full stop (*5 EUR.*) never joins the next one this way | Red tests green. Of 700 generated German bank sentences with a dot-grouped amount, 25 were cut this way before, 0 after. A re-split of the 3,272 stored prose passages of the three copies moves 5 (0.15%), all English, each one join that a blind reader found right; no item-number or table-row cut moves, and the 15 facts on them keep their verdicts. Bar: no moved cut joins two sentences, under 1% of passages move |
+| N-107 | The duplicate gate counted two statements alike when a figure kept its digits but changed its unit, its month or its pairing, so a different fact was refused as a twin | Two statements with the same digits are counted apart where the months, or the weekdays, both name share none, where both sides read a value as a currency, a share or a period and the kinds differ, or where both give it a unit of time or measure and the units differ. 1 January and 1 July, 14 days and 14 weeks, 3 % for 12 months and 12 % for 3 months are apart. A date with its weekday, a range against its enumeration, and 5 mg/l against 5 mg per litre stay twins, and a currency is one reading whatever its code (EUR 5 and USD 5 stay twins). SI symbols are read in every language, months, weekdays and units of time only where the language has a table | 14 German and English pairs apart both ways. The reviewers' restatement pairs alike both ways: 33 in the second round, and 45 of a later list once a unit is read up to its slash. French, Polish and Greek pairs as before. Replay of the 753 stored duplicate refusals: 0 freed (bar: under 20 freed, at most 1 restatement). 0 of 20,888 stored facts change |
+| N-108 | A citation of a sentence and a list line of the next sentence took the whole range between them as evidence, so the swap guard read an uncited line's figure as cited | A list line cited together with the sentence before it is its own piece of evidence, so a statement that puts an uncited line's figure in place of the cited line's is refused `unsupported_addition`, as it is when the line is cited alone | Repro green in German, English, French and Greek. 0 of the 20,461 replayable stored facts change, and no stored citation names a line past the end (0 of 2,472) |
+| N-109 | A statement that re-paired the digits of the cited clock times or dates was validated, because a time or a date was read as the set of its digit runs | A colon clock time with two-digit minutes, or a three-run date with its four-digit year at the same end, that the cited text writes only with its runs in another order is refused `unsupported_addition` ("13:30 to 9:00" for "9:30 to 13:00", "12-01-2026" for "01-12-2026"), for atomic facts. Hours are compared with hours and minutes with minutes, an hour the cited text writes alone counts as a time, and a 12-hour time is held modulo 12. Ratios, seasons, ranges, dotted times and 24:00 for 0:00 keep their verdict, and so does another convention's date where its day or month is over 12; a conversion with both up to 12 is refused like a swap | The re-pairs refused in German, English, Polish and Greek. 30 keep probes of both reviewers, and the C-158 pins, validate as before. Fact replay: 0 of 20,888 change (bar: under 20 newly refused, at most 1 sound) |
 | N-111 | A quoted span linked to a heading of any document, so a page quoting a button label or a term became a reference to another document's section of that name | A quoted heading links to a section of its own document, or of another document only where the quote's sentence, the quote cut out, names that one document's full title: every noun, name and adjective of it, as written or by its lemma. Where two documents' titles are named it links to neither. Numbered references are read as before | Link replay over 3,335 stored passages: 9 of 314 reference links removed (8 football, 1 shop), 0 added, no numbered link changed, and 15 heads take another best link. A blind reader of the 10 links the first version removed found 2 references the sentence makes to the other document's section and 8 terms or labels (bar: at most 3). Each title's words are read once a pass: 200 documents take 3.3 s, against 1.8 s on v0.5.4 |
 | N-148 | A currency sign, a range's dash or another sign that the tagger tags a numeral was read as a number, so *The fee is 5 €.* stated the numbers 5 and €, and the same amount written *42,803.48 €* and *42803.48 €* stated different numbers to the duplicate gate and the restatement check | Of a sign the tagger calls a numeral, only a math sign (≤, ≥, ±, +) is still read; a currency sign, a dash or any other sign is no number. So *42,803.48 €* and *42803.48 €* state the same numbers, and a rule with *≥ 50 EUR* is never counted as its opposite with *≤ 50 EUR* | Red cases green, among them comparison-sign pairs in German, English, Polish and Greek. Of the 6 stored fact pairs the change reaches, none moves its duplicate or restatement verdict, and the 11 stored facts with a math sign read as on v0.5.4. The first version dropped the math signs too and failed its review; the second passed both reviewers |
 | N-114 | Two release writes at once left the rows of both draws released, under two release ids | `release()` takes a transaction-scoped advisory lock first, so the second write waits for the first | Red test green; 35 integration and 1,806 unit tests pass |
@@ -62,7 +62,7 @@ of two shop runs.
 | N-117 | Two comments in the question code still said the trigger deletes a question whose last fact goes, which migration `4a7c2e91d3b8` replaced with a `source_changed` rejection, and the `questions.status` column comment said rejected questions are never deleted | Six texts say what the code does: a question that loses its last citation is rejected as `source_changed` and kept, and deleting a document, or what came from it, deletes its questions. Revision `c5a82e17d3f9` rewrites the column comment | tests/static green. The only change in the database is one column comment |
 | N-133 | A German comparison answered in its plainest form, *X ist schneller als Y*, was refused as naming one thing, because no noun phrase was read for the term after *als* | A noun the comparison particle governs (`COMPARISON_TAG`, `KOKOM` in German) counts as a phrase when no chunk holds it. English already reads the noun after *than* as a chunk, and French, Polish and Greek read as before | Red German cases green; the English twins and the controls unchanged. Replay of the structural and type gates over the 4,348 stored questions: 0 verdicts change |
 | N-134 | A German date-range key *1.–3. Mai* never agreed with a recovery saying *vom 1. bis 3. Mai*: the range's second end was read as the count 3 | The range's second end takes the ordinal stop its first end carries | Red German cases green; the English twin and a verbatim recovery unchanged; French, Polish and Greek give their earlier verdicts. None of the 4,348 stored keys holds such a range |
-| N-145 | A German value key whose unit is written in lower case (*80 cm*, *30 kg*, *5 mm*, *10 km*) never agreed with a German sentence stating it, because the parse leaves a lower-case word out of a capitalised sentence's content lemmas | A figure is paired with the word written right after it, so such a key agrees with a recovery that writes the same unit right after the same figure, in German as in English. The unit is read past a no-break space, two spaces or a line break between it and its figure | Red cases green. Replay of the 3,281 stored keys against their cited statements: 14 German football rows move from refused to agreed and none the other way; no shop or English verdict changes. A blind reader found 14 of 14 usable (bar: 11, none invalid), and noted that two rest on a stored fact that misreads its page, an error of the fact stage |
+| N-145 | A German value key whose unit is written in lower case (*80 cm*, *30 kg*, *5 mm*, *10 km*) never agreed with a German sentence stating it, because the parse leaves a lower-case word out of a capitalised sentence's content lemmas | A figure is paired with the word written right after it, so such a key agrees with a recovery that writes the same unit right after the same figure, in German as in English. The unit is read past a no-break space, two spaces or a line break between it and its figure | Red cases green. Replay of the 3,281 stored keys against their cited statements: 12 German football keys, and one half of 2 two-part keys whose rows stay refused, move from refused to agreed, and none the other way; no shop or English verdict changes. A blind reader found all 14 readings usable (bar: 11, none invalid), and noted that two rest on a stored fact that misreads its page, an error of the fact stage |
 | N-147 | The containment fallback of `agrees()` was a substring test, so a key *5 m* agreed with *5 mm* and *2 l* with *2 lb* | A key that ends in a figure's unit is found in a recovery only where that unit ends | 30 must-disagree cases and 36 guards pass in the value, list and explanation forms. Replay: 0 of 3,281 stored rows move |
 | N-151 | An ordinal word past twelve that the tagger tags a noun or a name asserted no value, so *ab der dreiundvierzigsten Mahnung* agreed with *ab der 5. Mahnung* and *43 Mahnungen*, and *the seventieth reminder* never agreed with *the 70th reminder* | Such a word is the ordinal it names whatever its tag, as a cardinal from thirteen on already was | Red cases green; French, Polish and Greek stay as before. Replay: 0 stored rows move |
 | N-155 | A German figure that the lemmatiser gave a letter (*3.948.006,39r*, a range *3667–5224r*) was kept as a content lemma, so a range key never agreed with its ends written apart | A figure is never a content lemma, whatever letter the lemmatiser adds. A proper noun holding no letter is read by its text, not by a lemma the German lemmatiser suffixed (*3965–4092-*), so a German range key the tagger calls a name also agrees with its ends written apart | Red tests green. The content lemmas of every stored German passage, fact and key of the three copies are unchanged. The proper-noun reading changes only a bullet or a slash in 17 stored passages, which no fact, key or cited statement holds, so no stored verdict moves |
@@ -82,20 +82,31 @@ of two shop runs.
 The reviewers named these limits of the fixes above, and each holds on the
 code of its fix.
 
+- Lists across a page break (N-101, N-102). A block outside the list that
+  starts left of the text column, on the page or on the page of the same
+  parity its edge is read from (a hanging paragraph number, a wider box, a
+  margin note), moves the edge left, so the outer items there nest under the
+  sub-item open at the break. None of the 80 calibration PDFs shows it.
 - A figure and its unit (N-145, N-147, N-157). A unit that goes on after a
   slash still agrees with the unit alone: *5 km* with *5 km/h*, *5 m* with
   *5 m/s*, *10 kg* with *10 kg/m²*. A figure the sentence denies still
   agrees: a key *80 cm* with *Die Breite beträgt nicht 80 cm, sondern 90
   cm.* English already read both so, and German now does too. N-157 asks
-  back a key's own unit in the value form only, as decided. The list and
+  back a key's own unit in the value form only, as decided, and only where the
+  tagger tags the unit a noun, a proper noun or an adjective: the German *Das
+  Kabel ist 5 m lang.*, whose *m* it tags a foreign word, still agrees with
+  *... 5 mm lang.* The list and
   explanation forms are compared by the share of the key's words that comes
   back, so a unit missing from a whole sentence can pass where it is missing
   from a short key: *Der Versand kostet 5 EUR je 10 kg.* still agrees with
   *Der Versand kostet 5 EUR je 10 g.* in those forms, in German and English
-  alike, while *5 EUR je 10 kg* is refused against *5 EUR je 10 g*. In the
-  value form a German unit spelled out (*90 Meter* for *90 m*,
-  *10 Kilogramm* for *10 kg*) or joined to the next word by a hyphen (*Das
-  5 m-Kabel* for *5 m*) is refused. A German figure with one dot is read
+  alike, while *5 EUR je 10 kg* is refused against *5 EUR je 10 g*.
+  N-147 and N-157 also newly refuse some sound keys that v0.5.4 agreed, on
+  the safe side: a recovery that spells the unit out is refused in every
+  form for a key as short as these, in German and English (*90 Meter* or *90 meters* for *90 m*, *5
+  metres* for *5 m*), and one that joins the unit to the next word by a
+  hyphen in the value form (*Das 5 m-Kabel* for *5 m*). *10 Kilogramm* for
+  *10 kg* was refused before too. A German figure with one dot is read
   both as thousands and as a decimal, so a key *1.500 kg* agrees with *1,5
   kg*, as the English *1,500 kg* already agreed with *1.5 kg*.
 - The arithmetic check (N-156) still reads *2000,- EUR* as a year, because
@@ -105,6 +116,19 @@ code of its fix.
   fee of *1,950 EUR* and the *2000* of *since 2000*. v0.5.4 refused that
   total, but already let such a mix pass where an amount fell outside 1900
   to 2100.
+- The duplicate gate (N-107). A unit against a currency or a share still
+  counts alike (*2 kg* and *2 Euro*, *2 %* and *2 kg*), and so does a value
+  stated twice where one of its readings matches (*2 % für 2 Jahre* and *2
+  % für 2 Monate*). A currency is one reading whatever its code, so *EUR 5*
+  and *USD 5* stay twins.
+- Dates and times (N-109). A date converted between conventions with its
+  day and month both up to 12 reads as a re-pair and is refused: a cited
+  *04/01/2026 (April 1)* restated *01/04/2026*, which v0.5.4 validated.
+  As on v0.5.4, a date re-paired across two cited dates is validated when
+  its day is over 12, since it reads as another convention's spelling
+  (*31/01/2026* from a cited *01/03/2026 to 31/03/2026*), and so is a time
+  that pairs a cited bare hour with a cited colon time's minutes (*öffnet um
+  8:30* from *von 8 bis 12:30*).
 - Number reading (N-148). A sign is read only where the tagger tags it a
   numeral, so where neither sign is tagged one, *≥ 5 °C* and *≤ 5 °C* still
   count alike; the probes found this in Polish and Greek sentences of the
@@ -133,8 +157,9 @@ Polish text is refused at parse while no configuration names its language
 N-146's sentence never reaches the checker. 25 items were accepted, each
 with its effect, its cure and what reopens it: 10 under [Failed
 bar](bugs.md#failed-bar) (N-103, N-105, N-120, N-123, N-124, N-126, N-127,
-N-129, N-135 and N-140), 8 of them fixes withdrawn in this release and two
-whose designs were measured and never applied, and 15 under
+N-129, N-135 and N-140): 8 fixes withdrawn in this release, N-135, whose
+four designs were measured and never applied, and N-140, its mirror, which
+shares its cure. 15 are under
 [Cost](bugs.md#cost) (N-112, N-113, N-116, N-125, N-128, N-137, N-138,
 N-139, N-141, N-142, N-143, N-144, N-149, N-150 and N-153). The bug page
 holds 158 accepted items in all.
@@ -153,8 +178,8 @@ Each track's new tests pass in three orders.
   kill 4,855 of 5,200, with 340 survived and 5 timed out, against v0.5.4's
   4,418 killed, 777 survived and 5 timed out. The Nightly on the release
   commit gives the figures of record, which replace these. Every survivor
-  left is classified as killed, equivalent, a timeout, a real defect or
-  unclassified with what was tried. The track's findings are N-133, N-134
+  of v0.5.4 is classified: killed by a new test, equivalent, a timeout, a
+  real defect, or unclassified with what was tried. The track's findings are N-133, N-134
   and N-135.
   <!-- v0.5.5 measure: release Nightly mutation -->
 - T2, properties. 30 properties over the readers of figures, dates, units,
@@ -164,9 +189,10 @@ Each track's new tests pass in three orders.
   six are fixed above (N-148, N-151, N-152, N-154, N-155 and N-156) and
   three accepted for their cost (N-149, N-150 and N-153).
 - T3, coverage. 94 tests in 26 new files over the risky branches the
-  coverage report of v0.5.4 showed missed: parsing, validation, the gates,
-  the draw, the export, deletion, the archive, migrations and the ports'
-  error paths. The risky branches missed fall from 140 to 85. The track's
+  coverage report of v0.5.4 showed missed: parsing and chunking,
+  validation, the question gates, the export, deletion, the archive and
+  backups, the stages, review, telemetry, and the error paths of the object
+  store, the model client and the orchestrator. The risky branches missed fall from 140 to 85. The track's
   one finding, N-146, is closed above.
 - T4, order and hangs. Four random orders on v0.5.4 passed twice and failed
   1 and 9 tests of `tests/static/test_hosted_profile.py` under load, which

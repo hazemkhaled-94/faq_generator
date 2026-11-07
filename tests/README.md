@@ -23,7 +23,7 @@ make mutation       # change a gate and see whether a test notices. Hours
 |---|---|---|
 | [`static/`](static/) | The repository against itself: settings, migrations, locks, workflows, env files, compose, Makefile recipes, dashboards, prompt digests, import contracts, documentation links and pyright at zero | nothing |
 | [`unit/`](unit/) | One module at a time, with no network or disk. Includes the Dagster code location | spaCy, for some |
-| [`property/`](property/) | Invariants over generated input, with hypothesis, the text readers' among them: figures, dates, units, ranges, references, sentence cuts, list depth and headings, in five languages | spaCy, for some |
+| [`property/`](property/) | Invariants over generated input, with hypothesis, among them those of the text readers: figures, dates, units, ranges, references, sentence cuts, list depth and headings, in five languages | spaCy, for some |
 | [`regression/`](regression/) | The verdicts the checks have always reached | spaCy |
 | [`contract/`](contract/) | The OpenAPI surface, declared refusals, and calls generated from the OpenAPI document against every read route (`unsupported_method` is off, because `POST /questions/{action}` is a real route) | a container |
 | [`integration/`](integration/) | The database, the object store and the HTTP surface | a container |
@@ -105,9 +105,10 @@ left.
 
 The files named `*_branches.py`, and some named `*_refusals.py`, test the
 branches a coverage report showed missed in the code where a miss costs
-most: parsing, validation, the gates, the release draw, the export,
-deletion, the archive, migrations and the ports' error paths. `make
-test-coverage` shows what is still missed.
+most: parsing and chunking, validation, the question gates, the export,
+deletion, the archive and backups, the stages, review, telemetry, and the
+error paths of the object store, the model client and the orchestrator.
+`make test-coverage` shows what is still missed.
 
 ## Continuous integration
 
@@ -147,12 +148,11 @@ prints every thread's stack for a test that runs over ten minutes. A manual
 run of the nightly takes an optional integer `seed`, which repeats the test
 order of an earlier run.
 
-A test that waits on a background process waits only as a hang guard, not
-as a bound on the host's speed.
-[`static/test_hosted_profile.py`](static/test_hosted_profile.py) gives a
-background `make corpus-hosted` 300 s, under the ten minutes, and reaps every
-process a test started, pass or fail, so a run that never ends fails its own
-test and leaves nothing for a later one to trip on.
+In [`static/test_hosted_profile.py`](static/test_hosted_profile.py) a wait
+on a background process is only a hang guard, not a bound on the host's
+speed: a background `make corpus-hosted` gets 300 s, under the ten minutes,
+and every process a test started is reaped, pass or fail, so a run that never
+ends fails its own test and leaves nothing for a later one to trip on.
 [`integration/database/test_furniture_locks.py`](integration/database/test_furniture_locks.py)
 asserts that two languages' scoring windows overlap, not how long both take.
 

@@ -833,9 +833,10 @@ from the stage's page or `POST /{stage}/rerun?confirm=true`.
 
 ## Upgrading to v0.5.5
 
-The deep QA release after v0.5.4, the last of this QA cycle. It adds one
-migration, removes `make dagster-dev`, and refuses an `S3_BUCKETS` that gives
-two roles one bucket, which a deployment may have to change before it pulls.
+The deep QA release after v0.5.4, and the final release of this development
+cycle. It adds one migration, removes `make dagster-dev`, and refuses an
+`S3_BUCKETS` that gives two roles one bucket, which a deployment may have to
+change before it pulls.
 No lock, prompt or committed env file changes. `docs/changelog.md` lists each
 fix and closed item under v0.5.5, and `docs/bugs.md` the accepted ones.
 
@@ -893,8 +894,8 @@ operator's browser could launch or stop a run through a cross-site GET
 (N-131). Use the compose webserver instead: `make up` on the development
 profile mounts the checkout over the image, and the webserver refuses GraphQL
 over GET and cross-site writes. A static test fails on any recipe, compose
-command, image command, workflow or script that starts the webserver another
-way.
+command, image command, workflow or shell script that starts the webserver another
+way, as written in those files.
 
 ### 5. Reruns, in order
 
@@ -907,13 +908,17 @@ database, and a re-chunk over questions refuses unless `FORCE=1`.
 | Step | Command | Needed because of |
 |---|---|---|
 | Parse | `make parse-rerun CONFIRM=<database>` | Only for a corpus with a table that goes on onto the next page with footnotes or captions under its rest: the table now takes them, so they reach a passage (N-104). None of the 80 PDFs has such a rest |
-| Chunk | `make chunk-rerun CONFIRM=<database> FORCE=1` | A list the converter splits at a page break keeps its depth, each page's indent read off its own edge (N-101, N-102, N-154): 37 football passages in 7 documents change, 0 shop, and no letter changes. An amount also stays in one sentence with its currency and the rest of its clause (N-152): stored passages keep their sentences until a re-chunk, which re-cuts 5 English passages of the stored copies, each a right join, and no other row. For N-152 alone the re-chunk is optional. The facts that cited the replaced passages go with them, and the questions resting on them are rejected as `source_changed` and kept |
+| Chunk | `make chunk-rerun CONFIRM=<database> FORCE=1` | A list the converter splits at a page break keeps its depth, each page's indent read off its own edge (N-101, N-102, N-154): 37 football passages in 7 documents change, 0 shop, and no letter changes. A figure followed on its line by the lower-case rest of its clause, an amount's currency among them, no longer ends a sentence (N-152). Stored passages keep their sentences until a re-chunk; on the calibration corpora a re-chunk re-cuts 3 English football passages for this, each a right join, and no shop passage. For N-152 alone the re-chunk is optional. The facts that cited the replaced passages go with them, and the questions resting on them are rejected as `source_changed` and kept |
 | Extract new passages | `make extract-start`, then `make extract` | Re-chunked passages have no facts yet |
 | A language added | `make chunk-revocabulary`, then `make extract-start` | Only after adding a language to `NLP_MODELS` on a chunked corpus: a passage stored as read for want of a pipeline goes back to `new` once it has a language, unless a fact cites it, and `extract-start` queues it (N-106). A `chunk-rerun` that keeps the passage's row does the same. No stored passage of the calibration corpora is affected |
 | Dedup | `make extract-dedup` | Optional. It re-decides the stored `duplicate` refusals under the gate's new reading of units, months, weekdays and pairings (N-107). 0 of 753 stored refusals change |
-| Judge facts again | `make extract-revalidate` | Optional. A list line cited beside a sentence is its own evidence, and a re-paired time or date is refused (N-108, N-109). 0 of 20,888 stored verdicts change |
-| Stored questions | `make questions-reverify` | Optional. A German comparison answered *X ist schneller als Y* is no longer refused (N-133). 0 of 4,348 stored verdicts change |
+| Judge facts again | `make extract-revalidate` | Optional. A list line cited beside a sentence is its own evidence, and a re-paired time or date is refused (N-108, N-109). 0 of 20,888 stored verdicts change under N-109, and 0 of the 20,461 that N-108's replay could read |
 | Refit, questions and release | `make topics-discover`, `make questions-rerun CONFIRM=<database>`, then `make questions-balance` | After a re-chunk, as in step 5 of [Upgrading to v0.5.3](#upgrading-to-v053): re-chunked passages belong to no topic yet, and reach questions only through the refit and a question run |
+
+N-133 and the fixes to the round trip and its arithmetic check (N-134,
+N-145, N-147, N-151, N-155, N-156, N-157) act on new questions only.
+`make questions-reverify` is no rerun for them: it never gives a refused
+question back, and it leaves the round trip out.
 
 ### 6. What else changes
 

@@ -129,9 +129,15 @@ in any spelling (`1st` and `1 st`, `two` and `2`, `CHF 1'250.50` and
 `CHF 1250.50`: an apostrophe between a digit and three digits groups
 thousands),
 reads a vulgar fraction as its value (`2½` is `2.5`),
-and a proper noun is lemmatised. A fact may rest on the sentences it cites, the
-passage's heading trail and the document's title. A name or number found only
-in an uncited sentence is an addition. So is a figure only the rest of the
+and a proper noun is lemmatised. A fact may rest on the sentences it cites,
+the passage's heading trail and the document's title. A summary or an outline
+cites every sentence of its passage; for a bridge, a name or number found only
+in an uncited sentence is an addition. An atomic fact may also rest on the rest
+of its passage, so a figure of an uncited sentence is refused only as a swap or
+a re-pair (below), or where it is a dotted figure, not an amount, a share or a period, whose
+part before its last dot a heading of the trail writes (3.2, or 3.5 kg, under
+Article 3); a name or number that neither the passage, its trail nor its
+title has is an addition. So is a figure only the rest of the
 passage states, when the cited sentences state another of its kind (this and
 the swaps below are read for an atomic fact only): "costs EUR
 2" for a cited "costs EUR 5". So is a figure the cited sentences give only

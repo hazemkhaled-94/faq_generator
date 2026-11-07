@@ -5,9 +5,8 @@ symptom, the measured effect, why it stays, what a cure would cost and what
 would reopen it. [changelog.md](changelog.md) lists what each release fixed,
 newest first.
 
-The QA pass of v0.5.3 brought every open item to one end state: fixed, closed
-with evidence, or accepted, and accepted 133. The deep QA pass of v0.5.5
-accepted 25 of its own items. This page holds the 158 accepted items, by
+The QA pass of v0.5.3 brought every open item to an end state and accepted
+133 of them. The deep QA pass of v0.5.5 accepted 25 of its own items. This page holds the 158 accepted items, by
 category:
 
 | Category | Items | Meaning |
@@ -297,8 +296,11 @@ paragraph in the body area: the 4 found all sit in a margin.
 A list passage whose items are each under 40 characters, in French, Polish
 or Greek, is labelled German or English and extracted by that pipeline,
 because the line-by-line reading counts a short line for neither side.
-N-004's fix covered paragraphs only. Not measured on the stored corpora,
-which are German and English only.
+Such a passage should be kept and left unread. Instead the model writes
+facts from it, the wrong language's pipeline checks them and reads its
+words, which enter that language's topic vocabulary; a re-chunk repairs it
+once a fix ships. N-004's fix covered paragraphs only. Not measured on the
+stored corpora, which are German and English only.
 
 - Why accepted: withdrawn in v0.5.5. Its fix read a passage of short lines
   joined, through the all-language reading the document gate uses. That
@@ -607,7 +609,7 @@ figures only. Found on synthetic input, not measured on stored rows.
   dropped. It caught the 3 probe swaps and passed the 20 keep probes, but
   refused a sound lead-in statement that two existing tests pin, and the
   replay of 20,888 stored facts newly refused 23, about 21 to 22 of them
-  sound by the implementer's reading: an acronym spelled out (ESIS), a
+  sound on a reading of each row: an acronym spelled out (ESIS), a
   pronoun's antecedent, a heading's name. The bar was under 20, with at most
   1 sound. No repair within the design tells those from the swaps without a
   word list.
@@ -631,7 +633,7 @@ swap guard showed it, and no stored fact does.
   none was applied. Letting every noun kind into that pass newly refused 16
   to 17 stored facts, all sound (*14-tägige Bedenkzeit*, the EUR 100 000
   protection limit, the 5-8 second time frame, Article 10), and 15 of 25 or
-  21 of 38 fair probes of the two analysts. A narrower variant refused 5
+  21 of 38 fair probes in two probe sets. A narrower variant refused 5
   stored facts, all sound. The narrowest count readings refused no stored
   fact and kept the other fair probes, but refused a currency written in a
   word its language's table lacks (*50 francs* for CHF 50, *100 Kronen* for
@@ -641,7 +643,7 @@ swap guard showed it, and no stored fact does.
 - Cure: a count reading that needs no currency-name vocabulary.
 - Reopens: a count reading that refuses the six wrong probes (among them 3
   replacement cards for 3 EUR, 12 holders for 12 EUR a year, 3 counters for
-  3 weeks and 4 Filialen for 4 %), keeps every fair probe of both analysts,
+  3 weeks and 4 Filialen for 4 %), keeps every fair probe of both sets,
   currencies spelled as words in any language included, stays inert in
   French, Polish and Greek, and passes the fact replay of the three copies.
 
@@ -698,13 +700,19 @@ terse keys and German names the tagger does not mark as proper nouns.
 v0.5.5 cures part of the unit abbreviations. In German, as in English, a
 figure is now paired with the unit written right after it (N-145), so a key
 in *80 cm* or *30 kg* agrees with a recovery that writes the same unit after
-the same figure: 14 stored German football keys moved from refused to
-agreed. A value key also asks back its own lower-case or one-letter unit
-(N-157), so *5 m* no longer agrees with *5 mm*, nor *je 10 kg* with *je 10
-g*. Still refused, unless the entailment rescue keeps the row on the round
-trip: a recovery that spells the unit another way (*90 Meter* for *90 m*,
-*10 Kilogramm* for *10 kg*), and a unit the German tokenizer joins to the
-next word (*Das 5 m-Kabel* for *5 m*).
+the same figure: 12 stored German football keys, and one half of 2
+two-part keys, moved from refused to agreed. A value key also asks back its
+own lower-case or one-letter unit where the tagger tags it a noun, a proper
+noun or an adjective (N-157), so *5 m* no longer agrees with
+*5 mm*, nor, in the value form, a German key such as *Der Versand kostet 5 EUR je 10 kg.*
+with *Der Versand kostet 5 EUR je 10 g.* Newly refused in v0.5.5, where
+v0.5.4 agreed, unless the entailment rescue keeps the row on the round
+trip: a recovery that spells the unit out, in German and English, in every form
+for a short key such as *90 m* or *5 m* and in the value form for a whole
+sentence (*90 Meter* or *90 meters* for *90 m*, *5 metres* for *5 m*), and
+one that joins the unit to the next word by a hyphen, in the value form
+(*Das 5 m-Kabel* for *5 m*). *10 Kilogramm* for *10 kg* was refused before
+too.
 
 - Why accepted: keeping a key that names omitted items unless two are
   missing, with cited figures exempt (v0.5.2), kept 7 of 176 refusals, of
@@ -2340,8 +2348,8 @@ make questions-export OUT=audit.xlsx FILTER="--released"
 
 Two analysts, working apart, confirmed each entry's mechanism in the code of
 v0.5.2, and its figures come from the run, replay or arm it names. The
-entries of v0.5.5 rest on a test that reproduces each, or for N-142 a
-reading of the code, and their figures on the replay, arm or review round
+entries of v0.5.5 rest on a test or a probe that reproduces each, or for
+N-142 a reading of the code, and their figures on the replay, arm or review round
 they name.
 Re-measuring means taking a corpus through again and rewriting this page and
 [measurements.md](measurements.md).
