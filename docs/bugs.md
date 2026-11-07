@@ -7,18 +7,18 @@ newest first.
 
 The QA pass of v0.5.3 brought every open item to one end state: fixed, closed
 with evidence, or accepted, and accepted 133. The deep QA pass of v0.5.5
-accepted 22 of its own items. This page holds the 155 accepted items, by
+accepted 25 of its own items. This page holds the 158 accepted items, by
 category:
 
 | Category | Items | Meaning |
 |---|---|---|
 | [Failed bar](#failed-bar) | 82 | Designs were built and measured against a bar written beforehand, and none passed. 19 are fixes withdrawn in v0.5.3 and 8 fixes withdrawn in v0.5.5 |
-| [Cost](#cost) | 62 | A cure needs a model call per row, a new service, a migration or a rework larger than the effect |
+| [Cost](#cost) | 65 | A cure needs a model call per row, a new service, a migration or a rework larger than the effect |
 | [Not measured: budget](#not-measured-budget) | 6 | A cure changes what is written and needs a model arm that v0.5.3's model budget did not cover |
 | [Domain-specific](#domain-specific) | 3 | Only a rule fitted to one corpus would cure it |
 | [Upstream](#upstream) | 2 | A dependency must change first |
 
-<!-- v0.5.5 pending: N-145, N-147, N-148, N-149, N-150, N-151, N-152, N-153, N-155, N-156, N-157 -->
+<!-- v0.5.5 pending: N-145, N-147, N-148, N-151, N-152, N-155, N-156, N-157 -->
 
 Within a category, entries run in pipeline order: parsing and passages, facts
 and topics, questions and the release, then the platform. Each carries its
@@ -1691,6 +1691,54 @@ stored corpora show none of the shapes.
   reviewers as v0.5.4 does, while removing the cross-document label links
   N-111 removes.
 
+### N-150: A cited date restated in another form of its language is refused
+
+A fact that restates the cited date in another of its language's forms (*1.
+März 2026* for a cited *01.03.2026*, *1 March 2026* for *2026-03-01*, and the
+reverse) is refused `unsupported_addition`, because a numeric date is one
+token whose day, month and year support nothing. A switch between two named
+forms is fine: *1 March 2026* against *March 1, 2026* is validated both ways.
+It fails on the safe side: a faithful fact is refused, and no wrong date is
+validated.
+
+- Why accepted: no stored refusal has the shape (0 of 699
+  `unsupported_addition` refusals), so a replay can show nothing. The cure
+  adds a date reader on the evidence side beside N-109's re-pairing check,
+  and a misfire there would validate a re-paired date.
+- Cure: a numeric date of three runs read on the evidence side as its day,
+  its month, also by the month's name, and its year, with N-109's check kept
+  as it is.
+- Reopens: a corpus whose refused facts restate a cited date in another
+  form, on which reading a numeric date's day, month and year on the
+  evidence side passes the fact replay and N-109's tests.
+
+### N-153: German rules naming a numeric date are misparsed
+
+A German rule that names a numeric date is misread in three ways. In *Der
+Sommerschlussverkauf endet am 01-11-2030.* the year with its full stop is
+tagged a finite verb, so a faithful copy counts two claims and is refused
+`not_atomic`. In *Der Antrag muss vor dem 05.07.2026 eingehen.* the *dem*
+before the date is read as a reference that nothing resolves, and the copy is
+refused `unresolved_reference`. And *Die neuen Kontogebühren gelten ab dem
+01/09/2030.* is cut before *dem*, so a statement that re-pairs the date and
+cites only the first half is validated, because N-109's guard reads only the
+cited sentence. English never fails in the same sentences. About 1% of
+German rules naming a numeric date are hit, mostly on the safe side: the
+re-paired date passed in 2 of 528 drawn swaps citing the first half, and in
+none citing the whole rule.
+
+- Why accepted: three misreads with three causes: a year with its stop
+  tagged a finite verb, a determiner before a dotted date read as a pronoun,
+  and the parser's cut before a lower-case word, which is C-220's. 0 stored
+  facts have the shape: the stored German football rules write dates in
+  words, and the shop corpus with slashes.
+- Cure: a numeric date read as one figure before predicates and references
+  are counted, so it is never a verb and a determiner before it is no
+  pronoun, and the re-pairing guard reading the whole passage's dates.
+- Reopens: a corpus whose German facts write numeric dates and show one of
+  the three misreads, on which reading a numeric date as one figure passes
+  the fact replay.
+
 ### C-034: The parts reading narrows only some padded derived rows
 
 The needs_both parts reading on derived questions (implication, aggregation)
@@ -1896,6 +1944,28 @@ transaction's span, both operator commands, and the next draw repairs it.
 - Reopens: a restore reported leaving restored questions under an old
   release id beside a new draw, or the release key moving into a shared
   module for another reason.
+
+### N-149: A key giving a range's ends apart never agrees with the range written whole
+
+A key that gives a range's two ends apart (*zwischen 100 und 110 Euro*,
+*between 100 and 110 days*) never agrees with a recovery that writes the
+range whole, *100–110*, though the reverse pair agrees. `agrees()` splits the
+recovery's ranges into their ends only when the key holds a range, so a key
+of two values looks for 100 and 110 among the recovery's values and finds
+the one token *100–110*. It fails on the safe side: a sound key is refused
+`not_recoverable`, and no wrong key passes. 5 stored keys have the shape, 4
+of them in accepted questions.
+
+- Why accepted: a cure only adds readings to the recovery, so it can only
+  loosen the round trip, and a loosening is calibrated on the verifier's
+  recoveries, which the store does not keep. That needs a model arm, and 5
+  stored keys cannot fill its 40-row floor.
+- Cure: a recovery's ranges split into their ends also for a key of two or
+  more values, with the present rule kept for a key of one value (*110 m* is
+  not what *100–110 m* says).
+- Reopens: a corpus with 40 or more keys giving a range's ends apart, or
+  stored round-trip recoveries, on which that split passes the loosening
+  bar.
 
 ### C-085: The API's reads, the pages and Dagster have no login
 
