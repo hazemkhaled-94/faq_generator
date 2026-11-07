@@ -105,6 +105,16 @@ code of its fix.
   fee of *1,950 EUR* and the *2000* of *since 2000*. v0.5.4 refused that
   total, but already let such a mix pass where an amount fell outside 1900
   to 2100.
+- Number reading (N-148). A sign is read only where the tagger tags it a
+  numeral, so where neither sign is tagged one, *≥ 5 °C* and *≤ 5 °C* still
+  count alike; the probes found this in Polish and Greek sentences of the
+  default parse, and in none of the German and English ones tried. German
+  no longer reads the ASCII *+/-*, which its tokenizer splits, so *Die
+  Abweichung darf +/- 0,5 mm betragen.* counts alike with the same sentence
+  without it, as English already did. No stored passage or fact holds
+  *+/-*, *+-* or *±*. Two amounts that differ only by their currency sign
+  (*25 €*, *25 £*) count alike in the duplicate gate, as two ISO codes
+  already did (*25 EUR*, *25 GBP*).
 - Sentence cuts (N-152). A figure before a lower-case word on the same line
   no longer ends a sentence, so a heading that lost its line break joins
   the sentence after it: *Stand 2024 die Bank informiert.* is one sentence,
