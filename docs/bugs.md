@@ -698,13 +698,16 @@ terse keys and German names the tagger does not mark as proper nouns.
 v0.5.5 cures part of the unit abbreviations. In German, as in English, a
 figure is now paired with the unit written right after it (N-145), so a key
 in *80 cm* or *30 kg* agrees with a recovery that writes the same unit after
-the same figure: 14 stored German football keys moved from refused to
-agreed. A value key also asks back its own lower-case or one-letter unit
-(N-157), so *5 m* no longer agrees with *5 mm*, nor *je 10 kg* with *je 10
-g*. Still refused, unless the entailment rescue keeps the row on the round
-trip: a recovery that spells the unit another way (*90 Meter* for *90 m*,
-*10 Kilogramm* for *10 kg*), and a unit the German tokenizer joins to the
-next word (*Das 5 m-Kabel* for *5 m*).
+the same figure: 12 stored German football keys, and one half of 2
+two-part keys, moved from refused to agreed. A value key also asks back its
+own lower-case or one-letter unit (N-157), so *5 m* no longer agrees with
+*5 mm*, nor *je 10 kg* with *je 10 g*. Newly refused in v0.5.5, where
+v0.5.4 agreed, unless the entailment rescue keeps the row on the round
+trip: a recovery that spells the unit out, in every form and in German and
+English (*90 Meter* or *90 meters* for *90 m*, *5 metres* for *5 m*), and
+one that joins the unit to the next word by a hyphen, in the value form
+(*Das 5 m-Kabel* for *5 m*). *10 Kilogramm* for *10 kg* was refused before
+too.
 
 - Why accepted: keeping a key that names omitted items unless two are
   missing, with cited figures exempt (v0.5.2), kept 7 of 176 refusals, of
