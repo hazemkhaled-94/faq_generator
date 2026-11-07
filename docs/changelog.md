@@ -102,7 +102,12 @@ code of its fix.
   both as thousands and as a decimal, so a key *1.500 kg* agrees with *1,5
   kg*, as the English *1,500 kg* already agreed with *1.5 kg*.
 - The arithmetic check (N-156) still reads *2000,- EUR* as a year, because
-  the price dash stands between the figure and its currency.
+  the price dash stands between the figure and its currency. It refuses a
+  sum as years only where every figure in it is a year, so a total that
+  adds a year to amounts in the year band now passes: *3,950 EUR* from a
+  fee of *1,950 EUR* and the *2000* of *since 2000*. v0.5.4 refused that
+  total, but already let such a mix pass where an amount fell outside 1900
+  to 2100.
 - Sentence cuts (N-152). A figure before a lower-case word on the same line
   no longer ends a sentence, so a heading that lost its line break joins
   the sentence after it: *Stand 2024 die Bank informiert.* is one sentence,
