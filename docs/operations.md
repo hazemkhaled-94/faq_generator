@@ -912,8 +912,12 @@ database, and a re-chunk over questions refuses unless `FORCE=1`.
 | A language added | `make chunk-revocabulary`, then `make extract-start` | Only after adding a language to `NLP_MODELS` on a chunked corpus: a passage stored as read for want of a pipeline goes back to `new` once it has a language, unless a fact cites it, and `extract-start` queues it (N-106). A `chunk-rerun` that keeps the passage's row does the same. No stored passage of the calibration corpora is affected |
 | Dedup | `make extract-dedup` | Optional. It re-decides the stored `duplicate` refusals under the gate's new reading of units, months, weekdays and pairings (N-107). 0 of 753 stored refusals change |
 | Judge facts again | `make extract-revalidate` | Optional. A list line cited beside a sentence is its own evidence, and a re-paired time or date is refused (N-108, N-109). 0 of 20,888 stored verdicts change |
-| Stored questions | `make questions-reverify` | Optional. A German comparison answered *X ist schneller als Y* is no longer refused (N-133). 0 of 4,348 stored verdicts change |
 | Refit, questions and release | `make topics-discover`, `make questions-rerun CONFIRM=<database>`, then `make questions-balance` | After a re-chunk, as in step 5 of [Upgrading to v0.5.3](#upgrading-to-v053): re-chunked passages belong to no topic yet, and reach questions only through the refit and a question run |
+
+N-133 and the fixes to the round trip and its arithmetic check (N-134,
+N-145, N-147, N-151, N-155, N-156, N-157) act on new questions only.
+`make questions-reverify` is no rerun for them: it never gives a refused
+question back, and it leaves the round trip out.
 
 ### 6. What else changes
 
