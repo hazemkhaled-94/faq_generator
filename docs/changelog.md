@@ -82,6 +82,11 @@ of two shop runs.
 The reviewers named these limits of the fixes above, and each holds on the
 code of its fix.
 
+- Lists across a page break (N-101, N-102). A block outside the list that
+  starts left of the text column, on the page or on the page of the same
+  parity its edge is read from (a hanging paragraph number, a wider box, a
+  margin note), moves the edge left, so the outer items there nest under the
+  sub-item open at the break. None of the 80 calibration PDFs shows it.
 - A figure and its unit (N-145, N-147, N-157). A unit that goes on after a
   slash still agrees with the unit alone: *5 km* with *5 km/h*, *5 m* with
   *5 m/s*, *10 kg* with *10 kg/m²*. A figure the sentence denies still
@@ -116,6 +121,11 @@ code of its fix.
 - Dates and times (N-109). A date converted between conventions with its
   day and month both up to 12 reads as a re-pair and is refused: a cited
   *04/01/2026 (April 1)* restated *01/04/2026*, which v0.5.4 validated.
+  As on v0.5.4, a date re-paired across two cited dates is validated when
+  its day is over 12, since it reads as another convention's spelling
+  (*31/01/2026* from a cited *01/03/2026 to 31/03/2026*), and so is a time
+  that pairs a cited bare hour with a cited colon time's minutes (*öffnet um
+  8:30* from *von 8 bis 12:30*).
 - Number reading (N-148). A sign is read only where the tagger tags it a
   numeral, so where neither sign is tagged one, *≥ 5 °C* and *≤ 5 °C* still
   count alike; the probes found this in Polish and Greek sentences of the
