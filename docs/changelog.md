@@ -92,10 +92,13 @@ code of its fix.
   back, so a unit missing from a whole sentence can pass where it is missing
   from a short key: *Der Versand kostet 5 EUR je 10 kg.* still agrees with
   *Der Versand kostet 5 EUR je 10 g.* in those forms, in German and English
-  alike, while *5 EUR je 10 kg* is refused against *5 EUR je 10 g*. In the
-  value form a German unit spelled out (*90 Meter* for *90 m*,
-  *10 Kilogramm* for *10 kg*) or joined to the next word by a hyphen (*Das
-  5 m-Kabel* for *5 m*) is refused. A German figure with one dot is read
+  alike, while *5 EUR je 10 kg* is refused against *5 EUR je 10 g*.
+  N-147 and N-157 also newly refuse some sound keys that v0.5.4 agreed, on
+  the safe side: a recovery that spells the unit out is refused in every
+  form, in German and English (*90 Meter* or *90 meters* for *90 m*, *5
+  metres* for *5 m*), and one that joins the unit to the next word by a
+  hyphen in the value form (*Das 5 m-Kabel* for *5 m*). *10 Kilogramm* for
+  *10 kg* was refused before too. A German figure with one dot is read
   both as thousands and as a decimal, so a key *1.500 kg* agrees with *1,5
   kg*, as the English *1,500 kg* already agreed with *1.5 kg*.
 - The arithmetic check (N-156) still reads *2000,- EUR* as a year, because
