@@ -833,9 +833,10 @@ from the stage's page or `POST /{stage}/rerun?confirm=true`.
 
 ## Upgrading to v0.5.5
 
-The deep QA release after v0.5.4, the last of this QA cycle. It adds one
-migration, removes `make dagster-dev`, and refuses an `S3_BUCKETS` that gives
-two roles one bucket, which a deployment may have to change before it pulls.
+The deep QA release after v0.5.4, and the final release of this development
+cycle. It adds one migration, removes `make dagster-dev`, and refuses an
+`S3_BUCKETS` that gives two roles one bucket, which a deployment may have to
+change before it pulls.
 No lock, prompt or committed env file changes. `docs/changelog.md` lists each
 fix and closed item under v0.5.5, and `docs/bugs.md` the accepted ones.
 

@@ -18,15 +18,15 @@ Fixed defects by release, newest review first.
 
 ## Found by the deep QA pass of 2026-11-04
 
-The deep QA pass after v0.5.4, the last of this QA cycle, read the code of
-v0.5.4 again in six hunts: parsing and passages; facts, references and
-topics; questions, the gates, the release and the export; the platform;
-security and secrets; and language and domain. Four test tracks ran beside
-them. T1 wrote tests that kill the mutants `make mutation` left alive, T2
-wrote properties over the text readers, T3 wrote tests over the risky
-branches the coverage report showed missed, and T4 ran the suite in random
-orders and guarded it against hangs. Their findings and the reviewers' make
-57 items, `N-101` to `N-157`. 30 were fixed, 2 closed and 25 accepted.
+The deep QA pass after v0.5.4, for the final release of this development
+cycle, read the code of v0.5.4 again in six hunts: parsing and passages;
+facts, references and topics; questions, the gates, the release and the
+export; the platform; security and secrets; and language and domain. Four test
+tracks ran beside them. T1 wrote tests that kill the mutants `make mutation`
+left alive, T2 wrote properties over the text readers, T3 wrote tests over the
+risky branches the coverage report showed missed, and T4 ran the suite in
+random orders and guarded it against hangs. Their findings and the reviewers'
+make 57 items, `N-101` to `N-157`. 30 were fixed, 2 closed and 25 accepted.
 
 A fix has a test that failed before it and a bar written before its measure.
 Two reviewers read each group of fixes to the code, in up to three rounds;
