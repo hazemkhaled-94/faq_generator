@@ -1266,7 +1266,8 @@ def _spoken(document: Doc | Span) -> dict[int, str | None]:
     as a scale or as the rest of it - `twenty-five` is 25, `twenty thousand`
     is 20000, `one hundred twenty` is 120 - and the later word then maps to
     None. Only a token tagged as a numeral is read, unless the word is
-    `UNAMBIGUOUS`, and never one holding no letter or digit, a sign.
+    `UNAMBIGUOUS`. Of a token holding no letter or digit only a math sign
+    is read (`≤`, `±`), never a currency sign or a dash.
     """
     spelled = _NUMBER_WORDS.get(document.doc.lang_, {})
     cardinals = CARDINALS.get(document.doc.lang_, {})
@@ -1302,10 +1303,15 @@ def _spoken(document: Doc | Span) -> dict[int, str | None]:
             if word in spelled:
                 out[token.i] = spelled[word]
             # A count past the table is read as written: `de_core_news_md` gives
-            # `zwanzig` no `like_num`, and it still differs from `dreißig`. A
-            # sign the tagger calls a numeral (`€`, `+`, a range's `-`) is none.
+            # `zwanzig` no `like_num`, and it still differs from `dreißig`. Of a
+            # sign the tagger calls a numeral, a math sign is read, so `≤ 50` is
+            # no `≥ 50`; a currency sign or a range's `-` is none.
             elif token.like_num or (
-                token.pos_ == "NUM" and any(char.isalnum() for char in token.text)
+                token.pos_ == "NUM"
+                and (
+                    any(char.isalnum() for char in token.text)
+                    or all(unicodedata.category(char) == "Sm" for char in token.text)
+                )
             ):
                 out[token.i] = word
             continue
