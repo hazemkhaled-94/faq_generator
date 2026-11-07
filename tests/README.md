@@ -23,7 +23,7 @@ make mutation       # change a gate and see whether a test notices. Hours
 |---|---|---|
 | [`static/`](static/) | The repository against itself: settings, migrations, locks, workflows, env files, compose, Makefile recipes, dashboards, prompt digests, import contracts, documentation links and pyright at zero | nothing |
 | [`unit/`](unit/) | One module at a time, with no network or disk. Includes the Dagster code location | spaCy, for some |
-| [`property/`](property/) | Invariants over generated input, with hypothesis, the text readers' among them: figures, dates, units, ranges, references, sentence cuts, list depth and headings, in five languages | spaCy, for some |
+| [`property/`](property/) | Invariants over generated input, with hypothesis, among them those of the text readers: figures, dates, units, ranges, references, sentence cuts, list depth and headings, in five languages | spaCy, for some |
 | [`regression/`](regression/) | The verdicts the checks have always reached | spaCy |
 | [`contract/`](contract/) | The OpenAPI surface, declared refusals, and calls generated from the OpenAPI document against every read route (`unsupported_method` is off, because `POST /questions/{action}` is a real route) | a container |
 | [`integration/`](integration/) | The database, the object store and the HTTP surface | a container |
