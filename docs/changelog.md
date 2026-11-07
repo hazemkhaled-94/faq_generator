@@ -100,7 +100,7 @@ code of its fix.
   alike, while *5 EUR je 10 kg* is refused against *5 EUR je 10 g*.
   N-147 and N-157 also newly refuse some sound keys that v0.5.4 agreed, on
   the safe side: a recovery that spells the unit out is refused in every
-  form, in German and English (*90 Meter* or *90 meters* for *90 m*, *5
+  form for a key as short as these, in German and English (*90 Meter* or *90 meters* for *90 m*, *5
   metres* for *5 m*), and one that joins the unit to the next word by a
   hyphen in the value form (*Das 5 m-Kabel* for *5 m*). *10 Kilogramm* for
   *10 kg* was refused before too. A German figure with one dot is read
