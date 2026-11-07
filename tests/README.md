@@ -105,9 +105,10 @@ left.
 
 The files named `*_branches.py`, and some named `*_refusals.py`, test the
 branches a coverage report showed missed in the code where a miss costs
-most: parsing, validation, the gates, the release draw, the export,
-deletion, the archive, migrations and the ports' error paths. `make
-test-coverage` shows what is still missed.
+most: parsing and chunking, validation, the question gates, the export,
+deletion, the archive and backups, the stages, review, telemetry, and the
+error paths of the object store, the model client and the orchestrator.
+`make test-coverage` shows what is still missed.
 
 ## Continuous integration
 
