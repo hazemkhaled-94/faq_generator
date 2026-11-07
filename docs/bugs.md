@@ -6,13 +6,14 @@ would reopen it. [changelog.md](changelog.md) lists what each release fixed,
 newest first.
 
 The QA pass of v0.5.3 brought every open item to one end state: fixed, closed
-with evidence, or accepted. This page holds the 133 accepted items, by
+with evidence, or accepted, and accepted 133. The deep QA pass of v0.5.5
+accepted 25 of its own items. This page holds the 158 accepted items, by
 category:
 
 | Category | Items | Meaning |
 |---|---|---|
-| [Failed bar](#failed-bar) | 72 | Designs were built and measured against a bar written beforehand, and none passed. 19 are fixes withdrawn in v0.5.3 |
-| [Cost](#cost) | 50 | A cure needs a model call per row, a new service, a migration or a rework larger than the effect |
+| [Failed bar](#failed-bar) | 82 | Designs were built and measured against a bar written beforehand, and none passed. 19 are fixes withdrawn in v0.5.3 and 8 fixes withdrawn in v0.5.5 |
+| [Cost](#cost) | 65 | A cure needs a model call per row, a new service, a migration or a rework larger than the effect |
 | [Not measured: budget](#not-measured-budget) | 6 | A cure changes what is written and needs a model arm that v0.5.3's model budget did not cover |
 | [Domain-specific](#domain-specific) | 3 | Only a rule fitted to one corpus would cure it |
 | [Upstream](#upstream) | 2 | A dependency must change first |
@@ -20,14 +21,17 @@ category:
 Within a category, entries run in pipeline order: parsing and passages, facts
 and topics, questions and the release, then the platform. Each carries its
 register id: `C-` and three digits for the final review of 2026-10-22, `N-`
-for the QA pass of 2026-11-01, and `K-001` for one entry with no other id.
+for the QA pass of 2026-11-01 (`N-001` to `N-083`) and for the deep QA pass
+of v0.5.5 (`N-101` to `N-157`), and `K-001` for one entry with no other id.
 Older ids follow in brackets where an earlier review named the item.
 
 Figures come from hand reviews of full runs of the *Laws of the Game
 2026/27* (football rules), German and English, and from one earlier run over
 16 certification syllabi. Replays and arms ran on two corpora, each German
 and English: the football corpus (30 PDFs of the v0.5.1 build) and the shop
-corpus (50 consumer-information PDFs). [measurements.md](measurements.md)
+corpus (50 consumer-information PDFs). The fact replays of v0.5.5 also read a
+third copy, the football rules in German and English with facts only, so they
+cover 20,888 stored facts. [measurements.md](measurements.md)
 holds the runs' own figures. "Usable" means a reviewer verdict of good or
 minor. Reviewer verdicts are model judgements, accurate to about five points.
 "Release rows" are rows of the release of 2026-10-13 unless another run is
@@ -39,7 +43,9 @@ Each design named here was built, measured against a bar written before the
 measure, and taken out. A tightening may refuse at most 35% usable or correct
 rows. The 19 fixes withdrawn in v0.5.3 failed a replay, an arm, a Nightly
 run or the third round of review; their entries give the replay's, the
-arm's, the run's or the reviewers' numbers.
+arm's, the run's or the reviewers' numbers. The 8 withdrawn in v0.5.5 failed
+a passage arm, a fact replay, the reviewers' probes or the third round of
+review, and their entries say which.
 
 ### C-007: Restored regulation clauses can read worse
 
@@ -243,6 +249,75 @@ next, broken beside an accented letter, stays broken.
   and was withdrawn with it.
 - Cure: as N-002.
 - Reopens: with N-002.
+
+### N-103: A list item cut at a page break is not joined
+
+A list item that a page break cuts mid-sentence stays two items: the
+converter makes its rest a marker-less item of the next page's list, and the
+page join takes only a paragraph as the second half. The first item ends
+mid-sentence and the rest prints under a dash at level 0, so a fact's
+evidence is half a rule. The four converted football PDFs hold 7 items cut
+this way, and stored build passages 4000 and 4010 show it.
+
+- Why accepted: withdrawn in v0.5.5. Its fix joined such a rest to its item.
+  The blind reader read its 9 added football joins as printed, against v0.5.4
+  worse in all 9, with the shop corpus unchanged, and one reviewer passed it.
+  In the third round the other reviewer found a new wrong join: two separate
+  bullets without markers on a two-column page were fused at the column
+  break, because the rest's edge was read against the page's leftmost item.
+  A medium finding after the third round withdraws a fix. Its three commits
+  were reverted, and the helpers N-102 uses stay.
+- Cure: a join that reads a rest's edge against its own column.
+- Reopens: such a join, keeping two items without markers at a column break
+  apart, passing the passage arm of both corpora and a blind reading.
+
+### N-105: A body paragraph that repeats a running foot reaches no passage
+
+A body paragraph whose text equals a running head or foot is moved to the
+furniture layer wherever it sits on the page, so a contact line that the foot
+also prints reaches no passage. C-160 is the foot's own line; this is the
+body's copy of it, dropped by another rule. The stored corpora hold no such
+paragraph in the body area: the 4 found all sit in a margin.
+
+- Why accepted: withdrawn in v0.5.5. Its fix took such a paragraph as a
+  running item only inside the top or bottom margin of its page. The passage
+  arm changed 19 football passages and 0 shop passages, and the blind reader
+  found the fix printing as the page in 2 of 19 and reading worse in 11: a
+  chapter title that the converter reads as body text and the running head
+  repeats moved from the trail to the end of the previous chapter's passage,
+  or into a passage of its own under the wrong trail. The bar was that every
+  changed passage only gains body text.
+- Cure: a rule that keeps a body-area paragraph equal to a running foot as
+  passage text, and leaves a title the converter reads as body where v0.5.4
+  puts it.
+- Reopens: such a rule passing the passage arm of both corpora.
+
+### N-123: A list of short lines in an unconfigured language takes a configured one
+
+A list passage whose items are each under 40 characters, in French, Polish
+or Greek, is labelled German or English and extracted by that pipeline,
+because the line-by-line reading counts a short line for neither side.
+N-004's fix covered paragraphs only. Not measured on the stored corpora,
+which are German and English only.
+
+- Why accepted: withdrawn in v0.5.5. Its fix read a passage of short lines
+  joined, through the all-language reading the document gate uses. That
+  labelled a French, Polish, Greek, Dutch or Swedish list of short items as
+  no language (13 red tests green), and moved 0 of 2,506 passages of the
+  passage arm and 0 of 2,790 stored passages at the gate's 0.56, 0.7 and
+  0.84. Both reviewers then found German and English lists of food and drink
+  loanwords, the shape of a cafe, bakery or menu price list, read as Italian,
+  French or Spanish and no longer extracted: 10 of 12 probes for one, and 8
+  of 24 lists at 0.7 for the other, against the bar's clause that such lists
+  keep their language. The joined reading's confidence does not separate the
+  two (loanword lists 0.75 to 0.95, the foreign lists 0.87 to 1.00), so no
+  move of the bar cures it.
+- Cure: a reading that tells a foreign list of short items from a list of
+  loanwords in a configured language, for example from the passage's
+  neighbours or the document's other lists.
+- Reopens: such a reading passing the 13 tests of v0.5.5 and the reviewers'
+  loanword, dish, coffee and place-name lists in German and English at the
+  three bars.
 
 ### C-015: A fact may drop its sentence's scope
 
@@ -518,6 +593,71 @@ refused, and *12 customers* is validated.
 - Cure: the same reading carried through the question gates.
 - Reopens: such a change passing the fact, figure and question replays.
 
+### N-129: A fact that gives the cited figure to another named party passes
+
+An atomic fact that moves the cited fee or period to another party, one its
+passage names in an uncited sentence, is validated in every configured
+language: *Die Westbank erhebt ... 5 Euro* for a cited *Die Nordbank erhebt
+... 5 Euro*, beside an uncited *Die Westbank verlangt keine Gebühr*. An
+atomic fact's vocabulary is the whole passage, and the swap guard reads
+figures only. Found on synthetic input, not measured on stored rows.
+
+- Why accepted: withdrawn in v0.5.5. Its guard refused, as a swap, a name
+  that only an uncited sentence holds, beside a cited name the statement
+  dropped. It caught the 3 probe swaps and passed the 20 keep probes, but
+  refused a sound lead-in statement that two existing tests pin, and the
+  replay of 20,888 stored facts newly refused 23, about 21 to 22 of them
+  sound by the implementer's reading: an acronym spelled out (ESIS), a
+  pronoun's antecedent, a heading's name. The bar was under 20, with at most
+  1 sound. No repair within the design tells those from the swaps without a
+  word list.
+- Cure: a name reading that tells an acronym's expansion or a pronoun's
+  antecedent from another party's name, for example through coreference.
+- Reopens: such a reading passing the 20 keep probes and the two pinned
+  lead-in tests, and newly refusing at most 1 sound row of the 23 the v0.5.5
+  replay listed.
+
+### N-135: A cited amount restated as a count passes
+
+An atomic fact that restates a cited amount as a count of something else is
+validated: *3 cards* for a cited *3 EUR*, *12 holders* for *12 EUR*. The swap
+guard's pass over traded kinds reads only statement figures of a value kind
+(a currency, a share, a period), and a count's noun is no asserted unit, so
+nothing compares the count with the cited amount. German and English
+misfire; French and Greek are refused at parse. Surviving mutants of the
+swap guard showed it, and no stored fact does.
+
+- Why accepted: four designs were built and measured offline in v0.5.5, and
+  none was applied. Letting every noun kind into that pass newly refused 16
+  to 17 stored facts, all sound (*14-tägige Bedenkzeit*, the EUR 100 000
+  protection limit, the 5-8 second time frame, Article 10), and 15 of 25 or
+  21 of 38 fair probes of the two analysts. A narrower variant refused 5
+  stored facts, all sound. The narrowest count readings refused no stored
+  fact and kept the other fair probes, but refused a currency written in a
+  word its language's table lacks (*50 francs* for CHF 50, *100 Kronen* for
+  SEK 100, *200 zlotys* for PLN 200, *500 Yen*), whose only cure is a
+  currency-name vocabulary, the shape N-050 was withdrawn for. A replay
+  changing 0 stored rows would pass on no evidence, as N-011's did.
+- Cure: a count reading that needs no currency-name vocabulary.
+- Reopens: a count reading that refuses the six wrong probes (among them 3
+  replacement cards for 3 EUR, 12 holders for 12 EUR a year, 3 counters for
+  3 weeks and 4 Filialen for 4 %), keeps every fair probe of both analysts,
+  currencies spelled as words in any language included, stays inert in
+  French, Polish and Greek, and passes the fact replay of the three copies.
+
+### N-140: A cited count restated as an amount or a share passes
+
+The mirror of N-135: a statement that gives a cited count's digits to an
+amount or a share is validated, as *An additional card costs 3 EUR* for a
+cited *Up to 3 additional cards are issued; each costs 5 EUR*, or *10 %* for
+*10 products*. The pass over traded kinds compares only figures the cited
+text gives beside a value kind. No stored fact shows it.
+
+- Why accepted: the same root as N-135 and the same cure, the count reading
+  that N-135's designs failed to give without a currency-name vocabulary.
+- Cure: as N-135.
+- Reopens: with N-135.
+
 ### C-014: Welded two-passage questions pass every gate
 
 Two-passage questions that weld two rules or two subjects under one question
@@ -554,6 +694,17 @@ The round trip refuses German derivations (*eine Verwarnung* against
 `not_recoverable` refusals on the v0.3.0 rebuild were wrong, 57 usable,
 against 38 of 125 on the v0.2.2 rebuild. `answer_incomplete` also refuses
 terse keys and German names the tagger does not mark as proper nouns.
+
+v0.5.5 cures part of the unit abbreviations. In German, as in English, a
+figure is now paired with the unit written right after it (N-145), so a key
+in *80 cm* or *30 kg* agrees with a recovery that writes the same unit after
+the same figure: 14 stored German football keys moved from refused to
+agreed. A value key also asks back its own lower-case or one-letter unit
+(N-157), so *5 m* no longer agrees with *5 mm*, nor *je 10 kg* with *je 10
+g*. Still refused, unless the entailment rescue keeps the row on the round
+trip: a recovery that spells the unit another way (*90 Meter* for *90 m*,
+*10 Kilogramm* for *10 kg*), and a unit the German tokenizer joins to the
+next word (*Das 5 m-Kabel* for *5 m*).
 
 - Why accepted: keeping a key that names omitted items unless two are
   missing, with cited figures exempt (v0.5.2), kept 7 of 176 refusals, of
@@ -1057,6 +1208,77 @@ document.
   language.
 - Reopens: such a reading passing the source replay and the probes.
 
+### N-124: An English question naming one German compound is refused as German
+
+An English question that names one German compound (*How long does the
+Gewährleistung last?*, *Kündigungsschutz*, *Bürgeramt*) is refused as
+written in German and rewritten, because lingua is 0.94 to 1.0 sure of
+German on one such word. N-045's sure reading at 0.9 was measured on product
+names without an umlaut. 0 of 3,885 stored football questions trip it.
+
+- Why accepted: withdrawn in v0.5.5 after three review rounds. Reading the
+  question without the words its cited facts hold lets the three cases of
+  the hunt pass, but each round reopened a refusal the check exists for. In
+  round 1 a French, Polish or Greek question copying names and figures fell
+  under the 40-character floor and was kept (1,410 of 4,348 stored rows fell
+  under it). In round 2, the rest read only where the full text names the
+  other configured language, with a 10-character floor, 8 of 38 French
+  probes carrying that language's terms were kept. In round 3, the rest's
+  pick also read over every language, 11 of 95 refused probes were kept
+  where the answer is worded in the facts' language. No stored question
+  shows either the defect or the misfires.
+- Cure: a language reading that tells a carried name from the question's own
+  language, for example word by word against the facts' vocabulary.
+- Reopens: such a reading passing the hunt's three cases and every refused
+  probe of the v0.5.5 review rounds in French, Spanish, Dutch, Polish,
+  Italian, Danish, Swedish and Greek.
+
+### N-126: A German answer opening on a number compound is read as a count
+
+A German answer that names a thing by a number compound
+(*Zwei-Faktor-Authentifizierung*, *2-Faktor-...*, *Vier-Augen-Prinzip*) is
+refused as the count of its cited facts, where the number equals that count.
+The football build stores no such answer.
+
+- Why accepted: withdrawn in v0.5.5 after three review rounds. Exempting an
+  answer that opens on a hyphenated number compound from the count rule
+  keeps *Zwei-Faktor-Authentifizierung* under a which-procedure question,
+  but each round reopened count refusals. Round 1 skipped every number
+  compound, so how-many answers *3-stufig* or *Three-stage process* were
+  kept. Round 2 exempted only the bare-count arm, and how-often answers
+  *3-mal* and *3-fach* were kept. Round 3 took a compound for a thing where
+  the tagger reads a noun or its last part is capitalised, and *drei-mal*,
+  *zwei-mal*, *2-malig* (tagged NOUN), *3-Mal* and *3-Fach* were kept. The
+  German tagger's part of speech for an unknown hyphenated token does not
+  tell a counted adverb from a noun.
+- Cure: a reading that tells a number compound naming a thing from a counted
+  adverb without the tagger's guess.
+- Reopens: such a reading passing the hunt's cases and every count probe of
+  the v0.5.5 review rounds.
+
+### N-127: Football examples stay in a gate docstring and four test files
+
+Football words and layout stay in a gate docstring and in four unit test
+files, and N-058's guard reads backend source only, with a word list that
+misses them. Nothing runs differently; N-058 recast such examples elsewhere
+in bank, shop and administration wording.
+
+- Why accepted: withdrawn in v0.5.5 after three review rounds. Recasting the
+  docstring's and the tests' examples in bank, shop and office text, and
+  adding the missed words to the guard, was reviewed three times. Round 1
+  left a football measure in a docstring, and round 2 a German twin and the
+  corpus's fines schedule. Round 3 found that the recast German range case
+  (*Das Regal ist 100–110 cm hoch.* against *110 cm*) no longer tested the
+  range rule: on v0.5.4 a German key in cm never agrees with a German
+  sentence, so the test passed with the rule removed. That defect is N-145,
+  fixed in v0.5.5: a German figure is now paired with the unit written after
+  it, as an English one is. The tests and the docstring are v0.5.4's again.
+- Cure: a recast in which every test still fails on its mutant, with a guard
+  that reads casefolded words.
+- Reopens: such a recast, every test failing on its mutant (the range rule,
+  the NUM-tag rule, `enumerates`), no football term left in the touched
+  files, and the guard reading casefolded words.
+
 ### N-035: The 10x sizing test's 95th percentile measures the runner
 
 `make test-perf` holds a corpus ten times the reviewed one to twice the
@@ -1078,6 +1300,37 @@ green. C-011, the sizing of the shipped Postgres, is read through this test.
   medians to the bar.
 - Reopens: three Nightly Ceilings runs on one commit with every ratio within
   2x and a spread between runs under 1.5x.
+
+### N-120: `make backup` writes outside its folder through a key's dot-dot parts
+
+`make backup` writes each object to `DIR/s3/<bucket>/<key>`, so a key with
+`..` parts or a leading `/` writes outside the backup folder, anywhere the
+operator's user can write, and a restore or verify of a tampered backup reads
+the same joined paths from its manifest. It needs write access to the object
+store first (C-296). SeaweedFS 4.44 refuses a key with `..`; AWS S3 and Azure
+Blob accept one.
+
+- Why accepted: withdrawn in v0.5.5 after three review rounds. Round 1
+  checked the keys in backup and verify, and both reviewers found the
+  restore half untested and a symlinked `DIR/s3` moving the check's own
+  anchor. Round 2 anchored the check on the named folder and refused empty,
+  dot and dot-dot key parts, which closed every bypass tried, and a reviewer
+  found that a backup into a folder whose `s3` entry is a link copied
+  nothing, exited 0 and verified as a match. Round 3 refused such a layout
+  with exit 2, exited 1 on a left-out object and read only plain unlinked
+  files. That closed it, and a reviewer found two regressions against
+  v0.5.4: a Finder `.DS_Store` or AppleDouble file in `DIR/s3` made `make
+  restore-backup` exit 2 with no object restored, after its `pg_restore` had
+  already replaced the database, and a backup rotated with `rsync
+  --link-dest` or deduplicated with hard links restored nothing.
+- Cure: a key check that refuses every escaping key and still backs up,
+  restores and verifies every folder v0.5.4 handles.
+- Reopens: a key check that refuses every escaping key of the three rounds'
+  probes (dot-dot, absolute, empty and dot parts, symlinked `s3` or bucket
+  folders, manifest buckets) while a backup folder holding Finder or
+  AppleDouble files, a hard-link rotated backup and a backup with a
+  symlinked `s3` all back up, restore and verify as v0.5.4 does; or an
+  object-store adapter, an Azure one, that stores keys with dot-dot parts.
 
 ## Cost
 
@@ -1235,6 +1488,22 @@ path lacks it. 4 passages showed it in the v0.3.0 review.
 - Cure: C-368's numbering-first ranking, then a passage bar of its own.
 - Reopens: once that ranking has shipped.
 
+### N-143: A passage opening on a nested item reads its next sibling as a child
+
+A passage that opens on a nested list item strips only that first line's
+indent, so the next sibling reads as its child. The text is kept; only the
+first item's depth is lost. 36 of about 2,500 football passages open this
+way once v0.5.5 nests lists across page breaks, against 29 on v0.5.4.
+
+- Why accepted: the cure re-indents the first line of every passage that
+  opens on a nested item, a change of stored passage text that needs its own
+  passage arm and blind reading, and the last review round of v0.5.5's
+  parsing fixes went to N-102's page edge.
+- Cure: the first line keeping its indent, measured as a passage change on
+  both corpora.
+- Reopens: a re-chunk for another reason, or a passage arm that measures the
+  change on both corpora.
+
 ### C-183: Kept facts with a pointer that resolves to nothing
 
 Some kept facts carry a pointer that resolves to nothing, because the same
@@ -1320,6 +1589,163 @@ Neither corpus has such an ordinal.
 - Why accepted: the tokenizer splits it into three tokens.
 - Cure: a number reading over several tokens.
 - Reopens: English contracts or dates that show it.
+
+### N-112: An English figure spelled in two number words is refused
+
+An English statement that spells the cited figure in two number words
+(*twenty-five days* for *25 days*, *one hundred*, *two thousand EUR*) is
+refused `unsupported_addition`, because each word is read alone. The reverse
+direction validates. No stored refusal of this shape was found.
+
+- Why accepted: the cure reads runs of number words on the statement side
+  through per-language cardinal tables. The same family of number-word
+  readings failed its bar before (C-260), and its sibling C-270 is accepted
+  as cost. Models write the cited digits.
+- Cure: a statement-side reading of number-word runs through per-language
+  cardinal tables.
+- Reopens: such a reading that passes the fact replay of both corpora and a
+  probe set of number words used as pronouns and determiners (*one of*, *a
+  hundred-year*) in German, English, French and Greek.
+
+### N-113: A currency written as its ISO code is refused as an addition
+
+A statement that writes the cited currency as its ISO code (*EUR 5* for *5
+€*, *5,00 EUR* for *5 Euro*) is refused `unsupported_addition` for adding the
+code. 0 stored facts write a code where their evidence writes the sign or the
+name.
+
+- Why accepted: the cure needs an identity table from ISO 4217 codes to
+  currency signs and to each language's currency names. N-050's design for
+  the opposite direction, any token a currency check accepts read as a
+  currency, failed its third review on ISO codes that are also words (ALL,
+  PHP, TOP).
+- Cure: that identity table, keyed by language.
+- Reopens: a currency identity reading that passes N-050's probes (ALL, PHP,
+  CUP, *Franken*, *Pfund*) and the fact replay of both corpora.
+
+### N-125: A German fact naming a one-word bank its passage never names passes
+
+A German fact that names a bank the passage never names (*Westbank* or
+*Kreisbank* for *Nordbank*) is validated, because the German tagger reads the
+one-word name as a noun and the addition check asks the evidence for proper
+nouns only. English refuses the same fact. No stored fact shows it.
+
+- Why accepted: either cure costs more than an effect no stored row shows.
+  The structural reading on hand, entity spans, flags 60 of 1,177 shop and
+  120 of 1,879 football validated German facts, nearly all common nouns, far
+  past the 35% tightening rule.
+- Cure: a different German pipeline in `NLP_MODELS`, with every German
+  reading recalibrated, or a model call per fact.
+- Reopens: a German pipeline change in `NLP_MODELS`, or a name reading that
+  refuses the *Westbank*, *Kreisbank* and *Ostbank* probes in bank, shop and
+  administration sentences, keeps the sound *Nordbank* control, stays inert
+  in French, Polish and Greek, and newly refuses at most 35% usable among the
+  stored validated German facts of both corpora; or a stored German fact
+  naming a party its passage does not name.
+
+### N-138: A leading zero makes two figures for the duplicate gate
+
+The duplicate gate reads *08:30* and *8:30* as different figures, because
+`numbers()` keeps the leading zero that `numerals()` strips. Two statements
+alike but for the padding are both admitted (cosine 0.9969 in the repro): a
+duplicate fact stored, not a wrong one.
+
+- Why accepted: stripping the padding in `numbers()` makes more statements
+  count alike, a tightening of the dedup that needs a count over every stored
+  fact pair above the duplicate cosine and a labelled sample of the newly
+  refused rows. Its effect is a duplicate fact admitted.
+- Cure: `numbers()` without the padding, measured by that count and sample.
+- Reopens: a count over stored fact pairs above `EXTRACTION_DUPLICATE_COSINE`
+  that shows padded and unpadded figures admitted as two facts.
+
+### N-141: A stored line citation is read as its whole sentence
+
+A stored line citation keeps its sentence's index, so the bridge extractor,
+`make extract-revalidate` and unfold read the whole last sentence, uncited
+lines included. A bridge on such a fact can be validated on an uncited line's
+figure, and a re-judge can turn a refused fact validated. A variant of C-129.
+No stored row has the shape: of 8 citations of a line alone (7 in the copy of
+the football rules, 1 in the build), 0 changed on a re-judge in the
+reviewers' replays.
+
+- Why accepted: the cure changes what a stored citation means.
+  `Citation.sentence_ids` would keep the index the model gave, past the end
+  for a line, and every reader of stored citations (the bridge extractor,
+  the re-judge, unfold, the lineage pages) would resolve it through the line
+  rule, with the stored rows of earlier runs left in the old form.
+- Cure: that stored form, read through the line rule everywhere.
+- Reopens: a change to the stored citation form for another reason, or a
+  stored line fact validated on its re-judge or its bridge by an uncited
+  line.
+
+### N-144: Some quoted headings of another document lose their link
+
+Since v0.5.5 a quoted heading links to another document only where its
+sentence names that document's full title (N-111). Such a link is still lost
+where the sentence splitter breaks inside the quote, the sentence wraps over
+lines, two named titles nest (a general and a product title, two editions),
+or the title is written with an issuer, an abbreviation or a short form. The
+head takes a sibling or a term link instead, and no wrong link is added. The
+stored corpora show none of the shapes.
+
+- Why accepted: each shape needs a change to how the link pass reads a
+  sentence around a quote, and each such change took a review round in
+  v0.5.5 and reopened another shape; the three rounds are spent. The loss
+  falls back to a sibling or term link and writes no wrong fact, where the
+  wrong links N-111 removes spent bridge calls on unrelated pairs.
+- Cure: a reading of the sentence around a quote over the whole text, wrapped
+  lines, nested titles and abbreviations.
+- Reopens: a reference reading that links every round-3 probe of both facts
+  reviewers as v0.5.4 does, while removing the cross-document label links
+  N-111 removes.
+
+### N-150: A cited date restated in another form of its language is refused
+
+A fact that restates the cited date in another of its language's forms (*1.
+März 2026* for a cited *01.03.2026*, *1 March 2026* for *2026-03-01*, and the
+reverse) is refused `unsupported_addition`, because a numeric date is one
+token whose day, month and year support nothing. A switch between two named
+forms is fine: *1 March 2026* against *March 1, 2026* is validated both ways.
+It fails on the safe side: a faithful fact is refused, and no wrong date is
+validated.
+
+- Why accepted: no stored refusal has the shape (0 of 699
+  `unsupported_addition` refusals), so a replay can show nothing. The cure
+  adds a date reader on the evidence side beside N-109's re-pairing check,
+  and a misfire there would validate a re-paired date.
+- Cure: a numeric date of three runs read on the evidence side as its day,
+  its month, also by the month's name, and its year, with N-109's check kept
+  as it is.
+- Reopens: a corpus whose refused facts restate a cited date in another
+  form, on which reading a numeric date's day, month and year on the
+  evidence side passes the fact replay and N-109's tests.
+
+### N-153: German rules naming a numeric date are misparsed
+
+A German rule that names a numeric date is misread in three ways. In *Der
+Sommerschlussverkauf endet am 01-11-2030.* the year with its full stop is
+tagged a finite verb, so a faithful copy counts two claims and is refused
+`not_atomic`. In *Der Antrag muss vor dem 05.07.2026 eingehen.* the *dem*
+before the date is read as a reference that nothing resolves, and the copy is
+refused `unresolved_reference`. And *Die neuen Kontogebühren gelten ab dem
+01/09/2030.* is cut before *dem*, so a statement that re-pairs the date and
+cites only the first half is validated, because N-109's guard reads only the
+cited sentence. English never fails in the same sentences. About 1% of
+German rules naming a numeric date are hit, mostly on the safe side: the
+re-paired date passed in 2 of 528 drawn swaps citing the first half, and in
+none citing the whole rule.
+
+- Why accepted: three misreads with three causes: a year with its stop
+  tagged a finite verb, a determiner before a dotted date read as a pronoun,
+  and the parser's cut before a lower-case word, which is C-220's. 0 stored
+  facts have the shape: the stored German football rules write dates in
+  words, and the shop corpus with slashes.
+- Cure: a numeric date read as one figure before predicates and references
+  are counted, so it is never a verb and a determiner before it is no
+  pronoun, and the re-pairing guard reading the whole passage's dates.
+- Reopens: a corpus whose German facts write numeric dates and show one of
+  the three misreads, on which reading a numeric date as one figure passes
+  the fact replay.
 
 ### C-034: The parts reading narrows only some padded derived rows
 
@@ -1459,6 +1885,95 @@ fresh build with the gate on fills no row there.
 - Why accepted: no effect on a build with the gate on.
 - Cure: storing "off" for a disabled gate.
 - Reopens: the gate run off.
+
+### N-116: A German one-word company name anchors no question
+
+Whether a German question names something turns on which bank it names.
+`anchored()` counts names through PROPN, and the German tagger reads many
+one-word company names (*Westbank*, *Ostbank*, *Kreisbank*) as NOUN, while
+*Nordbank* and the English twins read as names. Such a question costs a
+phrasing-judge call, and its unanchored verdict rests on the model alone;
+this reading refuses nothing on its own. Measured on four names only.
+
+- Why accepted: the same cause as N-125 on the question side, with the same
+  cure: the name reading N-125 lacks.
+- Cure: as N-125.
+- Reopens: with N-125.
+
+### N-128: An English value naming a German institution is refused as an action
+
+An English value that names a German institution (*The Bundesamt für
+Justiz*, *The Beitragsservice von ARD, ZDF und Deutschlandradio*) is refused
+`wrong_form` as describing an action, because the English tagger reads *für*
+and *und* as verbs. *The Federal Office of Justice* and the German *Das
+Bundesamt für Justiz* pass.
+
+- Why accepted: the design decided in v0.5.5, skipping a token that
+  `nlp.analysis._foreign` marks, cannot work: `_foreign` marks only
+  lower-case nouns of a language that capitalises its nouns, and `_acts`
+  counts only VERB and AUX, so no token is both. The structural alternatives
+  misfire or need what N-125 lacks: a verb between two proper nouns is the
+  commonest English action shape (a company makes a product), and an
+  entity-span reading of German words inside an English value needs a name
+  reading the German and English pipelines do not give.
+- Cure: a reading that marks German words inside an English value, a
+  mixed-language tagger or N-125's name reading.
+- Reopens: such a reading passing the stored answer-form replay with at most
+  1 sound row newly refused.
+
+### N-137: The release draw reads re-paired figures as a restatement
+
+The release draw's restatement check reads two questions as restating each
+other when they re-pair the same figures (*3 % for 12 months* against *12 %
+for 3 months*), so one comparison candidate is dropped from the draw. No
+wrong row is kept, and no stored draw shows it.
+
+- Why accepted: the readers that tell a figure's kind and unit live in
+  extraction, which question generation may not import, since the stages
+  are independent. Moving them into `nlp` for one dropped candidate is a
+  rework larger than the effect.
+- Cure: those readers moved into `nlp`.
+- Reopens: the figure kind and unit readers moving into `nlp` for another
+  reason, or a stored release dropping a question as a restatement of
+  another pairing.
+
+### N-142: An archive restore can leave restored questions under an old release id
+
+An archive restore keeps a restored question's old release id in its own
+transaction, without the release lock N-114 added, so a draw committing
+meanwhile can leave restored rows under the old id beside the new draw. Read
+in the code, not run: it needs a restore and a release write within one
+transaction's span, both operator commands, and the next draw repairs it.
+
+- Why accepted: the archive service may not import question generation,
+  since the stages are independent, so sharing the release lock means moving
+  its key into a module both import, for a race no run has shown.
+- Cure: the release lock's key in a module both import.
+- Reopens: a restore reported leaving restored questions under an old
+  release id beside a new draw, or the release key moving into a shared
+  module for another reason.
+
+### N-149: A key giving a range's ends apart never agrees with the range written whole
+
+A key that gives a range's two ends apart (*zwischen 100 und 110 Euro*,
+*between 100 and 110 days*) never agrees with a recovery that writes the
+range whole, *100–110*, though the reverse pair agrees. `agrees()` splits the
+recovery's ranges into their ends only when the key holds a range, so a key
+of two values looks for 100 and 110 among the recovery's values and finds
+the one token *100–110*. It fails on the safe side: a sound key is refused
+`not_recoverable`, and no wrong key passes. 5 stored keys have the shape, 4
+of them in accepted questions.
+
+- Why accepted: a cure only adds readings to the recovery, so it can only
+  loosen the round trip, and a loosening is calibrated on the verifier's
+  recoveries, which the store does not keep. That needs a model arm, and 5
+  stored keys cannot fill its 40-row floor.
+- Cure: a recovery's ranges split into their ends also for a key of two or
+  more values, with the present rule kept for a key of one value (*110 m* is
+  not what *100–110 m* says).
+- Reopens: a corpus with 40 or more keys giving a range's ends apart, or
+  stored round-trip recoveries, on which that split passes the loosening
+  bar.
 
 ### C-085: The API's reads, the pages and Dagster have no login
 
@@ -1647,6 +2162,23 @@ weights beside the ones the loader reads.
 - Cure: `--include` patterns for the files each encoder needs.
 - Reopens: that measurement.
 
+### N-139: A restore puts back another deletion's copy of an object
+
+Since v0.5.5 a restore of a chosen deletion puts back the archived copy
+stamped nearest that deletion (N-119). For an object the chosen deletion
+never archived, it still puts back another deletion's copy, so a restored
+fit comes back beside another deletion's figure or model. v0.5.4 did the
+same.
+
+- Why accepted: the cure is a record of which objects each deletion
+  archived, a list per archived transaction and so a schema change, from
+  which a restore takes only those. A time window on the stamp fails,
+  because document removal stamps its objects before `archived_at` and
+  `make topics-delete` after it. A refit recovers the effect.
+- Cure: that record of what each deletion archived.
+- Reopens: a schema change to the archive for another reason, or a restore
+  reported putting back another deletion's object.
+
 ## Not measured: budget
 
 Each cure changes which facts or questions are written, so its bar is a model
@@ -1807,6 +2339,9 @@ make questions-export OUT=audit.xlsx FILTER="--released"
 ```
 
 Two analysts, working apart, confirmed each entry's mechanism in the code of
-v0.5.2, and its figures come from the run, replay or arm it names.
+v0.5.2, and its figures come from the run, replay or arm it names. The
+entries of v0.5.5 rest on a test that reproduces each, or for N-142 a
+reading of the code, and their figures on the replay, arm or review round
+they name.
 Re-measuring means taking a corpus through again and rewriting this page and
 [measurements.md](measurements.md).

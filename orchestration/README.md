@@ -144,6 +144,7 @@ poetry run pytest tests/unit/orchestration
 | [`test_serve.py`](../tests/unit/orchestration/test_serve.py) | The UI refusing a cross-site read or write and a foreign host, and still answering its own page and the API |
 | [`test_sensor.py`](../tests/unit/orchestration/test_sensor.py) | When a run is requested, and what `progress` records |
 | [`tests/smoke/test_compose.py`](../tests/smoke/test_compose.py) | That the orchestrator holds no credential for the application tables |
+| [`tests/static/test_dagster_webserver_guarded.py`](../tests/static/test_dagster_webserver_guarded.py) | That every start of Dagster's webserver in the Makefile, scripts, compose and image files and workflows goes through `serve.py` |
 
 None of these reaches a network.
 

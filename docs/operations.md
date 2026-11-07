@@ -831,6 +831,121 @@ those the corpus needs. Each `make *-rerun` drains on the host and refuses
 while the stage's container worker runs. To use the container workers, rerun
 from the stage's page or `POST /{stage}/rerun?confirm=true`.
 
+## Upgrading to v0.5.5
+
+The deep QA release after v0.5.4, the last of this QA cycle. It adds one
+migration, removes `make dagster-dev`, and refuses an `S3_BUCKETS` that gives
+two roles one bucket, which a deployment may have to change before it pulls.
+No lock, prompt or committed env file changes. `docs/changelog.md` lists each
+fix and closed item under v0.5.5, and `docs/bugs.md` the accepted ones.
+
+### 1. Before the pull: one bucket a role
+
+`S3_BUCKETS` now refuses any two roles that resolve to one bucket, a default
+name included (`documents=x,archive=x`, or `archive=documents`), with a
+message naming both roles and the bucket. Under v0.5.4 an archive purge
+deleted every live file that the archive's bucket shared with another role
+(N-118). The backend reads the setting as its object-store code loads, so
+with a shared bucket the api, the workers and every host command that reaches
+the store fail. The shipped value, `documents,parsed,models,export,archive`
+in `deployment.env`, names five buckets and needs nothing.
+
+A deployment that gives two roles one bucket gives each role its own before
+it pulls, moving the role's keys into the new bucket first, the archive's
+above all, and only then changing `S3_BUCKETS`. Run no `make archive-purge`
+before the move: the archive holds its keys under the database's prefix
+beside the live ones, and the purge covers every key of the database in its
+bucket, so it would delete live files. [The five
+buckets](../backend/blob_store/README.md#the-five-buckets) gives each role's
+key; an archived copy is `{database}/{origin}/{the key it had}@{UTC time}`.
+
+### 2. Pull, code and images
+
+```bash
+git pull
+podman compose --env-file configs/env/deployment.env --env-file .env stop parse-worker chunk-worker extract-worker topic-worker question-worker assess-worker
+make backup DIR=/backups/$(date +%F)
+make upgrade
+```
+
+- No dependency changes: `poetry.lock` and the image locks are v0.5.4's, so
+  `poetry install` is not needed. The prompt versions and the committed env
+  files are v0.5.4's too.
+- `make upgrade` rebuilds the images with the new code and runs `make
+  schema`, which applies step 3.
+
+### 3. One migration
+
+The head before this release is `9e3b61d4a2c7`.
+
+| Revision | What it does |
+|---|---|
+| `c5a82e17d3f9` | Rewrites the comment of `questions.status`: a rejected question is kept, and so is one that lost its last citation (`source_changed`), and deleting a document, or what was derived from it, deletes its questions, rejected ones included. Comment only, and instant. The new head (N-117) |
+
+`make schema-down CONFIRM=<database>` takes it back, once, before checking
+out v0.5.4.
+
+### 4. `make dagster-dev` is removed
+
+`make dagster-dev` served Dagster's webserver on the host through plain
+`dagster dev`, without `orchestration/serve.py`, so a web page open in the
+operator's browser could launch or stop a run through a cross-site GET
+(N-131). Use the compose webserver instead: `make up` on the development
+profile mounts the checkout over the image, and the webserver refuses GraphQL
+over GET and cross-site writes. A static test fails on any recipe, compose
+command, image command, workflow or script that starts the webserver another
+way.
+
+### 5. Reruns, in order
+
+None is needed to start v0.5.5. Each brings stored data up to what this
+release reads differently, and most change nothing on the calibration
+corpora. The counts are of the 30 football and 50 shop calibration PDFs and
+their stored rows. A rerun without `SHA` refuses unless `CONFIRM` names the
+database, and a re-chunk over questions refuses unless `FORCE=1`.
+
+| Step | Command | Needed because of |
+|---|---|---|
+| Parse | `make parse-rerun CONFIRM=<database>` | Only for a corpus with a table that goes on onto the next page with footnotes or captions under its rest: the table now takes them, so they reach a passage (N-104). None of the 80 PDFs has such a rest |
+| Chunk | `make chunk-rerun CONFIRM=<database> FORCE=1` | A list the converter splits at a page break keeps its depth, each page's indent read off its own edge (N-101, N-102, N-154): 37 football passages in 7 documents change, 0 shop, and no letter changes. An amount also stays in one sentence with its currency and the rest of its clause (N-152): stored passages keep their sentences until a re-chunk, which re-cuts 5 English passages of the stored copies, each a right join, and no other row. For N-152 alone the re-chunk is optional. The facts that cited the replaced passages go with them, and the questions resting on them are rejected as `source_changed` and kept |
+| Extract new passages | `make extract-start`, then `make extract` | Re-chunked passages have no facts yet |
+| A language added | `make chunk-revocabulary`, then `make extract-start` | Only after adding a language to `NLP_MODELS` on a chunked corpus: a passage stored as read for want of a pipeline goes back to `new` once it has a language, unless a fact cites it, and `extract-start` queues it (N-106). A `chunk-rerun` that keeps the passage's row does the same. No stored passage of the calibration corpora is affected |
+| Dedup | `make extract-dedup` | Optional. It re-decides the stored `duplicate` refusals under the gate's new reading of units, months, weekdays and pairings (N-107). 0 of 753 stored refusals change |
+| Judge facts again | `make extract-revalidate` | Optional. A list line cited beside a sentence is its own evidence, and a re-paired time or date is refused (N-108, N-109). 0 of 20,888 stored verdicts change |
+| Stored questions | `make questions-reverify` | Optional. A German comparison answered *X ist schneller als Y* is no longer refused (N-133). 0 of 4,348 stored verdicts change |
+| Refit, questions and release | `make topics-discover`, `make questions-rerun CONFIRM=<database>`, then `make questions-balance` | After a re-chunk, as in step 5 of [Upgrading to v0.5.3](#upgrading-to-v053): re-chunked passages belong to no topic yet, and reach questions only through the refit and a question run |
+
+### 6. What else changes
+
+- When the orchestrator refuses, the answer no longer carries Dagster's
+  text, which named its database's host, address and role (N-130). The
+  `orchestrator_refused` detail of `GET /pipeline/runs`, `POST
+  /pipeline/run` and `PUT /pipeline/automation`, the refused runs a Stop's
+  202 answer names, and `orchestration.detail` of `GET /pipeline`, are a fixed
+  sentence with the error's type and a trace id, such as `the orchestrator
+  could not list its runs (PythonError); the api log holds why, trace <id>`.
+  Dagster's words are in the api log under that id. A caller that
+  matched Dagster's wording matches the type now.
+- A row deleted, or claimed by another worker, while a drain fails or
+  releases it is logged once as a warning naming the key and counted as no
+  failure. Extraction's drain, `make extract` and `make corpus-hosted` take
+  the next row instead of ending with a traceback (N-121).
+- `make restore-documents AT=<archived_at>` puts back each object's archived
+  copy stamped nearest the chosen deletion, the latest chosen one's where two
+  took the same key. A rollback of a failed delete still takes the newest copy
+  (N-119). An object the chosen deletion never archived still comes back as
+  another deletion's copy (N-139 in `docs/bugs.md`).
+- `make ingest DIR=` refuses a file past `MAX_FILE_SIZE_MB` unread and reads
+  any other to at most the limit plus one byte, as `POST /documents` does
+  (N-132).
+- Two release writes at once no longer leave both draws released: the second
+  waits for the first (N-114). The run comparison counts a restored question
+  once (N-115).
+- A quoted heading links to another document's section only where the
+  quote's sentence names that document's full title (N-111). Links are not
+  stored, so nothing needs a rerun. The bridges already written on a pair
+  that is no longer linked stay until a bridge pass replaces them.
+
 ## Upgrading to v0.5.4
 
 The follow-up release after v0.5.3. Nothing changes for a running
