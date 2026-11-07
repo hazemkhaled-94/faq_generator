@@ -26,9 +26,7 @@ them. T1 wrote tests that kill the mutants `make mutation` left alive, T2
 wrote properties over the text readers, T3 wrote tests over the risky
 branches the coverage report showed missed, and T4 ran the suite in random
 orders and guarded it against hangs. Their findings and the reviewers' make
-57 items, `N-101` to `N-157`. 29 were fixed, 2 closed and 25 accepted.
-
-<!-- v0.5.5 pending: N-148 -->
+57 items, `N-101` to `N-157`. 30 were fixed, 2 closed and 25 accepted.
 
 A fix has a test that failed before it and a bar written before its measure.
 Two reviewers read each group of fixes to the code, in up to three rounds;
@@ -58,6 +56,7 @@ of two shop runs.
 | N-108 | A citation of a sentence and a list line of the next sentence took the whole range between them as evidence, so the swap guard read an uncited line's figure as cited | A list line cited together with the sentence before it is its own piece of evidence, so a statement lifting an uncited line's figure is refused `unsupported_addition`, as it is when the line is cited alone | Repro green in German, English, French and Greek. Fact replay: 0 of 20,888 verdicts change |
 | N-109 | A statement that re-paired the digits of the cited clock times or dates was validated, because a time or a date was read as the set of its digit runs | A colon clock time with two-digit minutes, or a three-run date with its four-digit year at the same end, that the cited text writes only with its runs in another order is refused `unsupported_addition` ("13:30 to 9:00" for "9:30 to 13:00", "12-01-2026" for "01-12-2026"), for atomic facts. Hours are compared with hours and minutes with minutes, an hour the cited text writes alone counts as a time, and a 12-hour time is held modulo 12. Ratios, seasons, ranges, another convention's date, dotted times and 24:00 for 0:00 keep their verdict | The re-pairs refused in German, English, Polish and Greek. 30 keep probes of both reviewers, and the C-158 pins, validate as before. Fact replay: 0 of 20,888 change (bar: under 20 newly refused, at most 1 sound) |
 | N-111 | A quoted span linked to a heading of any document, so a page quoting a button label or a term became a reference to another document's section of that name | A quoted heading links to a section of its own document, or of another document only where the quote's sentence, the quote cut out, names that one document's full title: every noun, name and adjective of it, as written or by its lemma. Where two documents' titles are named it links to neither. Numbered references are read as before | Link replay over 3,335 stored passages: 9 of 314 reference links removed (8 football, 1 shop), 0 added, no numbered link changed, and 15 heads take another best link. A blind reader of the 10 links the first version removed found 2 references the sentence makes to the other document's section and 8 terms or labels (bar: at most 3). Each title's words are read once a pass: 200 documents take 3.3 s, against 1.8 s on v0.5.4 |
+| N-148 | A currency sign, a range's dash or another sign that the tagger tags a numeral was read as a number, so *The fee is 5 €.* stated the numbers 5 and €, and the same amount written *42,803.48 €* and *42803.48 €* stated different numbers to the duplicate gate and the restatement check | Of a sign the tagger calls a numeral, only a math sign (≤, ≥, ±, +) is still read; a currency sign, a dash or any other sign is no number. So *42,803.48 €* and *42803.48 €* state the same numbers, and a rule with *≥ 50 EUR* is never counted as its opposite with *≤ 50 EUR* | Red cases green, among them comparison-sign pairs in German, English, Polish and Greek. Of the 6 stored fact pairs the change reaches, none moves its duplicate or restatement verdict, and the 11 stored facts with a math sign read as on v0.5.4. The first version dropped the math signs too and failed its review; the second passed both reviewers |
 | N-114 | Two release writes at once left the rows of both draws released, under two release ids | `release()` takes a transaction-scoped advisory lock first, so the second write waits for the first | Red test green; 35 integration and 1,806 unit tests pass |
 | N-115 | The run comparison counted every restored question twice, once live and once from the archive | A restored question counts once, from its live row or else its newest archived copy | Repro green, and the 6 earlier tests of `runs.py` unchanged |
 | N-117 | Two comments in the question code still said the trigger deletes a question whose last fact goes, which migration `4a7c2e91d3b8` replaced with a `source_changed` rejection, and the `questions.status` column comment said rejected questions are never deleted | Six texts say what the code does: a question that loses its last citation is rejected as `source_changed` and kept, and deleting a document, or what came from it, deletes its questions. Revision `c5a82e17d3f9` rewrites the column comment | tests/static green. The only change in the database is one column comment |
@@ -77,8 +76,6 @@ of two shop runs.
 | N-132 | `make ingest DIR=` read every PDF whole before the size limit applied, unlike `POST /documents`, which reads at most `MAX_FILE_SIZE_MB` plus one byte | A file whose size is past the limit is refused unread, and any other is read to at most the limit plus one byte, as `POST /documents` reads it. An oversized file with a name the database cannot store is refused `invalid_value` and the batch goes on | Red tests green. On v0.5.4 five of them fail by assertion: a 65,536-byte file read whole where 1,025 bytes are the most allowed |
 | N-122 | The 2.8 s bound of `test_two_workers_on_different_languages_do_not_wait` measured the host, not whether one language's store waits on another's lock | The test asserts that the two scoring windows overlap. A second test gives both languages one lock and finds that they then do not | Passes alone and under a parallel full-suite run, and fails where one store waits on the other's lock |
 | N-136 | The waits of `tests/static/test_hosted_profile.py` gave a background `make corpus-hosted` 30 s (20 and 60 s elsewhere), which a loaded host exceeded. In one random order 9 tests of the file failed, one through a process an earlier timed-out test left running | Each wait is a hang guard of 300 s, and every process a test started is reaped | The file passes alone and under both seeds that failed, 83 tests each. A run that never ends fails its own test and no other, and leaves no process behind |
-
-<!-- v0.5.5 pending: N-148 -->
 
 ### What the v0.5.5 fixes leave
 
@@ -154,9 +151,8 @@ Each track's new tests pass in three orders.
   ranges, references, sentence cuts, list depth and headings, in five
   languages: `tests/property` goes from 122 tests to 152. They pass at the
   `ci` and `nightly` profiles. Of the track's nine findings, N-148 to N-156,
-  five are fixed above (N-151, N-152, N-154, N-155 and N-156) and three
-  accepted for their cost (N-149, N-150 and N-153).
-  <!-- v0.5.5 pending: N-148 -->
+  six are fixed above (N-148, N-151, N-152, N-154, N-155 and N-156) and
+  three accepted for their cost (N-149, N-150 and N-153).
 - T3, coverage. 94 tests in 26 new files over the risky branches the
   coverage report of v0.5.4 showed missed: parsing, validation, the gates,
   the draw, the export, deletion, the archive, migrations and the ports'
