@@ -5,9 +5,8 @@ symptom, the measured effect, why it stays, what a cure would cost and what
 would reopen it. [changelog.md](changelog.md) lists what each release fixed,
 newest first.
 
-The QA pass of v0.5.3 brought every open item to one end state: fixed, closed
-with evidence, or accepted, and accepted 133. The deep QA pass of v0.5.5
-accepted 25 of its own items. This page holds the 158 accepted items, by
+The QA pass of v0.5.3 brought every open item to an end state and accepted
+133 of them. The deep QA pass of v0.5.5 accepted 25 of its own items. This page holds the 158 accepted items, by
 category:
 
 | Category | Items | Meaning |
