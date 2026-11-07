@@ -727,6 +727,9 @@ def test_qa_questions_3_an_ordinal_past_twelve_does_not_agree_with_its_cardinal(
 # N-145: a German key's lower-case unit, read beside its figure in a sentence that capitalises its nouns.
 _STATES_THE_UNIT = [
     ("Die Breite des Schalters beträgt 80 cm.", "80 cm", "de"),
+    # A no-break space, or two spaces, between the figure and its unit.
+    ("Die Breite des Schalters beträgt 80\u00a0cm.", "80 cm", "de"),
+    ("Die Breite des Schalters beträgt 80  cm.", "80 cm", "de"),
     ("Das Paket darf höchstens 30 kg wiegen.", "30 kg", "de"),
     ("Die Glasplatte des Tresens ist 5 mm dick.", "5 mm", "de"),
     ("Die Lieferung ist im Umkreis von 10 km kostenlos.", "10 km", "de"),
@@ -806,6 +809,16 @@ def test_n145_another_unit_or_figure_still_disagrees(recovered, key, language):
             "Der Versand kostet 5 EUR je 10 kg.",
             "de",
         ),
+        (
+            "Der Versand kostet 5 EUR je 10 g.",
+            "Der Versand kostet 5 EUR je 10\u00a0kg.",
+            "de",
+        ),
+        (
+            "Der Versand kostet 5 EUR je 10 g.",
+            "Der Versand kostet 5 EUR je 10  kg.",
+            "de",
+        ),
         ("Das Paket darf 10 g wiegen.", "Das Paket darf 10 kg wiegen.", "de"),
         ("Die Breite beträgt 80 mm.", "Die Breite beträgt 80 cm.", "de"),
         ("Das Kabel ist 90 mm lang.", "Das Kabel ist 90 m lang.", "de"),
@@ -838,6 +851,16 @@ def test_n157_another_unit_beside_the_figure_disagrees(recovered, key, language)
     [
         (
             "Der Versand kostet 5 EUR je 10 kg.",
+            "Der Versand kostet 5 EUR je 10 kg.",
+            "de",
+        ),
+        (
+            "Der Versand kostet 5 EUR je 10\u00a0kg.",
+            "Der Versand kostet 5 EUR je 10 kg.",
+            "de",
+        ),
+        (
+            "Der Versand kostet 5 EUR je 10  kg.",
             "Der Versand kostet 5 EUR je 10 kg.",
             "de",
         ),

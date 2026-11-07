@@ -2759,7 +2759,10 @@ def _units(
             frozenset({after.lemma_.casefold(), after.lower_, _bare(after.text)}),
             after,
         )
-        for token, after in pairwise(parse(text, language))
+        # A no-break space or a second space is a token of its own to the parse.
+        for token, after in pairwise(
+            one for one in parse(text, language) if not one.is_space
+        )
         if any(char.isdigit() for char in token.text)
         and any(char.isalpha() for char in after.text)
     ]
