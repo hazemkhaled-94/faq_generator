@@ -165,8 +165,8 @@ Each track's new tests pass in three orders.
   kill 4,855 of 5,200, with 340 survived and 5 timed out, against v0.5.4's
   4,418 killed, 777 survived and 5 timed out. The Nightly on the release
   commit gives the figures of record, which replace these. Every survivor
-  left is classified as killed, equivalent, a timeout, a real defect or
-  unclassified with what was tried. The track's findings are N-133, N-134
+  of v0.5.4 is classified: killed by a new test, equivalent, a timeout, a
+  real defect, or unclassified with what was tried. The track's findings are N-133, N-134
   and N-135.
   <!-- v0.5.5 measure: release Nightly mutation -->
 - T2, properties. 30 properties over the readers of figures, dates, units,
