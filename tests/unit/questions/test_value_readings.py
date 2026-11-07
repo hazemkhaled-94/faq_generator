@@ -316,6 +316,7 @@ def test_a_range_written_with_spaces_is_not_a_count_of_the_facts(
     [
         ("zwischen 3667 und 5224 Tage", "3667–5224 Tage", "de"),
         ("zwischen 3075 und 7469 Euro", "3075–7469 Euro", "de"),
+        ("zwischen 3965 und 4092 Stück", "3965–4092 Stück", "de"),
         ("between 3667 and 5224 days", "3667–5224 days", "en"),
     ],
 )

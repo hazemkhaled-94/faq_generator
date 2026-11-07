@@ -131,14 +131,9 @@ def _range(draw, languages=_LANGUAGES):
     )
 
 
-@given(case=_range([one for one in _LANGUAGES if one != "de"]))
+@given(case=_range())
 def test_a_range_agrees_with_its_two_ends_written_apart(case) -> None:
-    """`100–110 euros` is `between 100 and 110 euros` and `at least 100 euros and at most 110 euros`.
-
-    Not German, where about one range in 600 is tagged an adjective and
-    lemmatised with a letter added (`3667–5224r`), so its key wants a content
-    word no recovery has: T2-08's.
-    """
+    """`100–110 euros` is `between 100 and 110 euros` and `at least 100 euros and at most 110 euros`."""
     language, low, high, unit, form = case
     key = f"{low}–{high} {unit}"
 

@@ -728,7 +728,8 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
 
     A number keeps its surface form, because 12,5 and 12.5 are different
     values. A proper noun is lemmatised, so an inflection is not an addition,
-    and loses the sentence punctuation the tagger left on it ("m."). In a
+    and loses the sentence punctuation the tagger left on it ("m."); one
+    holding no letter keeps its text, as a number does. In a
     language that capitalises its nouns, a word the tagger calls a proper noun
     yet writes in lower case ("gelten") is no name and no unit.
     """
@@ -746,7 +747,10 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
                 and not any(letter.isupper() for letter in token.text[1:])
             ):
                 continue
-            found.add(_bare(token.lemma_.casefold()))
+            # One with no letter is read as written: the German lemmatiser
+            # suffixes a range it calls a name (`3965–4092-`).
+            name = token.lemma_ if any(c.isalpha() for c in token.text) else token.text
+            found.add(_bare(name.casefold()))
     return tuple(sorted(found))
 
 
