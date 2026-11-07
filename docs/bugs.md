@@ -702,12 +702,14 @@ figure is now paired with the unit written right after it (N-145), so a key
 in *80 cm* or *30 kg* agrees with a recovery that writes the same unit after
 the same figure: 12 stored German football keys, and one half of 2
 two-part keys, moved from refused to agreed. A value key also asks back its
-own lower-case or one-letter unit (N-157), so *5 m* no longer agrees with
+own lower-case or one-letter unit where the tagger tags it a noun, a proper
+noun or an adjective (N-157), so *5 m* no longer agrees with
 *5 mm*, nor, in the value form, a German key such as *Der Versand kostet 5 EUR je 10 kg.*
 with *Der Versand kostet 5 EUR je 10 g.* Newly refused in v0.5.5, where
 v0.5.4 agreed, unless the entailment rescue keeps the row on the round
-trip: a recovery that spells the unit out, in every form for a key as short
-as these and in German and English (*90 Meter* or *90 meters* for *90 m*, *5 metres* for *5 m*), and
+trip: a recovery that spells the unit out, in German and English, in every form
+for a short key such as *90 m* or *5 m* and in the value form for a whole
+sentence (*90 Meter* or *90 meters* for *90 m*, *5 metres* for *5 m*), and
 one that joins the unit to the next word by a hyphen, in the value form
 (*Das 5 m-Kabel* for *5 m*). *10 Kilogramm* for *10 kg* was refused before
 too.

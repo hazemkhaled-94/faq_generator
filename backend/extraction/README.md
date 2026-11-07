@@ -134,8 +134,9 @@ the passage's heading trail and the document's title. A summary or an outline
 cites every sentence of its passage; for a bridge, a name or number found only
 in an uncited sentence is an addition. An atomic fact may also rest on the rest
 of its passage, so a figure of an uncited sentence is refused only as a swap or
-a re-pair (below), or where it numbers a part of the heading's own number (3.2
-under heading 3); a name or number that neither the passage, its trail nor its
+a re-pair (below), or where it is a dotted figure, not an amount, a share or a period, whose
+part before its last dot a heading of the trail writes (3.2, or 3.5 kg, under
+Article 3); a name or number that neither the passage, its trail nor its
 title has is an addition. So is a figure only the rest of the
 passage states, when the cited sentences state another of its kind (this and
 the swaps below are read for an atomic fact only): "costs EUR

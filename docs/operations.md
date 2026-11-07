@@ -894,7 +894,7 @@ operator's browser could launch or stop a run through a cross-site GET
 (N-131). Use the compose webserver instead: `make up` on the development
 profile mounts the checkout over the image, and the webserver refuses GraphQL
 over GET and cross-site writes. A static test fails on any recipe, compose
-command, image command, workflow or script that starts the webserver another
+command, image command, workflow or shell script that starts the webserver another
 way, as written in those files.
 
 ### 5. Reruns, in order
