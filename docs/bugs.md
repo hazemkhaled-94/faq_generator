@@ -606,7 +606,7 @@ figures only. Found on synthetic input, not measured on stored rows.
   dropped. It caught the 3 probe swaps and passed the 20 keep probes, but
   refused a sound lead-in statement that two existing tests pin, and the
   replay of 20,888 stored facts newly refused 23, about 21 to 22 of them
-  sound by the implementer's reading: an acronym spelled out (ESIS), a
+  sound on a reading of each row: an acronym spelled out (ESIS), a
   pronoun's antecedent, a heading's name. The bar was under 20, with at most
   1 sound. No repair within the design tells those from the swaps without a
   word list.
@@ -630,7 +630,7 @@ swap guard showed it, and no stored fact does.
   none was applied. Letting every noun kind into that pass newly refused 16
   to 17 stored facts, all sound (*14-tägige Bedenkzeit*, the EUR 100 000
   protection limit, the 5-8 second time frame, Article 10), and 15 of 25 or
-  21 of 38 fair probes of the two analysts. A narrower variant refused 5
+  21 of 38 fair probes in two probe sets. A narrower variant refused 5
   stored facts, all sound. The narrowest count readings refused no stored
   fact and kept the other fair probes, but refused a currency written in a
   word its language's table lacks (*50 francs* for CHF 50, *100 Kronen* for
@@ -640,7 +640,7 @@ swap guard showed it, and no stored fact does.
 - Cure: a count reading that needs no currency-name vocabulary.
 - Reopens: a count reading that refuses the six wrong probes (among them 3
   replacement cards for 3 EUR, 12 holders for 12 EUR a year, 3 counters for
-  3 weeks and 4 Filialen for 4 %), keeps every fair probe of both analysts,
+  3 weeks and 4 Filialen for 4 %), keeps every fair probe of both sets,
   currencies spelled as words in any language included, stays inert in
   French, Polish and Greek, and passes the fact replay of the three copies.
 
