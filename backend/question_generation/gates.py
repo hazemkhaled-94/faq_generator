@@ -3044,22 +3044,30 @@ def adds_up(
         return None
     total = wanted[0]
 
-    stated: list[tuple[float, bool]] = []
+    stated: list[float] = []
+    shaped: list[bool] = []
     for text in passages:
         years = _years(text, language)
         for one in figures(text, language):
-            stated.append((one, years[one] > 0))
+            stated.append(one)
+            shaped.append(years[one] > 0)
             if years[one]:
                 years[one] -= 1
     available = stated[:_FIGURE_CAP]
     if len(available) < 2:
         return None
+    # Equal values are one value to a sum: one written as no year is no year.
+    amounts = frozenset(
+        one
+        for one, year in zip(available, shaped[:_FIGURE_CAP], strict=True)
+        if not year
+    )
 
     # Stated outright is not an aggregation, but it is not wrong arithmetic
     # either; `relabelled` stores a lookup wearing this name as what it is.
     return any(
-        isclose(sum(one for one, _ in combination), total, rel_tol=1e-14, abs_tol=1e-9)
-        and not _summed_years(combination, size)
+        isclose(sum(combination), total, rel_tol=1e-14, abs_tol=1e-9)
+        and not _summed_years(combination, size, amounts)
         for size in range(1, _TERM_CAP + 1)
         for combination in combinations(available, size)
     )
@@ -3103,6 +3111,11 @@ def counts_something_else(
 #: The shape of a year: four digits and no mark.
 _FOUR_DIGITS = re.compile(r"\d{4}")
 
+#: How far either side of a figure its currency is looked for, in characters:
+#: past any currency word, and short of reading the whole passage again for
+#: each figure.
+_NEAR = 40
+
 
 def _years(text: str, language: str | None) -> Counter[float]:
     """The figures a passage writes in the shape of a year, by value.
@@ -3118,13 +3131,18 @@ def _years(text: str, language: str | None) -> Counter[float]:
     for match in FIGURE.finditer(text):
         if not _FOUR_DIGITS.fullmatch(match.group()):
             continue
-        beside = text[: match.start()].split()[-1:] + text[match.end() :].split()[:1]
+        beside = (
+            text[max(0, match.start() - _NEAR) : match.start()].split()[-1:]
+            + text[match.end() : match.end() + _NEAR].split()[:1]
+        )
         if not any(is_currency(word, language) for word in beside):
             found[float(match.group())] += 1
     return found
 
 
-def _summed_years(combination: tuple[tuple[float, bool], ...], size: int) -> bool:
+def _summed_years(
+    combination: tuple[float, ...], size: int, amounts: frozenset[float]
+) -> bool:
     """Whether a total is two or more years added together.
 
     Refused rather than accepted, because the arithmetic is right and the
@@ -3133,8 +3151,10 @@ def _summed_years(combination: tuple[tuple[float, bool], ...], size: int) -> boo
     dem Veroeffentlichungsjahr ... und der Versionsjahreszahl ...?` answered
     `4034`, which the model checking the arithmetic correctly confirmed.
 
-    Each figure comes with whether it has the shape of a year, see `_years`.
+    A figure is a year only where every figure of its value has the shape of
+    one, see `_years`: `amounts` holds the values written otherwise.
     """
     return size > 1 and all(
-        year and one.is_integer() and int(one) in _YEAR for one, year in combination
+        one.is_integer() and int(one) in _YEAR and one not in amounts
+        for one in combination
     )
