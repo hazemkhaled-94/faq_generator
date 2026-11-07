@@ -175,9 +175,10 @@ Each track's new tests pass in three orders.
   six are fixed above (N-148, N-151, N-152, N-154, N-155 and N-156) and
   three accepted for their cost (N-149, N-150 and N-153).
 - T3, coverage. 94 tests in 26 new files over the risky branches the
-  coverage report of v0.5.4 showed missed: parsing, validation, the gates,
-  the draw, the export, deletion, the archive, migrations and the ports'
-  error paths. The risky branches missed fall from 140 to 85. The track's
+  coverage report of v0.5.4 showed missed: parsing and chunking,
+  validation, the question gates, the export, deletion, the archive and
+  backups, the stages, review, telemetry, and the error paths of the object
+  store, the model client and the orchestrator. The risky branches missed fall from 140 to 85. The track's
   one finding, N-146, is closed above.
 - T4, order and hangs. Four random orders on v0.5.4 passed twice and failed
   1 and 9 tests of `tests/static/test_hosted_profile.py` under load, which
