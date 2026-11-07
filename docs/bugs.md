@@ -18,8 +18,6 @@ category:
 | [Domain-specific](#domain-specific) | 3 | Only a rule fitted to one corpus would cure it |
 | [Upstream](#upstream) | 2 | A dependency must change first |
 
-<!-- v0.5.5 pending: N-148 -->
-
 Within a category, entries run in pipeline order: parsing and passages, facts
 and topics, questions and the release, then the platform. Each carries its
 register id: `C-` and three digits for the final review of 2026-10-22, `N-`
