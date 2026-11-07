@@ -89,10 +89,14 @@ code of its fix.
   slash still agrees with the unit alone: *5 km* with *5 km/h*, *5 m* with
   *5 m/s*, *10 kg* with *10 kg/m²*. A figure the sentence denies still
   agrees: a key *80 cm* with *Die Breite beträgt nicht 80 cm, sondern 90
-  cm.* English already read both so, and German now does too. The list and
-  explanation forms do not ask back a key's own unit, since N-157 acts on
-  the value form as decided, so there *je 10 kg* still agrees with *je 10
-  g*. In the value form a German unit spelled out (*90 Meter* for *90 m*,
+  cm.* English already read both so, and German now does too. N-157 asks
+  back a key's own unit in the value form only, as decided. The list and
+  explanation forms are compared by the share of the key's words that comes
+  back, so a unit missing from a whole sentence can pass where it is missing
+  from a short key: *Der Versand kostet 5 EUR je 10 kg.* still agrees with
+  *Der Versand kostet 5 EUR je 10 g.* in those forms, in German and English
+  alike, while *5 EUR je 10 kg* is refused against *5 EUR je 10 g*. In the
+  value form a German unit spelled out (*90 Meter* for *90 m*,
   *10 Kilogramm* for *10 kg*) or joined to the next word by a hyphen (*Das
   5 m-Kabel* for *5 m*) is refused. A German figure with one dot is read
   both as thousands and as a decimal, so a key *1.500 kg* agrees with *1,5
