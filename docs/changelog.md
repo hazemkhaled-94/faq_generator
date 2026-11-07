@@ -80,6 +80,33 @@ of two shop runs.
 
 <!-- v0.5.5 pending: N-148 -->
 
+### What the v0.5.5 fixes leave
+
+The reviewers named these limits of the fixes above, and each holds on the
+code of its fix.
+
+- A figure and its unit (N-145, N-147, N-157). A unit that goes on after a
+  slash still agrees with the unit alone: *5 km* with *5 km/h*, *5 m* with
+  *5 m/s*, *10 kg* with *10 kg/m²*. A figure the sentence denies still
+  agrees: a key *80 cm* with *Die Breite beträgt nicht 80 cm, sondern 90
+  cm.* English already read both so, and German now does too. The list and
+  explanation forms do not ask back a key's own unit, since N-157 acts on
+  the value form as decided, so there *je 10 kg* still agrees with *je 10
+  g*. In the value form a German unit spelled out (*90 Meter* for *90 m*,
+  *10 Kilogramm* for *10 kg*) or joined to the next word by a hyphen (*Das
+  5 m-Kabel* for *5 m*) is refused. A German figure with one dot is read
+  both as thousands and as a decimal, so a key *1.500 kg* agrees with *1,5
+  kg*, as the English *1,500 kg* already agreed with *1.5 kg*.
+- The arithmetic check (N-156) still reads *2000,- EUR* as a year, because
+  the price dash stands between the figure and its currency.
+- Sentence cuts (N-152). A figure before a lower-case word on the same line
+  no longer ends a sentence, so a heading that lost its line break joins
+  the sentence after it: *Stand 2024 die Bank informiert.* is one sentence,
+  a risk the decision accepted. A figure the parser left at the start of a
+  line after a finished sentence (*(2) 3*) now joins the next line's
+  clause. An all-capitals heading whose next word is also a currency code
+  joins its sentence: *SECTION 12 ALL SALES ARE FINAL.*
+
 ### Closed and accepted in v0.5.5
 
 N-110 and N-146 were closed as unreachable. No producer hands the bridge
