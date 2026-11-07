@@ -312,6 +312,22 @@ def test_a_range_written_with_spaces_is_not_a_count_of_the_facts(
     assert refused is None or "number of facts" not in refused[1], refused
 
 
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        ("zwischen 3667 und 5224 Tage", "3667–5224 Tage", "de"),
+        ("zwischen 3075 und 7469 Euro", "3075–7469 Euro", "de"),
+        ("zwischen 3965 und 4092 Stück", "3965–4092 Stück", "de"),
+        ("between 3667 and 5224 days", "3667–5224 days", "en"),
+        ("od 3667 do 5224 dni", "3667–5224 dni", "pl"),
+        ("από 3667 έως 5224 ημέρες", "3667–5224 ημέρες", "el"),
+    ],
+)
+def test_a_range_key_agrees_with_its_ends_written_apart(recovered, key, language):
+    """The range is its two figures, never a word of the key's own."""
+    assert agrees(recovered, key, language)
+
+
 def test_a_bare_count_equal_to_the_cited_facts_is_still_refused():
     """The control: the bare key 2 over two cited facts counts its own citations."""
     refused, _ = structural(

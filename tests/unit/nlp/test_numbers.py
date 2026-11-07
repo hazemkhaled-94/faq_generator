@@ -327,3 +327,57 @@ def test_a_language_with_no_entry_composes_no_ordinal_past_twelve(
     from nlp.analysis import _ordinals_past_twelve
 
     assert _ordinals_past_twelve(language) == {}
+
+
+@pytest.mark.parametrize(
+    ("text", "language", "wanted"),
+    [
+        ("The fee is 5 €.", "en", ("5",)),
+        ("Application fee: 42,803.48 €", "en", ("42803.48",)),
+        ("Der Zins beträgt 10-15 %.", "de", ("10", "15")),
+        ("Die Lieferung dauert 2-3 Tage.", "de", ("2", "3")),
+        ("Opłata wynosi 5 €.", "pl", ("5",)),
+        ("Η χρέωση είναι 5 €.", "el", ("5",)),
+    ],
+)
+def test_a_sign_is_no_number(text, language, wanted) -> None:
+    """A currency sign or a range's hyphen the tagger calls a numeral states no number."""
+    from nlp.analysis import numbers
+
+    assert numbers(text, language) == wanted
+
+
+def test_an_amount_beside_a_sign_states_one_number_however_it_is_grouped() -> None:
+    """`42,803.48 €` and `42803.48 €` are one amount, so one statement of it."""
+    from nlp.analysis import numbers
+
+    assert numbers("Application fee: 42,803.48 €", "en") == numbers(
+        "Application fee: 42803.48 €", "en"
+    )
+
+
+@pytest.mark.parametrize(
+    ("one", "other", "language"),
+    [
+        (
+            "Bestellungen ≥ 50 EUR werden versandkostenfrei geliefert.",
+            "Bestellungen ≤ 50 EUR werden versandkostenfrei geliefert.",
+            "de",
+        ),
+        (
+            "The transfer limit is ≤ 1,000 EUR per day.",
+            "The transfer limit is ≥ 1,000 EUR per day.",
+            "en",
+        ),
+        ("The tolerance is ± 2 mm.", "The tolerance is 2 mm.", "en"),
+        ("Saldo wynosi ≤ 300 EUR.", "Saldo wynosi ≥ 300 EUR.", "pl"),
+        ("Το υπόλοιπο είναι ≤ 300 EUR.", "Το υπόλοιπο είναι ≥ 300 EUR.", "el"),
+    ],
+)
+def test_a_comparison_sign_the_tagger_calls_a_numeral_keeps_two_rules_apart(
+    one, other, language
+) -> None:
+    """`≥ 50 EUR` and `≤ 50 EUR` are a rule and its opposite, never one statement twice."""
+    from nlp.analysis import numbers
+
+    assert numbers(one, language) != numbers(other, language)

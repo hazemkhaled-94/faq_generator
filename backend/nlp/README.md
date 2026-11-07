@@ -41,6 +41,10 @@ The splitter's cuts are corrected where a statement would not end:
   follows, or a figure on its line (`max. 3 days`, `Sect. 4.`; not `etc.`
   before a line opening `2.`).
 - Before a figure that ends a sentence on its line (`EUR 5.`, `Ziffer 3.`).
+- After an amount or other figure with no full stop, when its currency or a
+  lower-case word follows on its line (`1.000,18 EUR`, `56.455,35 EUR an`,
+  `gem. Ziff. 3 eine Gebühr`), and before a full stop standing alone. An
+  item's number or a table cell before a capitalised word keeps its cut.
 - Between an item's number and the item. Only a number opening its line
   numbers an item.
 
@@ -58,7 +62,8 @@ line before the model is called.
 ### Vocabulary
 
 Chunking writes onto every passage the lemmas of its nouns, proper nouns and
-adjectives, leaving out web addresses, lemmas with no letter and
+adjectives, leaving out web addresses, lemmas with no letter, words with no
+letter (a figure the lemmatiser gives a letter, `3.948.006,39r`, is none) and
 one-character lemmas. The topic model fits over them.
 
 `NLP_CAPITALISED_NOUNS` names the languages where capitalisation says nothing

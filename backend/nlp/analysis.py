@@ -728,7 +728,8 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
 
     A number keeps its surface form, because 12,5 and 12.5 are different
     values. A proper noun is lemmatised, so an inflection is not an addition,
-    and loses the sentence punctuation the tagger left on it ("m."). In a
+    and loses the sentence punctuation the tagger left on it ("m."); one
+    holding no letter keeps its text, as a number does. In a
     language that capitalises its nouns, a word the tagger calls a proper noun
     yet writes in lower case ("gelten") is no name and no unit.
     """
@@ -746,7 +747,10 @@ def _units(span: Doc | Span) -> tuple[str, ...]:
                 and not any(letter.isupper() for letter in token.text[1:])
             ):
                 continue
-            found.add(_bare(token.lemma_.casefold()))
+            # One with no letter is read as written: the German lemmatiser
+            # suffixes a range it calls a name (`3965–4092-`).
+            name = token.lemma_ if any(c.isalpha() for c in token.text) else token.text
+            found.add(_bare(name.casefold()))
     return tuple(sorted(found))
 
 
@@ -1266,7 +1270,8 @@ def _spoken(document: Doc | Span) -> dict[int, str | None]:
     as a scale or as the rest of it - `twenty-five` is 25, `twenty thousand`
     is 20000, `one hundred twenty` is 120 - and the later word then maps to
     None. Only a token tagged as a numeral is read, unless the word is
-    `UNAMBIGUOUS`.
+    `UNAMBIGUOUS`. Of a token holding no letter or digit only a math sign
+    is read (`≤`, `±`), never a currency sign or a dash.
     """
     spelled = _NUMBER_WORDS.get(document.doc.lang_, {})
     cardinals = CARDINALS.get(document.doc.lang_, {})
@@ -1302,8 +1307,16 @@ def _spoken(document: Doc | Span) -> dict[int, str | None]:
             if word in spelled:
                 out[token.i] = spelled[word]
             # A count past the table is read as written: `de_core_news_md` gives
-            # `zwanzig` no `like_num`, and it still differs from `dreißig`.
-            elif token.like_num or token.pos_ == "NUM":
+            # `zwanzig` no `like_num`, and it still differs from `dreißig`. Of a
+            # sign the tagger calls a numeral, a math sign is read, so `≤ 50` is
+            # no `≥ 50`; a currency sign or a range's `-` is none.
+            elif token.like_num or (
+                token.pos_ == "NUM"
+                and (
+                    any(char.isalnum() for char in token.text)
+                    or all(unicodedata.category(char) == "Sm" for char in token.text)
+                )
+            ):
                 out[token.i] = word
             continue
         compound = (
@@ -2627,8 +2640,11 @@ def _lemmas(document: Doc) -> list[str]:
         # The lemma, not the token: the lemma is what is stored, and a
         # lemmatiser handed a word from another language returns the
         # placeholder "--" for a token that is itself perfectly alphabetic.
-        # Any letter rather than every one, so `KI-Verordnung` is kept.
+        # Any letter rather than every one, so `KI-Verordnung` is kept. The
+        # token's own as well: a figure the lemmatiser suffixes a letter to
+        # (`3.948.006,39r`) is no word.
         and any(char.isalpha() for char in token.lemma_)
+        and any(char.isalpha() for char in token.text)
         and len(token.lemma_) > 1
         and not any(start <= token.idx < end for start, end in addresses)
     ]
@@ -2733,12 +2749,14 @@ def _boundaries(document: Doc) -> list[int]:
     slash, before a clause opened by a comma, after an abbreviation that
     ends no sentence on its line ("incl. VAT") or one followed by a
     lower-case word or, on its line, a figure ("max. 3 days", "Sect. 4."),
-    before a figure ending a sentence on its line ("EUR 5."), and between
-    an item's number, which opens its line, and the item, leaving
-    the number at the end of the item before. A citation resolves against
-    these sentences, so a cut there leaves a fact's evidence half a rule.
-    A cut is dropped in the first four cases and moved to the number in
-    the last. Only ever drops or moves a cut the parser made: a full stop
+    before a figure ending a sentence on its line ("EUR 5."), after an
+    amount with no end mark before its currency or a lower-case word on
+    its line ("1.000,18 | EUR", "56.455,35 EUR | an"), before a lone full
+    stop, and between an item's number, which opens its line, and the item,
+    leaving the number at the end of the item before. A citation resolves
+    against these sentences, so a cut there leaves a fact's evidence half a
+    rule. A cut is dropped in the first six cases and moved to the number
+    in the last. Only ever drops or moves a cut the parser made: a full stop
     with no space after it still ends a sentence, as it does in a PDF that
     lost its spaces.
 
@@ -2797,18 +2815,41 @@ def _boundaries(document: Doc) -> list[int]:
             previous.start_char + len(left) : sentence.end_char - len(right)
         ]
         figure = right[0].isdigit() and "\n" not in gap
+        # The sentence so far, not the parser's span, which may hold alone
+        # the figure it cut off the sentence before.
+        so_far = document.text[
+            document[starts[-1]].idx : previous.start_char + len(left)
+        ]
+        words = so_far.split()
+        amount = words[-1][-1].isdigit() or (
+            left[-1] not in _SENTENCE_ENDS
+            and len(words) > 1
+            and words[-2][-1].isdigit()
+            and is_currency(words[-1], document.lang_)
+        )
+        # An amount with no end mark, cut on its line from its currency or the
+        # rest of its clause, or a lone full stop: "1.000,18 | EUR",
+        # "56.455,35 EUR | an | .".
+        unended = "\n" not in gap and (
+            (
+                amount
+                and (
+                    right[0].islower() or is_currency(right.split()[0], document.lang_)
+                )
+            )
+            or not right.strip(_SENTENCE_ENDS)
+        )
         if (
             joined
+            or unended
             or right[0] in _CONTINUING
             or (figure and left[-1].isalnum())
             or (last_word in abbreviations and (right[0].islower() or figure))
             or (last_word in medial and not compound and "\n" not in gap)
         ):
             continue
-        # The line as the sentence so far reads it, not the parser's span,
-        # which may hold alone the figure it cut off the sentence before.
-        line = document.text[document[starts[-1]].idx : previous.start_char + len(left)]
-        line = line[line.rfind("\n") + 1 :]
+        # The line as the sentence so far reads it.
+        line = so_far[so_far.rfind("\n") + 1 :]
         if _ENUMERATOR.fullmatch(line.strip()):
             numbered = previous.start_char + len(left) - len(line.lstrip())
             token = next(one for one in document[starts[-1] :] if one.idx >= numbered)

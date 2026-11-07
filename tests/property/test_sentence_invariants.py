@@ -6,12 +6,8 @@ a shop or an office writes inside a sentence - an amount, a
 rate, `§ 3 Abs. 1`, `Article 5(2)`, an abbreviation of the language's tables
 - cuts nothing, and that a sentence ending on an amount is cut from the next.
 
-A bare figure right after an abbreviation and before a lower-case word
-(`Ziff. 3 für`) is C-220's, accepted, and is not drawn. An amount inside a
-sentence is drawn in English: in German the parse may cut it from its
-currency (T2-05), as the default parse does in French, Polish and Greek,
-where only references are written. A sentence ending on an amount is drawn
-in both configured languages, its amount without thousands marks.
+An amount is drawn in all five languages, with or without the language's
+thousands marks, inside a sentence and ending one.
 """
 
 from __future__ import annotations
@@ -48,6 +44,19 @@ _PAIRS = {
             "The refund goes to the original payment method.",
         ),
         ("The office charges {} for the application.", "The fee is due at once."),
+    ),
+    "fr": (
+        (
+            "La banque facture {} pour la carte de remplacement.",
+            "Le montant est débité du compte.",
+        ),
+    ),
+    "pl": (("Bank pobiera {} za kartę zastępczą.", "Kwota jest pobierana z konta."),),
+    "el": (
+        (
+            "Η τράπεζα χρεώνει {} για την κάρτα αντικατάστασης.",
+            "Το ποσό χρεώνεται στον λογαριασμό.",
+        ),
     ),
 }
 
@@ -105,8 +114,20 @@ _CITING = {
     ),
 }
 
-#: The decimal mark each language writes an amount with.
-_DECIMAL = {"de": ",", "en": "."}
+#: The marks each language writes an amount with: thousands, then decimal.
+#: French and Polish group by a space, Greek by a full stop.
+_MARKS = {
+    "de": (".", ","),
+    "en": (",", "."),
+    "fr": (" ", ","),
+    "pl": (" ", ","),
+    "el": (".", ","),
+}
+
+#: Where a rate is drawn beside an amount: the default parse of French,
+#: Polish and Greek now and then cuts a rate from its sign (`45,5 | % za`),
+#: which is no amount's currency.
+_RATED = frozenset({"de", "en"})
 
 
 #: A reference by label and number, as each language writes one: `{}` is
@@ -122,26 +143,22 @@ _REFERENCES = {
 
 @st.composite
 def _amount(draw, language: str) -> str:
-    """An amount with the language's decimal mark, or a rate."""
-    decimal = _DECIMAL[language]
-    whole = draw(st.integers(1, 99_999))
+    """An amount with the language's marks, grouped or not, or a rate."""
+    thousands, decimal = _MARKS[language]
+    whole = draw(st.integers(1, 9_999_999))
     cents = draw(st.integers(0, 99))
-    return draw(
-        st.sampled_from(
-            [f"{whole}{decimal}{cents:02d} EUR", f"{whole % 100}{decimal}5 %"]
-        )
-    )
+    written = f"{whole:,}".replace(",", thousands) if draw(st.booleans()) else whole
+    forms = [f"{written}{decimal}{cents:02d} EUR"]
+    if language in _RATED:
+        forms.append(f"{whole % 100}{decimal}5 %")
+    return draw(st.sampled_from(forms))
 
 
 @st.composite
 def _inside(draw):
-    """A language, two sentences and an amount or a reference put in the first.
-
-    An amount in English only: a German one is now and then cut from its
-    currency, with or without thousands marks, which is T2-05's.
-    """
+    """A language, two sentences and an amount or a reference put in the first."""
     language = draw(st.sampled_from(sorted(_CITING)))
-    if language == "en" and draw(st.booleans()):
+    if draw(st.booleans()):
         first, second = draw(st.sampled_from(_PAIRS[language]))
         return language, first.format(draw(_amount(language))), second
     first, second = draw(st.sampled_from(_CITING[language]))
@@ -152,7 +169,7 @@ def _inside(draw):
 
 @given(case=_inside())
 def test_a_figure_or_reference_inside_a_sentence_never_cuts_it(case) -> None:
-    """`1234,56 EUR`, `§ 3 Abs. 2` or `Article 5(2)` mid-sentence leave two sentences two."""
+    """`1.234,56 EUR`, `§ 3 Abs. 2` or `Article 5(2)` mid-sentence leave two sentences two."""
     language, first, second = case
 
     cut = [one.text for one in sentences(f"{first} {second}", language)]
@@ -222,17 +239,11 @@ def test_an_abbreviation_of_the_languages_tables_inside_a_sentence_never_cuts_it
     assert cut == [first, second], cut
 
 
-@given(
-    language=st.sampled_from(sorted(_PAIRS)),
-    pair=st.integers(0, 2),
-    amount=st.data(),
-)
-def test_a_sentence_ending_on_an_amount_is_cut_from_the_next(
-    language, pair, amount
-) -> None:
-    """`Die Gebühr beträgt 1234,56 EUR. Der Betrag ...` is two sentences."""
-    first, second = _PAIRS[language][pair]
-    ended = first.split("{}")[0] + amount.draw(_amount(language)) + "."
+@given(language=st.sampled_from(sorted(_PAIRS)), data=st.data())
+def test_a_sentence_ending_on_an_amount_is_cut_from_the_next(language, data) -> None:
+    """`Die Gebühr beträgt 1.234,56 EUR. Der Betrag ...` is two sentences."""
+    first, second = data.draw(st.sampled_from(_PAIRS[language]))
+    ended = first.split("{}")[0] + data.draw(_amount(language)) + "."
 
     cut = [one.text for one in sentences(f"{ended} {second}", language)]
 
