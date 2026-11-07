@@ -1272,15 +1272,14 @@ in bank, shop and administration wording.
   corpus's fines schedule. Round 3 found that the recast German range case
   (*Das Regal ist 100–110 cm hoch.* against *110 cm*) no longer tested the
   range rule: on v0.5.4 a German key in cm never agrees with a German
-  sentence, so the test passed with the rule removed. The tests and the
-  docstring are v0.5.4's again.
+  sentence, so the test passed with the rule removed. That defect is N-145,
+  fixed in v0.5.5: a German figure is now paired with the unit written after
+  it, as an English one is. The tests and the docstring are v0.5.4's again.
 - Cure: a recast in which every test still fails on its mutant, with a guard
   that reads casefolded words.
 - Reopens: such a recast, every test failing on its mutant (the range rule,
   the NUM-tag rule, `enumerates`), no football term left in the touched
   files, and the guard reading casefolded words.
-
-<!-- v0.5.5 pending: N-145 -->
 
 ### N-035: The 10x sizing test's 95th percentile measures the runner
 
