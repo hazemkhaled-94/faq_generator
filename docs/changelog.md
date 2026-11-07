@@ -181,7 +181,9 @@ Each track's new tests pass in three orders.
   of v0.5.4 is classified: killed by a new test, equivalent, a timeout, a
   real defect, or unclassified with what was tried. The track's findings are N-133, N-134
   and N-135.
-  <!-- v0.5.5 measure: release Nightly mutation -->
+  The release Nightly killed 5,163 of 5,548 mutants, 93.1%, with 380
+  surviving and 5 timing out; the fixes added 348 mutants to the six
+  modules. v0.5.4's Nightly killed 4,418 of 5,200, 85.0%.
 - T2, properties. 30 properties over the readers of figures, dates, units,
   ranges, references, sentence cuts, list depth and headings, in five
   languages: `tests/property` goes from 122 tests to 152. They pass at the
@@ -198,8 +200,10 @@ Each track's new tests pass in three orders.
   1 and 9 tests of `tests/static/test_hosted_profile.py` under load, which
   is N-136. Its waits are hang guards now, every process a test starts is
   reaped, and the store-lock test asserts overlap rather than wall time
-  (N-122). Five random orders on the release tree:
-  <!-- v0.5.5 measure: five orders -->
+  (N-122). Five random orders on the release tree each passed 12,561
+  tests (seeds 3858785887, 2870231464, 2858685199, 3109518483 and
+  454018818), and the release Nightly's own random order passed 12,576
+  (seed 2247129286).
 
 ## Found after v0.5.3, closed on 2026-11-04
 
