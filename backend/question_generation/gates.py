@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from itertools import combinations, pairwise
 from math import isclose
@@ -50,6 +51,7 @@ from nlp.analysis import (
     figures,
     fraction_value,
     interrogatives,
+    is_currency,
     is_number,
     normalised,
     ordinal,
@@ -205,8 +207,9 @@ def _written(text: str, language: str | None, ordinals: bool = False) -> dict[st
     `_COUNTED` holds the word for, because `elf` is eleven in German and a
     word in English; and only a token tagged `NUM`, because `außer Acht` is
     a phrase and `die Elf` a team, and both models tag those as nouns. An
-    ordinal word, an adjective, is `third` and `dritten`: the ordinal that
-    `3rd` and `3.` are, where `ordinals` asks for it, and not the count 3.
+    ordinal word, an adjective or one past twelve (`_ordinal_of`), is `third`
+    and `dritten`: the ordinal that `3rd` and `3.` are, where `ordinals` asks
+    for it, and not the count 3.
     What a text asserts of its own is not one: a recovery's `first month` is
     not a figure its key lacks.
     """
@@ -217,9 +220,25 @@ def _written(text: str, language: str | None, ordinals: bool = False) -> dict[st
             token.pos_ == "NUM" or counted[token.lower_] >= UNAMBIGUOUS
         ):
             written[token.lower_] = repr(float(counted[token.lower_]))
-        elif ordinals and token.pos_ in ("NUM", "ADJ") and (digits := ordinal(token)):
+        elif ordinals and (digits := _ordinal_of(token)):
             written[token.lower_] = _ordinal_value(digits)
     return written
+
+
+def _ordinal_of(token: Token) -> str | None:
+    """The digits an ordinal token names, where it reads as one.
+
+    Tagged a numeral or an adjective, or a word past twelve whatever its tag,
+    as `UNAMBIGUOUS` reads a cardinal: `dreiundvierzigsten` is the 43rd where
+    the tagger made a noun of it, while `Dritte` may be the third parties it
+    names.
+    """
+    digits = ordinal(token)
+    if digits and (
+        token.pos_ in ("NUM", "ADJ") or (token.is_alpha and int(digits) >= UNAMBIGUOUS)
+    ):
+        return digits
+    return None
 
 
 def _values(text: str, language: str | None) -> frozenset[str]:
@@ -2610,7 +2629,7 @@ def _ordinals(text: str, language: str | None) -> frozenset[str]:
     return frozenset(
         token.lemma_.casefold()
         for token in pipeline(language)(text)
-        if token.pos_ in ("NUM", "ADJ") and ordinal(token)
+        if _ordinal_of(token)
     )
 
 
@@ -2722,6 +2741,47 @@ def _named(
     return names(_values(question, language)) | headed
 
 
+def _units(
+    text: str, language: str | None
+) -> list[tuple[frozenset[str], frozenset[str], Token]]:
+    """Each figure of a text, by its readings, with the forms of the word right after it: its unit.
+
+    `content` reads a lower-case noun in a text that capitalises its nouns as
+    a foreign word, so `cm` is no content lemma of `Die Breite beträgt 80 cm.`
+    and is one of the bare key `80 cm`, which capitalises nothing. Read beside
+    its figure it is one unit in both, and `80 mm` is still not `80 cm`.
+    """
+    return [
+        (
+            frozenset().union(
+                *_ends(frozenset({_readings(token.text, language)}), language)
+            ),
+            frozenset({after.lemma_.casefold(), after.lower_, _bare(after.text)}),
+            after,
+        )
+        # A no-break space or a second space is a token of its own to the parse.
+        for token, after in pairwise(
+            one for one in parse(text, language) if not one.is_space
+        )
+        if any(char.isdigit() for char in token.text)
+        and any(char.isalpha() for char in after.text)
+    ]
+
+
+def _dropped(target: str, language: str | None, kept: frozenset[str]) -> frozenset[str]:
+    """The units `_units` reads in a key that `kept`, its compared lemmas, leaves out.
+
+    A key that capitalises its nouns drops its own `kg` as a foreign word, and
+    no lemma reads a one-letter `m`, so `je 10 kg` asked nothing back and
+    agreed with `je 10 g`.
+    """
+    return frozenset(
+        _bare(after.text)
+        for _, forms, after in _units(target, language)
+        if after.pos_ in _NAMING and not forms & kept
+    )
+
+
 def _back(
     recovered: str,
     target: str,
@@ -2739,9 +2799,12 @@ def _back(
     where the recovery says no more, see `_says_more`: a key naming the
     heading's `Tagesgeldkonto` that its clause never repeats could not have
     it come back. A lemma comes back under `_BRIDGED` parts of speech too,
-    where no negation denies it.
+    where no negation denies it, and a word written right after a figure comes
+    back where the recovery writes it right after the same figure, see `_units`.
     """
     wanted = _compared(target, language, form)
+    if form == AnswerForm.VALUE:
+        wanted |= _dropped(target, language, wanted)
     if form != AnswerForm.VALUE and question:
         wanted = (wanted - content(question, language)) or wanted
     if given and not _says_more(recovered, target, language, question):
@@ -2758,6 +2821,13 @@ def _back(
             for one in (token.lemma_.casefold(), token.text.casefold())
         )
         hit |= (wanted - hit) & bridged
+        said = _units(recovered, language)
+        hit |= (wanted - hit) & frozenset(
+            one
+            for values, forms, _ in _units(target, language)
+            if any(values & other and forms & written for other, written, _ in said)
+            for one in forms
+        )
     return wanted, hit
 
 
@@ -2868,6 +2938,8 @@ def agrees(
         return False
 
     wanted = content(target, language) - _ordinals(target, language)
+    if form == AnswerForm.VALUE:
+        wanted |= _dropped(target, language, _compared(target, language, form))
     # The unit a range carries, `cm` in `1–3 cm`, is a number to the tagger in
     # one sentence and a noun in the other, so its lemma cannot be compared
     # like a content word's: it has to come back by surface form or lemma, and
@@ -2917,6 +2989,11 @@ def agrees(
             )
         )
     left, right = normalised(recovered), normalised(target)
+    # A key that ends in a figure's unit ends where a word ends: `5 m` is not
+    # the `5 mm` it is the start of, nor `2 l` the `2 lb`.
+    words = [token for token in read if not token.is_punct]
+    if len(words) > 1 and is_number(words[-2]):
+        return bool(left) and re.search(re.escape(right) + r"(?!\w)", left) is not None
     return bool(left) and right in left
 
 
@@ -2967,16 +3044,30 @@ def adds_up(
         return None
     total = wanted[0]
 
-    stated = [one for text in passages for one in figures(text, language)]
+    stated: list[float] = []
+    shaped: list[bool] = []
+    for text in passages:
+        years = _years(text, language)
+        for one in figures(text, language):
+            stated.append(one)
+            shaped.append(years[one] > 0)
+            if years[one]:
+                years[one] -= 1
     available = stated[:_FIGURE_CAP]
     if len(available) < 2:
         return None
+    # Equal values are one value to a sum: one written as no year is no year.
+    amounts = frozenset(
+        one
+        for one, year in zip(available, shaped[:_FIGURE_CAP], strict=True)
+        if not year
+    )
 
     # Stated outright is not an aggregation, but it is not wrong arithmetic
     # either; `relabelled` stores a lookup wearing this name as what it is.
     return any(
         isclose(sum(combination), total, rel_tol=1e-14, abs_tol=1e-9)
-        and not _summed_years(combination, size)
+        and not _summed_years(combination, size, amounts)
         for size in range(1, _TERM_CAP + 1)
         for combination in combinations(available, size)
     )
@@ -3017,7 +3108,41 @@ def counts_something_else(
     )
 
 
-def _summed_years(combination: tuple[float, ...], size: int) -> bool:
+#: The shape of a year: four digits and no mark.
+_FOUR_DIGITS = re.compile(r"\d{4}")
+
+#: How far either side of a figure its currency is looked for, in characters:
+#: past any currency word, and short of reading the whole passage again for
+#: each figure.
+_NEAR = 40
+
+
+def _years(text: str, language: str | None) -> Counter[float]:
+    """The figures a passage writes in the shape of a year, by value.
+
+    Four digits with no mark and no currency beside them: `seit 2017` has
+    that shape, and `2.000,00 EUR`, `1,950 customers` and `2000 EUR` are
+    amounts in the year band that do not. A unit word beside the figure is
+    not read, so `2000 kg` keeps the shape: telling a unit apart takes a list
+    of units or a tag, and the English pipeline that reads the unconfigured
+    languages tags a Greek verb after a year as a noun.
+    """
+    found: Counter[float] = Counter()
+    for match in FIGURE.finditer(text):
+        if not _FOUR_DIGITS.fullmatch(match.group()):
+            continue
+        beside = (
+            text[max(0, match.start() - _NEAR) : match.start()].split()[-1:]
+            + text[match.end() : match.end() + _NEAR].split()[:1]
+        )
+        if not any(is_currency(word, language) for word in beside):
+            found[float(match.group())] += 1
+    return found
+
+
+def _summed_years(
+    combination: tuple[float, ...], size: int, amounts: frozenset[float]
+) -> bool:
     """Whether a total is two or more years added together.
 
     Refused rather than accepted, because the arithmetic is right and the
@@ -3025,7 +3150,11 @@ def _summed_years(combination: tuple[float, ...], size: int) -> bool:
     come to nothing. This corpus produced `Welche Jahreszahl ergibt sich aus
     dem Veroeffentlichungsjahr ... und der Versionsjahreszahl ...?` answered
     `4034`, which the model checking the arithmetic correctly confirmed.
+
+    A figure is a year only where every figure of its value has the shape of
+    one, see `_years`: `amounts` holds the values written otherwise.
     """
     return size > 1 and all(
-        one.is_integer() and int(one) in _YEAR for one in combination
+        one.is_integer() and int(one) in _YEAR and one not in amounts
+        for one in combination
     )

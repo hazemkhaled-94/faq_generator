@@ -17,7 +17,7 @@ from collections import Counter
 from math import ceil, floor, isinf, isnan
 
 import pytest
-from hypothesis import given
+from hypothesis import example, given
 from hypothesis import strategies as st
 
 from database.qa_generator import AnswerForm, Difficulty, QuestionType
@@ -534,11 +534,6 @@ _TERMS = {
 }
 
 
-def _a_year(cents: int) -> bool:
-    """Whether a whole amount has a year's value, which `adds_up` sums as years: T2-09."""
-    return cents % 100 == 0 and 1900 <= cents // 100 <= 2100
-
-
 def _marked(cents: int, marks: tuple[str, str]) -> str:
     """An amount in cents with a thousands mark (none if empty) and a decimal mark."""
     whole, part = divmod(cents, 100)
@@ -549,12 +544,15 @@ def _marked(cents: int, marks: tuple[str, str]) -> str:
 @given(
     language=st.sampled_from(sorted(_TERMS)),
     terms=st.lists(
-        st.integers(100_000, 24_999_999).filter(lambda cents: not _a_year(cents)),
+        st.integers(100_000, 24_999_999),
         min_size=2,
         max_size=4,
     ),
     grouped=st.booleans(),
 )
+# Whole amounts in the year band, which random draws rarely reach.
+@example(language="de", terms=[200_000, 200_000], grouped=True)
+@example(language="en", terms=[200_000, 200_000], grouped=False)
 def test_a_total_of_amounts_written_with_their_marks_adds_up_and_a_cent_more_does_not(
     language, terms, grouped
 ) -> None:

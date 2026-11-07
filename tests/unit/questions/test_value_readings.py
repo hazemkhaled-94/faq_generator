@@ -16,6 +16,7 @@ from question_generation.gates import (
     explains,
     fitting,
     periods,
+    recalled,
     relabelled,
     structural,
 )
@@ -721,3 +722,385 @@ def test_qa_questions_3_an_ordinal_past_twelve_agrees_with_its_figure(
 def test_qa_questions_3_an_ordinal_past_twelve_does_not_agree_with_its_cardinal():
     """`thirteenth` is the ordinal, never the count 13."""
     assert not agrees("It applies from the thirteenth month.", "13 months", "en")
+
+
+# N-145: a German key's lower-case unit, read beside its figure in a sentence that capitalises its nouns.
+_STATES_THE_UNIT = [
+    ("Die Breite des Schalters beträgt 80 cm.", "80 cm", "de"),
+    # A no-break space, or two spaces, between the figure and its unit.
+    ("Die Breite des Schalters beträgt 80\u00a0cm.", "80 cm", "de"),
+    ("Die Breite des Schalters beträgt 80  cm.", "80 cm", "de"),
+    ("Das Paket darf höchstens 30 kg wiegen.", "30 kg", "de"),
+    ("Die Glasplatte des Tresens ist 5 mm dick.", "5 mm", "de"),
+    ("Die Lieferung ist im Umkreis von 10 km kostenlos.", "10 km", "de"),
+    ("Das Regal ist 110 cm hoch.", "110 cm", "de"),
+    ("Die Flasche fasst 750 ml.", "750 ml", "de"),
+    ("Die Ladenfläche beträgt 20 m².", "20 m²", "de"),
+    ("Die Beratung am Schalter dauert 15 min.", "15 min", "de"),
+    ("Der Weg zum Bürgeramt ist 3 km lang.", "3 km", "de"),
+    (
+        "Die Regale stehen im Abstand von jeweils 2,4 m (8 ft) zur Wand.",
+        "jeweils 2,4 m (8 ft)",
+        "de",
+    ),
+    ("Das Passfoto darf höchstens 7,5 cm hoch sein.", "höchstens 7,5 cm", "de"),
+    ("Die Versicherung gilt für Pakete bis 30 kg.", "Pakete bis 30 kg", "de"),
+    ("Das Kabel ist 110 m lang.", "110 m", "de"),
+    ("Die Kündigungsfrist beträgt drei Monate.", "3 Monate", "de"),
+    ("The counter is 80 cm wide.", "80 cm", "en"),
+    ("The parcel may weigh at most 30 kg.", "30 kg", "en"),
+    ("The shelf is 110 cm high.", "110 cm", "en"),
+    ("La largeur du guichet est de 80 cm.", "80 cm", "fr"),
+    ("Szerokość okienka wynosi 80 cm.", "80 cm", "pl"),
+    ("Το πλάτος του γκισέ είναι 80 cm.", "80 cm", "el"),
+    ("Το βάρος του δέματος είναι 30 kg.", "30 kg", "el"),
+]
+
+
+@pytest.mark.parametrize(("recovered", "key", "language"), _STATES_THE_UNIT)
+def test_n145_a_unit_beside_its_figure_agrees(recovered, key, language):
+    """`80 cm` agrees with `Die Breite beträgt 80 cm.`, as it does in English."""
+    assert agrees(recovered, key, language, AnswerForm.VALUE)
+
+
+@pytest.mark.parametrize(("recovered", "key", "language"), _STATES_THE_UNIT)
+def test_n145_the_recall_reading_says_what_the_verdict_says(recovered, key, language):
+    """The recorded recall of a key that came back whole is no shortfall."""
+    assert recalled(recovered, key, language, AnswerForm.VALUE) in (None, 1.0)
+
+
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        # Another unit beside the same figure.
+        ("Die Breite des Schalters beträgt 80 mm.", "80 cm", "de"),
+        ("Das Paket darf höchstens 30 g wiegen.", "30 kg", "de"),
+        ("Das Paket darf höchstens 30 kg wiegen.", "30 g", "de"),
+        ("Die Lieferung ist im Umkreis von 10 m kostenlos.", "10 km", "de"),
+        ("Die Versicherung gilt für Pakete bis 30 g.", "Pakete bis 30 kg", "de"),
+        ("The counter is 80 mm wide.", "80 cm", "en"),
+        ("The parcel may weigh at most 30 g.", "30 kg", "en"),
+        ("La largeur du guichet est de 80 mm.", "80 cm", "fr"),
+        ("Le colis pèse au maximum 30 g.", "30 kg", "fr"),
+        ("Szerokość okienka wynosi 80 mm.", "80 cm", "pl"),
+        ("Paczka może ważyć maksymalnie 30 g.", "30 kg", "pl"),
+        ("Το πλάτος του γκισέ είναι 80 mm.", "80 cm", "el"),
+        ("Το δέμα ζυγίζει έως 30 g.", "30 kg", "el"),
+        # Another figure with the same unit.
+        ("Die Breite des Schalters beträgt 90 cm.", "80 cm", "de"),
+        ("The counter is 90 cm wide.", "80 cm", "en"),
+        # The key's unit beside another figure only.
+        ("Die Breite beträgt 80 mm, die Höhe 5 cm.", "80 cm", "de"),
+        ("The width is 80 mm and the height 5 cm.", "80 cm", "en"),
+        ("Die Breite beträgt nicht 80 cm, sondern 80 mm.", "80 km", "de"),
+    ],
+)
+def test_n145_another_unit_or_figure_still_disagrees(recovered, key, language):
+    """A unit counts only beside the same figure: `80 mm` is not `80 cm`."""
+    assert not agrees(recovered, key, language, AnswerForm.VALUE)
+
+
+# N-157: a unit the key writes right after a figure has to come back beside that figure, whatever the key's case.
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        (
+            "Der Versand kostet 5 EUR je 10 g.",
+            "Der Versand kostet 5 EUR je 10 kg.",
+            "de",
+        ),
+        (
+            "Der Versand kostet 5 EUR je 10 g.",
+            "Der Versand kostet 5 EUR je 10\u00a0kg.",
+            "de",
+        ),
+        (
+            "Der Versand kostet 5 EUR je 10 g.",
+            "Der Versand kostet 5 EUR je 10  kg.",
+            "de",
+        ),
+        ("Das Paket darf 10 g wiegen.", "Das Paket darf 10 kg wiegen.", "de"),
+        ("Die Breite beträgt 80 mm.", "Die Breite beträgt 80 cm.", "de"),
+        ("Das Kabel ist 60 mm lang.", "Das Kabel ist 60 m lang.", "de"),
+        ("Die Flasche fasst 2 kg Wasser.", "Die Flasche fasst 2 l Wasser.", "de"),
+        ("The cable is 60 mm long.", "The cable is 60 m long.", "en"),
+        ("The bottle holds 2 kg of water.", "The bottle holds 2 l of water.", "en"),
+        # The unit beside another figure does not stand in for it.
+        (
+            "Der Versand kostet 5 EUR je 10 g, ab 20 kg frei.",
+            "Der Versand kostet 5 EUR je 10 kg.",
+            "de",
+        ),
+        ("Shipping costs 5 EUR per 10 g.", "Shipping costs 5 EUR per 10 kg.", "en"),
+        ("L'envoi coûte 5 EUR par 10 g.", "L'envoi coûte 5 EUR par 10 kg.", "fr"),
+        ("Wysyłka kosztuje 5 EUR za 10 g.", "Wysyłka kosztuje 5 EUR za 10 kg.", "pl"),
+        (
+            "Η αποστολή κοστίζει 5 EUR ανά 10 g.",
+            "Η αποστολή κοστίζει 5 EUR ανά 10 kg.",
+            "el",
+        ),
+    ],
+)
+def test_n157_another_unit_beside_the_figure_disagrees(recovered, key, language):
+    """`je 10 g` is not `je 10 kg`, in a key that writes capitals as in one that does not."""
+    assert not agrees(recovered, key, language, AnswerForm.VALUE)
+
+
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        (
+            "Der Versand kostet 5 EUR je 10 kg.",
+            "Der Versand kostet 5 EUR je 10 kg.",
+            "de",
+        ),
+        (
+            "Der Versand kostet 5 EUR je 10\u00a0kg.",
+            "Der Versand kostet 5 EUR je 10 kg.",
+            "de",
+        ),
+        (
+            "Der Versand kostet 5 EUR je 10  kg.",
+            "Der Versand kostet 5 EUR je 10 kg.",
+            "de",
+        ),
+        ("Shipping costs 5 EUR per 10 kg.", "Shipping costs 5 EUR per 10 kg.", "en"),
+        ("L'envoi coûte 5 EUR par 10 kg.", "L'envoi coûte 5 EUR par 10 kg.", "fr"),
+        ("Wysyłka kosztuje 5 EUR za 10 kg.", "Wysyłka kosztuje 5 EUR za 10 kg.", "pl"),
+        (
+            "Η αποστολή κοστίζει 5 EUR ανά 10 kg.",
+            "Η αποστολή κοστίζει 5 EUR ανά 10 kg.",
+            "el",
+        ),
+        ("Das Kabel ist 60 m lang.", "Das Kabel ist 60 m lang.", "de"),
+        ("The cable is 60 m long.", "The cable is 60 m long.", "en"),
+        ("Die Rolle hält mindestens 40 m und höchstens 45 m.", "40–45 m", "de"),
+        (
+            "Ein Paket muss mindestens 250 g und höchstens 300 g wiegen.",
+            "250 bis 300 g",
+            "de",
+        ),
+        ("Die Frist beträgt 14 Tage ab Zugang.", "Die Frist beträgt 14 Tage.", "de"),
+    ],
+)
+def test_n157_the_same_unit_beside_the_figure_agrees(recovered, key, language):
+    """The key's unit comes back beside the same figure, so the key agrees."""
+    assert agrees(recovered, key, language, AnswerForm.VALUE)
+
+
+# N-147: a key that ends in a figure's unit is found in the recovery only where that unit ends.
+_FORMS = [AnswerForm.VALUE, AnswerForm.LIST, AnswerForm.EXPLANATION]
+
+
+@pytest.mark.parametrize("form", _FORMS)
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        ("Die Bankkarte ist 5 mm dick.", "5 m", "de"),
+        ("Das Paket wiegt 2 lb.", "2 l", "de"),
+        ("Die Wohnung hat 20 m² Wohnfläche.", "20 m", "de"),
+        ("Das Speicherpaket umfasst 5 GB.", "5 g", "de"),
+        ("The card is 5 mm thick.", "5 m", "en"),
+        ("The parcel weighs 2 lb.", "2 l", "en"),
+        ("The flat has 20 m² of floor space.", "20 m", "en"),
+        ("La carte a une épaisseur de 5 mm.", "5 m", "fr"),
+        ("Karta ma grubość 5 mm.", "5 m", "pl"),
+        ("Η κάρτα έχει πάχος 5 mm.", "5 m", "el"),
+    ],
+)
+def test_n147_a_longer_unit_beside_the_figure_disagrees(recovered, key, language, form):
+    """`5 m` is not found in `5 mm`, whatever form the answer takes."""
+    assert not agrees(recovered, key, language, form)
+
+
+@pytest.mark.parametrize("form", _FORMS)
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        ("Das Kabel im Sortiment ist 5 m lang.", "5 m", "de"),
+        ("Der Kanister fasst 2 l.", "2 l", "de"),
+        ("Dicke: 5 mm", "5 mm", "de"),
+        ("The cable is 5 m long.", "5 m", "en"),
+        ("The length is 5 m.", "5 m", "en"),
+        ("Le câble mesure 5 m.", "5 m", "fr"),
+        ("Kabel ma 5 m długości.", "5 m", "pl"),
+        ("Το καλώδιο έχει μήκος 5 m.", "5 m", "el"),
+        ("Ja, das Konto ist kostenlos.", "ja", "de"),
+        ("No, the office is closed on Sundays.", "No", "en"),
+        # A word, not a unit, goes on into its inflection, and stays found.
+        ("Eine sofortige Ausführung ist möglich.", "sofort", "de"),
+        ("Es fällt eine jährliche Gebühr an.", "jährlich", "de"),
+    ],
+)
+def test_n147_the_same_unit_and_words_are_still_found(recovered, key, language, form):
+    """The same unit, and a word going on into its inflection, keep agreeing."""
+    assert agrees(recovered, key, language, form)
+
+
+@pytest.mark.parametrize(
+    "form",
+    [
+        pytest.param(
+            AnswerForm.VALUE,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=(
+                    "the German tokenizer keeps 'm-Kabel' one token, so no unit "
+                    "is read beside the 5 and the value form asks for 'm' back"
+                ),
+            ),
+        ),
+        AnswerForm.LIST,
+        AnswerForm.EXPLANATION,
+    ],
+)
+def test_n147_the_same_unit_before_a_hyphen_is_still_found(form):
+    """`5 m` is found in `Das 5 m-Kabel`: the hyphen ends the unit."""
+    assert agrees("Das 5 m-Kabel ist vorrätig.", "5 m", "de", form)
+
+
+# N-151: an ordinal word past twelve is the ordinal it is, whatever the tagger tags it.
+@pytest.mark.parametrize(
+    ("recovered", "key", "language"),
+    [
+        ("ab der 5. Mahnung", "ab der dreiundvierzigsten Mahnung", "de"),
+        ("ab der zwölften Mahnung", "ab der dreiundvierzigsten Mahnung", "de"),
+        ("43 Mahnungen", "ab der dreiundvierzigsten Mahnung", "de"),
+        ("from the 7th reminder on", "from the seventieth reminder on", "en"),
+        ("à partir du 5e rappel", "à partir du quarante-troisième rappel", "fr"),
+        ("od 5. upomnienia", "od czterdziestego trzeciego upomnienia", "pl"),
+        ("από την 5η υπενθύμιση", "από την σαραντατρίτη υπενθύμιση", "el"),
+    ],
+)
+def test_n151_an_ordinal_word_past_twelve_disagrees_with_another_value(
+    recovered, key, language
+):
+    """`dreiundvierzigsten` asserts the 43rd, so `5.` and `43` do not give it back."""
+    assert not agrees(recovered, key, language, AnswerForm.VALUE)
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "language"),
+    [
+        ("ab der 43. Mahnung", "ab der dreiundvierzigsten Mahnung", "de"),
+        ("from the 70th reminder on", "from the seventieth reminder on", "en"),
+        (
+            "The refund is paid on the 70th day.",
+            "The refund is paid on the seventieth day.",
+            "en",
+        ),
+        ("ab der 20. Mahnung", "ab der zwanzigsten Mahnung", "de"),
+        (
+            "Zahlungen an Dritte sind gebührenpflichtig.",
+            "Zahlungen an Dritte sind gebührenpflichtig.",
+            "de",
+        ),
+    ],
+)
+def test_n151_an_ordinal_word_past_twelve_agrees_with_its_figure(
+    first, second, language
+):
+    """`seventieth` and `70th` agree both ways, however the tagger tags the word."""
+    assert agrees(first, second, language, AnswerForm.VALUE)
+    assert agrees(second, first, language, AnswerForm.VALUE)
+
+
+# N-156: a figure in the year band is a year only where it is written as one.
+@pytest.mark.parametrize(
+    ("answer", "passages", "language"),
+    [
+        (
+            "4000,00 EUR",
+            ["Kontoführung: 2.000,00 EUR.", "Versand: 2.000,00 EUR."],
+            "de",
+        ),
+        (
+            "4.000 EUR",
+            ["Das Tageslimit beträgt 1.950 EUR.", "Das Wochenlimit beträgt 2.050 EUR."],
+            "de",
+        ),
+        (
+            "4000 EUR",
+            [
+                "Die Kontoführung kostet 2000 EUR im Jahr.",
+                "Der Versand kostet 2000 EUR.",
+            ],
+            "de",
+        ),
+        (
+            "4000 EUR",
+            [
+                "Seit 2000 kostet die Kontoführung 2000 EUR.",
+                "Der Versand kostet 2000 EUR.",
+            ],
+            "de",
+        ),
+        (
+            "4,000 EUR",
+            ["The daily limit is 2,000 EUR.", "The card limit is 2,000 EUR."],
+            "en",
+        ),
+        (
+            "3,950 customers",
+            [
+                "The branch serves 1,950 customers.",
+                "The office serves 2,000 customers.",
+            ],
+            "en",
+        ),
+        ("EUR 4000", ["The fee is EUR 2000.", "The deposit is EUR 2000."], "en"),
+        (
+            "4 000 EUR",
+            ["Les frais sont de 2 000 EUR.", "Le dépôt est de 2 000 EUR."],
+            "fr",
+        ),
+        ("4 000 PLN", ["Opłata wynosi 2 000 PLN.", "Kaucja wynosi 2 000 PLN."], "pl"),
+        ("4.000 EUR", ["Το όριο είναι 2.000 EUR.", "Η χρέωση είναι 2.000 EUR."], "el"),
+    ],
+)
+def test_n156_a_total_of_amounts_in_the_year_band_adds_up(answer, passages, language):
+    """`2.000,00 EUR` twice is `4000,00 EUR`, and no sum of years."""
+    assert adds_up(answer, passages, language)
+
+
+@pytest.mark.parametrize(
+    ("answer", "passages", "language"),
+    [
+        (
+            "4034",
+            [
+                "Die Satzung wurde 2017 veröffentlicht.",
+                "Die Fassung von 2017 gilt seit März.",
+            ],
+            "de",
+        ),
+        (
+            "4034",
+            [
+                "The rules were published in 2017.",
+                "The version of 2017 applies since March.",
+            ],
+            "en",
+        ),
+        (
+            "4034",
+            [
+                "Le règlement a été publié en 2017.",
+                "La version de 2017 s'applique depuis mars.",
+            ],
+            "fr",
+        ),
+        (
+            "4034",
+            [
+                "Ο κανονισμός δημοσιεύθηκε το 2017.",
+                "Η έκδοση του 2017 ισχύει από τον Μάρτιο.",
+            ],
+            "el",
+        ),
+        ("4000", ["Seit 2000 gilt die Regel.", "Seit 2000 gilt die Gebühr."], "de"),
+    ],
+)
+def test_n156_two_years_added_together_are_still_refused(answer, passages, language):
+    """Two figures written as years come to no quantity, so their sum is refused."""
+    assert adds_up(answer, passages, language) is False
