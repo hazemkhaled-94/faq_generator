@@ -6,7 +6,7 @@ would reopen it. [changelog.md](changelog.md) lists what each release fixed,
 newest first.
 
 The QA pass of v0.5.3 brought every open item to an end state and accepted
-133 of them. The deep QA pass of v0.5.5 accepted 25 of its own items. This page holds the 158 accepted items, by
+133 of them. The deep QA pass of v0.5.5 accepted 25 of its own items. This page holds the 157 accepted items, by
 category:
 
 | Category | Items | Meaning |
@@ -15,7 +15,7 @@ category:
 | [Cost](#cost) | 65 | A cure needs a model call per row, a new service, a migration or a rework larger than the effect |
 | [Not measured: budget](#not-measured-budget) | 6 | A cure changes what is written and needs a model arm that v0.5.3's model budget did not cover |
 | [Domain-specific](#domain-specific) | 3 | Only a rule fitted to one corpus would cure it |
-| [Upstream](#upstream) | 2 | A dependency must change first |
+| [Upstream](#upstream) | 1 | A dependency must change first |
 
 Within a category, entries run in pipeline order: parsing and passages, facts
 and topics, questions and the release, then the platform. Each carries its
@@ -2321,21 +2321,6 @@ football passages open on a stray sign. (NEW-qa-parse-1.)
 - Cure: Docling mapping symbol-font bullets to a bullet and keeping the
   nesting.
 - Reopens: a Docling release that does.
-
-### N-001: filelock 3.32.7 carries 13 accepted advisories
-
-filelock 3.32.7 carries 13 advisories fixed only in 4.x, and litellm
-(1.106.2, the locked release, and 1.108.0, the latest release on 2026-11-04)
-requires filelock below 4.0. The 1.109.0rc1 pre-release allows filelock below
-5.
-Each advisory needs a second local account with write access to the lock's
-directory, which the single-account backend containers do not have.
-
-- Why accepted: the upgrade waits on litellm.
-- Cure: both locks upgraded to filelock 4, and the entries deleted from
-  `configs/audit-accepted.txt`.
-- Reopens: a litellm release that allows filelock 4. The entries expire on
-  2026-12-31 and are read again then.
 
 ## Reproducing this page
 

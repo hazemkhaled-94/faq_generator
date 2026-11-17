@@ -16,6 +16,19 @@ re-runs that operations.md lists for
 
 Fixed defects by release, newest review first.
 
+## Advisories found after v0.5.5
+
+Two advisories published on 2026-11-13 turned the Nightly's Advisories job
+red on the release commit from that night. A litellm release then let the
+filelock advisories go too. No code, setting or migration changes; the
+images rebuild with the new locks.
+
+| Item | Defect | Fix | Measure and bar |
+|---|---|---|---|
+| CVE-2026-126190 | soupsieve 3.0.4 matches a descendant selector in polynomial time. It is installed for Beautiful Soup, which Docling's HTML, email and XML readers use | soupsieve is 4.1.1 in `poetry.lock` and the backend image lock (`07ba0b89`) | `make audit` exits 0. The Nightly on `07ba0b89` was green; inside Ceilings only N-035's probe bar missed, at 2.14x |
+| CVE-2026-126360 | opentelemetry-api 1.45.1 parses a `traceparent` in quadratic time | OpenTelemetry is 1.45.2, and its contrib packages 0.66b2, in `poetry.lock` and both image locks (`07ba0b89`) | As above |
+| N-001 | filelock 3.32.7 carried 13 advisories fixed only in 4.x, held there by litellm | litellm 1.109.1, released on 2026-11-12, allows filelock below 5. litellm is 1.109.1 and filelock 4.2.10 in `poetry.lock` and the backend image lock, and `configs/audit-accepted.txt` accepts nothing. pydantic warns over `index` on litellm's two new thinking blocks as it does over `summary`, and the test settings ignore both by name | `make audit` finds no known vulnerability in the three locks with nothing accepted. Before the warning filter, 48 tests of the model layer failed on that warning and on nothing else |
+
 ## Found by the deep QA pass of 2026-11-04
 
 The deep QA pass after v0.5.4, for the final release of this development
@@ -215,7 +228,7 @@ details and matches the package READMEs v0.5.3 changed; two reviewers passed
 it, with no broken link or anchor on any page. Their review also found four
 repository pages that no longer said what the code does.
 
-N-001, the filelock advisories, stays accepted in [bugs.md](bugs.md#n-001-filelock-3327-carries-13-accepted-advisories).
+N-001, the filelock advisories, stayed accepted until litellm allowed filelock 4 ([fixed after v0.5.5](#advisories-found-after-v055)).
 litellm 1.108.0, its latest release on 2026-11-04, still requires filelock
 below 4.0, so `configs/audit-accepted.txt` accepts the 13 advisories until
 2026-12-31, and the ten Dependabot alerts on them are dismissed as a tolerable

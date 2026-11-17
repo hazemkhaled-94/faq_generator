@@ -381,6 +381,8 @@ filterwarnings = [
     # pydantic warns it cannot enforce that each time litellm builds a
     # response model. Fixed upstream in litellm's time, not ours.
     "ignore:Item 'summary' on TypedDict class 'ChatCompletionReasoningItem':UserWarning",
+    # The same for `index` on its two thinking blocks, from litellm 1.109.
+    "ignore:Item 'index' on TypedDict class 'ChatCompletion(Redacted)?ThinkingBlock':UserWarning",
 ]
 
 # Measured over every package a deployment runs, not just the backend: the
