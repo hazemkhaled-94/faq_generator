@@ -6,13 +6,13 @@ would reopen it. [changelog.md](changelog.md) lists what each release fixed,
 newest first.
 
 The QA pass of v0.5.3 brought every open item to an end state and accepted
-133 of them. The deep QA pass of v0.5.5 accepted 25 of its own items. This page holds the 157 accepted items, by
+133 of them. The deep QA pass of v0.5.5 accepted 25 of its own items, and a reader reported one more after the release. This page holds the 158 accepted items, by
 category:
 
 | Category | Items | Meaning |
 |---|---|---|
 | [Failed bar](#failed-bar) | 82 | Designs were built and measured against a bar written beforehand, and none passed. 19 are fixes withdrawn in v0.5.3 and 8 fixes withdrawn in v0.5.5 |
-| [Cost](#cost) | 65 | A cure needs a model call per row, a new service, a migration or a rework larger than the effect |
+| [Cost](#cost) | 66 | A cure needs a model call per row, a new service, a migration or a rework larger than the effect |
 | [Not measured: budget](#not-measured-budget) | 6 | A cure changes what is written and needs a model arm that v0.5.3's model budget did not cover |
 | [Domain-specific](#domain-specific) | 3 | Only a rule fitted to one corpus would cure it |
 | [Upstream](#upstream) | 1 | A dependency must change first |
@@ -20,8 +20,9 @@ category:
 Within a category, entries run in pipeline order: parsing and passages, facts
 and topics, questions and the release, then the platform. Each carries its
 register id: `C-` and three digits for the final review of 2026-10-22, `N-`
-for the QA pass of 2026-11-01 (`N-001` to `N-083`) and for the deep QA pass
-of v0.5.5 (`N-101` to `N-157`), and `K-001` for one entry with no other id.
+for the QA pass of 2026-11-01 (`N-001` to `N-083`), for the deep QA pass
+of v0.5.5 (`N-101` to `N-157`) and for a reader's report of 2026-11-25
+(`N-158`), and `K-001` for one entry with no other id.
 Older ids follow in brackets where an earlier review named the item.
 
 Figures come from hand reviews of full runs of the *Laws of the Game
@@ -1983,6 +1984,61 @@ of them in accepted questions.
   stored round-trip recoveries, on which that split passes the loosening
   bar.
 
+### N-158: A question stays unanswerable after an added document answers it
+
+A question written to have no answer is judged against the corpus as it
+stood when the question was written. `settle()` in
+[`checker.py`](../backend/question_generation/checker.py) reads the passages
+the question cites and, only where they are silent, the 20 passages of the
+rest of the corpus that the probe ranks nearest
+(`QUESTIONS_ELSEWHERE_PASSAGES`), with the cited passages' neighbours. If
+those settle it, the question is refused as `answerable_elsewhere`. Nothing
+reads the verdict again when a document added later answers the question.
+The next export still lists it as unanswerable, so a chatbot that answers it
+correctly from the new document is scored against a refusal that is out of
+date. Taking a document out, or re-chunking or re-extracting one, is
+handled: the questions resting on it go with it or are rejected as
+`source_changed`. Adding one is not.
+
+No step between the new document and the export checks the label again. A
+new answerable question is never refused as a twin of a stored unanswerable
+one (`rivals` in `gates.py`), and the fact the old question rests on is not
+dealt again, because the queue skips facts an accepted question already
+rests on. `make questions-balance`, which `make corpus` runs, re-verifies
+first, but `reverify` in
+[`service.py`](../backend/question_generation/service.py) calls no model.
+Its only reading of whether an unanswerable question has an answer is an
+answered question resting on the same fact, and a fact from the new
+document has a new id, so it never matches. `make questions-rejudge` asks
+the verifier again, but `make corpus` does not run it, and it skips every
+question that already carries a `settles` verdict under the current
+verifier prompt version. The verdict records that version, not the corpus
+it was judged against. The export reads the stored rows as they are.
+
+No test covers it. None adds a document that answers a stored unanswerable
+question or compares an incremental run with a build from scratch over the
+same documents, and the tests of `rejudge` and of the queue pin the skip as
+it is (`tests/unit/questions/test_rejudge.py`,
+`tests/integration/database/test_question_queue.py`). Read in the code, not
+run. A reader's comment on the Medium article about the tool reported it on
+2026-11-25. It comes on top of C-060, where the `settles` check already
+leaves about half of the answered unanswerable questions as settling
+nothing on a build from scratch (false-omission rate 0.46 to 0.53).
+
+- Why accepted: a build from scratch over the whole corpus after documents
+  are added avoids it, and the cure needs a migration and a verifier call
+  for each stale unanswerable question on every incremental run. No run has
+  measured how often it happens.
+- Cure: each unanswerable verdict records the corpus it was judged against,
+  and an incremental run asks `settles` again, over the new passages, of
+  each unanswerable question judged against an older corpus before the
+  export, keeping the stored passages and facts. A regression test adds a
+  document that answers a stored unanswerable question and compares the
+  incremental result with a build from scratch.
+- Reopens: incremental runs becoming the way a release is built, or a
+  chatbot reported marked wrong for answering from a document added after
+  the question.
+
 ### C-085: The API's reads, the pages and Dagster have no login
 
 The api guards its writes and `/settings` with `API_TOKEN`, but its other
@@ -2335,6 +2391,7 @@ Two analysts, working apart, confirmed each entry's mechanism in the code of
 v0.5.2, and its figures come from the run, replay or arm it names. The
 entries of v0.5.5 rest on a test or a probe that reproduces each, or for
 N-142 a reading of the code, and their figures on the replay, arm or review round
-they name.
+they name. N-158 rests on a reading of the code after v0.5.5 and has no
+measured figure.
 Re-measuring means taking a corpus through again and rewriting this page and
 [measurements.md](measurements.md).
